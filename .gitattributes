@@ -1,0 +1,24 @@
+# Fim de linha normalizado para LF no repositorio.
+#
+# Sem isto, o Windows grava CRLF e qualquer pessoa em Mac ou Linux abre um diff
+# em que o arquivo INTEIRO mudou, mesmo tendo mexido em uma linha. O
+# `text=auto` deixa o git guardar LF e entregar o fim de linha nativo de cada
+# maquina no momento do checkout.
+* text=auto
+
+# Binario: nao mexer nunca.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.svg text
+*.webm binary
+*.mp4 binary
+*.mp3 binary
+*.ogg binary
+*.woff binary
+*.woff2 binary
+
+# O .bat precisa de CRLF para o Windows executar sem engasgar.
+*.bat text eol=crlf

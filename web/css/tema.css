@@ -1,0 +1,4789 @@
+/* ------------------------------------------------------------------
+   Correiatendimentos, identidade visual
+   Preto e dourado, tirados do escudo da marca. Dourado e acento, nunca
+   fundo de area grande: em tela cheia ele cansa e perde a sobriedade que
+   a marca tem.
+   ------------------------------------------------------------------ */
+
+:root {
+  --preto: #050505;
+  --fundo: #0a0a09;
+  --superficie: #111110;
+  --superficie-2: #171613;
+  --superficie-3: #1f1d19;
+  --borda: #2a2620;
+  --borda-forte: #3a342a;
+
+  --ouro: #c9a961;
+  --ouro-claro: #eadfb4;
+  --ouro-escuro: #8a6e3a;
+  --ouro-fraco: rgba(201, 169, 97, 0.14);
+  --ouro-linha: rgba(201, 169, 97, 0.28);
+
+  /* Superficies douradas que nao sao pilula nem borda: o halo da tela de
+     entrada, a grade de pontos do painel de conversa, o balao da mensagem
+     enviada e o brilho do esqueleto. Cada tema declara a sua, no mesmo padrao
+     de --ouro-fraco e --ouro-linha. Em hex fixo o dourado do escuro ficava
+     preso no tema claro, onde some ou destoa. */
+
+  --texto: #efeae0;
+  --texto-suave: #a9a296;
+  /* O terceiro nivel de texto tambem passa 4,5:1, e nao so o primeiro e o
+     segundo. Em #847e76 ele caia para 4,19:1 sobre --superficie-3, que e a
+     superficie do cartao de kanban e do estado vazio: rotulo de grupo de menu e
+     papel da pessoa logada ficam na tela o dia inteiro para reprovarem no
+     contraste. O piso agora e 5,13:1, na pior das cinco superficies. */
+  --texto-fraco: #948d84;
+
+  /* Cada cor semantica tem tres papeis: o forte e a cor do texto, o fraco e o
+     fundo da pilula e o de linha e a borda. Os tres andam juntos ao trocar de
+     tema, senao a borda continua clara em volta de um texto ja escurecido. */
+  --sucesso: #3be090;
+  --alerta: #f2c328;
+  --alerta-fraco: rgba(217, 164, 65, 0.14);
+  --alerta-linha: rgba(217, 164, 65, 0.32);
+  /* Erro e info sobem de tom no escuro pelo mesmo motivo: os dois viram texto
+     de 11px dentro da propria pilula, e la o fundo ja esta clareado pela cor
+     fraca. Em #ce5d46 o selo de erro dava 3,60:1 sobre --superficie-3, e ele e
+     a unica resposta que a tela de entrada da quando o login falha. */
+  --erro: #f04667;
+  --erro-fraco: rgba(229, 127, 104, 0.15);
+  --erro-linha: rgba(229, 127, 104, 0.38);
+  --info: #7ea0d8;
+
+  /* Paleta das series de grafico. A ordem e a mesma do servidor
+     (servidor/rotas/painel.js), para a fatia nao trocar de cor entre a rosca e
+     a lista completa. Elas vivem aqui, e nao em hex no JavaScript, porque no
+     tema claro os mesmos valores somem: uma linha creme sobre cartao branco fica
+     em 1,3:1 e desaparece da tela. */
+  --serie-1: #e7d652;
+  --serie-2: #f2b023;
+  --serie-3: #f78825;
+  --serie-4: #ec632d;
+  --serie-5: #30d7d9;
+  --serie-6: #51bcff;
+  --serie-7: #8581fa;
+  --serie-8: #c657d7;
+
+  /* Faixa do gradiente dourado das superficies de acao (botao principal,
+     avatar, contador de nao lidas) e a cor do texto que fica em cima dela. A
+     faixa e estreita de proposito: com as duas pontas na mesma altura, uma cor
+     de texto so passa o contraste do comeco ao fim do gradiente. Com a faixa
+     larga de antes, um rotulo longo chegava na ponta escura em 3,9:1. */
+  --ouro-acao-de: #d2b473;
+  --ouro-acao-ate: #a4854a;
+  --sobre-ouro: #191204;
+
+  /* Uma escala so, aplicada sem excecao:
+     pequeno = campo e selo, raio = botao e item, grande = cartao e modal,
+     pilula = etiqueta e chip, circulo = avatar */
+  --raio-p: 3px;
+  --raio: 3px;
+  --raio-g: 3px;
+  --raio-pilula: 999px;
+  --sombra: 0 18px 40px rgba(0, 0, 0, 0.55);
+  --transicao: 150ms ease;
+
+  /* Veu que escurece a tela atras do modal e da gaveta. Era a unica cor escrita
+     direto na regra, em preto puro: sobre o bege do tema claro isso virava um
+     borrao duro, e nao a sombra da folha que esta por cima. */
+  --veu: rgba(0, 0, 0, 0.66);
+
+  /* Segoe UI Variable e a fonte de interface do Windows 11: e a que o sistema
+     ja renderiza melhor aqui, e nao depende de baixar nada. */
+  --fonte: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  /* Serifa so no titulo de tela. Constantia ja vem no Windows e e desenhada
+     para texto de documento: e a assinatura visual de um escritorio que
+     entrega peca, parecer, contrato. Custa zero byte de download. */
+  --fonte-titulo: Constantia, 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
+  --fonte-mono: 'Cascadia Mono', 'Consolas', 'SF Mono', monospace;
+
+  /* ----------------------------------------------------------------
+     Escala tipografica, quatro degraus com distancia de verdade.
+     A escala antiga tinha seis passos, mas quatro deles moravam entre 11 e
+     14px: ninguem enxerga a diferenca de um pixel, entao aquilo nao eram
+     quatro degraus, era um degrau com ruido. Medido nas treze telas, 96% do
+     texto caia nessa faixa e nove telas nao tinham nenhum texto acima de
+     20px. Sem hierarquia na letra, a unica forma de separar assunto virou a
+     caixa, e foi assim que o sistema chegou a 760 caixas com 612 delas
+     dentro de outra.
+     A diferenca entre texto principal e texto de apoio passa a ser COR e
+     PESO, que e o que a tipografia usa de verdade, e nao um pixel.
+     ---------------------------------------------------------------- */
+  --t-nota: 11px; /* rotulo em caixa alta, hora, legenda, autoria */
+  --t-base: 13px; /* o cavalo de batalha: linha, celula, botao, campo, apoio */
+  --t-leitura: 15px; /* so onde se le em vez de varrer: mensagem, texto longo */
+  --t-titulo: 21px; /* titulo de tela, em serifa. um por tela */
+  --t-numero: 34px; /* numero de metrica */
+
+  /* Os nomes antigos continuam existindo e apontam para os degraus novos:
+     sao 450 regras nesta folha, e trocar tudo de uma vez seria trocar o que
+     se ve pelo que se torce para nao ter quebrado. O 14px morre aqui, e era
+     ele que fazia titulo de cartao, rotulo forte e corpo saírem do mesmo
+     tamanho. */
+  --t-xs: var(--t-nota);
+  --t-sm: var(--t-base);
+  --t-md: var(--t-base);
+  --t-lg: var(--t-base);
+  --t-xl: var(--t-titulo);
+  --t-2xl: var(--t-numero);
+
+  /* Entrelinha: uma para numero e titulo, uma para corpo, uma para
+     paragrafo longo e prompt. Fora destas tres a linha volta a ser chutada. */
+  /* Um unico tracking de caixa alta, aplicado so pelo rotulo de secao.
+     Solto pelas regras, letter-spacing vira decoracao; com nome, vira sistema. */
+  --tr-alta: 0.08em;
+
+  --lh-apertada: 1.2;
+  /* 1.4 no lugar de 1.5: linha de lista e celula de tabela se varrem, nao se
+     leem, e a folga a mais so empurrava conteudo para fora da dobra. */
+  --lh-normal: 1.4;
+  --lh-solta: 1.55;
+
+  /* Escala de espaco, base 4. Todo gap, padding e margem sai daqui. Os
+     valores de meio caminho que existiam antes, 5, 6, 7, 11, 13 e 18,
+     nao aparecem mais em regra nenhuma. */
+  --e1: 4px;
+  --e2: 8px;
+  --e3: 12px;
+  --e4: 16px;
+  --e5: 24px;
+  --e6: 32px;
+  /* Os dois degraus de cima existem para separar SECAO. Sem eles, secao e
+     paragrafo ficavam com o mesmo respiro e a tela virava um bloco unico. */
+  --e7: 48px;
+  --e8: 64px;
+
+  /* Altura de controle, tres tamanhos. Todo botao e todo campo cai em um
+     deles, e sempre por min-height: com height fixa o conteudo que cresce
+     vaza para fora da caixa em vez de empurrar a caixa. */
+  --controle-p: 28px; /* botao pequeno e selo clicavel */
+  --controle: 36px; /* botao e campo padrao */
+  --controle-g: 44px; /* botao de destaque e campo da tela de entrada */
+
+  /* Largura de campo na barra de filtros, tres passos. Antes cada filtro
+     chegava com a propria largura escrita na mao, e a barra do painel sozinha
+     tinha seis numeros diferentes: 196, 160, 160, 160, 150 e 220. */
+  --filtro-estreito: 150px;
+  --filtro-base: 180px;
+  --filtro-largo: 260px;
+
+  /* Altura dos cartoes de grafico. Existem como token para o esqueleto de
+     carregamento e o cartao de verdade lerem a mesma medida: com o numero
+     escrito em cada lado, os dois saiam do lugar assim que um grafico mudasse
+     e a tela voltava a saltar quando o dado chegasse. */
+  --altura-metrica: 152px;
+  --altura-evolucao: 400px;
+  --altura-funil: 432px;
+  --altura-sankey: 260px;
+  --altura-rosca: 190px;
+}
+
+/* Tema claro, mesma marca, para quem trabalha em sala clara. */
+[data-tema='claro'] {
+  --preto: #f6f3ec;
+  --fundo: #f2eee5;
+  --superficie: #ffffff;
+  --superficie-2: #faf7f0;
+  --superficie-3: #f2ede1;
+  --borda: #e0d8c6;
+  --borda-forte: #cfc3a9;
+
+  --ouro: #846834;
+  --ouro-claro: #6b5429;
+  --ouro-escuro: #b99b57;
+  --ouro-fraco: rgba(138, 110, 58, 0.1);
+  --ouro-linha: rgba(138, 110, 58, 0.24);
+
+  /* Mesmas superficies douradas do bloco escuro, sobre o ouro do tema claro
+     (#846834) e com a opacidade subida: a mesma porcentagem que se enxerga
+     sobre preto desaparece sobre papel. */
+
+  --texto: #23201a;
+  --texto-suave: #5f594d;
+  --texto-fraco: #6e6759;
+
+  /* Cores semanticas do tema claro. Os valores do tema escuro sao claros demais
+     para virar texto sobre fundo branco: o selo de alerta cai para 2,2:1. Aqui
+     cada um vem escurecido ate passar os 4,5:1 sobre --superficie e
+     --superficie-2, mantendo o par forte/fraco: o forte e a cor do texto, o
+     fraco continua sendo o fundo da pilula. */
+  --sucesso: #007b49;
+  --alerta: #826704;
+  --alerta-fraco: rgba(129, 74, 8, 0.12);
+  --alerta-linha: rgba(129, 74, 8, 0.3);
+  --erro: #920030;
+  --erro-fraco: rgba(163, 47, 34, 0.12);
+  --erro-linha: rgba(163, 47, 34, 0.35);
+  --info: #2f5fa6;
+
+  /* Mesma ordem da paleta escura, escurecida para o traco de 2px continuar
+     visivel sobre o cartao branco. */
+  --serie-1: #766a03;
+  --serie-2: #765302;
+  --serie-3: #763b01;
+  --serie-4: #722300;
+  --serie-5: #007778;
+  --serie-6: #056190;
+  --serie-7: #4801cd;
+  --serie-8: #6b0179;
+
+  /* No claro a faixa de acao inverte: fundo dourado escuro e texto quase
+     branco, que e o unico jeito de o gradiente inteiro passar o contraste. */
+  --ouro-acao-de: #7a5f2e;
+  --ouro-acao-ate: #624b22;
+  --sobre-ouro: #fbf8f1;
+
+  --veu: rgba(48, 39, 20, 0.42);
+  --sombra: 0 14px 32px rgba(60, 48, 24, 0.12);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--fundo);
+  color: var(--texto);
+  font-family: var(--fonte);
+  font-size: var(--t-md);
+  line-height: var(--lh-normal);
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+a {
+  color: var(--ouro);
+  text-decoration: none;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--borda-forte);
+  border-radius: var(--raio-p);
+  border: 3px solid var(--fundo);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ouro-escuro);
+}
+
+/* ------------------------------------------------------------------
+   Entrada
+   ------------------------------------------------------------------ */
+
+.entrada {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: var(--e5);
+  /* Fundo chapado. O halo de 900x500 era o unico gradiente decorativo grande
+     do sistema, e aparecia na primeira tela que qualquer pessoa ve. */
+  background: var(--preto);
+}
+
+.entrada-cartao {
+  width: 100%;
+  max-width: 380px;
+  background: var(--superficie);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio-g);
+  padding: var(--e6) var(--e6) var(--e5);
+  box-shadow: var(--sombra);
+  text-align: center;
+}
+
+.entrada-cartao img {
+  width: 110px;
+  height: 110px;
+  object-fit: contain;
+  margin-bottom: var(--e4);
+}
+
+.entrada-cartao h1 {
+  margin: 0 0 var(--e1);
+  font-size: var(--t-xl);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* Caixa normal, como o resto do sistema. A assinatura da marca em CAIXA ALTA
+   espacada era a unica linha de texto corrido da interface nesse tratamento. */
+.entrada-cartao p {
+  margin: 0 0 var(--e5);
+  color: var(--texto-suave);
+  font-size: var(--t-sm);
+}
+
+.entrada-cartao form {
+  display: grid;
+  gap: var(--e3);
+  text-align: left;
+}
+
+/* A entrada e a unica tela com um campo so na frente da pessoa, entao aqui
+   o campo e o botao usam a altura de destaque. Alvo maior onde ele cabe,
+   sem esticar nenhuma outra tela. */
+.entrada-cartao form input,
+.entrada-cartao form .botao {
+  min-height: var(--controle-g);
+}
+
+.entrada-dica {
+  margin-top: var(--e5);
+  padding-top: var(--e4);
+  border-top: 1px solid var(--borda);
+  color: var(--texto-fraco);
+  font-size: var(--t-sm);
+  line-height: var(--lh-solta);
+}
+
+/* ------------------------------------------------------------------
+   Estrutura
+   ------------------------------------------------------------------ */
+
+.app {
+  display: grid;
+  grid-template-columns: 236px 1fr;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.lateral {
+  background: var(--preto);
+  border-right: 1px solid var(--borda);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.marca {
+  display: flex;
+  align-items: center;
+  gap: var(--e3);
+  padding: var(--e4) var(--e4) var(--e3);
+  border-bottom: 1px solid var(--borda);
+}
+
+.marca img {
+  width: 38px;
+  height: 38px;
+  object-fit: contain;
+  flex: none;
+}
+
+.marca-texto strong {
+  display: block;
+  font-size: var(--t-lg);
+  font-weight: 600;
+  letter-spacing: 0.015em;
+  color: var(--texto);
+}
+
+/* O nome completo do escritorio nao cabe em uma linha na lateral de 236px,
+   entao o espacamento afrouxa menos e a linha pode quebrar. */
+.marca-texto span {
+  display: block;
+  font-size: var(--t-xs);
+  line-height: var(--lh-apertada);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ouro);
+}
+
+.seletor-workspace {
+  margin: var(--e3) var(--e3) var(--e1);
+}
+
+.menu {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--e2) var(--e2) var(--e4);
+}
+
+.menu-grupo {
+  margin-top: var(--e4);
+  padding: 0 var(--e2) var(--e2);
+  font-size: var(--t-xs);
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--texto-fraco);
+}
+
+/* Na faixa estreita de 64px nao ha rotulo para clicar nem espaco para a seta:
+   o grupo vira uma secao separada por um fio, com os itens sempre a vista. */
+.menu-faixa {
+  margin-top: var(--e3);
+  padding-top: var(--e3);
+  border-top: 1px solid var(--borda);
+}
+
+/* O contador do sino fica ao lado dele, e nao por cima: sobreposto, ele cobria
+   o proprio icone quando o numero passava de dois digitos. */
+.caixa-sino {
+  position: relative;
+}
+
+.menu a {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  padding: var(--e1) var(--e3);
+  min-height: var(--controle);
+  margin-bottom: var(--e1);
+  border-radius: var(--raio);
+  color: var(--texto-suave);
+  font-size: var(--t-md);
+  border: 1px solid transparent;
+}
+
+.menu a:hover {
+  background: var(--superficie);
+  color: var(--texto);
+}
+
+/* Os treze itens da lateral sao o caminho principal do sistema e ficavam com o
+   anel padrao do navegador sobre o preto da faixa. O recuo e para dentro
+   porque o item ja encosta na borda da lateral. */
+.menu a:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: -2px;
+}
+
+.menu a.ativo {
+  background: var(--ouro-fraco);
+  border-color: var(--ouro-linha);
+  color: var(--ouro-claro);
+}
+
+.menu a svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  opacity: 0.9;
+}
+
+.menu .selo {
+  margin-left: auto;
+}
+
+.rodape-lateral {
+  border-top: 1px solid var(--borda);
+  padding: var(--e3);
+  display: flex;
+  align-items: center;
+  gap: var(--e3);
+}
+
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(150deg, var(--ouro-acao-de), var(--ouro-acao-ate));
+  color: var(--sobre-ouro);
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: var(--t-sm);
+  flex: none;
+}
+
+/* Mesmo circulo quando o avatar e a foto da pessoa em vez das iniciais. O
+   recorte e por cover: retrato em pe cabe sem esticar o rosto. */
+img.avatar {
+  object-fit: cover;
+  border: 1px solid var(--borda);
+}
+
+.rodape-lateral .quem {
+  min-width: 0;
+  flex: 1;
+}
+.rodape-lateral .quem strong {
+  display: block;
+  font-size: var(--t-md);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rodape-lateral .quem span {
+  display: block;
+  font-size: var(--t-xs);
+  color: var(--texto-fraco);
+}
+
+/* Coluna principal do aplicativo.
+   Escopada em filho direto de .corpo de proposito: "principal" tambem e o nome
+   da variante de botao em destaque (.botao.principal), e a regra solta atingia
+   todo botao primario do sistema, empilhando o icone acima do rotulo em vez de
+   deixar os dois lado a lado.
+   O escopo era .app > .principal ate a barra global entrar: com ela, a coluna
+   passou a morar dentro de .corpo e o seletor deixou de casar. A coluna perdeu
+   o flex, o conteudo cresceu ate a altura total e a rolagem interna nunca era
+   acionada, deixando o fim de toda tela longa inalcancavel. */
+.corpo > .principal {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--fundo);
+}
+
+.topo {
+  min-height: calc(var(--e6) + var(--e5));
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--e3);
+  padding: 0 var(--e5);
+  border-bottom: 1px solid var(--borda);
+  background: var(--superficie);
+}
+
+/* Titulo de tela: o unico texto grande da pagina, e o unico em serifa.
+   Peso 400 de proposito: serifa nesse corpo ja tem presenca, e o negrito so
+   deixaria pesado. */
+.topo h1 {
+  margin: 0;
+  font-family: var(--fonte-titulo);
+  font-size: var(--t-titulo);
+  font-weight: 400;
+  line-height: var(--lh-apertada);
+  letter-spacing: -0.01em;
+}
+
+.topo .subtitulo {
+  color: var(--texto-fraco);
+  font-size: var(--t-sm);
+}
+
+.topo .espaco {
+  flex: 1;
+}
+
+/* Margem de pe maior que a de cabeca, como em pagina impressa: a ultima
+   linha da tela precisa de chao embaixo, senao ela encosta na borda e o olho
+   nao sabe se acabou ou se falta rolar. */
+.conteudo {
+  flex: 1;
+  overflow: auto;
+  padding: var(--e5) var(--e5) var(--e8);
+}
+
+.conteudo.sem-respiro {
+  padding: 0;
+  overflow: hidden;
+}
+
+/* ------------------------------------------------------------------
+   Componentes
+   ------------------------------------------------------------------ */
+
+/* A secao deixou de ser caixa.
+   Moldura em tudo faz moldura parar de significar "isto e uma unidade" e
+   passar a significar "isto e um elemento": medido, o sistema tinha 760
+   caixas e 612 delas dentro de outra, tres niveis de profundidade. O olho
+   processa uns tres agrupamentos e desiste, e a tela vira planilha.
+   O que separa uma secao da seguinte agora e espaco e o filete do cabeco. */
+/* Timbre. Uma faixa de dois pixels de ouro atravessando o topo do aplicativo,
+   fixa. E o cabecalho do papel do escritorio: identidade forte por dois pixels
+   de altura, em vez de dourado espalhado por toda a tela. */
+.app::before {
+  content: '';
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 60;
+  height: 2px;
+  background: var(--ouro);
+  pointer-events: none;
+}
+
+.cartao {
+  padding: 0;
+}
+
+/* 48px entre secoes, e nao 16. Com 16 a distancia entre duas secoes era a
+   mesma que entre dois paragrafos da mesma secao, e nada se agrupava. */
+.cartao + .cartao {
+  margin-top: var(--e7);
+}
+
+.cartao + .cartao {
+  margin-top: var(--e4);
+}
+
+/* A margem acima existe para cartao empilhado embaixo de cartao, numa coluna.
+   Dentro de uma grade quem separa e o gap, e a margem entrava por cima dele:
+   empurrava do segundo cartao em diante 16px para baixo do primeiro, e a
+   fileira inteira ficava com o primeiro item desalinhado dos outros tres. */
+.grade-roscas > .cartao + .cartao {
+  margin-top: 0;
+}
+
+/* Cabeco de secao. E MENOR que o corpo, e e por isso que funciona: um cabeco
+   nao disputa atencao com o conteudo, ele delimita. Antes era 14px negrito,
+   o mesmo tamanho do texto embaixo, e nao delimitava nada: quem delimitava
+   era a borda do cartao. O filete faz o mesmo servico separando em vez de
+   cercar, com um decimo da tinta. */
+.cartao-titulo {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  margin: 0 0 var(--e3);
+  padding-bottom: var(--e2);
+  color: var(--texto-fraco);
+  font-size: var(--t-nota);
+  font-weight: 600;
+  letter-spacing: var(--tr-alta);
+  text-transform: uppercase;
+  /* O filete atravessa a coluna inteira e se repete em toda secao do sistema.
+     Em cinza puro e so um risco; no tom da casa, costura a pagina. */
+  border-bottom: 1px solid var(--ouro-linha);
+}
+
+.cartao-ajuda {
+  margin: 0 0 var(--e4);
+  color: var(--texto-suave);
+  font-size: var(--t-sm);
+  max-width: 76ch;
+}
+
+/* Cabecalho de cartao que abre e fecha. E um <button> de verdade, e sem regra
+   propria ele saia com a moldura e o fundo nativos do sistema: o primeiro
+   bloco da tela de Inicio virava uma faixa cinza de largura cheia com o texto
+   no meio, no lugar do cabecalho do cartao. */
+.cabecalho-recolhivel {
+  display: flex;
+  align-items: center;
+  gap: var(--e3);
+  width: 100%;
+  padding: 0;
+  margin: 0;
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cabecalho-recolhivel:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: 2px;
+}
+
+/* Dentro do cabecalho o titulo e a ajuda perdem a margem de baixo: quem separa
+   o cabecalho do corpo recolhivel e o proprio corpo, quando ele esta aberto. */
+.cabecalho-recolhivel .cartao-titulo,
+.cabecalho-recolhivel .cartao-ajuda {
+  margin: 0;
+}
+
+/* A seta acompanha o estado, pelo mesmo aria-expanded que o leitor de tela le,
+   e nao por um transform reescrito no atributo style a cada clique. O conjunto
+   de icones so tem a seta apontando para a esquerda: deitada para baixo quando
+   esta aberto, virada para a direita quando esta fechado. */
+.cabecalho-recolhivel[aria-expanded='true'] > svg:last-child {
+  transform: rotate(-90deg);
+}
+
+.cabecalho-recolhivel[aria-expanded='false'] > svg:last-child {
+  transform: rotate(180deg);
+}
+
+/* Cartao que so carrega formulario: cada campo ja traz a propria margem de
+   baixo, entao o respiro do cartao vira dobro na ultima linha. */
+.cartao.cartao-formulario {
+  padding-bottom: 0;
+}
+
+.grade {
+  display: grid;
+  gap: var(--e4);
+}
+.grade.g2 {
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+}
+.grade.g3 {
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+}
+.grade.g4 {
+  grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+}
+
+/* O campo e a classe, e nao a etiqueta: oito lugares montam o pseudo-campo
+   como <div>, porque um <label> em volta de uma lista de botoes repassaria o
+   clique para o primeiro deles. Presas em label.campo, as tres regras abaixo
+   nao valiam para nenhum desses oito, e o rotulo saia em corpo de 13px na cor
+   cheia ao lado de um rotulo de verdade, na mesma coluna. */
+.campo {
+  display: block;
+  margin-bottom: var(--e3);
+}
+
+/* Rotulo de campo em caixa normal. Formulario com tudo em CAIXA ALTA e
+   espacamento de letra faz cada campo gritar; num sistema com dezenas de
+   campos por tela, a leitura fica exaustiva. */
+.campo > span {
+  display: block;
+  margin-bottom: var(--e1);
+  font-size: var(--t-sm);
+  font-weight: 500;
+  color: var(--texto-suave);
+}
+
+.campo > small {
+  display: block;
+  margin-top: var(--e1);
+  color: var(--texto-fraco);
+  font-size: var(--t-xs);
+}
+
+/* Campo que e uma caixa de marcar: o rotulo fica ao lado da caixa, e nao acima
+   dela. Precisa de regra propria porque .campo > span ja diz display block e
+   ganha de qualquer utilitaria de tamanho, que tem especificidade menor. O
+   .campo repetido no seletor e o que empata a conta e deixa a ordem decidir. */
+.campo.campo-marcar,
+.campo.marcador {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+}
+
+.campo.campo-marcar > span,
+.campo.marcador > span {
+  display: inline;
+  margin-bottom: 0;
+  font-size: var(--t-md);
+  font-weight: 400;
+  color: var(--texto);
+}
+
+/* Rotulo de um controle que nao e campo de formulario. Mesmo corpo de
+   .campo > span: na barra de filtros do painel os dois aparecem lado a lado, e
+   qualquer diferenca de tamanho entre eles se enxerga na mesma fileira. */
+.rotulo-campo {
+  display: block;
+  margin-bottom: var(--e1);
+  font-size: var(--t-sm);
+  font-weight: 500;
+  color: var(--texto-suave);
+}
+
+/* Ajuda de campo que fica fora do <label>, entao .campo > small nao alcanca. */
+.ajuda-campo {
+  display: block;
+  margin-top: var(--e1);
+  color: var(--texto-fraco);
+  font-size: var(--t-xs);
+}
+
+/* Campo que esta na tela so para ser lido e copiado. */
+.campo-travado {
+  background: var(--superficie-3);
+  color: var(--texto-suave);
+  cursor: default;
+}
+
+/* Rotulo ao lado da caixa de marcar, fora de um campo. */
+.marcador {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  font-size: var(--t-md);
+  color: var(--texto);
+}
+
+/* A caixa de marcar nao estica junto com a linha. */
+.marcador input[type='checkbox'],
+.campo-marcar input[type='checkbox'] {
+  flex: none;
+  width: auto;
+  min-height: 0;
+}
+
+input[type='text'],
+input[type='email'],
+input[type='password'],
+input[type='number'],
+input[type='date'],
+input[type='time'],
+input[type='datetime-local'],
+input[type='search'],
+input[type='file'],
+input[type='color'],
+select,
+textarea {
+  width: 100%;
+  padding: var(--e2) var(--e3);
+  min-height: var(--controle);
+  background: var(--superficie-2);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  color: var(--texto);
+  outline: none;
+}
+
+/* Seletor de cor e seletor de arquivo: mesma moldura e mesma altura dos
+   outros campos, com respiro vertical menor. O que aparece dentro deles e a
+   amostra da cor ou o botao do proprio navegador, e nao uma linha de texto:
+   com o respiro cheio os dois passavam da altura de controle. */
+input[type='color'],
+input[type='file'] {
+  padding: var(--e1) var(--e3);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--ouro);
+  box-shadow: 0 0 0 3px var(--ouro-fraco);
+}
+
+textarea {
+  resize: vertical;
+  min-height: calc(var(--e6) * 3);
+  line-height: var(--lh-solta);
+}
+
+textarea.prompt {
+  min-height: calc(var(--e6) * 12);
+  font-family: var(--fonte-mono);
+  font-size: var(--t-md);
+  line-height: var(--lh-solta);
+}
+
+select {
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--texto-suave) 50%),
+    linear-gradient(135deg, var(--texto-suave) 50%, transparent 50%);
+  background-position: right var(--e4) top 50%, right calc(var(--e4) - 5px) top 50%;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: var(--e6);
+}
+
+.botao {
+  display: inline-flex;
+  /* Explicito de proposito: icone e rotulo ficam lado a lado, e nenhuma regra
+     de layout que apareca depois consegue empilhar os dois sem querer. */
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: var(--e2);
+  padding: var(--e2) var(--e4);
+  min-height: var(--controle);
+  border-radius: var(--raio);
+  border: 1px solid var(--borda-forte);
+  background: var(--superficie-2);
+  color: var(--texto);
+  cursor: pointer;
+  font-size: var(--t-md);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.botao:hover:not(:disabled) {
+  border-color: var(--ouro-linha);
+  background: var(--superficie-3);
+}
+
+.botao:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* O componente mais clicado do sistema tinha o anel padrao do navegador,
+   enquanto oito outros clicaveis ja desenhavam o proprio. Um foco so, em todo
+   lugar: quem navega pelo teclado nao precisa reaprender o sinal a cada tela. */
+.botao:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: 2px;
+}
+
+.botao.principal {
+  background: linear-gradient(160deg, var(--ouro-acao-de), var(--ouro-acao-ate));
+  border-color: var(--ouro-acao-ate);
+  color: var(--sobre-ouro);
+  font-weight: 600;
+}
+
+.botao.principal:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.botao.perigo {
+  color: var(--erro);
+  border-color: var(--erro-linha);
+}
+.botao.perigo:hover:not(:disabled) {
+  background: var(--erro-fraco);
+  border-color: var(--erro);
+}
+
+.botao.pequeno {
+  padding: var(--e1) var(--e3);
+  min-height: var(--controle-p);
+  font-size: var(--t-sm);
+}
+
+/* A terceira altura da escala. Sem ela, botao() aceitava opcoes.grande e
+   devolvia um botao de 36px sem reclamar de nada: o defeito ficava latente ate
+   a primeira tela pedir botao de destaque. */
+.botao.grande {
+  padding: var(--e3) var(--e5);
+  min-height: var(--controle-g);
+  font-size: var(--t-lg);
+}
+
+.botao.icone {
+  padding: 0;
+  width: var(--controle);
+  min-width: var(--controle);
+}
+
+/* Icone dentro de barra apertada: o quadrado acompanha a altura pequena,
+   senao o botao sai 36 de largura e 28 de altura. */
+.botao.pequeno.icone {
+  width: var(--controle-p);
+  min-width: var(--controle-p);
+}
+
+/* O icone acompanha a altura do botao. A regra precisa existir para os tres
+   passos: com um tamanho unico aqui, o atributo width do SVG era ignorado e o
+   botao pequeno e o de destaque saiam com o mesmo icone do padrao. */
+.botao svg {
+  width: 16px;
+  height: 16px;
+}
+
+.botao.pequeno svg {
+  width: 14px;
+  height: 14px;
+}
+
+.botao.grande svg {
+  width: 18px;
+  height: 18px;
+}
+
+.linha-botoes {
+  display: flex;
+  gap: var(--e2);
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* Selo virou rotulo, nao pilula.
+   Eram 134 pilulas nas treze telas, cada uma com fundo, borda e canto
+   arredondado, quase sempre em cima de outra superficie: o valor delas era o
+   texto, e o resto era moldura em volta de duas palavras. Como rotulo em caixa
+   alta pequena elas continuam se destacando do corpo, sem virar objeto.
+   A cor da categoria continua existindo: ela mora no .ponto interno. */
+.selo {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e1);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  /* Em --texto-fraco o rotulo sumia junto com a informacao mais consultada da
+     tela, que e o status. */
+  color: var(--texto-suave);
+  font-size: var(--t-nota);
+  font-weight: 600;
+  letter-spacing: var(--tr-alta);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.selo.ouro {
+  color: var(--ouro-claro);
+}
+.selo.sucesso {
+  color: var(--sucesso);
+}
+.selo.alerta {
+  color: var(--alerta);
+}
+.selo.erro {
+  color: var(--erro);
+}
+.selo.info {
+  color: var(--info);
+}
+
+/* Selo que responde ao clique. Ele e um <button> de verdade, entao vem depois
+   de .selo para empatar a especificidade e vencer pela ordem, e ganha a altura
+   que a escala reserva para selo clicavel: sem min-height ele parava em torno
+   de 26px, no meio do caminho entre dois passos.
+   O estado marcado se apoia em aria-pressed, e nao so na classe ouro escrita
+   pelo JavaScript: assim o desenho e o que o leitor de tela anuncia sao a mesma
+   informacao, e nao duas que podem se desencontrar. */
+.selo-clicavel {
+  min-height: var(--controle-p);
+  cursor: pointer;
+}
+
+.selo-clicavel:hover {
+  border-color: var(--ouro-linha);
+  color: var(--texto);
+}
+
+.selo-clicavel:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: 2px;
+}
+
+.selo-clicavel[aria-pressed='true'] {
+  background: var(--ouro-fraco);
+  border-color: var(--ouro-linha);
+  color: var(--ouro-claro);
+}
+
+/* Link de midia com aparencia de selo: mesmo foco visivel dos demais. */
+a.selo:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: 2px;
+}
+
+/* O ponto e o unico lugar onde a cor da categoria aparece agora. Com 8px ela
+   sumia; em 10px le de relance, que e para isso que ela existe. Continua sendo
+   grafico e nao texto, entao 3:1 basta, e toda a rampa passa. */
+.ponto {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: none;
+  display: inline-block;
+}
+
+/* Ponto maior, para a lista em que ele e a unica marca da cor do item. */
+.ponto-g {
+  width: var(--e3);
+  height: var(--e3);
+}
+
+/* Amostra de cor da legenda de grafico. O span e vazio e so recebe a cor da
+   serie no atributo style, entao sem medida aqui ele fica 0x0 e a legenda vira
+   uma lista de nomes sem ligacao com o que esta desenhado. */
+.legenda-cor {
+  width: var(--e2);
+  height: var(--e2);
+  border-radius: 50%;
+  flex: none;
+  display: inline-block;
+}
+
+/* Texto que existe so para o leitor de tela. A coluna de acoes de uma tabela,
+   por exemplo, tem cabecalho em branco na tela, mas quem navega sem ver precisa
+   de um nome para a coluna. */
+.apenas-leitor {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--t-md);
+}
+
+th {
+  text-align: left;
+  padding: var(--e2) var(--e3);
+  border-bottom: 1px solid var(--borda);
+  color: var(--texto-suave);
+  font-size: var(--t-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+td {
+  padding: var(--e2) var(--e3);
+  border-bottom: 1px solid var(--borda);
+  vertical-align: middle;
+}
+
+tbody tr:hover {
+  background: var(--superficie-2);
+}
+
+.tabela-rolagem {
+  overflow-x: auto;
+}
+
+/* Cabecalho que ordena a coluna. E um <button> dentro do <th>, e o unico reset
+   de botao do arquivo so acerta fonte e cor: sem esta regra o cabecalho saia
+   com a caixa cinza e a moldura nativas do sistema, com texto claro por cima,
+   dentro da propria linha de cabecalho da tabela. */
+.cabecalho-ordenavel {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e1);
+  padding: 0;
+  margin: 0;
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.cabecalho-ordenavel:hover {
+  color: var(--texto);
+}
+
+.cabecalho-ordenavel:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: 2px;
+}
+
+/* A seta da coluna que nao esta ordenando fica apagada: ela avisa que da para
+   clicar sem competir com a coluna que manda na ordem de verdade. O conjunto
+   de icones tem uma seta so, deitada; um quarto de volta faz dela o indicador
+   de direcao, e o lado sai do aria-sort que o th ja carrega. */
+.cabecalho-ordenavel > svg {
+  opacity: 0.35;
+  flex: none;
+  transform: rotate(-90deg);
+}
+
+.cabecalho-ordenavel.ativa {
+  color: var(--ouro-claro);
+}
+
+.cabecalho-ordenavel.ativa > svg {
+  opacity: 1;
+}
+
+th[aria-sort='ascending'] .cabecalho-ordenavel > svg {
+  transform: rotate(90deg);
+}
+
+th[aria-sort='descending'] .cabecalho-ordenavel > svg {
+  transform: rotate(-90deg);
+}
+
+/* Cartao que carrega tabela. A tabela vai ate a borda e quem da o respiro e a
+   celula, senao a faixa de respiro do cartao se soma a da celula e a tabela
+   nasce com o dobro de folga em volta. */
+.cartao.cartao-tabela {
+  padding: 0;
+}
+
+/* O rodape de paginacao e o unico pedaco do cartao de tabela que recebe
+   respiro proprio, e o fio de cima e o que o separa da ultima linha. */
+.rodape-tabela {
+  padding: var(--e3) var(--e4);
+  border-top: 1px solid var(--borda);
+}
+
+/* .paginacao ja traz o proprio fio; dentro do rodape ele seria o segundo. */
+.rodape-tabela > .paginacao {
+  padding-top: 0;
+  border-top: none;
+}
+
+/* Coluna da caixa de marcar: largura fixa, senao ela balanca conforme o
+   conteudo das linhas e o cabecalho da tabela sai do lugar a cada pagina. */
+.col-selecao,
+.coluna-selecao {
+  width: var(--e6);
+  padding-right: 0;
+}
+
+.vazio {
+  padding: var(--e6) var(--e5);
+  text-align: center;
+  color: var(--texto-fraco);
+}
+
+.vazio strong {
+  display: block;
+  color: var(--texto-suave);
+  font-size: var(--t-lg);
+  margin-bottom: var(--e2);
+}
+
+/* Abas ------------------------------------------------------------- */
+
+.abas {
+  display: flex;
+  gap: var(--e1);
+  border-bottom: 1px solid var(--borda);
+  overflow-x: auto;
+}
+
+.abas button {
+  padding: var(--e2) var(--e4);
+  min-height: var(--controle);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--texto-suave);
+  cursor: pointer;
+  font-size: var(--t-md);
+  white-space: nowrap;
+}
+
+.abas button:hover {
+  color: var(--texto);
+}
+
+.abas button:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: -2px;
+}
+
+.abas button.ativo {
+  color: var(--ouro-claro);
+  border-bottom-color: var(--ouro);
+}
+
+.abas .conta {
+  margin-left: var(--e2);
+  font-size: var(--t-xs);
+  color: var(--texto-fraco);
+}
+
+/* Atendimento ------------------------------------------------------ */
+
+.atendimento {
+  display: grid;
+  grid-template-columns: 320px 1fr 300px;
+  height: 100%;
+  min-height: 0;
+}
+
+.atendimento.sem-painel {
+  grid-template-columns: 320px 1fr;
+}
+
+/* Contatos e kanban usam a grade inteira, sem coluna de lista. Vira classe, e
+   nao um grid-template-columns escrito no atributo style a cada desenho:
+   inline vence media query, e abaixo de 1180px a largura das colunas ficava
+   congelada em 320px enquanto a terceira ja tinha sumido. */
+.atendimento.coluna-unica {
+  grid-template-columns: 1fr;
+}
+
+/* A tela de Agentes tambem tem tres colunas, mas com outras medidas: a lista
+   de agentes e mais estreita que a de conversas e a coluna de configuracao e
+   mais larga, porque ela carrega nove campos e nao um resumo de contato.
+   Sem esta regra a tela caia nas medidas de .atendimento. */
+.atendimento.colunas-agentes {
+  grid-template-columns: 260px 1fr 360px;
+}
+
+/* Moldura rolavel da visualizacao de contatos. Sem overflow e min-height 0 a
+   tabela empurra a grade de .atendimento, que tem height 100%, em vez de rolar
+   dentro da propria area. */
+.area-tabela {
+  padding: var(--e4);
+  overflow: auto;
+  min-height: 0;
+}
+
+/* Area do prompt do agente: ela ocupa o que sobra entre o cabecalho e a faixa
+   de contagem, e o texto rola dentro dela. */
+.painel-prompt {
+  flex: 1;
+  min-height: 0;
+  padding: var(--e4);
+  display: flex;
+}
+
+.painel-prompt > textarea {
+  flex: 1;
+  min-height: 0;
+  resize: none;
+}
+
+/* Caixa de conversa fora do painel de atendimento. No simulador ela nao tem
+   pai em coluna, entao o flex de .mensagens nao tem de onde tirar altura. */
+.conversa-simulada {
+  height: calc(var(--e6) * 12);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio-g);
+}
+
+.coluna {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--borda);
+  background: var(--superficie);
+}
+
+.coluna:last-child {
+  border-right: none;
+  border-left: 1px solid var(--borda);
+}
+
+.coluna-cabecalho {
+  flex: none;
+  padding: var(--e3);
+  border-bottom: 1px solid var(--borda);
+}
+
+.coluna-corpo {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+/* A linha da conversa e um <button> de verdade, entao aqui ela e devolvida ao
+   desenho de linha: largura cheia, texto a esquerda, fonte e cor herdadas e
+   nenhuma moldura. E navegacao principal, precisa chegar pelo Tab. */
+/* Linha da fila de conversas.
+   Ela era de 108px, e so seis conversas cabiam na tela: numa fila de quarenta,
+   sete rolagens para ver tudo. Um terco daquela altura era a faixa de selos,
+   que repetia o nome de quem atende em toda linha. O status virou o filete da
+   borda esquerda, que nao custa altura nenhuma. */
+.item-conversa {
+  display: flex;
+  gap: var(--e2);
+  width: 100%;
+  padding: var(--e2) var(--e3);
+  margin: 0;
+  border: none;
+  border-bottom: 1px solid var(--borda);
+  /* Depois do border:none de proposito. Declarado antes, a forma curta o
+     zerava e o filete de status simplesmente nao existia. */
+  border-left: 3px solid var(--marca-status, transparent);
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.item-conversa:hover {
+  background: var(--superficie-2);
+}
+
+.item-conversa:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: -2px;
+}
+
+.item-conversa.ativo {
+  background: var(--ouro-fraco);
+  box-shadow: inset 3px 0 0 var(--ouro);
+}
+
+.item-conversa .dados {
+  min-width: 0;
+  flex: 1;
+}
+
+.item-conversa .topo-item {
+  display: flex;
+  align-items: baseline;
+  gap: var(--e2);
+}
+
+.item-conversa .nome {
+  font-weight: 600;
+  font-size: var(--t-md);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.item-conversa .quando {
+  font-size: var(--t-xs);
+  color: var(--texto-fraco);
+  flex: none;
+}
+
+.item-conversa .previa {
+  font-size: var(--t-sm);
+  color: var(--texto-suave);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: var(--e1);
+}
+
+.item-conversa .marcas {
+  display: flex;
+  gap: var(--e1);
+  margin-top: var(--e2);
+  flex-wrap: wrap;
+}
+
+.nao-lidas {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 var(--e1);
+  border-radius: var(--raio-pilula);
+  background: var(--ouro-acao-de);
+  color: var(--sobre-ouro);
+  font-size: var(--t-xs);
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+}
+
+.conversa {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--fundo);
+}
+
+.conversa-cabecalho {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--e3);
+  padding: var(--e3) var(--e4);
+  border-bottom: 1px solid var(--borda);
+  background: var(--superficie);
+}
+
+.mensagens {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--e4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--e2);
+  /* Sem papel de parede pontilhado. Ele era textura atras de texto que se le
+     o dia inteiro, e textura atras de texto so atrapalha a leitura. */
+}
+
+/* Balao de conversa.
+   A medida vai em ch e nao em porcentagem: com min(70%, 620px) a linha
+   encolhia para uns 45 caracteres em tela cheia, e texto quebrado curto demais
+   cansa mais do que texto pequeno. 15px com entrelinha solta porque aqui se LE,
+   ao contrario da lista, que se varre. */
+.balao {
+  max-width: 62ch;
+  padding: var(--e2) var(--e3);
+  border-radius: var(--raio);
+  font-size: var(--t-leitura);
+  line-height: var(--lh-solta);
+  white-space: pre-wrap;
+  word-break: break-word;
+  border: 1px solid var(--borda);
+  background: var(--superficie-2);
+  align-self: flex-start;
+}
+
+/* A fala do escritorio se distingue por lado e por borda, nao por gradiente.
+   O gradiente era enfeite num elemento que aparece centenas de vezes por tela. */
+.balao.saida {
+  align-self: flex-end;
+  background: var(--ouro-fraco);
+  border-color: var(--ouro-linha);
+}
+
+.balao.nota {
+  align-self: center;
+  max-width: min(80%, 700px);
+  background: var(--alerta-fraco);
+  border-color: var(--alerta-linha);
+  border-radius: var(--raio);
+  font-size: var(--t-sm);
+}
+
+.balao.erro {
+  border-color: var(--erro);
+  background: var(--erro-fraco);
+}
+
+/* Data, hora e situacao de entrega, em --t-xs sobre --superficie-2. Com
+   --texto-fraco isso dava 4,26:1 no tema claro, abaixo do minimo do WCAG AA.
+   --texto-suave passa nos dois temas com folga. */
+.balao-rodape {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  margin-top: var(--e1);
+  font-size: var(--t-xs);
+  color: var(--texto-suave);
+}
+
+.balao-autor {
+  font-size: var(--t-xs);
+  color: var(--ouro);
+  margin-bottom: var(--e1);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.compositor {
+  flex: none;
+  border-top: 1px solid var(--borda);
+  background: var(--superficie);
+  padding: var(--e3);
+}
+
+.compositor textarea {
+  min-height: var(--controle-g);
+  max-height: 180px;
+  background: var(--superficie-2);
+}
+
+.aviso-janela {
+  padding: var(--e2) var(--e3);
+  margin-bottom: var(--e2);
+  border-radius: var(--raio);
+  background: var(--alerta-fraco);
+  border: 1px solid var(--alerta-linha);
+  color: var(--alerta);
+  font-size: var(--t-sm);
+}
+
+.propriedade {
+  padding: var(--e3);
+  border-bottom: 1px solid var(--borda);
+}
+
+.propriedade > span {
+  display: block;
+  font-size: var(--t-sm);
+  font-weight: 600;
+  color: var(--texto-suave);
+  margin-bottom: var(--e2);
+}
+
+/* Kanban ----------------------------------------------------------- */
+
+/* Area que empilha a faixa de aviso e o quadro. Ela e quem tem a altura da
+   tela; o quadro, com height 100%, precisa de um pai que ja saiba a sua. */
+.area-kanban {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* A faixa de aviso, quando existe, nao encosta na borda nem no quadro. */
+.area-kanban > .alerta-caixa {
+  flex: none;
+  margin: var(--e4) var(--e4) 0;
+}
+
+.area-kanban > .kanban {
+  flex: 1;
+  min-height: 0;
+}
+
+/* Contagem do que nao coube na coluna. Nao e um cartao: e uma nota no fim da
+   pilha, e por isso fica sem moldura e em texto de apoio. */
+.kanban-mais {
+  padding: var(--e2) var(--e3);
+  text-align: center;
+  color: var(--texto-fraco);
+  font-size: var(--t-xs);
+}
+
+.kanban {
+  display: flex;
+  gap: var(--e3);
+  padding: var(--e4);
+  height: 100%;
+  overflow-x: auto;
+  align-items: flex-start;
+}
+
+.kanban-coluna {
+  width: 268px;
+  flex: none;
+  background: var(--superficie);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio-g);
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.kanban-coluna > header {
+  padding: var(--e3);
+  border-bottom: 1px solid var(--borda);
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  font-size: var(--t-md);
+  font-weight: 600;
+}
+
+.kanban-lista {
+  padding: var(--e2);
+  overflow-y: auto;
+  display: grid;
+  gap: var(--e2);
+}
+
+/* Cartao tambem e botao: arrastar continua sendo do mouse, mas abrir a conversa
+   precisa funcionar pelo Tab e pelo Enter. */
+.kanban-cartao {
+  display: block;
+  width: 100%;
+  background: var(--superficie-2);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  padding: var(--e3);
+  margin: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: grab;
+}
+
+.kanban-cartao:hover {
+  border-color: var(--ouro-linha);
+}
+
+.kanban-cartao:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: 1px;
+}
+
+.kanban-cartao.arrastando {
+  opacity: 0.4;
+}
+
+.kanban-coluna.alvo {
+  border-color: var(--ouro);
+  box-shadow: 0 0 0 3px var(--ouro-fraco);
+}
+
+/* Painel ----------------------------------------------------------- */
+
+.metricas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--e3);
+}
+
+.metrica {
+  background: var(--superficie);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio-g);
+  padding: var(--e4);
+  border-top: 2px solid var(--ouro);
+}
+
+.metrica .valor {
+  /* O numero assume a cor da propria etapa. Sao seis numeros de 34px no alto
+     do painel: o maior pedaco de cor que a tela pode ter sem virar enfeite,
+     porque ali a cor diz de que etapa e o numero. Texto desse tamanho passa
+     com 3:1, e toda a rampa passa. */
+  color: var(--metrica-cor, var(--texto));
+  font-family: var(--fonte-titulo);
+  font-size: var(--t-2xl);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: var(--lh-apertada);
+  /* Numeros de mesma largura: sem isso a coluna de valores balanca a cada
+     atualizacao do painel. */
+  font-variant-numeric: tabular-nums;
+}
+
+/* Cartao de metrica que tambem e botao, na faixa da semana de Agendamentos.
+   Sem o reset ele herda a fonte e o centralizado do botao do sistema, dentro
+   de uma fileira de cartoes que sao <div>. */
+button.metrica {
+  width: 100%;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* O dia de hoje ganha o filete dourado em volta, e nao so no topo: o topo ja
+   e da cor da saude do dia, que vem do dado. */
+.metrica-hoje {
+  border-color: var(--ouro-linha);
+}
+
+/* O dia que o grafico esta mostrando. O estado ja estava no aria-pressed, que
+   e o que o leitor de tela anuncia; faltava o par visual, entao a fileira
+   inteira ficava igual e nao dava para saber qual dia estava aberto. */
+.metrica[aria-pressed='true'] {
+  background: var(--ouro-fraco);
+  border-color: var(--ouro);
+}
+
+/* Cartao de metrica que leva a outra tela. O realce e o mesmo no mouse e no
+   teclado: com o realce escrito em JavaScript no mouseenter, quem navega por
+   tabulacao passava pelo cartao sem sinal nenhum. */
+a.metrica:hover,
+a.metrica:focus-visible {
+  background: var(--superficie-2);
+  border-color: var(--ouro-linha);
+}
+
+a.metrica:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: 2px;
+}
+
+.metrica .rotulo {
+  font-size: var(--t-sm);
+  color: var(--texto-suave);
+  margin-top: var(--e1);
+}
+
+.metrica .nota {
+  font-size: var(--t-xs);
+  color: var(--texto-fraco);
+  margin-top: var(--e2);
+}
+
+.barra {
+  height: var(--e2);
+  border-radius: var(--raio-p);
+  background: var(--superficie-3);
+  overflow: hidden;
+}
+
+.barra > div {
+  height: 100%;
+  background: linear-gradient(90deg, var(--ouro-escuro), var(--ouro));
+}
+
+/* Modal ------------------------------------------------------------ */
+
+.cortina {
+  position: fixed;
+  inset: 0;
+  background: var(--veu);
+  backdrop-filter: blur(3px);
+  display: grid;
+  place-items: center;
+  padding: var(--e5);
+  z-index: 90;
+}
+
+.modal {
+  width: 100%;
+  max-width: 560px;
+  max-height: 88vh;
+  overflow: auto;
+  background: var(--superficie);
+  border: 1px solid var(--borda-forte);
+  border-radius: var(--raio-g);
+  box-shadow: var(--sombra);
+}
+
+.modal.largo {
+  max-width: 900px;
+}
+
+.modal > header {
+  padding: var(--e4) var(--e5);
+  border-bottom: 1px solid var(--borda);
+  display: flex;
+  align-items: center;
+  gap: var(--e3);
+}
+
+.modal > header h2 {
+  margin: 0;
+  font-size: var(--t-xl);
+  font-weight: 600;
+  flex: 1;
+}
+
+.modal > .corpo {
+  padding: var(--e5);
+}
+
+.modal > footer {
+  padding: var(--e4) var(--e5);
+  border-top: 1px solid var(--borda);
+  display: flex;
+  gap: var(--e2);
+  justify-content: flex-end;
+  background: var(--superficie-2);
+}
+
+/* Avisos ----------------------------------------------------------- */
+
+.avisos {
+  position: fixed;
+  right: var(--e5);
+  bottom: var(--e5);
+  display: grid;
+  gap: var(--e2);
+  z-index: 120;
+  max-width: 380px;
+}
+
+.aviso {
+  padding: var(--e3) var(--e4);
+  border-radius: var(--raio);
+  background: var(--superficie-3);
+  border: 1px solid var(--borda-forte);
+  border-left: 3px solid var(--ouro);
+  box-shadow: var(--sombra);
+  font-size: var(--t-md);
+}
+
+.aviso.erro {
+  border-left-color: var(--erro);
+}
+
+.aviso.saindo {
+  opacity: 0;
+}
+
+/* A saida do aviso so desliza para quem nao pediu menos movimento. Antes a
+   transicao era escrita inline pelo JavaScript e so nao virava movimento
+   indesejado porque a regra global de reduced-motion a zerava por tabela. */
+@media (prefers-reduced-motion: no-preference) {
+  .aviso {
+    transition: opacity 250ms ease;
+  }
+}
+.aviso.sucesso {
+  border-left-color: var(--sucesso);
+}
+
+@keyframes entrar {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* Diversos --------------------------------------------------------- */
+
+.dica {
+  padding: var(--e3) var(--e4);
+  border-radius: var(--raio);
+  background: var(--ouro-fraco);
+  border: 1px solid var(--ouro-linha);
+  color: var(--texto-suave);
+  font-size: var(--t-sm);
+  line-height: var(--lh-solta);
+}
+
+.dica strong {
+  color: var(--ouro-claro);
+}
+
+.alerta-caixa {
+  padding: var(--e3) var(--e4);
+  border-radius: var(--raio);
+  background: var(--alerta-fraco);
+  border: 1px solid var(--alerta-linha);
+  color: var(--texto-suave);
+  font-size: var(--t-sm);
+}
+
+.lista-simples {
+  display: grid;
+  gap: var(--e2);
+}
+
+/* Linha de lista: filete embaixo em vez de moldura em volta.
+   Uma lista de vinte itens com moldura em cada um desenha vinte objetos; com
+   filete desenha uma lista, que e o que ela e. O ultimo nao leva filete, senao
+   sobra um risco solto no fim. */
+.lista-item {
+  display: flex;
+  align-items: center;
+  gap: var(--e3);
+  padding: var(--e3) var(--e2);
+  border-bottom: 1px solid var(--borda);
+}
+
+.lista-item:last-child {
+  border-bottom: 0;
+}
+
+/* Item que deixa de ser uma linha e vira um bloco com formulario dentro. Sem
+   ele, o passo da sequencia de follow-up, com dois campos e uma caixa de
+   marcar, ficava espremido em uma linha horizontal so. */
+.lista-item.empilhado {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.lista-item:hover {
+  border-color: var(--ouro-linha);
+}
+
+/* Linha de rotulo e valor dentro de um cartao de dados: o rotulo ancora a
+   esquerda, o valor a direita. O respiro entre uma linha e outra ja vem do gap
+   de .lista-simples, entao aqui nao entra padding vertical. */
+.linha-dado {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--e3);
+  font-size: var(--t-sm);
+}
+
+.linha-dado > span:first-child {
+  color: var(--texto-fraco);
+  flex: none;
+}
+
+.linha-dado > span:last-child {
+  color: var(--texto-suave);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+/* Notificacao ja lida. A marca fica no fundo e na borda, nunca na opacidade do
+   item: baixar a opacidade do container arrasta o texto junto e derruba a
+   descricao de 7,5:1 para cerca de 3,4:1. */
+.lista-item.lida {
+  background: var(--fundo);
+  border-style: dashed;
+}
+
+.lista-item .corpo {
+  flex: 1;
+  min-width: 0;
+}
+
+.lista-item .titulo {
+  font-weight: 600;
+  font-size: var(--t-md);
+}
+
+.lista-item .desc {
+  font-size: var(--t-sm);
+  color: var(--texto-suave);
+  margin-top: var(--e1);
+}
+
+.mono {
+  font-family: var(--fonte-mono);
+  font-size: var(--t-sm);
+}
+
+td,
+.quando,
+.nao-lidas,
+.grafico-barras {
+  font-variant-numeric: tabular-nums;
+}
+
+h1,
+h2,
+.cartao-titulo,
+.entrada-cartao h1 {
+  font-family: var(--fonte-titulo);
+}
+
+.chave-copiavel {
+  display: flex;
+  gap: var(--e2);
+  align-items: center;
+  padding: var(--e3);
+  background: var(--superficie-3);
+  border: 1px dashed var(--ouro-linha);
+  border-radius: var(--raio);
+  word-break: break-all;
+}
+
+.carregando {
+  padding: var(--e6);
+  text-align: center;
+  color: var(--texto-fraco);
+}
+
+.mencao-chip {
+  display: inline-block;
+  padding: 0 var(--e2);
+  border-radius: var(--raio-p);
+  background: var(--ouro-fraco);
+  border: 1px solid var(--ouro-linha);
+  color: var(--ouro-claro);
+  font-size: var(--t-xs);
+  font-family: var(--fonte-mono);
+  margin: 0 var(--e1) var(--e1) 0;
+}
+
+/* O chip que insere a variavel no texto e um <button>: ele herda o desenho do
+   chip e ganha so o que faz dele um controle. Nao precisa de classe: o
+   elemento ja diz que da para clicar. */
+button.mencao-chip {
+  cursor: pointer;
+  font-family: var(--fonte-mono);
+}
+
+button.mencao-chip:hover {
+  border-color: var(--ouro);
+}
+
+button.mencao-chip:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: 2px;
+}
+
+.mencao-chip.invalida {
+  background: var(--erro-fraco);
+  border-color: var(--erro);
+  color: var(--erro);
+}
+
+/* Faixa de leitura do grafico de evolucao. Ela e transparente de proposito,
+   entao o foco do teclado precisa de contorno proprio para aparecer. */
+.grafico-faixa:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: -2px;
+}
+
+.grafico-barras {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--e1);
+  height: calc(var(--e6) * 4);
+  padding-top: var(--e3);
+}
+
+.grafico-barras > div {
+  flex: 1;
+  min-width: 4px;
+  background: linear-gradient(180deg, var(--ouro), var(--ouro-escuro));
+  border-radius: var(--raio-p) var(--raio-p) 0 0;
+  position: relative;
+  min-height: 2px;
+}
+
+/* Coluna empilhada: aqui a coluna e so o trilho, quem pinta sao os pedacos
+   dentro dela. Sem tirar o gradiente da regra acima, o dourado continuava
+   aparecendo por baixo nos cantos arredondados de cada coluna. */
+.grafico-barras > .coluna-empilhada {
+  background: none;
+  border-radius: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  overflow: hidden;
+}
+
+/* So o pedaco de cima e arredondado, e ele e o primeiro do empilhamento. */
+.coluna-empilhada > div:first-child {
+  border-radius: var(--raio-p) var(--raio-p) 0 0;
+}
+
+
+@media (max-width: 1180px) {
+  .atendimento {
+    grid-template-columns: 280px 1fr;
+  }
+  /* As duas variacoes tem especificidade maior que .atendimento e nao cairiam
+     na regra acima sozinhas. A de coluna unica fica de fora de proposito: ela
+     ja e 1fr em qualquer largura. A terceira coluna some logo abaixo, entao as
+     duas que ficam repartem a largura como no atendimento. */
+  .atendimento.colunas-agentes,
+  .atendimento.sem-painel {
+    grid-template-columns: 240px 1fr;
+  }
+  .atendimento .coluna:last-child {
+    display: none;
+  }
+}
+
+@media (max-width: 860px) {
+  .app {
+    grid-template-columns: 64px 1fr;
+  }
+  .marca-texto,
+  .menu a span,
+  .seletor-workspace,
+  .rodape-lateral .quem {
+    display: none;
+  }
+  .menu a {
+    justify-content: center;
+  }
+  .atendimento {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ------------------------------------------------------------------
+   Carregamento
+   O texto "Carregando..." nao diz nada sobre o que vem. O esqueleto
+   desenha a forma do conteudo que esta chegando, entao a tela nao pula
+   quando ele chega.
+   ------------------------------------------------------------------ */
+
+/* Retangulo chapado. Antes tinha uma barra de brilho correndo por cima: em
+   tela que carrega vinte vezes por dia, movimento decorativo vira ruido, e
+   ainda chamava atencao para o lugar onde nao havia nada ainda. O position e o
+   overflow saíram junto, porque existiam so para conter aquela barra. */
+.esqueleto {
+  background: var(--superficie-2);
+  border-radius: var(--raio-p);
+}
+
+.esqueleto-linha {
+  height: var(--e3);
+  margin-bottom: var(--e3);
+}
+
+.esqueleto-bloco {
+  height: calc(var(--e6) * 2.5);
+  margin-bottom: var(--e3);
+}
+
+/* ------------------------------------------------------------------
+   Movimento
+   Cada animacao aqui responde a uma pergunta do atendente:
+   "chegou mensagem?", "o agente esta escrevendo?", "meu clique pegou?".
+   Nada se mexe por enfeite, em tela que fica aberta o dia inteiro,
+   movimento sem motivo vira ruido.
+   ------------------------------------------------------------------ */
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Mensagem nova: sobe um pouco ao entrar, para o olho perceber que a
+     lista mudou sem precisar reler tudo. */
+  .balao {
+    animation: subir 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .aviso {
+    animation: entrar 180ms ease;
+  }
+
+  /* O agente esta compondo a resposta dentro do delay de agrupamento. */
+  .digitando span {
+    animation: pontinho 1.2s ease-in-out infinite;
+  }
+  .digitando span:nth-child(2) {
+    animation-delay: 0.15s;
+  }
+  .digitando span:nth-child(3) {
+    animation-delay: 0.3s;
+  }
+
+  /* Confirmacao fisica do clique. */
+  .botao:active:not(:disabled) {
+    transform: translateY(1px);
+  }
+  .item-conversa:active {
+    transform: scale(0.995);
+  }
+}
+
+
+@keyframes subir {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@keyframes pontinho {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: translateY(0);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+.digitando {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e1);
+  padding: var(--e2) var(--e3);
+  align-self: flex-start;
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  border-bottom-left-radius: 3px;
+  background: var(--superficie-2);
+}
+
+.digitando span {
+  width: var(--e1);
+  height: var(--e1);
+  border-radius: var(--raio-pilula);
+  background: var(--ouro);
+  display: block;
+}
+
+
+/* ------------------------------------------------------------------
+   Transicao dos elementos que respondem ao ponteiro
+   Um guarda so para todos. Antes cada regra trazia a propria linha de
+   transition solta, e ela so nao virava movimento indesejado porque a
+   regra global de reduce, mais abaixo, zerava a duracao por tabela.
+   Depender de um efeito colateral e o que fazia dois padroes conviverem
+   no mesmo arquivo: aqui a intencao fica escrita.
+   ------------------------------------------------------------------ */
+
+@media (prefers-reduced-motion: no-preference) {
+  .menu a,
+  textarea,
+  .botao,
+  .abas button,
+  .item-conversa,
+  .kanban-cartao,
+  a.metrica,
+  .lista-item,
+  .menu-grupo-botao,
+  .config-indice a,
+  .selo-clicavel,
+  .cabecalho-ordenavel,
+  .cabecalho-recolhivel {
+    transition: var(--transicao);
+  }
+}
+
+/* Quem pediu menos movimento nao recebe movimento nenhum. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* Primeira visita segue o tema do sistema. Depois disso vale a escolha
+   guardada, que o app grava em data-tema. */
+@media (prefers-color-scheme: light) {
+  :root:not([data-tema='escuro']) {
+    --preto: #f6f3ec;
+    --fundo: #f2eee5;
+    --superficie: #ffffff;
+    --superficie-2: #faf7f0;
+    --superficie-3: #f2ede1;
+    --borda: #e0d8c6;
+    --borda-forte: #cfc3a9;
+    --ouro: #846834;
+    --ouro-claro: #6b5429;
+    --ouro-escuro: #b99b57;
+    --ouro-fraco: rgba(138, 110, 58, 0.1);
+    --ouro-linha: rgba(138, 110, 58, 0.24);
+    --texto: #23201a;
+    --texto-suave: #5f594d;
+    --texto-fraco: #6e6759;
+
+    /* Cores semanticas do tema claro. Os valores do tema escuro sao claros demais
+       para virar texto sobre fundo branco: o selo de alerta cai para 2,2:1. Aqui
+       cada um vem escurecido ate passar os 4,5:1 sobre --superficie e
+       --superficie-2, mantendo o par forte/fraco: o forte e a cor do texto, o
+       fraco continua sendo o fundo da pilula. */
+    --sucesso: #007b49;
+    --alerta: #826704;
+    --alerta-fraco: rgba(129, 74, 8, 0.12);
+    --alerta-linha: rgba(129, 74, 8, 0.3);
+    --erro: #920030;
+    --erro-fraco: rgba(163, 47, 34, 0.12);
+    --erro-linha: rgba(163, 47, 34, 0.35);
+    --info: #2f5fa6;
+
+    /* Mesma ordem da paleta escura, escurecida para o traco de 2px continuar
+       visivel sobre o cartao branco. */
+    --serie-1: #766a03;
+    --serie-2: #765302;
+    --serie-3: #763b01;
+    --serie-4: #722300;
+    --serie-5: #007778;
+    --serie-6: #056190;
+    --serie-7: #4801cd;
+    --serie-8: #6b0179;
+
+    /* No claro a faixa de acao inverte: fundo dourado escuro e texto quase
+       branco, que e o unico jeito de o gradiente inteiro passar o contraste. */
+    --ouro-acao-de: #7a5f2e;
+    --ouro-acao-ate: #624b22;
+    --sobre-ouro: #fbf8f1;
+
+    --veu: rgba(48, 39, 20, 0.42);
+    --sombra: 0 14px 32px rgba(60, 48, 24, 0.12);
+  }
+}
+
+/* ------------------------------------------------------------------
+   Seletor de periodo
+   O painel abre ancorado no botao que o chamou. Fica acima do conteudo
+   da pagina, mas abaixo da cortina do modal (90), da gaveta (100) e dos
+   avisos (120), para a pilha de camadas nunca se inverter.
+   ------------------------------------------------------------------ */
+
+.seletor-periodo {
+  position: relative;
+  display: inline-flex;
+}
+
+/* Enquanto o painel esta aberto, o botao que o chamou fica marcado, no mesmo
+   tratamento do atalho ativo. Sem isso nada na barra diz qual controle abriu. */
+.seletor-periodo.aberto > .botao {
+  border-color: var(--ouro-linha);
+  background: var(--ouro-fraco);
+  color: var(--ouro-claro);
+}
+
+.seletor-periodo-painel {
+  position: absolute;
+  top: calc(100% + var(--e1));
+  right: 0;
+  width: 320px;
+  max-width: calc(100vw - var(--e6));
+  padding: var(--e4);
+  background: var(--superficie);
+  border: 1px solid var(--borda-forte);
+  border-radius: var(--raio-g);
+  box-shadow: var(--sombra);
+  z-index: 80;
+}
+
+.seletor-periodo-painel label.campo:last-of-type {
+  margin-bottom: 0;
+}
+
+/* Atalhos de periodo: linha que quebra, para caber em painel estreito
+   sem cortar nenhum botao. */
+.atalhos-periodo {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e2);
+  margin-bottom: var(--e4);
+}
+
+.atalhos-periodo .botao {
+  padding: var(--e1) var(--e3);
+  min-height: var(--controle-p);
+  font-size: var(--t-sm);
+}
+
+.atalhos-periodo .botao.ativo {
+  background: var(--ouro-fraco);
+  border-color: var(--ouro-linha);
+  color: var(--ouro-claro);
+}
+
+/* ------------------------------------------------------------------
+   Gaveta lateral
+   Detalhe que precisa de espaco mas nao merece tirar o atendente da
+   tela: entra pela direita, cobre parte do conteudo e fecha sem trocar
+   de pagina.
+   ------------------------------------------------------------------ */
+
+.gaveta-cortina {
+  position: fixed;
+  inset: 0;
+  /* Mesmo veu do modal. A gaveta pode abrir por cima de um modal ja
+     aberto, entao ela vem uma camada acima dele. */
+  background: var(--veu);
+  backdrop-filter: blur(2px);
+  z-index: 100;
+}
+
+.gaveta {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100%;
+  width: min(480px, 100vw);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--superficie);
+  border-left: 1px solid var(--borda-forte);
+  box-shadow: var(--sombra);
+  z-index: 101;
+}
+
+.gaveta-cabecalho {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--e3);
+  padding: var(--e4) var(--e5);
+  border-bottom: 1px solid var(--borda);
+}
+
+/* O h2 nao e filho direto do header, entao flex e min-width aqui seriam
+   inertes: quem cresce e o div que envolve o titulo e a descricao, e ele recebe
+   o crescimento no proprio componente. */
+.gaveta-cabecalho h2 {
+  margin: 0;
+  font-size: var(--t-xl);
+  font-weight: 600;
+}
+
+.gaveta-cabecalho .subtitulo {
+  margin: 0;
+  color: var(--texto-fraco);
+  font-size: var(--t-sm);
+}
+
+.gaveta-corpo {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--e4) var(--e5);
+}
+
+.gaveta-rodape {
+  flex: none;
+  display: flex;
+  gap: var(--e2);
+  justify-content: flex-end;
+  padding: var(--e3) var(--e5);
+  border-top: 1px solid var(--borda);
+  background: var(--superficie-2);
+}
+
+/* ------------------------------------------------------------------
+   Dica
+   Explica um numero sem gastar linha fixa na tela. Aparece no passar do
+   mouse e tambem pelo teclado, senao quem nao usa mouse nunca le a dica.
+   ------------------------------------------------------------------ */
+
+/* A ancora do balao e a caixa, nao o botao: o texto de ajuda tem paragrafo e
+   lista, que nao cabem dentro de um <button>. */
+.dica-caixa {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.dica-alvo {
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--texto-fraco);
+  cursor: help;
+}
+
+.dica-alvo svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+
+.dica-alvo:hover {
+  color: var(--texto-suave);
+}
+
+/* Contorno do foco na cor da marca, no lugar do anel do navegador. */
+.dica-alvo:focus,
+.dica-alvo:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: 2px;
+  border-radius: var(--raio-p);
+}
+
+.dica-balao {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + var(--e2));
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 250px;
+  padding: var(--e2) var(--e3);
+  background: var(--superficie-3);
+  border: 1px solid var(--borda-forte);
+  border-radius: var(--raio);
+  box-shadow: var(--sombra);
+  color: var(--texto);
+  font-size: var(--t-sm);
+  font-weight: 400;
+  line-height: var(--lh-normal);
+  text-align: left;
+  white-space: normal;
+  cursor: default;
+  z-index: 110;
+  visibility: hidden;
+  opacity: 0;
+}
+
+/* O balao e irmao do botao, entao quem manda no estado e a caixa que envolve
+   os dois. */
+.dica-caixa:hover .dica-balao,
+.dica-caixa:focus-within .dica-balao {
+  visibility: visible;
+  opacity: 1;
+}
+
+/* ------------------------------------------------------------------
+   Paginacao
+   ------------------------------------------------------------------ */
+
+.paginacao {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e3);
+  flex-wrap: wrap;
+  padding: var(--e3) 0 0;
+  border-top: 1px solid var(--borda);
+  color: var(--texto-suave);
+  font-size: var(--t-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.paginacao-controles {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+}
+
+/* ------------------------------------------------------------------
+   Metrica com mini grafico
+   Ordem de leitura: o que e, quanto e, como veio variando. O valor
+   grande continua sendo .metrica .valor.
+   ------------------------------------------------------------------ */
+
+.metrica-topo {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  margin-bottom: var(--e2);
+  color: var(--texto-suave);
+  font-size: var(--t-sm);
+}
+
+.metrica-topo > svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  color: var(--ouro);
+}
+
+.metrica-topo .nome {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.metrica-numeros {
+  display: flex;
+  align-items: baseline;
+  gap: var(--e2);
+  flex-wrap: wrap;
+}
+
+/* A direcao da variacao vem da setinha, nao da cor: assim ela sobrevive
+   ao tema claro e a quem nao separa verde de vermelho. */
+.metrica-numeros .variacao {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e1);
+  font-size: var(--t-sm);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--texto-suave);
+}
+
+.metrica-numeros .variacao svg {
+  width: 12px;
+  height: 12px;
+  flex: none;
+}
+
+.metrica-tempo {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e1);
+  margin-top: var(--e2);
+  color: var(--texto-fraco);
+  font-size: var(--t-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.metrica-tempo svg {
+  width: 12px;
+  height: 12px;
+  flex: none;
+}
+
+/* Faixa curta de historico. Serve para dar a direcao, nao para ler
+   valor, por isso nao tem eixo nem rotulo. */
+.metrica-mini {
+  height: calc(var(--e6) + var(--e4));
+  margin-top: var(--e3);
+}
+
+.metrica-mini svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* ------------------------------------------------------------------
+   Secoes do painel
+   Um titulo por bloco, em caixa normal. Painel com varios rotulos em
+   caixa alta espacada vira uma serie de gritos de mesmo peso, e ai
+   nenhum deles orienta a leitura.
+   ------------------------------------------------------------------ */
+
+.secao-painel {
+  margin-top: var(--e5);
+}
+
+.secao-painel:first-child {
+  margin-top: 0;
+}
+
+.secao-painel > h2 {
+  margin: 0 0 var(--e3);
+  color: var(--texto);
+  font-size: var(--t-lg);
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.secao-painel > h2 .selo {
+  margin-left: var(--e2);
+  vertical-align: middle;
+}
+
+/* ------------------------------------------------------------------
+   Grade de roscas
+   ------------------------------------------------------------------ */
+
+/* Quatro recortes de distribuicao. Com o minimo em 280px sobrava um sozinho na
+   segunda linha, que se le como erro de montagem; em 240px os quatro cabem
+   numa fileira so a partir de 1100px de conteudo, e abaixo disso caem para
+   duas colunas em pares, que continua parelho. */
+.grade-roscas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--e4);
+}
+
+.rosca-legenda {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--e3);
+  margin-top: var(--e3);
+  padding-top: var(--e3);
+  border-top: 1px solid var(--borda);
+  color: var(--texto-suave);
+  font-size: var(--t-sm);
+}
+
+.rosca-legenda > * {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e2);
+}
+
+.rosca-legenda .ponto {
+  flex: none;
+}
+
+.rosca-legenda b {
+  color: var(--texto);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------------------
+   Tabela densa e linha clicavel
+   Em tela de lista longa, a altura padrao de linha faz caber pouca
+   coisa. A versao densa aperta o respiro sem mudar a leitura.
+   ------------------------------------------------------------------ */
+
+.tabela-densa th,
+.tabela-densa td {
+  padding: var(--e1) var(--e3);
+}
+
+.tabela-densa td {
+  font-size: var(--t-sm);
+}
+
+/* Linha que leva a algum lugar precisa avisar antes do clique. */
+tbody .linha-clicavel {
+  cursor: pointer;
+}
+
+tbody .linha-clicavel:hover {
+  background: var(--superficie-3);
+}
+
+tbody .linha-clicavel:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: -2px;
+}
+
+/* ------------------------------------------------------------------
+   Movimento dos componentes novos
+   So a entrada da gaveta. Ela vem de fora da tela, e sem o deslize o
+   atendente nao percebe de onde o painel apareceu.
+   ------------------------------------------------------------------ */
+
+@media (prefers-reduced-motion: no-preference) {
+  .gaveta {
+    animation: gaveta-entra 240ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+}
+
+@keyframes gaveta-entra {
+  from {
+    transform: translateX(100%);
+  }
+}
+
+/* ------------------------------------------------------------------
+   Menu com grupo expansivel
+   O menu cresceu e nao cabe mais inteiro na lateral sem rolagem longa.
+   O grupo que abre e fecha guarda o que nao se usa toda hora, sem
+   esconder onde a coisa mora: o cabecalho continua sendo a mesma linha
+   dos atalhos, so que com uma seta no fim.
+   Aqui nao entra caixa alta. Isso e navegacao, quem le precisa bater o
+   olho e reconhecer a palavra, nao decifrar um rotulo decorativo.
+   ------------------------------------------------------------------ */
+
+.menu-grupo-botao {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  width: 100%;
+  padding: var(--e1) var(--e3);
+  min-height: var(--controle);
+  margin-bottom: var(--e1);
+  border: 1px solid transparent;
+  border-radius: var(--raio);
+  background: none;
+  color: var(--texto-suave);
+  font-size: var(--t-md);
+  font-weight: 400;
+  /* O navegador zera a entrelinha do botao. Sem repetir a do corpo, o cabecalho
+     fica 3px mais baixo que os itens e o menu perde o ritmo. */
+  line-height: var(--lh-normal);
+  text-align: left;
+  /* O cabecalho pode ficar dentro de um .menu-grupo, que e caixa alta
+     espacada. Sem estas duas linhas o grupo herdaria aquele tratamento. */
+  text-transform: none;
+  letter-spacing: normal;
+  cursor: pointer;
+}
+
+.menu-grupo-botao:hover {
+  background: var(--superficie);
+  color: var(--texto);
+}
+
+/* Grupo aberto fica no texto cheio: e o unico sinal, alem da seta, de que os
+   itens logo abaixo pertencem a ele. */
+.menu-grupo-botao[aria-expanded='true'] {
+  color: var(--texto);
+}
+
+.menu-grupo-botao:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: -2px;
+}
+
+.menu-grupo-botao svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  opacity: 0.9;
+}
+
+.menu-grupo-botao > span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A seta e o ultimo icone da linha. O :not(:first-child) protege o caso de um
+   grupo sem seta, em que o icone da esquerda seria girado sem motivo.
+   O unico chevron do conjunto aponta para a esquerda, entao fechado ele vem
+   virado para a direita e abrir gira mais 90 graus, ate apontar para baixo,
+   que e a direcao de onde os itens aparecem. */
+.menu-grupo-seta,
+.menu-grupo-botao > svg:last-of-type:not(:first-child) {
+  margin-left: auto;
+  opacity: 0.75;
+  transform: rotate(180deg);
+}
+
+.menu-grupo-botao[aria-expanded='true'] .menu-grupo-seta,
+.menu-grupo-botao[aria-expanded='true'] > svg:last-of-type:not(:first-child) {
+  transform: rotate(-90deg);
+}
+
+/* Os itens do grupo recuam e ganham um fio vertical. Sem ele, item de dentro
+   do grupo e atalho solto ficam na mesma coluna e o grupo some da leitura. */
+.menu-grupo-itens {
+  margin: var(--e1) 0 var(--e2) calc(var(--e3) + var(--e2));
+  padding-left: var(--e2);
+  border-left: 1px solid var(--borda);
+}
+
+.menu-grupo-itens[hidden] {
+  display: none;
+}
+
+.menu-grupo-itens a {
+  font-size: var(--t-sm);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* A seta gira para mostrar de onde a lista saiu. Sem o giro, o icone so
+     troca de direcao e o olho perde a ligacao com o que abriu. */
+  .menu-grupo-seta,
+  .menu-grupo-botao > svg:last-of-type:not(:first-child) {
+    transition: transform 150ms ease;
+  }
+}
+
+/* Na lateral estreita so sobram os icones. Seta e fio vertical nao tem o que
+   ancorar sem os rotulos, entao saem junto. */
+@media (max-width: 860px) {
+  .menu-grupo-botao {
+    justify-content: center;
+  }
+  .menu-grupo-botao > span,
+  .menu-grupo-seta,
+  .menu-grupo-botao > svg:last-of-type:not(:first-child) {
+    display: none;
+  }
+  .menu-grupo-itens {
+    margin-left: 0;
+    padding-left: 0;
+    border-left: none;
+  }
+}
+
+/* ------------------------------------------------------------------
+   Configuracoes em duas colunas
+   Tela de ajuste nao se le de cima a baixo, se procura. O indice fixo a
+   esquerda diz o que existe e onde voce esta, e so a coluna da direita
+   rola. Em pagina longa unica, quem volta para mexer em um ajuste
+   perde o lugar toda vez.
+   ------------------------------------------------------------------ */
+
+.config-layout {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.config-indice {
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--e4) var(--e3);
+  background: var(--superficie);
+  border-right: 1px solid var(--borda);
+}
+
+/* Grupo de navegacao, nao rotulo de campo: aqui a caixa alta espacada separa
+   os blocos sem competir com os itens, que ficam em caixa normal. */
+.config-indice-grupo {
+  margin-top: var(--e4);
+  padding: 0 var(--e2) var(--e2);
+  font-size: var(--t-xs);
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--texto-fraco);
+}
+
+/* Cada grupo do indice e o primeiro filho do seu proprio bloco, entao
+   :first-child sozinho casava com todos e anulava o respiro de 16px entre
+   Perfil, Escritorio e Sistema. A excecao vale so para o primeiro bloco. */
+.config-indice > div:first-child .config-indice-grupo {
+  margin-top: 0;
+}
+
+.config-indice a {
+  display: flex;
+  align-items: center;
+  padding: var(--e1) var(--e3);
+  min-height: var(--controle);
+  margin-bottom: var(--e1);
+  border: 1px solid transparent;
+  border-radius: var(--raio);
+  color: var(--texto-suave);
+  font-size: var(--t-md);
+}
+
+.config-indice a:hover {
+  background: var(--superficie-2);
+  color: var(--texto);
+}
+
+.config-indice a.ativo {
+  background: var(--ouro-fraco);
+  border-color: var(--ouro-linha);
+  color: var(--ouro-claro);
+}
+
+.config-indice a:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: -2px;
+}
+
+/* A largura maxima e de leitura, nao de tela: ajuste com o rotulo colado no
+   canto esquerdo e o campo no outro extremo do monitor obriga o olho a
+   atravessar o vazio para saber o que esta mexendo. */
+.config-conteudo {
+  min-height: 0;
+  min-width: 0;
+  overflow-y: auto;
+  padding: var(--e5);
+  width: 100%;
+  max-width: 860px;
+}
+
+/* O separador do caminho e um icone, nao um caractere digitado: barra solta
+   entre links vira ruido no leitor de tela e nao acompanha o tema. */
+.config-migalha {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--e2);
+  margin-bottom: var(--e4);
+  color: var(--texto-fraco);
+  font-size: var(--t-sm);
+}
+
+.config-migalha svg {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  opacity: 0.8;
+}
+
+.config-migalha a {
+  color: var(--texto-fraco);
+}
+
+.config-migalha a:hover {
+  color: var(--texto-suave);
+}
+
+.config-migalha strong {
+  color: var(--texto-suave);
+  font-weight: 600;
+}
+
+/* ------------------------------------------------------------------
+   Linha de ajuste
+   Um ajuste por linha: a esquerda o nome e a explicacao, a direita o
+   controle. O cartao nao tem respiro proprio porque quem da o respiro e
+   cada linha, e assim o fio que separa duas linhas atravessa o cartao
+   inteiro em vez de morrer antes da borda.
+   ------------------------------------------------------------------ */
+
+.ajustes-cartao {
+  background: var(--superficie);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio-g);
+  padding: 0;
+  overflow: hidden;
+}
+
+.ajustes-cartao + .ajustes-cartao {
+  margin-top: var(--e4);
+}
+
+.ajuste-linha {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  align-items: center;
+  gap: var(--e5);
+  padding: var(--e4) var(--e5);
+  border-bottom: 1px solid var(--borda);
+}
+
+/* Linha deitada: o controle nao cabe na coluna de 340px, entao ele passa a
+   ocupar a largura inteira e desce para baixo do nome. E o unico jeito de uma
+   area de texto ou uma lista de itens caber sem esmagar a explicacao. */
+.ajuste-linha.larga {
+  grid-template-columns: 1fr;
+  gap: var(--e3);
+  align-items: stretch;
+}
+
+/* Cabecalho do cartao de ajustes: uma coluna so, e a explicacao atravessa o
+   cartao inteiro em vez de parar na metade dele. */
+.ajuste-linha.ajuste-cabecalho {
+  grid-template-columns: 1fr;
+  gap: 0;
+}
+
+.ajuste-linha.ajuste-cabecalho .ajuste-ajuda {
+  max-width: 76ch;
+}
+
+.ajuste-linha:last-child {
+  border-bottom: none;
+}
+
+/* Antes do rodape a borda de baixo encostaria na borda de cima dele e o fio
+   sairia com o dobro da espessura. */
+.ajuste-linha:has(+ .ajustes-rodape) {
+  border-bottom: none;
+}
+
+.ajuste-rotulo {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  margin: 0;
+  color: var(--texto);
+  font-size: var(--t-lg);
+  font-weight: 600;
+}
+
+.ajuste-ajuda {
+  margin: var(--e1) 0 0;
+  max-width: 52ch;
+  color: var(--texto-suave);
+  font-size: var(--t-sm);
+  line-height: var(--lh-normal);
+}
+
+.ajuste-controle {
+  min-width: 0;
+}
+
+/* O nome do ajuste ja esta a esquerda, entao o campo entra sem repetir o
+   rotulo e sem o respiro que ele carrega dentro de um formulario. */
+.ajuste-controle .campo {
+  margin-bottom: 0;
+}
+
+.ajustes-rodape {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--e2);
+  padding: var(--e3) var(--e5);
+  background: var(--superficie-2);
+  border-top: 1px solid var(--borda);
+}
+
+/* ------------------------------------------------------------------
+   Configuracoes em tela estreita
+   Abaixo de 1024px a coluna do indice espremeria o conteudo, entao ela
+   deita: vira uma faixa que rola de lado no topo, com os mesmos itens.
+   ------------------------------------------------------------------ */
+
+@media (max-width: 1024px) {
+  .config-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+
+  .config-indice {
+    display: flex;
+    align-items: center;
+    gap: var(--e2);
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: var(--e2) var(--e3);
+    border-right: none;
+    border-bottom: 1px solid var(--borda);
+  }
+
+  /* Cada grupo do indice pode vir embrulhado em um bloco proprio. Deitado, o
+     bloco tambem precisa virar linha, senao os itens voltam a empilhar. */
+  .config-indice > div {
+    display: flex;
+    align-items: center;
+    gap: var(--e2);
+  }
+
+  .config-indice-grupo {
+    flex: none;
+    margin: 0;
+    padding: 0 var(--e1);
+  }
+
+  .config-indice a {
+    flex: none;
+    margin-bottom: 0;
+    white-space: nowrap;
+  }
+
+  .config-conteudo {
+    max-width: none;
+  }
+}
+
+/* Estreito demais para duas colunas: o controle passa para baixo da
+   explicacao e ocupa a linha toda, que e onde ele ainda cabe inteiro. */
+@media (max-width: 860px) {
+  .ajuste-linha {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+    gap: var(--e3);
+  }
+
+  .ajuste-controle {
+    width: 100%;
+  }
+}
+
+/* ------------------------------------------------------------------
+   Previa de midia
+   A mesma previa aparece no balao da conversa, no editor de template e no
+   teste de voz. Sem medida maxima aqui, uma foto de celular de 3000px de
+   largura entrava no tamanho natural do arquivo e estourava a coluna: nao
+   ha nenhuma regra img global no arquivo para segurar.
+   ------------------------------------------------------------------ */
+
+.midia-previa {
+  display: block;
+  max-width: 100%;
+  max-height: calc(var(--e6) * 10);
+  margin-top: var(--e2);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  object-fit: contain;
+}
+
+/* Dentro do balao a previa divide espaco com o texto da mensagem. */
+.midia-previa.compacta {
+  max-height: calc(var(--e6) * 6);
+}
+
+/* O tocador de audio do navegador nao aceita moldura nem canto arredondado:
+   ele desenha o proprio fundo por cima e o resultado e uma borda solta em
+   volta de uma pilula. Aqui ele leva largura, e nao largura maxima. */
+.midia-previa.som {
+  width: 100%;
+  max-height: none;
+  border: none;
+  border-radius: 0;
+}
+
+/* ------------------------------------------------------------------
+   Aparencia
+   Miniatura de tema em Configuracoes. E um desenho, e nao um componente:
+   por isso as medidas moram juntas aqui, em vez de virar seis utilitarias
+   empilhadas no JavaScript. O que continua inline e o calculado, a largura
+   de cada barra e a cor que ela pinta.
+   ------------------------------------------------------------------ */
+
+.previa-tema {
+  display: flex;
+  gap: var(--e2);
+}
+
+.previa-tema-quadro {
+  display: grid;
+  grid-template-columns: var(--e5) 1fr;
+  gap: var(--e1);
+  flex: 1;
+  padding: var(--e2);
+  background: var(--fundo);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio-p);
+  aspect-ratio: 16 / 10;
+}
+
+.previa-tema-lateral,
+.previa-tema-corpo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e1);
+}
+
+.previa-tema-lateral {
+  padding: var(--e1);
+  background: var(--preto);
+  border-radius: var(--raio-p);
+}
+
+.previa-tema-corpo {
+  padding: var(--e1);
+  background: var(--superficie);
+  border-radius: var(--raio-p);
+}
+
+/* As barras sao div vazias: sem altura aqui elas calculam 0px e a miniatura
+   inteira sai em branco, que era o estado da previa de Aparencia. */
+.previa-tema-barra {
+  height: var(--e1);
+  border-radius: var(--raio-pilula);
+  flex: none;
+}
+
+/* ------------------------------------------------------------------
+   Barra de filtros
+   Uma fileira de campos e o botao da acao principal, alinhados pela base
+   para o botao ficar na mesma linha do controle, e nao na do rotulo.
+   ------------------------------------------------------------------ */
+
+.barra-filtros {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--e3);
+  flex-wrap: wrap;
+  margin-bottom: var(--e4);
+}
+
+/* Dentro da barra o campo nao carrega a margem que ele tem no formulario:
+   quem separa um filtro do outro e o gap da fileira. */
+.barra-filtros .campo {
+  margin-bottom: 0;
+  flex: 1 1 var(--filtro-base);
+  min-width: var(--filtro-base);
+}
+
+/* Tres larguras, e nao um pixel escolhido por campo. As duas variacoes vem
+   depois e com a mesma conta de especificidade da regra acima, senao o passo
+   padrao venceria a largura pedida e as tres medidas virariam uma so. */
+.barra-filtros .campo-largo {
+  flex: 2 1 var(--filtro-largo);
+  min-width: var(--filtro-largo);
+}
+
+.barra-filtros .campo-estreito {
+  flex: 0 1 var(--filtro-estreito);
+  min-width: var(--filtro-estreito);
+}
+
+/* Caixa de um filtro do painel. A largura vinha do chamador, em seis
+   literais diferentes escritos na mao; agora sao tres passos. */
+.caixa-filtro {
+  flex: 1 1 var(--filtro-base);
+  min-width: var(--filtro-base);
+  margin-bottom: 0;
+}
+
+.caixa-filtro.larga {
+  flex: 1 1 var(--filtro-largo);
+  min-width: var(--filtro-largo);
+}
+
+.caixa-filtro.estreita {
+  flex: 1 1 var(--filtro-estreito);
+  min-width: var(--filtro-estreito);
+}
+
+/* Controle que ocupa a caixa inteira, para a fileira ficar com a mesma
+   altura e o mesmo alinhamento dos selects vizinhos. */
+.controle-cheio {
+  width: 100%;
+}
+
+/* ------------------------------------------------------------------
+   Alternador de opcoes
+   Botoes ligados, com o raio so nas pontas e as bordas do meio dobradas
+   uma sobre a outra. Um select esconderia a opcao que nao esta escolhida,
+   e aqui as duas leituras precisam estar a vista.
+   ------------------------------------------------------------------ */
+
+.grupo-alternado {
+  display: inline-flex;
+  min-height: var(--controle);
+}
+
+.grupo-alternado > .botao {
+  border-radius: 0;
+  flex: 1;
+}
+
+.grupo-alternado > .botao:first-child {
+  border-radius: var(--raio) 0 0 var(--raio);
+}
+
+.grupo-alternado > .botao:last-child {
+  border-radius: 0 var(--raio) var(--raio) 0;
+}
+
+/* As bordas vizinhas viram um fio so, e nao dois colados. */
+.grupo-alternado > .botao:not(:first-child) {
+  margin-left: -1px;
+}
+
+/* O escolhido traz a propria borda para a frente da do vizinho. */
+.grupo-alternado > .botao.principal,
+.grupo-alternado > .botao:focus-visible {
+  position: relative;
+  z-index: 1;
+}
+
+/* ------------------------------------------------------------------
+   Esqueleto de carregamento
+   A altura de cada bloco copia a do que vai ocupar o lugar dele. Ela vira
+   token para o esqueleto e o conteudo real lerem a mesma medida, em vez de
+   dois numeros escritos na mao que precisam casar de olho.
+   ------------------------------------------------------------------ */
+
+.esqueleto-cartao {
+  border-radius: var(--raio-g);
+}
+
+.esqueleto-cartao.altura-metrica {
+  height: var(--altura-metrica);
+}
+
+.esqueleto-cartao.altura-evolucao {
+  height: var(--altura-evolucao);
+}
+
+.esqueleto-cartao.altura-funil {
+  height: var(--altura-funil);
+}
+
+.esqueleto-cartao.altura-sankey {
+  height: var(--altura-sankey);
+}
+
+.esqueleto-cartao.altura-rosca {
+  height: var(--altura-rosca);
+}
+
+/* Titulo de secao no esqueleto: mais estreito que a linha de corpo, para a
+   forma do bloco ja parecer a da secao que esta chegando. */
+.esqueleto-titulo {
+  width: 30%;
+  margin-bottom: var(--e4);
+}
+
+/* Respiro do esqueleto de rota, que ocupa a tela inteira antes da troca. */
+.esqueleto-rota {
+  padding: var(--e4);
+}
+
+.esqueleto-painel {
+  padding: var(--e5);
+}
+
+/* O quadro chega em colunas, entao o esqueleto dele tambem. */
+.esqueleto-colunas {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--e3);
+  padding: var(--e4);
+  overflow: hidden;
+}
+
+.esqueleto-metrica {
+  height: calc(var(--e6) * 2.75);
+  border-radius: var(--raio-g);
+}
+
+/* ------------------------------------------------------------------
+   Pecas avulsas de tela
+   ------------------------------------------------------------------ */
+
+/* Titulo da secao aberta em Configuracoes: o unico --t-xl da tela. */
+.titulo-secao {
+  margin: 0 0 var(--e1);
+  font-family: var(--fonte-titulo);
+  font-size: var(--t-xl);
+  font-weight: 600;
+  line-height: var(--lh-apertada);
+}
+
+/* Segunda linha de uma celula de tabela: a descricao abaixo do titulo. */
+.desc-celula {
+  margin-top: var(--e1);
+  color: var(--texto-suave);
+  font-size: var(--t-sm);
+  max-width: 52ch;
+}
+
+/* Porcentagem ao lado do valor: numero de largura fixa, senao a coluna
+   balanca a cada atualizacao. */
+.valor-percentual {
+  font-size: var(--t-xs);
+  font-variant-numeric: tabular-nums;
+  flex: none;
+}
+
+/* Nota de rodape de tela. Discreta de proposito: ela atende quem esta
+   procurando o numero que mudou de lugar, sem competir com o funil. */
+.rodape-nota {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--e1);
+  margin: var(--e5) 0 0;
+  color: var(--texto-fraco);
+  font-size: var(--t-sm);
+}
+
+.rodape-nota > svg {
+  flex: none;
+  opacity: 0.8;
+}
+
+/* Cor sozinha nao e sinal suficiente de link dentro de uma frase. */
+.rodape-nota a {
+  text-decoration: underline;
+}
+
+/* Icone do estado vazio. */
+.vazio-icone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(var(--e6) * 2);
+  height: calc(var(--e6) * 2);
+  margin: 0 auto var(--e3);
+  border-radius: 50%;
+  background: var(--superficie-2);
+  border: 1px solid var(--borda);
+  color: var(--ouro);
+}
+
+
+/* Faixa de chips de mencao abaixo do prompt. */
+.faixa-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e1);
+}
+
+/* Coluna de acoes de uma tabela: os botoes ficam ancorados a direita e nao
+   quebram para a linha de baixo. */
+.acoes {
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+}
+
+/* Tres alturas de area de texto, e nao um numero por tela. O seletor traz o
+   elemento junto de proposito: duas destas classes acompanham .prompt, que ja
+   diz min-height em textarea.prompt, e uma classe sozinha perderia a conta de
+   especificidade e nao mudaria altura nenhuma. */
+textarea.alta {
+  min-height: calc(var(--e6) * 5);
+}
+
+textarea.area-m {
+  min-height: calc(var(--e6) * 8);
+}
+
+/* A maior do sistema: uma base de conhecimento de dez mil caracteres em uma
+   area curta vira uma fresta de texto com o rodape colado embaixo. */
+textarea.area-g {
+  min-height: calc(var(--e6) * 14);
+}
+
+/* ------------------------------------------------------------------
+   Classes utilitarias
+   Existem para o estilo parar de morar no JavaScript. Cada atributo
+   style espalhado pelas telas era um valor decidido na hora, fora de
+   qualquer escala, e por isso a mesma linha aparecia com 5, 6 ou 7px de
+   respiro dependendo do dia em que foi escrita.
+   A regra: se o valor ia no atributo style, ele vira uma destas classes.
+   Estilo inline so continua valido para valor calculado em tempo de
+   execucao, largura de barra em porcentagem, cor vinda do banco, altura
+   de grafico.
+   O bloco fica no fim do arquivo de proposito. Utilitaria e componente
+   tem a mesma especificidade, entao quem vem depois vence: assim a
+   classe ajusta o componente sem precisar de !important.
+   ------------------------------------------------------------------ */
+
+/* Arranjo ---------------------------------------------------------- */
+
+.linha {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+}
+
+/* Mesma linha, mas alinhada pelo topo: para quando um lado tem uma linha
+   de texto e o outro tem tres, e o centro deixaria os dois tortos. */
+.linha-topo {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--e2);
+}
+
+.pilha {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e2);
+}
+
+.linha-g {
+  display: flex;
+  align-items: center;
+  gap: var(--e4);
+}
+
+.pilha-g {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e4);
+}
+
+.linha-p {
+  display: flex;
+  align-items: center;
+  gap: var(--e1);
+}
+
+.pilha-p {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e1);
+}
+
+.entre {
+  justify-content: space-between;
+}
+
+.flexivel {
+  flex: 1;
+}
+
+/* Sem isso o item de flex nunca fica menor que o proprio texto, e a
+   reticencia de .cortar nunca aparece: o texto empurra a caixa. */
+.encolhe {
+  min-width: 0;
+}
+
+.direita {
+  margin-left: auto;
+}
+
+/* Empurra o conteudo da linha para a ponta direita. Diferente de .direita, que
+   move um filho so: aqui quem se desloca e o conjunto inteiro. */
+.fim {
+  justify-content: flex-end;
+}
+
+/* O oposto de .flexivel: o item guarda o proprio tamanho enquanto os vizinhos
+   se ajustam. */
+.fixo {
+  flex: none;
+}
+
+/* Vira meia volta. E o unico jeito de a seta apontar para o outro lado: o
+   conjunto de icones so tem um lado, e desenhar o espelho a mao sairia com
+   peso de traco diferente do resto. */
+.icone-virado {
+  transform: rotate(180deg);
+}
+
+/* Um quarto de volta, para a seta de voltar virar separador de caminho. */
+.seta-adiante {
+  transform: rotate(180deg);
+}
+
+/* Nao existe .clicavel: dois nomes para o mesmo tratamento eram a origem do
+   problema. Selo que responde ao clique e .selo-clicavel, e o chip de mencao
+   que e botao se resolve pelo proprio elemento, logo acima de .mencao-chip. */
+
+.quebra {
+  flex-wrap: wrap;
+}
+
+/* Texto ------------------------------------------------------------ */
+
+.t-xs {
+  font-size: var(--t-xs);
+}
+
+.t-sm {
+  font-size: var(--t-sm);
+}
+
+.t-md {
+  font-size: var(--t-md);
+}
+
+.t-lg {
+  font-size: var(--t-lg);
+}
+
+.t-xl {
+  font-size: var(--t-xl);
+}
+
+.t-2xl {
+  font-size: var(--t-2xl);
+  line-height: var(--lh-apertada);
+}
+
+.peso-500 {
+  font-weight: 500;
+}
+
+.peso-600 {
+  font-weight: 600;
+}
+
+.peso-700 {
+  font-weight: 700;
+}
+
+.c-suave {
+  color: var(--texto-suave);
+}
+
+.c-fraco {
+  color: var(--texto-fraco);
+}
+
+.c-ouro {
+  color: var(--ouro);
+}
+
+.c-erro {
+  color: var(--erro);
+}
+
+.c-sucesso {
+  color: var(--sucesso);
+}
+
+.c-alerta {
+  color: var(--alerta);
+}
+
+.cortar {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cortar-2 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+
+/* Texto que nao pode quebrar no meio: data com hora, contagem com unidade.
+   E um nome so para isso. O projeto chegou a ter .nao-quebra e .sem-quebra
+   escritos em telas diferentes para o mesmo tratamento, e nenhum dos dois
+   existia aqui. */
+.nao-quebra {
+  white-space: nowrap;
+}
+
+/* O oposto: endereco de webhook e chave de API sao uma palavra so, longa
+   demais para a caixa, e sem isso elas atravessam a borda do cartao. */
+.quebra-palavra {
+  overflow-wrap: anywhere;
+}
+
+/* Numero de largura fixa: sem isso a coluna balanca a cada atualizacao,
+   porque o 1 e mais estreito que o 8. */
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Espaco ----------------------------------------------------------- */
+
+.mt-1 {
+  margin-top: var(--e1);
+}
+
+.mt-2 {
+  margin-top: var(--e2);
+}
+
+.mt-3 {
+  margin-top: var(--e3);
+}
+
+.mt-4 {
+  margin-top: var(--e4);
+}
+
+.mt-5 {
+  margin-top: var(--e5);
+}
+
+.mb-1 {
+  margin-bottom: var(--e1);
+}
+
+.mb-2 {
+  margin-bottom: var(--e2);
+}
+
+.mb-3 {
+  margin-bottom: var(--e3);
+}
+
+.mb-4 {
+  margin-bottom: var(--e4);
+}
+
+.mb-5 {
+  margin-bottom: var(--e5);
+}
+
+.sem-margem {
+  margin: 0;
+}
+
+/* ------------------------------------------------------------------
+   As escalas deste arquivo, em uma olhada
+   Texto: --t-xs 11, --t-sm 12, --t-md 13, --t-lg 14, --t-xl 18,
+     --t-2xl 28. Nada entre os passos, nada de meio pixel.
+   Entrelinha: --lh-apertada 1,25 para numero e titulo, --lh-normal 1,5
+     para corpo, --lh-solta 1,65 para paragrafo longo e prompt.
+   Peso: 400 corpo, 500 rotulo, 600 titulo, 700 numero de metrica.
+   Espaco: --e1 4, --e2 8, --e3 12, --e4 16, --e5 24, --e6 32, base 4.
+     Vale para gap, padding e margem, sem excecao.
+   Controle: --controle-p 28, --controle 36, --controle-g 44, sempre em
+     min-height, para o conteudo poder crescer.
+   Raio: --raio-p 6, --raio 10, --raio-g 14, --raio-pilula.
+   Cor: so pelas variaveis do topo, nunca hex solto dentro da regra.
+   Valor fora dessas escalas e valor chutado. Se um elemento so cabe com
+   um numero novo, o certo e mexer no container, nao criar o setimo
+   tamanho de fonte.
+   ------------------------------------------------------------------ */
+
+/* Amostras de cor -------------------------------------------------------
+   A cor gravada e um token de tema, entao a amostra e um botao pintado com
+   esse token e nao um input nativo: o seletor do sistema operacional so sabe
+   falar hexadecimal, e hexadecimal nao acompanha a troca de tema. */
+.amostras {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e2);
+}
+
+.amostra {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  cursor: pointer;
+  border: 1px solid var(--borda);
+  border-radius: var(--raio-p);
+  /* O contorno da selecao fica fora da amostra para nao comer a propria cor,
+     que e a unica coisa que a amostra tem para mostrar. */
+  outline-offset: 2px;
+}
+
+.amostra:hover {
+  border-color: var(--texto-fraco);
+}
+
+.amostra[aria-checked='true'] {
+  outline: 2px solid var(--ouro);
+}
+
+/* Distribuicao em barras -------------------------------------------------
+   Tres colunas: nome, trilho e numero. O nome encolhe ate o limite e corta com
+   reticencias; o numero nunca encolhe, porque e o dado. */
+.barras-cat {
+  display: grid;
+  gap: var(--e2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.barras-cat li {
+  display: grid;
+  /* O nome leva a maior fatia: ele e o que identifica a linha, e a barra so
+     compara. Com 1.6fr no trilho os nomes cortavam em "Sem departa..." dentro
+     do cartao estreito. */
+  grid-template-columns: minmax(0, 1.4fr) 1fr auto;
+  gap: var(--e2);
+  align-items: center;
+}
+
+.barras-cat .nome {
+  overflow: hidden;
+  color: var(--texto-suave);
+  font-size: var(--t-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.barras-cat .trilho {
+  height: 8px;
+  background: var(--borda);
+  border-radius: var(--raio-p);
+}
+
+.barras-cat .trilho i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+}
+
+.barras-cat .valor {
+  min-width: 2ch;
+  color: var(--texto);
+  font-size: var(--t-sm);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+
+/* Nota do cabeco de secao. Carrega o denominador que antes se repetia em cada
+   um dos seis cartoes. Fica ao lado do titulo, em corpo de rotulo. */
+.secao-nota {
+  margin-left: var(--e2);
+  color: var(--texto-fraco);
+  font-size: var(--t-nota);
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* Comparacao com o periodo anterior, dentro do cartao de metrica.
+   Fica embaixo do percentual, em corpo de rotulo: e um dado de apoio, e nao
+   pode competir com o numero grande que ele qualifica. */
+.metrica .delta {
+  display: block;
+  margin-top: var(--e1);
+  font-size: var(--t-nota);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Recortes recolhiveis da barra de filtros.
+   Quebram para a linha de baixo ocupando a largura toda: sao quatro selects, e
+   espremer os quatro na mesma linha do periodo e do modo devolveria o aperto
+   que a gaveta veio resolver. */
+.barra-filtros .recortes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e3);
+  flex-basis: 100%;
+}
+
+.barra-filtros .recortes[hidden] {
+  display: none;
+}
+
+/* =====================================================================
+   Cabecalho de tela com os controles na mesma linha do titulo.
+   O filtro que vale para a tela inteira mora no cabeco dela: dentro do
+   conteudo ele empurrava o primeiro dado para baixo e rolava junto com a
+   pagina, sumindo justo na hora de trocar o recorte.
+   ===================================================================== */
+.topo {
+  min-height: 76px;
+  align-items: center;
+  padding: var(--e3) var(--e5);
+}
+
+.topo-identidade {
+  flex: none;
+}
+
+.topo h1 {
+  font-family: var(--fonte);
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.topo-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--e2);
+  margin-left: var(--e6);
+}
+
+.topo-acoes .caixa-filtro {
+  margin: 0;
+}
+
+/* Rotulo de secao: frase, e nao carimbo. */
+.secao-painel > h2 {
+  color: var(--texto);
+  font-size: var(--t-leitura);
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+/* Titulo de cartao volta a ser frase, do tamanho do rotulo de secao, com o
+   icone num quadrado arredondado a esquerda. */
+.cartao-titulo {
+  padding-bottom: 0;
+  color: var(--texto);
+  font-size: var(--t-leitura);
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
+  border-bottom: 0;
+}
+
+.cartao-titulo .marca-icone {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  color: var(--ouro);
+  background: var(--ouro-fraco);
+  border-radius: var(--raio-p);
+}
+
+.cartao-titulo .marca-icone svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Cartao de metrica na forma do painel de referencia:
+   rotulo em caixa alta, numero grande, uma linha de apoio, e a minilinha
+   sangrando ate as bordas no rodape. */
+.metrica {
+  display: flex;
+  flex-direction: column;
+  padding: var(--e4) var(--e4) 0;
+  border-top: 1px solid var(--borda);
+  border-radius: var(--raio);
+  overflow: hidden;
+}
+
+.metrica-topo {
+  color: var(--texto-fraco);
+  font-size: var(--t-nota);
+  font-weight: 600;
+  letter-spacing: var(--tr-alta);
+  text-transform: uppercase;
+}
+
+.metrica .valor {
+  font-size: 38px;
+}
+
+/* Percentual, tempo e comparacao na mesma linha, embaixo do numero. */
+.metrica-numeros {
+  display: block;
+}
+
+.metrica-numeros .variacao,
+.metrica .delta,
+.metrica-tempo {
+  display: inline-flex;
+  margin: 0;
+  font-size: var(--t-base);
+  vertical-align: middle;
+}
+
+.metrica-apoio {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--e3);
+  margin-top: var(--e1);
+  min-height: 20px;
+}
+
+.metrica-mini {
+  height: 56px;
+  margin: auto calc(var(--e4) * -1) 0;
+}
+
+/* Controles do cabecalho: cada um vale a propria largura, numa linha so.
+   Herdando a largura cheia dos filtros antigos, eles empilhavam e o cabecalho
+   passava de 280px de altura, o triplo do conteudo que carrega. */
+.topo-acoes > * {
+  width: auto;
+  max-width: 200px;
+  margin: 0;
+  flex: none;
+}
+
+.topo-acoes select {
+  min-width: 132px;
+  height: var(--controle-p);
+}
+
+.topo-acoes .grupo-alternado {
+  width: auto;
+}
+
+.topo-acoes .grupo-alternado button {
+  min-height: var(--controle-p);
+  padding: 0 var(--e3);
+}
+
+.topo-acoes .seletor-periodo,
+.topo-acoes .seletor-periodo > button {
+  width: auto;
+  min-height: var(--controle-p);
+  white-space: nowrap;
+}
+
+/* =====================================================================
+   Barra global. Atravessa a largura toda, por cima da lateral: nada nela
+   pertence a uma tela, e sim ao sistema.
+   ===================================================================== */
+.app {
+  display: flex;
+  flex-direction: column;
+  grid-template-columns: none;
+}
+
+.barra-global {
+  display: flex;
+  align-items: center;
+  gap: var(--e3);
+  flex: none;
+  height: 56px;
+  padding: 0 var(--e4);
+  background: var(--preto);
+  border-bottom: 1px solid var(--borda);
+}
+
+.barra-global .marca {
+  padding: 0;
+  border: 0;
+  gap: var(--e2);
+}
+
+.barra-global .marca img {
+  width: 26px;
+  height: 26px;
+}
+
+.barra-global .marca-texto strong {
+  font-size: var(--t-base);
+}
+
+.barra-global .marca-texto span {
+  font-size: 10px;
+}
+
+.corpo {
+  display: grid;
+  grid-template-columns: 236px 1fr;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Escritorio em que se esta. Com um so, e rotulo; com varios, e seletor. */
+.seletor-workspace.unico {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  padding: 0 var(--e3);
+  height: var(--controle-p);
+  color: var(--texto-suave);
+  font-size: var(--t-base);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  white-space: nowrap;
+}
+
+.seletor-workspace.unico svg {
+  color: var(--ouro);
+  flex: none;
+}
+
+/* Busca rapida ---------------------------------------------------------- */
+.busca-global {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  width: 300px;
+  height: var(--controle-p);
+  padding: 0 var(--e3);
+  background: var(--superficie);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+}
+
+.busca-global > svg {
+  flex: none;
+  color: var(--texto-fraco);
+}
+
+.busca-global:focus-within {
+  border-color: var(--ouro-linha);
+}
+
+.busca-campo {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  color: var(--texto);
+  background: none;
+  border: 0;
+  border-radius: 0;
+  font-size: var(--t-base);
+}
+
+.busca-campo:focus-visible {
+  outline: none;
+}
+
+.busca-campo::-webkit-search-cancel-button {
+  display: none;
+}
+
+.busca-atalho {
+  flex: none;
+  padding: 2px var(--e1);
+  color: var(--texto-fraco);
+  background: var(--elevado, var(--preto));
+  border: 1px solid var(--borda);
+  border-radius: var(--raio-p);
+  font: 600 10px/1 var(--fonte);
+  letter-spacing: 0.04em;
+}
+
+.busca-resultados {
+  position: absolute;
+  top: calc(100% + var(--e1));
+  right: 0;
+  left: 0;
+  z-index: 70;
+  overflow: hidden;
+  background: var(--superficie);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  box-shadow: var(--sombra);
+}
+
+.busca-resultados[hidden] {
+  display: none;
+}
+
+.busca-item {
+  display: flex;
+  align-items: baseline;
+  gap: var(--e2);
+  width: 100%;
+  padding: var(--e2) var(--e3);
+  color: var(--texto);
+  text-align: left;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  cursor: pointer;
+  font-size: var(--t-base);
+}
+
+.busca-item:hover {
+  background: var(--superficie-2);
+}
+
+.busca-item span {
+  margin-left: auto;
+  color: var(--texto-fraco);
+  font-variant-numeric: tabular-nums;
+}
+
+.busca-vazio {
+  padding: var(--e3);
+  color: var(--texto-fraco);
+  font-size: var(--t-base);
+}
+
+/* Quem esta usando, no canto direito da barra global. */
+.quem-topo {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+}
+
+.quem-topo .quem strong {
+  display: block;
+  font-size: var(--t-base);
+  line-height: 1.2;
+}
+
+.quem-topo .quem span {
+  color: var(--texto-fraco);
+  font-size: 10px;
+}
+
+/* A lateral perdeu a marca e o rodape: os dois subiram para a barra global. */
+.lateral {
+  border-top: 0;
+}
+
+/* Rodape da rosca: as duas maiores fatias e o botao de ver o resto,
+   centralizado como na referencia. */
+.rosca-ver-tudo {
+  display: flex;
+  margin: var(--e3) auto 0;
+}
+
+/* Item de grade nasce com min-height auto, e por isso cresce ate caber o
+   proprio conteudo em vez de se ajustar a altura da grade. Sem esta linha, a
+   coluna principal empurrava o corpo para fora do .app, que tem overflow
+   hidden: a rolagem do conteudo nunca era acionada e o fim de qualquer tela
+   longa ficava inalcancavel. */
+.corpo > * {
+  min-height: 0;
+  min-width: 0;
+}
+
+/* A area de conteudo tambem e item flex, e item flex nasce com min-height auto:
+   sem zerar, ela cresce ate o proprio conteudo e nunca rola por dentro. */
+.conteudo {
+  min-height: 0;
+}
+
+/* Balao de leitura dos graficos ----------------------------------------
+   Ancorado na caixa do grafico, e nao no documento: assim ele acompanha a
+   rolagem sem precisar recalcular posicao a cada quadro. */
+.grafico-caixa {
+  position: relative;
+}
+
+.grafico-palco {
+  height: 100%;
+}
+
+.dica-grafico {
+  position: absolute;
+  z-index: 40;
+  min-width: 168px;
+  max-width: 260px;
+  padding: var(--e2) var(--e3);
+  background: var(--superficie);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  box-shadow: var(--sombra);
+  /* Nao intercepta o ponteiro: se interceptasse, o balao entraria debaixo do
+     cursor, disparava o pointerleave da area e a leitura piscava sem parar. */
+  pointer-events: none;
+}
+
+.dica-grafico[hidden] {
+  display: none;
+}
+
+.dica-titulo {
+  margin-bottom: var(--e2);
+  padding-bottom: var(--e1);
+  color: var(--texto);
+  font-size: var(--t-base);
+  font-weight: 600;
+  border-bottom: 1px solid var(--borda);
+}
+
+.dica-linha {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  padding: 1px 0;
+  color: var(--texto-suave);
+  font-size: var(--t-base);
+}
+
+.dica-ponto {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+}
+
+.dica-nome {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dica-linha b {
+  margin-left: auto;
+  color: var(--texto);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Previa, marcador de IA e contador na mesma linha. O texto encolhe, os dois
+   da direita nunca: eles sao o dado, a previa e o contexto. */
+.item-conversa .linha-previa {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  margin-top: 1px;
+}
+
+.item-conversa .linha-previa .previa {
+  flex: 1;
+  min-width: 0;
+  margin-top: 0;
+}
+
+.item-conversa .linha-previa .nao-lidas,
+.item-conversa .marca-ia {
+  flex: none;
+}
+
+/* Quem esta com a IA nao precisa de atendente agora. E a unica coisa que
+   sobrou do responsavel na linha, porque e a unica que muda a decisao. */
+.marca-ia {
+  padding: 0 var(--e1);
+  color: var(--ouro);
+  background: var(--ouro-fraco);
+  border-radius: var(--raio-p);
+  font-size: var(--t-nota);
+  font-weight: 600;
+  letter-spacing: var(--tr-alta);
+}
+
+/* O atributo hidden precisa vencer o display das classes.
+   A regra do navegador para [hidden] tem a especificidade mais baixa que
+   existe, entao qualquer `.classe { display: grid }` a atropela e o elemento
+   escondido continua a vista. Aconteceu duas vezes neste projeto: nos recortes
+   do dashboard e nas variaveis em branco do painel de contato. Uma regra so,
+   aqui, encerra a categoria. */
+[hidden] {
+  display: none !important;
+}
+
+/* ------------------------------------------------------------------
+   Onde o funil vaza
+   ------------------------------------------------------------------ */
+
+/* Contador ao lado do titulo da secao. Numero, e nao selo colorido: a cor ja
+   esta em cada achado da lista, e repeti-la aqui pintaria de vermelho um
+   cabecalho que ainda nao disse o que aconteceu. */
+.contagem-secao {
+  margin-left: var(--e2);
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--superficie-3);
+  color: var(--texto-fraco);
+  font-size: var(--t-nota);
+  font-weight: 600;
+  vertical-align: middle;
+}
+
+/* Um achado por coluna ate 780px de cartao, dois acima disso. Tres numa linha
+   apertava o texto da acao em duas palavras por linha, e a acao e a parte que
+   precisa ser lida. */
+.lista-gargalos {
+  display: grid;
+  gap: var(--e3);
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+}
+
+/* Filete a esquerda em vez de moldura inteira: o achado e um item de lista
+   dentro do cartao, e nao um cartao dentro de outro. Duas molduras encaixadas
+   fazem a tela parecer uma caixa dentro de uma caixa. */
+.gargalo {
+  display: grid;
+  gap: var(--e2);
+  padding: var(--e3) var(--e4);
+  border-left: 3px solid var(--alerta);
+  border-radius: 0 var(--raio) var(--raio) 0;
+  background: var(--superficie-2);
+}
+
+.gargalo-critico {
+  border-left-color: var(--erro);
+}
+
+.gargalo-etapa {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  font-size: var(--t-nota);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* Bolinha da gravidade. Herda a cor do filete pela variavel do proprio bloco,
+   para as duas nunca discordarem. */
+.gargalo-marca {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--alerta);
+  flex: none;
+}
+
+.gargalo-critico .gargalo-marca {
+  background: var(--erro);
+}
+
+/* O numero grande e o unico peso visual da linha: e ele que diz o tamanho do
+   problema. O esperado e a contagem ficam ao lado, em corpo de nota. */
+.gargalo-numeros {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--e2) var(--e3);
+  font-size: var(--t-nota);
+}
+
+.gargalo-numeros b {
+  font-size: var(--t-titulo);
+  font-weight: 600;
+  line-height: 1;
+}
+
+.gargalo p {
+  margin: 0;
+  font-size: var(--t-base);
+  line-height: 1.5;
+}
+
+.gargalo-onde {
+  font-size: var(--t-nota);
+}
+
+/* Regua do funil: nome, valor e faixa esperada de cada etapa.
+   Herda .rosca-legenda; o que muda e que cada item carrega quatro pedacos em
+   vez de dois, entao o gap interno aperta para os quatro nao se lerem como
+   quatro itens soltos, e o gap entre itens abre para separa-los. */
+.referencia-faixa {
+  gap: var(--e2) var(--e4);
+}
+
+.referencia-item {
+  gap: 6px;
+}
+
+/* ------------------------------------------------------------------
+   Filtro de multipla escolha (origens do dashboard)
+   ------------------------------------------------------------------ */
+
+.filtro-multiplo {
+  position: relative;
+}
+
+/* Mesma moldura, altura e respiro do <select> ao lado: os dois estao na mesma
+   linha da barra, e qualquer diferenca de 1px se le como desalinhamento. */
+.filtro-multiplo-alvo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e2);
+  width: 100%;
+  padding: var(--e2) var(--e3);
+  min-height: var(--controle);
+  background: var(--superficie-2);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  color: var(--texto);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.filtro-multiplo-alvo:hover {
+  border-color: var(--borda-forte);
+}
+
+.filtro-multiplo-alvo:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: 1px;
+}
+
+/* Com filtro ligado o botao muda de cor. Sem isso, "2 de 5" escrito em cinza no
+   meio de tres controles cinzas passava batido, e o painel inteiro aparecia
+   recortado sem ninguem lembrar por que. */
+.filtro-multiplo-alvo.ativo {
+  border-color: var(--ouro-linha);
+  color: var(--ouro-claro);
+}
+
+.filtro-multiplo-alvo > span:first-child {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Chevron em borda, do mesmo tamanho do que o navegador desenha no <select>. */
+.filtro-multiplo-seta {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin-bottom: 2px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  opacity: 0.6;
+  transform: rotate(45deg);
+}
+
+.filtro-multiplo.aberto .filtro-multiplo-seta {
+  margin-top: 3px;
+  margin-bottom: 0;
+  transform: rotate(-135deg);
+}
+
+/* Absoluto, ancorado no proprio botao. Nenhum ancestral da barra de filtros
+   recorta (conferido em tela: o painel passa da altura do cabecalho e continua
+   inteiro), entao nao ha por que medir posicao no JS como a dica faz. */
+.filtro-multiplo-painel {
+  display: none;
+  position: absolute;
+  z-index: 60;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 100%;
+  max-height: 300px;
+  overflow-y: auto;
+  padding: var(--e2);
+  background: var(--superficie-3);
+  border: 1px solid var(--borda-forte);
+  border-radius: var(--raio);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+.filtro-multiplo.aberto .filtro-multiplo-painel {
+  display: block;
+}
+
+.filtro-multiplo-item {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  padding: 5px var(--e2);
+  border-radius: var(--raio-p, 4px);
+  color: var(--texto-suave);
+  font-size: var(--t-base);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.filtro-multiplo-item:hover {
+  background: var(--superficie-2);
+  color: var(--texto);
+}
+
+.filtro-multiplo-item input {
+  width: auto;
+  min-height: 0;
+  margin: 0;
+  accent-color: var(--ouro);
+}
+
+.filtro-multiplo-risco {
+  height: 1px;
+  margin: var(--e2) 0;
+  background: var(--borda);
+}
+
+/* ------------------------------------------------------------------
+   Estrela da mensagem e recorte da conversa
+   ------------------------------------------------------------------ */
+
+/* A estrela vazia fica discreta e a cheia acende. Ela nao some fora do hover:
+   numa conversa de cem mensagens, o que ja foi marcado precisa ser visto
+   enquanto se rola, senao a marcacao nao serve para achar nada. */
+.estrela {
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  background: none;
+  border: 0;
+  /* Cor cheia, sem opacidade. Com opacity 0.5 sobre --texto-fraco o contorno
+     caia para 2,0:1 nos dois temas, abaixo do minimo de 3:1 que a WCAG pede
+     para controle nao textual: a estrela ficava invisivel para quem enxerga
+     pouco, justamente o botao que serve para achar coisa depois. A diferenca
+     entre vazia e marcada continua sendo cinza contra ouro, e o contorno
+     contra o preenchimento. */
+  color: var(--texto-fraco);
+  cursor: pointer;
+  transition: color 0.12s ease;
+}
+
+.estrela:hover,
+.estrela.marcada {
+  color: var(--ouro);
+}
+
+.estrela:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.estrela:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* Filete embaixo em vez de moldura: a faixa separa o cabecalho da conversa das
+   mensagens, e uma caixa aqui somaria uma terceira borda na mesma coluna. */
+.recorte-conversa {
+  display: flex;
+  align-items: center;
+  gap: var(--e1);
+  flex: none;
+  padding: var(--e2) var(--e4);
+  border-bottom: 1px solid var(--borda);
+}
+
+.recorte-conversa button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px var(--e2);
+  background: none;
+  border: 0;
+  border-radius: 999px;
+  color: var(--texto-fraco);
+  font: inherit;
+  font-size: var(--t-nota);
+  cursor: pointer;
+}
+
+.recorte-conversa button:hover {
+  color: var(--texto);
+  background: var(--superficie-2);
+}
+
+.recorte-conversa button.ativo {
+  background: var(--ouro-fraco);
+  color: var(--ouro-claro);
+}
+
+.recorte-conversa button:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: 1px;
+}
+
+/* ------------------------------------------------------------------
+   Pos-venda: envelhecimento por etapa
+   ------------------------------------------------------------------ */
+
+.lista-etapas {
+  display: grid;
+  gap: var(--e3);
+}
+
+/* Nome, barra e numeros em tres colunas fixas. Com o nome em largura livre, a
+   barra de cada linha comecava num ponto diferente e as proporcoes deixavam de
+   ser comparaveis de relance, que e a unica coisa que esta tabela faz. */
+.linha-etapa {
+  display: grid;
+  grid-template-columns: minmax(120px, 200px) 1fr auto;
+  align-items: center;
+  gap: var(--e3);
+}
+
+.etapa-nome {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  min-width: 0;
+  font-size: var(--t-base);
+}
+
+.etapa-nome span:last-child {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* A barra e sempre 100% da coluna: ela mostra a proporcao DENTRO da etapa, e
+   nao o tamanho da etapa. O tamanho ja esta escrito em numero ao lado. */
+/* O vao de 2px entre as faixas e desenhado pelo proprio trilho, e vale mais que
+   um filete: as quatro cores sao semanticas e por isso ficam perto demais entre
+   si (1,4:1 entre vizinhas, 1,2:1 sob daltonismo verde-vermelho). Sem a fenda,
+   a barra virava uma mancha continua para quem nao separa essas cores. */
+.barra-idade {
+  display: flex;
+  gap: 2px;
+  height: 18px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--superficie-3);
+}
+
+.pedaco-idade {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-width: 4px;
+  overflow: hidden;
+}
+
+/* O numero dentro da faixa. Preto sobre as quatro cores, que sao todas claras o
+   bastante: com --texto ele reprovava no contraste sobre a faixa verde no tema
+   escuro. */
+.pedaco-idade span {
+  color: var(--preto);
+  font-size: var(--t-nota);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.etapa-numeros {
+  display: flex;
+  align-items: baseline;
+  gap: var(--e2);
+  font-size: var(--t-nota);
+  white-space: nowrap;
+}
+
+.etapa-numeros b {
+  font-size: var(--t-base);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Numero de dias no fim da linha, alinhado entre itens. */
+.dias-parado {
+  flex: none;
+  font-size: var(--t-base);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Prazo vencido leva filete a esquerda. Cor sozinha no numero se perde numa
+   lista longa; o filete marca a linha inteira. */
+.lista-item.prazo-vencido {
+  border-left: 3px solid var(--erro);
+  padding-left: var(--e3);
+}
+
+@media (max-width: 640px) {
+  /* Em tela estreita as tres colunas nao cabem: nome em cima, barra e numeros
+     embaixo, que mantem a barra comparavel entre linhas. */
+  .linha-etapa {
+    grid-template-columns: 1fr auto;
+  }
+  .etapa-nome {
+    grid-column: 1 / -1;
+  }
+}

@@ -1,0 +1,58 @@
+# ---------------------------------------------------------------
+# Dados do escritorio. NUNCA versionar.
+# ---------------------------------------------------------------
+# A pasta dados/ guarda conversa de cliente, telefone, CPF, as chaves da API
+# do WhatsApp e as chaves da API do proprio sistema. Commitado uma vez, isso
+# fica no historico para sempre: apagar o arquivo depois nao tira do git, e num
+# repositorio publico seria vazamento de dado de cliente.
+#
+# Nao precisa versionar: o sistema semeia a base sozinho na primeira vez que
+# sobe, com o escritorio, os status, os agentes e os templates prontos.
+dados/
+
+# Midia enviada e recebida nas conversas (documento, laudo, foto de RG).
+midia/
+arquivos/
+
+# ---------------------------------------------------------------
+# Ambiente
+# ---------------------------------------------------------------
+.env
+.env.*
+*.local
+
+# ---------------------------------------------------------------
+# Lixo de sistema operacional e de editor
+# ---------------------------------------------------------------
+Thumbs.db
+desktop.ini
+.DS_Store
+.vscode/
+.idea/
+*.swp
+
+# ---------------------------------------------------------------
+# Node
+# ---------------------------------------------------------------
+# O projeto roda sem instalar pacote nenhum, entao isto nao deveria aparecer.
+# Fica na lista para o dia em que alguem rodar npm install sem pensar.
+node_modules/
+npm-debug.log*
+*.tgz
+
+# Log solto
+*.log
+
+# ---------------------------------------------------------------
+# Duplicata do Explorer do Windows
+# ---------------------------------------------------------------
+# Um Ctrl+C / Ctrl+V sem querer dentro da pasta gera "app - Copia.js" ao lado
+# de "app.js". O arquivo e identico, ninguem importa ele, e no repositorio ele
+# so faz quem abrir o codigo perguntar qual dos dois vale.
+* - Copia.*
+* - Copia (*).*
+* - Copy.*
+* - Copy (*).*
+
+# Aviso local desta maquina, nao pertence ao repositorio.
+NAO-RODE-DAQUI.txt
