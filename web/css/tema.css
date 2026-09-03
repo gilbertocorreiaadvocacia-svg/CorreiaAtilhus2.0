@@ -76,10 +76,17 @@
 
   /* Uma escala so, aplicada sem excecao:
      pequeno = campo e selo, raio = botao e item, grande = cartao e modal,
-     pilula = etiqueta e chip, circulo = avatar */
-  --raio-p: 3px;
-  --raio: 3px;
-  --raio-g: 3px;
+     pilula = etiqueta e chip, circulo = avatar.
+
+     A 3px os cantos liam quase retos, com cara de planilha. Subimos para uma
+     curva discreta, o suficiente para amaciar sem virar bolha: campo 6, botao e
+     item 8, cartao e modal 12. Os componentes de borda reta proposital (.selo,
+     .item-conversa, o filete de .aviso e .gargalo, os segmentos do meio do
+     grupo alternado) usam 0 ou valor literal e NAO seguem estes tokens, entao
+     continuam retos por desenho, nao por acaso. */
+  --raio-p: 6px;
+  --raio: 8px;
+  --raio-g: 12px;
   --raio-pilula: 999px;
   --sombra: 0 18px 40px rgba(0, 0, 0, 0.55);
   --transicao: 150ms ease;
@@ -1705,14 +1712,20 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
      porque ali a cor diz de que etapa e o numero. Texto desse tamanho passa
      com 3:1, e toda a rampa passa. */
   color: var(--metrica-cor, var(--texto));
-  font-family: var(--fonte-titulo);
+  /* O numero grande sai na fonte de interface (Segoe UI), e nao na serifa de
+     titulo (Constantia). Constantia usa algarismo antigo por padrao, aquele em
+     que o 4 e o 7 descem abaixo da linha: num numero como "14" o 4 parecia
+     afundado. A serifa continua nos titulos de tela, onde ela e a assinatura do
+     escritorio; no numero, o que se quer e o algarismo alinhado de painel. */
+  font-family: var(--fonte);
   font-size: var(--t-2xl);
   font-weight: 700;
   letter-spacing: -0.02em;
   line-height: var(--lh-apertada);
-  /* Numeros de mesma largura: sem isso a coluna de valores balanca a cada
-     atualizacao do painel. */
-  font-variant-numeric: tabular-nums;
+  /* lining = algarismo alinhado na altura das maiusculas (mata o 4 afundado);
+     tabular = todos da mesma largura, para a coluna de valores nao balancar a
+     cada atualizacao do painel. */
+  font-variant-numeric: lining-nums tabular-nums;
 }
 
 /* Cartao de metrica que tambem e botao, na faixa da semana de Agendamentos.
@@ -1996,7 +2009,7 @@ td,
 .quando,
 .nao-lidas,
 .grafico-barras {
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: lining-nums tabular-nums;
 }
 
 h1,
@@ -2555,7 +2568,7 @@ button.mencao-chip:focus-visible {
   border-top: 1px solid var(--borda);
   color: var(--texto-suave);
   font-size: var(--t-sm);
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: lining-nums tabular-nums;
 }
 
 .paginacao-controles {
@@ -2609,7 +2622,7 @@ button.mencao-chip:focus-visible {
   gap: var(--e1);
   font-size: var(--t-sm);
   font-weight: 600;
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: lining-nums tabular-nums;
   color: var(--texto-suave);
 }
 
@@ -2626,7 +2639,7 @@ button.mencao-chip:focus-visible {
   margin-top: var(--e2);
   color: var(--texto-fraco);
   font-size: var(--t-xs);
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: lining-nums tabular-nums;
 }
 
 .metrica-tempo svg {
@@ -2717,7 +2730,7 @@ button.mencao-chip:focus-visible {
 .rosca-legenda b {
   color: var(--texto);
   font-weight: 600;
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: lining-nums tabular-nums;
 }
 
 /* ------------------------------------------------------------------
@@ -3434,7 +3447,7 @@ tbody .linha-clicavel:focus-visible {
    balanca a cada atualizacao. */
 .valor-percentual {
   font-size: var(--t-xs);
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: lining-nums tabular-nums;
   flex: none;
 }
 
@@ -3712,7 +3725,7 @@ textarea.area-g {
 /* Numero de largura fixa: sem isso a coluna balanca a cada atualizacao,
    porque o 1 e mais estreito que o 8. */
 .num {
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: lining-nums tabular-nums;
 }
 
 /* Espaco ----------------------------------------------------------- */
@@ -3772,7 +3785,7 @@ textarea.area-g {
      Vale para gap, padding e margem, sem excecao.
    Controle: --controle-p 28, --controle 36, --controle-g 44, sempre em
      min-height, para o conteudo poder crescer.
-   Raio: --raio-p 6, --raio 10, --raio-g 14, --raio-pilula.
+   Raio: --raio-p 6, --raio 8, --raio-g 12, --raio-pilula.
    Cor: so pelas variaveis do topo, nunca hex solto dentro da regra.
    Valor fora dessas escalas e valor chutado. Se um elemento so cabe com
    um numero novo, o certo e mexer no container, nao criar o setimo
@@ -3854,7 +3867,7 @@ textarea.area-g {
   min-width: 2ch;
   color: var(--texto);
   font-size: var(--t-sm);
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: lining-nums tabular-nums;
   text-align: right;
 }
 
@@ -3878,7 +3891,7 @@ textarea.area-g {
   margin-top: var(--e1);
   font-size: var(--t-nota);
   font-weight: 600;
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: lining-nums tabular-nums;
 }
 
 /* Recortes recolhiveis da barra de filtros.
@@ -4211,7 +4224,7 @@ textarea.area-g {
 .busca-item span {
   margin-left: auto;
   color: var(--texto-fraco);
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: lining-nums tabular-nums;
 }
 
 .busca-vazio {
@@ -4330,7 +4343,7 @@ textarea.area-g {
 .dica-linha b {
   margin-left: auto;
   color: var(--texto);
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: lining-nums tabular-nums;
 }
 
 /* Previa, marcador de IA e contador na mesma linha. O texto encolhe, os dois
@@ -4455,6 +4468,7 @@ textarea.area-g {
   font-size: var(--t-titulo);
   font-weight: 600;
   line-height: 1;
+  font-variant-numeric: lining-nums tabular-nums;
 }
 
 .gargalo p {
@@ -4745,6 +4759,7 @@ textarea.area-g {
   font-size: var(--t-nota);
   font-weight: 700;
   line-height: 1;
+  font-variant-numeric: lining-nums tabular-nums;
 }
 
 .etapa-numeros {
@@ -4758,7 +4773,7 @@ textarea.area-g {
 .etapa-numeros b {
   font-size: var(--t-base);
   font-weight: 600;
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: lining-nums tabular-nums;
 }
 
 /* Numero de dias no fim da linha, alinhado entre itens. */
@@ -4766,7 +4781,7 @@ textarea.area-g {
   flex: none;
   font-size: var(--t-base);
   font-weight: 600;
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: lining-nums tabular-nums;
   white-space: nowrap;
 }
 

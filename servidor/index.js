@@ -189,7 +189,33 @@ const servidor = http.createServer(async (req, res) => {
   }
 });
 
-servidor.listen(PORTA, () => {
+/*
+ * Guarda de instancia unica.
+ *
+ * Com o inicio automatico no login do Windows, o servidor ja sobe sozinho. Se
+ * alguem tambem der dois cliques no INICIAR.bat, o segundo processo tenta subir
+ * na mesma porta 4477 e o Node estoura EADDRINUSE. Sem tratar, isso vira um
+ * erro feio (ou um loop de reinicio) e, pior, dois processos disputando os
+ * mesmos arquivos de dados. Aqui o segundo simplesmente avisa que ja esta no ar
+ * e sai limpo, deixando o primeiro dono unico do disco.
+ */
+servidor.on('error', (erro) => {
+  if (erro.code === 'EADDRINUSE') {
+    console.log(`\n  O Correiatendimentos ja esta rodando na porta ${PORTA}.`);
+    console.log('  Abra http://localhost:' + PORTA + ' no navegador.\n');
+    process.exit(0);
+  }
+  console.error('[erro no servidor]', erro);
+  process.exit(1);
+});
+
+/*
+ * So esta maquina. O `'127.0.0.1'` prende o servidor ao localhost: sem ele, o
+ * Node escutava em todas as interfaces e qualquer computador da rede do
+ * escritorio alcancava o sistema pelo IP desta maquina, sem senha de rede
+ * nenhuma. O atendimento roda aqui, nesta maquina, e e so daqui que se abre.
+ */
+servidor.listen(PORTA, '127.0.0.1', () => {
   const linha = '─'.repeat(58);
   console.log(`\n${linha}`);
   console.log('  CORREIATENDIMENTOS');

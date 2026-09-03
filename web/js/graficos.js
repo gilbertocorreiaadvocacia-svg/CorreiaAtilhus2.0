@@ -44,7 +44,16 @@ function no(etiqueta, atributos = {}, filhos = []) {
 }
 
 function texto(conteudo, atributos = {}) {
-  const t = no('text', { fill: 'currentColor', 'font-size': T_XS, ...atributos });
+  /* Algarismo alinhado e de largura fixa tambem nos rotulos de grafico: sem
+     isso, o "14%" da rosca e do funil saia com o 4 afundado (algarismo antigo
+     da fonte), diferente do mesmo numero no cartao ao lado. Vai por style
+     inline porque o <text> do SVG nao herda a regra dos cartoes. */
+  const t = no('text', {
+    fill: 'currentColor',
+    'font-size': T_XS,
+    style: 'font-variant-numeric: lining-nums tabular-nums',
+    ...atributos,
+  });
   t.textContent = conteudo;
   return t;
 }

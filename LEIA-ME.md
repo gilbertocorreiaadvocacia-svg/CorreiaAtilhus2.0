@@ -10,10 +10,21 @@ depender de serviço de fora.
 
 ## Como abrir
 
-Dê dois cliques em **`INICIAR.bat`**.
+**Da forma automática (recomendada).** Dê dois cliques em **`instalar-inicio.cmd`**,
+uma vez só. A partir daí:
 
-Ele sobe o servidor e abre `http://localhost:4477` no navegador. Deixe a janela
-preta aberta, se fechar, o sistema para.
+- o sistema **sobe sozinho, escondido, toda vez que o Windows liga** — sem janela
+  preta na tela;
+- um atalho **`Correiatendimentos`** aparece na Área de Trabalho; clicar nele só
+  abre o navegador em `http://localhost:4477`.
+
+Para desligar o início automático depois, rode **`desinstalar-inicio.cmd`** (isso
+não apaga nada, só tira da inicialização).
+
+**Da forma manual (para depurar).** Dê dois cliques em **`INICIAR.bat`**. Ele sobe
+o servidor com a janela preta visível e abre o navegador. Se fechar a janela, o
+sistema para. Serve para ver mensagens de erro; no dia a dia, use o início
+automático acima.
 
 **Primeiro acesso:**
 
@@ -22,9 +33,10 @@ preta aberta, se fechar, o sistema para.
 
 Troque a senha em **Configurações › Membros** assim que entrar.
 
-> Precisa do Node.js instalado (versão LTS, em https://nodejs.org). Fora isso,
-> nada: **zero dependências**, nenhum `npm install`, nenhum executável novo para
-> o Windows barrar.
+> O sistema roda **só nesta máquina** (`localhost`, porta 4477). Não fica aberto na
+> rede do escritório: outros computadores não acessam. Precisa do Node.js instalado
+> (versão LTS, em https://nodejs.org). Fora isso, nada: **zero dependências**, nenhum
+> `npm install`, nenhum executável novo para o Windows barrar.
 
 ---
 
