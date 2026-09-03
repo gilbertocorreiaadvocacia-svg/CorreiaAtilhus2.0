@@ -56,3 +56,14 @@ npm-debug.log*
 
 # Aviso local desta maquina, nao pertence ao repositorio.
 NAO-RODE-DAQUI.txt
+
+# ---------------------------------------------------------------
+# Segredos
+# ---------------------------------------------------------------
+# A chave de servico do Supabase da acesso total ao banco do escritorio.
+# O modelo (segredos-EXEMPLO.bat) vai para o repositorio; o arquivo com a
+# chave de verdade, nunca.
+segredos.bat
+
+# Rastro dos lotes que o espelho nao conseguiu enviar. Diagnostico local.
+.espelho-pendente.jsonl

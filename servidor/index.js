@@ -209,9 +209,12 @@ servidor.listen(PORTA, () => {
 
 function encerrar() {
   console.log('\n  Salvando os dados antes de sair...');
-  encerrarBanco();
-  servidor.close(() => process.exit(0));
-  setTimeout(() => process.exit(0), 2000).unref();
+  /* encerrarBanco agora devolve promessa: o disco e gravado na hora, e a
+     promessa e a fila do espelho tentando esvaziar antes de fechar. O teto
+     continua valendo para o processo nao ficar preso se o Supabase nao
+     responder; o que ficar para tras sobe na proxima conferencia. */
+  Promise.resolve(encerrarBanco()).finally(() => servidor.close(() => process.exit(0)));
+  setTimeout(() => process.exit(0), 3000).unref();
 }
 
 process.on('SIGINT', encerrar);

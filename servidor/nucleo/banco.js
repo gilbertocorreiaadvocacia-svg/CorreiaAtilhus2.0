@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { PASTA_DADOS, PASTA_MENSAGENS } from '../config.js';
 import { agora, garantirPasta, gravarAtomico, lerJson, novoId, ordenarPor } from './util.js';
+import { encerrarEspelho, espelhar } from './espelho.js';
 
 /**
  * Banco de arquivos JSON, sem dependencia externa.
@@ -104,6 +105,7 @@ export function inserir(colecao, dados) {
   registro.id = dados.id || registro.id;
   tabela(colecao).push(registro);
   marcarSuja(colecao);
+  espelhar(colecao, registro.id, registro);
   return registro;
 }
 
@@ -112,6 +114,7 @@ export function atualizar(colecao, id, mudancas) {
   if (!registro) return null;
   Object.assign(registro, mudancas, { atualizadoEm: agora() });
   marcarSuja(colecao);
+  espelhar(colecao, registro.id, registro);
   return registro;
 }
 
@@ -121,6 +124,7 @@ export function remover(colecao, id) {
   if (indice < 0) return false;
   lista.splice(indice, 1);
   marcarSuja(colecao);
+  espelhar(colecao, id, null);
   return true;
 }
 
@@ -129,7 +133,11 @@ export function removerOnde(colecao, filtro) {
   let removidos = 0;
   for (let i = lista.length - 1; i >= 0; i -= 1) {
     if (combina(lista[i], filtro)) {
+      /* O id sai ANTES do splice: depois da remocao o registro nao existe mais
+         para consultar, e o espelho ficaria com a linha orfa no Supabase. */
+      const { id } = lista[i];
       lista.splice(i, 1);
+      espelhar(colecao, id, null);
       removidos += 1;
     }
   }
@@ -183,6 +191,7 @@ export function inserirMensagem(contatoId, dados) {
   };
   lista.push(mensagem);
   marcarMensagensSujas(contatoId);
+  espelhar('mensagens', mensagem.id, mensagem);
   return mensagem;
 }
 
@@ -192,6 +201,7 @@ export function atualizarMensagem(contatoId, id, mudancas) {
   if (!mensagem) return null;
   Object.assign(mensagem, mudancas);
   marcarMensagensSujas(contatoId);
+  espelhar('mensagens', mensagem.id, mensagem);
   return mensagem;
 }
 
@@ -199,7 +209,12 @@ export function moverMensagens(deContatoId, paraContatoId) {
   const origem = mensagensDe(deContatoId);
   const destino = mensagensDe(paraContatoId);
   for (const mensagem of origem) {
-    destino.push({ ...mensagem, contatoId: paraContatoId });
+    const movida = { ...mensagem, contatoId: paraContatoId };
+    destino.push(movida);
+    /* A mensagem mantem o id ao mudar de dono, entao no Supabase e a MESMA
+       linha com contato_id novo. Sem espelhar, a unificacao de conversas ficava
+       so no JSON e o espelho apontava para a conversa que deixou de existir. */
+    espelhar('mensagens', movida.id, movida);
   }
   destino.sort((a, b) => String(a.criadoEm).localeCompare(String(b.criadoEm)));
   cacheMensagens.set(deContatoId, []);
@@ -209,6 +224,10 @@ export function moverMensagens(deContatoId, paraContatoId) {
 }
 
 export function apagarMensagens(contatoId) {
+  /* As linhas do Supabase saem uma a uma: a porta de escrita e por id, e apagar
+     por contato exigiria abrir uma segunda operacao la dentro. Excluir conversa
+     e raro, entao o lote maior compensa a porta menor. */
+  for (const mensagem of mensagensDe(contatoId)) espelhar('mensagens', mensagem.id, null);
   cacheMensagens.delete(contatoId);
   mensagensSujas.delete(contatoId);
   try {
@@ -231,4 +250,6 @@ export function logsDe(contatoId, limite = 200) {
 export function encerrarBanco() {
   salvarPendentes();
   salvarMensagensPendentes();
+  /* Devolve a promessa para quem encerra poder esperar o espelho esvaziar. */
+  return encerrarEspelho();
 }
