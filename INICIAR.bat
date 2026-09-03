@@ -1,5 +1,5 @@
 @echo off
-title Correiatendimentos - Correia Advogados Associados
+title CorreiaAtilhus2.0 - Correia Advogados Associados
 cd /d "%~dp0"
 
 where node >nul 2>nul

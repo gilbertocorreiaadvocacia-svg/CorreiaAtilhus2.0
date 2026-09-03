@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Servidor MCP do Correiatendimentos.
+ * Servidor MCP do CorreiaAtilhus2.0.
  *
  * Deixa o Claude (Desktop, Code, Cursor) ler e mexer no atendimento do
  * escritorio por conversa: "quantos leads de BPC entraram esta semana",
@@ -55,7 +55,7 @@ async function chamarApi(caminho, { metodo = 'GET', corpo = null } = {}) {
       /* Servidor no ar e servidor fora do ar dao mensagens muito diferentes de
          utilidade. "fetch failed" nao ajuda ninguem; dizer que o programa
          precisa estar aberto, sim. */
-      throw new Error(`Nao consegui falar com ${BASE}. O Correiatendimentos esta aberto? (${erro.message})`);
+      throw new Error(`Nao consegui falar com ${BASE}. O CorreiaAtilhus2.0 esta aberto? (${erro.message})`);
     }
 
     if (resposta.status === 429 && tentativa < TENTATIVAS - 1) {

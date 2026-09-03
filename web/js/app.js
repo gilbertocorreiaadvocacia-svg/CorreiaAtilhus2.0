@@ -188,7 +188,7 @@ function telaEntrada(mensagemInicial) {
     el('div', { class: 'entrada' }, [
       el('div', { class: 'entrada-cartao' }, [
         el('img', { src: 'assets/logo.png', alt: 'Correia Advogados Associados' }),
-        el('h1', { texto: 'Correiatendimentos' }),
+        el('h1', { texto: 'CorreiaAtilhus2.0' }),
         el('p', { texto: 'Correia Advogados Associados' }),
         formulario,
         mensagemInicial
@@ -436,7 +436,7 @@ function montarEstrutura() {
         el('div', { class: 'marca' }, [
           el('img', { src: 'assets/logo.png', alt: '' }),
           el('div', { class: 'marca-texto' }, [
-            el('strong', { texto: 'Correiatendimentos' }),
+            el('strong', { texto: 'CorreiaAtilhus2.0' }),
             el('span', { texto: 'Correia Advogados Associados' }),
           ]),
         ]),

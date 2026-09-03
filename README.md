@@ -1,4 +1,4 @@
-# Correiatendimentos
+# CorreiaAtilhus2.0
 
 Plataforma de atendimento, agentes de IA e funil comercial no WhatsApp, feita
 para o **Correia Advogados Associados** (direito previdenciário).

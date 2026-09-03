@@ -1,4 +1,4 @@
-' Sobe o Correiatendimentos sem nenhuma janela visivel.
+' Sobe o CorreiaAtilhus2.0 sem nenhuma janela visivel.
 '
 ' O VBScript ja vem no Windows, entao nao depende de instalar nada. Ele chama o
 ' servidor-oculto.cmd com estilo de janela 0 (escondida) e sem esperar terminar,

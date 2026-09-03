@@ -1,4 +1,4 @@
-# Supabase — espelho do Correiatendimentos
+# Supabase — espelho do CorreiaAtilhus2.0
 
 Este documento explica o que existe no Supabase, como ligar o espelho, como
 carregar os dados de hoje e como conferir os dois lados. Nada aqui muda o dia a

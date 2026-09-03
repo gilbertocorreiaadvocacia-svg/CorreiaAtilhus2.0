@@ -161,7 +161,7 @@ export async function operarAgenda({ contato, agente, argumentos }) {
     const noGoogle = await criarNoGoogle(cfg, {
       id: compromisso.id,
       assunto: compromisso.assunto,
-      descricao: `Reuniao agendada pelo Correiatendimentos com ${contato.nome} (${contato.telefone}).`,
+      descricao: `Reuniao agendada pelo CorreiaAtilhus2.0 com ${contato.nome} (${contato.telefone}).`,
       inicio: quando.toISOString(),
       fim: new Date(quando.getTime() + regras.duracao * 60000).toISOString(),
     }).catch(() => null);

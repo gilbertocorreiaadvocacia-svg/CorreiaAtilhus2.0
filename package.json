@@ -2,7 +2,7 @@
   "name": "correiatendimentos",
   "version": "0.1.0",
   "private": true,
-  "description": "Correiatendimentos, plataforma de atendimento, agentes de IA e funil comercial no WhatsApp. Correia Advogados Associados.",
+  "description": "CorreiaAtilhus2.0, plataforma de atendimento, agentes de IA e funil comercial no WhatsApp. Correia Advogados Associados.",
   "type": "module",
   "main": "servidor/index.js",
   "scripts": {

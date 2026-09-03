@@ -1,4 +1,4 @@
-# Correiatendimentos
+# CorreiaAtilhus2.0
 
 Plataforma de atendimento, agentes de IA e funil comercial no WhatsApp, feita
 para o **Correia Advogados Associados**, com base na auditoria da LiderHub.
@@ -15,7 +15,7 @@ uma vez só. A partir daí:
 
 - o sistema **sobe sozinho, escondido, toda vez que o Windows liga** — sem janela
   preta na tela;
-- um atalho **`Correiatendimentos`** aparece na Área de Trabalho; clicar nele só
+- um atalho **`CorreiaAtilhus2.0`** aparece na Área de Trabalho; clicar nele só
   abre o navegador em `http://localhost:4477`.
 
 Para desligar o início automático depois, rode **`desinstalar-inicio.cmd`** (isso
@@ -404,7 +404,7 @@ só aparece uma vez.
   "mcpServers": {
     "correiatendimentos": {
       "command": "node",
-      "args": ["C:\Users\SEU-USUARIO\Desktop\Correiatendimentos\servidor\mcp\index.js"],
+      "args": ["C:\Users\SEU-USUARIO\Desktop\CorreiaAtilhus2.0\servidor\mcp\index.js"],
       "env": {
         "CORREIA_URL": "http://localhost:4477",
         "CORREIA_CHAVE": "chk_cole_aqui_a_sua_chave"
@@ -415,7 +415,7 @@ só aparece uma vez.
 ```
 
 No Claude Code, o mesmo com `claude mcp add`. Em qualquer cliente, o
-Correiatendimentos precisa estar **aberto**: o servidor MCP conversa com ele.
+CorreiaAtilhus2.0 precisa estar **aberto**: o servidor MCP conversa com ele.
 
 **As 14 ferramentas:** `list_connections`, `get_connection`,
 `query_contacts`, `get_contact`, `mark_contact_read`, `list_messages`,

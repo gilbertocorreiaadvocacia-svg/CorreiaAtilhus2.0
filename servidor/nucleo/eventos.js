@@ -13,7 +13,7 @@ export function inscrever(res, contexto) {
     Connection: 'keep-alive',
     'X-Accel-Buffering': 'no',
   });
-  res.write(': conectado ao Correiatendimentos\n\n');
+  res.write(': conectado ao CorreiaAtilhus2.0\n\n');
 
   const inscrito = { res, ...contexto };
   inscritos.add(inscrito);

@@ -201,7 +201,7 @@ const servidor = http.createServer(async (req, res) => {
  */
 servidor.on('error', (erro) => {
   if (erro.code === 'EADDRINUSE') {
-    console.log(`\n  O Correiatendimentos ja esta rodando na porta ${PORTA}.`);
+    console.log(`\n  O CorreiaAtilhus2.0 ja esta rodando na porta ${PORTA}.`);
     console.log('  Abra http://localhost:' + PORTA + ' no navegador.\n');
     process.exit(0);
   }

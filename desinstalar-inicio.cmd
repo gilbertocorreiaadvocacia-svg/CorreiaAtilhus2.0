@@ -5,7 +5,7 @@ rem  so tira o atalho da pasta de Inicializacao. O servidor que ja estiver
 rem  rodando continua ate o proximo desligamento do Windows.
 rem ---------------------------------------------------------------------
 setlocal
-set "ATALHO=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\Correiatendimentos.lnk"
+set "ATALHO=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\CorreiaAtilhus2.0.lnk"
 
 echo.
 if exist "%ATALHO%" (
