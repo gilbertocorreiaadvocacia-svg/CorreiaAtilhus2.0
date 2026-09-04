@@ -174,6 +174,35 @@ export async function testarConversas({ base }) {
   s.ok('conversa que nunca trocou mensagem vem com zero, e nao sem o campo',
     semMensagemNaLista?.totalMensagens === 0, `veio ${semMensagemNaLista?.totalMensagens}`);
 
+  /*
+   * As fontes que as abas do painel da direita leem.
+   *
+   * Sao tres rotas por conversa, e o que importa aqui nao e o conteudo (base
+   * de teste tem pouco), e sim que cada uma responda so sobre a conversa
+   * pedida e recuse conversa de fora. O painel mostra dado de cliente; uma
+   * dessas rotas devolvendo a conversa errada seria vazamento entre casos.
+   */
+  const logs = (await api.get(`/api/contatos/${voltou.id}/logs`)).dados || [];
+  s.ok('o historico da conversa traz os registros dela', Array.isArray(logs) && logs.length > 0);
+  s.ok('o historico vem do mais recente para o mais antigo',
+    logs.every((l, i) => i === 0 || l.criadoEm <= logs[i - 1].criadoEm));
+  s.ok('todo registro do historico e da propria conversa',
+    logs.every((l) => l.contatoId === voltou.id));
+
+  const agenda = (await api.get(`/api/contatos/${voltou.id}/agendamentos`)).dados;
+  s.ok('a rota de agendamentos da conversa responde uma lista', Array.isArray(agenda));
+  s.ok('todo agendamento devolvido e da propria conversa',
+    (agenda || []).every((a) => a.contatoId === voltou.id));
+
+  const tarefas = (await api.get(`/api/tarefas?contato=${voltou.id}`)).dados;
+  const listaTarefas = tarefas?.tarefas || tarefas || [];
+  s.ok('a rota de tarefas aceita o filtro por conversa',
+    Array.isArray(listaTarefas) && listaTarefas.every((t) => t.contatoId === voltou.id));
+
+  const inexistente = await api.get('/api/contatos/ctt_nao_existe/agendamentos');
+  s.ok('agendamentos de conversa inexistente e recusado', inexistente.status === 404,
+    `veio ${inexistente.status}`);
+
   /* ---------------- Busca ---------------- */
 
   /*

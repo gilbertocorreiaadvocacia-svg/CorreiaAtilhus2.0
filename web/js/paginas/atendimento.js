@@ -156,6 +156,11 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
      e nao dentro do painel, para nao ser apagado toda vez que um evento ao
      vivo redesenha a tela. */
   let termoEtiqueta = '';
+
+  /* Qual das seis abas do painel da direita esta aberta. Pelo mesmo motivo do
+     termo acima: a tela se refaz a cada evento, e voltar para "Dados" no meio
+     de uma leitura do historico seria perder o lugar sem ter pedido. */
+  let abaPainel = 'dados';
   let areaContatos = null;
 
   const container = el('div', { class: 'atendimento' });
@@ -1255,47 +1260,12 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
       variaveis.append(abrir, embranco);
     }
 
-    const arquivos = el('div', { class: 'lista-simples' });
-    for (const arquivo of contato.arquivos || []) {
-      arquivos.append(
-        el('div', { class: 'lista-item' }, [
-          el('div', { class: 'corpo' }, [
-            el('div', { class: 'titulo', texto: arquivo.nome }),
-            el('div', { class: 'desc', texto: `${(arquivo.tamanho / 1024).toFixed(0)} KB · ${dataHora(arquivo.criadoEm)}` }),
-          ]),
-        ]),
-      );
-    }
-    const seletorArquivo = el('input', { type: 'file', estilo: { display: 'none' } });
-    seletorArquivo.addEventListener('change', async () => {
-      const arquivo = seletorArquivo.files[0];
-      if (!arquivo) return;
-      const leitor = new FileReader();
-      leitor.onload = async () => {
-        await api.post(`/api/contatos/${contato.id}/arquivos`, {
-          nome: arquivo.name,
-          conteudoBase64: leitor.result,
-          tipo: arquivo.type.startsWith('image') ? 'imagem' : 'documento',
-        });
-        aviso('Arquivo guardado na nuvem da conversa.', 'sucesso');
-        await desenhar();
-      };
-      leitor.readAsDataURL(arquivo);
-    });
 
-    return el('div', { class: 'coluna' }, [
-      el('div', { class: 'coluna-cabecalho' }, [
-        // O mesmo par de nome e telefone do cabecalho da conversa, no mesmo
-        // ritmo: --t-md peso 600 em cima, --t-xs fraco embaixo.
-        el('div', { class: 'linha' }, [
-          avatar(contato),
-          el('div', { class: 'encolhe' }, [
-            el('div', { class: 't-md peso-600', texto: contato.nome }),
-            el('div', { class: 't-xs c-fraco', texto: telefone(contato.telefone) }),
-          ]),
-        ]),
-      ]),
-      el('div', { class: 'coluna-corpo' }, [
+    /*
+     * O conteudo da aba Dados. As outras cinco sao montadas mais abaixo, sob
+     * demanda: nenhuma delas precisa existir enquanto ninguem a abriu.
+     */
+    const painelDados = el('div', {}, [
         el('div', { class: 'propriedade' }, [
           el('span', { texto: 'Responsavel' }),
           selecao(opcoesResponsavel(), responsavelAtual, {
@@ -1348,36 +1318,346 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
           ]),
         ]),
         el('div', { class: 'propriedade' }, [el('span', { texto: 'Variaveis' }), variaveis]),
-        el('div', { class: 'propriedade' }, [
-          el('span', { texto: 'Nuvem da conversa' }),
-          arquivos,
-          seletorArquivo,
-          botao('Guardar arquivo', { pequeno: true, aoClicar: () => seletorArquivo.click() }),
+    ]);
+
+    /* ---------------- As seis abas do painel ---------------- */
+
+    /*
+     * Antes tudo isto era uma rolagem so: responsavel, status, departamento,
+     * etiquetas, origem, modo audio, onze variaveis, a nuvem de arquivos e, no
+     * fim, um botao que abria o historico numa janela por cima da tela. Duas
+     * consequencias: o que estava embaixo praticamente nao era usado, e o
+     * historico — que e a memoria do caso — ficava a dois cliques e fora da
+     * conversa.
+     *
+     * Cada aba responde uma pergunta diferente sobre a mesma pessoa: quem e e
+     * como esta classificada, o que ela mandou, o que ficou combinado, o que
+     * esta guardado, o que ainda vai sair, e o que ja aconteceu.
+     */
+    const PAINEIS = [
+      { id: 'dados', icone: 'pessoa', rotulo: 'Dados da conversa' },
+      { id: 'midia', icone: 'anexar', rotulo: 'Imagens, audios e videos' },
+      { id: 'tarefas', icone: 'ok', rotulo: 'Tarefas desta conversa' },
+      { id: 'arquivos', icone: 'pasta', rotulo: 'Arquivos guardados' },
+      { id: 'agendamentos', icone: 'agenda', rotulo: 'O que ainda vai ser enviado' },
+      { id: 'historico', icone: 'relogio', rotulo: 'Historico da conversa' },
+    ];
+
+    const corpo = el('div', { class: 'coluna-corpo' });
+    const abasPainel = el('div', { class: 'abas-icone', role: 'tablist', 'aria-label': 'Detalhes da conversa' });
+    const botoesPainel = new Map();
+
+    /* Um pedido por vez. Trocar de aba duas vezes rapido deixava a resposta
+       lenta da primeira chegar depois e sobrescrever a segunda. */
+    let pedidoAtual = 0;
+
+    function mostrarPainel(id) {
+      abaPainel = id;
+      for (const [chave, alvo] of botoesPainel) {
+        const ligado = chave === id;
+        alvo.classList.toggle('ativo', ligado);
+        alvo.setAttribute('aria-selected', ligado ? 'true' : 'false');
+        /* So a aba aberta entra na ordem do Tab; entre as seis anda-se com as
+           setas, que e como fileira de aba funciona para leitor de tela. */
+        alvo.tabIndex = ligado ? 0 : -1;
+      }
+
+      limpar(corpo);
+      if (id === 'dados') {
+        corpo.append(painelDados);
+        return;
+      }
+
+      const meuPedido = (pedidoAtual += 1);
+      corpo.append(el('div', { class: 'painel-bloco t-xs c-fraco', texto: 'Carregando…' }));
+      montarPainel(id, contato)
+        .then((conteudo) => {
+          if (meuPedido !== pedidoAtual || !document.body.contains(corpo)) return;
+          limpar(corpo);
+          corpo.append(conteudo);
+        })
+        .catch((erro) => {
+          if (meuPedido !== pedidoAtual || !document.body.contains(corpo)) return;
+          limpar(corpo);
+          corpo.append(vazio('Nao deu para carregar', erro.message));
+        });
+    }
+
+    for (const painel of PAINEIS) {
+      const alvo = el('button', {
+        type: 'button',
+        class: 'aba-icone',
+        role: 'tab',
+        title: painel.rotulo,
+        'aria-label': painel.rotulo,
+      }, [icone(painel.icone, 16)]);
+      alvo.addEventListener('click', () => mostrarPainel(painel.id));
+      botoesPainel.set(painel.id, alvo);
+      abasPainel.append(alvo);
+    }
+
+    /* Seta anda entre as abas; Home e End vao para as pontas. Sem isto a
+       fileira e alcancavel pelo Tab mas nao percorrivel, que e o meio termo
+       que nao serve para ninguem. */
+    abasPainel.addEventListener('keydown', (evento) => {
+      const ordem = PAINEIS.map((p) => p.id);
+      const atual = ordem.indexOf(abaPainel);
+      let destino = null;
+      if (evento.key === 'ArrowRight') destino = (atual + 1) % ordem.length;
+      else if (evento.key === 'ArrowLeft') destino = (atual - 1 + ordem.length) % ordem.length;
+      else if (evento.key === 'Home') destino = 0;
+      else if (evento.key === 'End') destino = ordem.length - 1;
+      if (destino === null) return;
+      evento.preventDefault();
+      mostrarPainel(ordem[destino]);
+      botoesPainel.get(ordem[destino]).focus();
+    });
+
+    const cabecalho = el('div', { class: 'coluna-cabecalho' }, [
+      // O mesmo par de nome e telefone do cabecalho da conversa, no mesmo
+      // ritmo: --t-md peso 600 em cima, --t-xs fraco embaixo.
+      el('div', { class: 'linha' }, [
+        avatar(contato),
+        el('div', { class: 'flexivel encolhe' }, [
+          el('div', { class: 't-md peso-600 cortar', texto: contato.nome }),
+          el('div', { class: 't-xs c-fraco cortar', texto: telefone(contato.telefone) }),
         ]),
-        el('div', { class: 'propriedade' }, [
-          el('span', { texto: 'Historico' }),
-          botao('Ver logs da conversa', { pequeno: true, aoClicar: () => abrirLogs(contato) }),
-        ]),
+        botao('', {
+          icone: 'copiar',
+          titulo: 'Copiar o numero',
+          pequeno: true,
+          aoClicar: async () => {
+            try {
+              await navigator.clipboard.writeText(contato.telefone);
+              aviso('Numero copiado.', 'sucesso');
+            } catch {
+              /* Sem permissao de area de transferencia o navegador recusa em
+                 silencio, e um botao que nao responde parece defeito. */
+              aviso('O navegador nao deixou copiar. O numero e ' + telefone(contato.telefone), 'alerta');
+            }
+          },
+        }),
       ]),
     ]);
+
+    /* A aba guardada pode nao existir mais (nunca aconteceu ainda, mas custa
+       uma linha garantir que o painel nunca abra em branco). */
+    if (!PAINEIS.some((p) => p.id === abaPainel)) abaPainel = 'dados';
+    mostrarPainel(abaPainel);
+
+    return el('div', { class: 'coluna' }, [cabecalho, abasPainel, corpo]);
   }
 
-  async function abrirLogs(contato) {
-    const logs = await api.get(`/api/contatos/${contato.id}/logs`);
-    const lista = el('div', { class: 'lista-simples' });
-    if (!logs.length) lista.append(el('div', { class: 'vazio', texto: 'Nenhum registro ainda.' }));
-    for (const log of logs) {
-      lista.append(
-        el('div', { class: 'lista-item' }, [
-          el('div', { class: 'corpo' }, [
-            el('div', { class: 'titulo', texto: log.descricao }),
-            el('div', { class: 'desc', texto: `${dataHora(log.criadoEm)} · ${log.autor?.nome || 'sistema'}` }),
-          ]),
-          selo(log.tipo, ''),
+  /* ---------------- Conteudo de cada aba do painel ---------------- */
+
+  /*
+   * Icone de cada tipo de registro do historico.
+   *
+   * O tipo ja e gravado no log desde sempre e so aparecia como um selo de
+   * texto. Como icone ele deixa a coluna de eventos ser lida de relance —
+   * procurar "quando o status mudou" vira procurar um simbolo, e nao ler
+   * treze linhas.
+   */
+  const ICONE_DO_LOG = {
+    criacao: 'mais',
+    status: 'raio',
+    responsavel: 'pessoa',
+    departamento: 'usuarios',
+    arquivo: 'arquivar',
+    desarquivar: 'atualizar',
+    restart: 'atualizar',
+    palavra_chave: 'agentes',
+    tarefa: 'ok',
+    mencao: 'sino',
+    seguranca: 'alerta',
+    desistencia: 'fechar',
+    massa: 'filtros',
+    exclusao: 'lixo',
+  };
+
+  async function montarPainel(id, contato) {
+    if (id === 'midia') return painelMidia(contato);
+    if (id === 'tarefas') return painelTarefas(contato);
+    if (id === 'arquivos') return painelArquivos(contato);
+    if (id === 'agendamentos') return painelAgendamentos(contato);
+    return painelHistorico(contato);
+  }
+
+  async function painelMidia(contato) {
+    const { mensagens } = await api.get(`/api/contatos/${contato.id}/mensagens`);
+    const comMidia = mensagens.filter((m) => m.midia?.url);
+    if (!comMidia.length) {
+      return vazio('Nada enviado ainda', 'Imagem, audio, video e PDF trocados na conversa aparecem aqui.');
+    }
+
+    const grade = el('div', { class: 'grade-midia' });
+    for (const mensagem of [...comMidia].reverse()) {
+      const previa = previaDaMidia(mensagem.midia, { compacta: true });
+      if (!previa) continue;
+      grade.append(
+        el('div', { class: 'item-midia' }, [
+          previa,
+          el('div', { class: 't-xs c-fraco cortar', texto: dataHora(mensagem.criadoEm) }),
         ]),
       );
     }
-    modal({ titulo: `Historico de ${contato.nome}`, corpo: lista, largo: true });
+    return grade;
+  }
+
+  async function painelTarefas(contato) {
+    const resposta = await api.get(`/api/tarefas?contato=${contato.id}`);
+    const tarefas = resposta.tarefas || resposta || [];
+    if (!tarefas.length) {
+      return vazio('Nenhuma tarefa', 'O que ficou combinado com esta pessoa e precisa de alguem aparece aqui.');
+    }
+
+    const lista = el('div', { class: 'lista-simples' });
+    for (const tarefa of tarefas) {
+      lista.append(
+        el('div', { class: 'lista-item' }, [
+          el('div', { class: 'corpo' }, [
+            el('div', { class: 'titulo', texto: tarefa.titulo }),
+            el('div', { class: 'desc', texto: [
+              tarefa.prazo ? `vence ${dataHora(tarefa.prazo)}` : 'sem prazo',
+              tarefa.situacao,
+            ].join(' · ') }),
+          ]),
+        ]),
+      );
+    }
+    return lista;
+  }
+
+  async function painelArquivos(contato) {
+    const bloco = el('div', { class: 'painel-bloco' });
+    const lista = el('div', { class: 'lista-simples' });
+
+    const desenhar = (arquivos) => {
+      limpar(lista);
+      if (!arquivos.length) {
+        lista.append(el('div', { class: 't-xs c-fraco', texto: 'Nada guardado ainda.' }));
+        return;
+      }
+      for (const arquivo of arquivos) {
+        lista.append(
+          el('div', { class: 'lista-item' }, [
+            el('div', { class: 'corpo' }, [
+              el('div', { class: 'titulo', texto: arquivo.nome }),
+              el('div', { class: 'desc', texto: `${(arquivo.tamanho / 1024).toFixed(0)} KB · ${dataHora(arquivo.criadoEm)}` }),
+            ]),
+          ]),
+        );
+      }
+    };
+    desenhar(contato.arquivos || []);
+
+    const seletor = el('input', { type: 'file', estilo: { display: 'none' } });
+    seletor.addEventListener('change', async () => {
+      const arquivo = seletor.files[0];
+      if (!arquivo) return;
+      const leitor = new FileReader();
+      leitor.onload = async () => {
+        try {
+          await api.post(`/api/contatos/${contato.id}/arquivos`, {
+            nome: arquivo.name,
+            conteudoBase64: leitor.result,
+            tipo: arquivo.type.startsWith('image') ? 'imagem' : 'documento',
+          });
+          aviso('Arquivo guardado na nuvem da conversa.', 'sucesso');
+        } catch (erro) {
+          aviso(erro.message, 'erro');
+        }
+      };
+      leitor.readAsDataURL(arquivo);
+      seletor.value = '';
+    });
+
+    bloco.append(
+      lista,
+      seletor,
+      el('div', { class: 'mt-2' }, [
+        botao('Guardar arquivo', { pequeno: true, aoClicar: () => seletor.click() }),
+      ]),
+    );
+    return bloco;
+  }
+
+  async function painelAgendamentos(contato) {
+    const agendamentos = await api.get(`/api/contatos/${contato.id}/agendamentos`);
+    const pendentes = agendamentos.filter((a) => a.estado === 'pendente');
+    if (!agendamentos.length) {
+      return vazio('Nada agendado', 'Follow-ups e mensagens marcadas para depois aparecem aqui.');
+    }
+
+    const bloco = el('div', { class: 'painel-bloco' });
+    /* O que ainda vai acontecer primeiro, e o resto depois: quem abre esta aba
+       quer saber se o cliente vai receber alguma coisa hoje, nao o que ele
+       recebeu no mes passado. */
+    if (pendentes.length) {
+      bloco.append(el('div', { class: 'cartao-titulo', texto: `A enviar (${pendentes.length})` }));
+    }
+    const lista = el('div', { class: 'lista-simples' });
+    for (const agendamento of [...pendentes, ...agendamentos.filter((a) => a.estado !== 'pendente')]) {
+      lista.append(
+        el('div', { class: 'lista-item' }, [
+          el('div', { class: 'corpo' }, [
+            el('div', { class: 'titulo', texto: agendamento.template || agendamento.tipo }),
+            el('div', { class: 'desc', texto: `${dataHora(agendamento.quando)} · ${agendamento.estado}` }),
+          ]),
+        ]),
+      );
+    }
+    bloco.append(lista);
+    return bloco;
+  }
+
+  async function painelHistorico(contato) {
+    const logs = await api.get(`/api/contatos/${contato.id}/logs`);
+    if (!logs.length) {
+      return vazio('Nenhum registro ainda', 'Cada mudanca de status, responsavel e agente fica registrada aqui.');
+    }
+
+    /*
+     * Do mais recente para o mais antigo, separado por dia.
+     *
+     * A pergunta que traz alguem aqui e quase sempre "o que aconteceu por
+     * ultimo", entao a resposta fica no topo. Nao ha ordenacao aqui: o
+     * servidor ja entrega assim, e reordenar no navegador so criaria uma
+     * segunda opiniao sobre a mesma coisa.
+     *
+     * A pastilha de data existe porque oitenta horarios seguidos sem dia
+     * nenhum nao dizem se aquilo foi hoje de manha ou em agosto.
+     */
+    const bloco = el('div', { class: 'linha-do-tempo' });
+    let diaAnterior = null;
+
+    /*
+     * O servidor corta em 200 registros. Sao os 200 mais recentes, que e o
+     * corte certo — mas uma lista que acaba sem avisar se le como "foi so isso
+     * que aconteceu", e numa conversa de meses isso e mentira.
+     */
+    if (logs.length >= 200) {
+      bloco.append(el('div', { class: 't-xs c-fraco mb-2', texto: 'Mostrando os 200 registros mais recentes.' }));
+    }
+
+    for (const log of logs) {
+      const dia = new Date(log.criadoEm).toLocaleDateString('pt-BR');
+      if (dia !== diaAnterior) {
+        diaAnterior = dia;
+        bloco.append(el('div', { class: 'marco-do-dia' }, [el('span', { texto: dia })]));
+      }
+      const hora = new Date(log.criadoEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      bloco.append(
+        el('div', { class: 'evento' }, [
+          el('div', { class: 'sinal', title: log.tipo }, [icone(ICONE_DO_LOG[log.tipo] || 'info', 13)]),
+          el('div', { class: 'encolhe' }, [
+            el('div', { class: 't-sm', texto: log.descricao }),
+            el('div', { class: 't-xs c-fraco', texto: `${hora} · ${log.autor?.nome || 'sistema'}` }),
+          ]),
+        ]),
+      );
+    }
+    return bloco;
   }
 
   /* ---------------- Visualizacao: tabela de contatos ---------------- */

@@ -1729,6 +1729,131 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
   font-size: var(--t-sm);
 }
 
+/* Painel da conversa: as seis abas ------------------------------------ */
+
+/*
+ * Fileira de icones, e nao de palavras.
+ *
+ * A coluna tem 300px. Seis rotulos escritos ("Dados", "Agendamentos",
+ * "Historico"...) nao cabem em uma linha nem em duas sem virar sopa de letra,
+ * e a coluna existe para mostrar conteudo, nao indice. Cada botao carrega o
+ * nome no title e no aria-label, entao o mouse parado e o leitor de tela
+ * dizem o que o icone e — o que se perde e so a leitura instantanea, e ela
+ * volta no segundo uso.
+ */
+.abas-icone {
+  flex: none;
+  display: flex;
+  border-bottom: 1px solid var(--borda);
+}
+
+.abas-icone .aba-icone {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  min-height: var(--controle);
+  padding: var(--e2) 0;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--texto-fraco);
+  cursor: pointer;
+}
+
+.abas-icone .aba-icone:hover {
+  color: var(--texto);
+}
+
+.abas-icone .aba-icone:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: -2px;
+}
+
+/* Mesmo filete embaixo da aba de texto: a fileira e outra, a gramatica do
+   "esta aberto" e a mesma do resto do sistema. */
+.abas-icone .aba-icone.ativo {
+  color: var(--ouro-claro);
+  border-bottom-color: var(--ouro);
+}
+
+/* Recuo das abas que nao sao uma pilha de .propriedade (que ja tem o seu). */
+.painel-bloco {
+  padding: var(--e3);
+}
+
+/* Grade da midia: duas colunas na largura da coluna, sem forcar altura igual —
+   retrato e paisagem convivem sem recorte. */
+.grade-midia {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--e2);
+  padding: var(--e3);
+}
+
+.item-midia {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e1);
+  min-width: 0;
+}
+
+/* Historico ----------------------------------------------------------- */
+
+.linha-do-tempo {
+  padding: var(--e3);
+}
+
+/*
+ * A pastilha do dia.
+ *
+ * Fica centrada e com filete atravessando, igual a separacao de data dentro
+ * da conversa: e a mesma ideia ("daqui para baixo e outro dia") e nao deveria
+ * ter dois desenhos.
+ */
+.marco-do-dia {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  margin: var(--e3) 0 var(--e2);
+  color: var(--texto-fraco);
+  font-size: var(--t-xs);
+}
+
+.marco-do-dia::before,
+.marco-do-dia::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--borda);
+}
+
+.marco-do-dia:first-child {
+  margin-top: 0;
+}
+
+.linha-do-tempo .evento {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--e2);
+  padding: var(--e2) 0;
+}
+
+/*
+ * O icone do tipo do evento.
+ *
+ * Sem largura fixa ele encolhia conforme o texto ao lado, e a coluna de
+ * simbolos deixava de ser coluna — que e justamente o que permite achar
+ * "quando o status mudou" sem ler linha por linha.
+ */
+.linha-do-tempo .sinal {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  color: var(--texto-fraco);
+}
+
 .propriedade {
   padding: var(--e3);
   border-bottom: 1px solid var(--borda);

@@ -178,6 +178,29 @@ export function registrarAtendimento(rotas) {
     return logsDe(contato.id);
   });
 
+  /*
+   * Os agendamentos desta conversa.
+   *
+   * Existe rota geral de agendamentos, mas ela serve ao painel: devolve
+   * agregado por dia e por hora para desenhar o risco de bloqueio do numero, e
+   * nao aceita filtro por conversa. Pendurar mais um filtro nela faria uma
+   * rota responder a duas perguntas muito diferentes; aqui a pergunta e "o que
+   * ainda vai sair para esta pessoa, e quando".
+   *
+   * Ordenado pelo horario previsto, e nao pela criacao: o que interessa e a
+   * ordem em que as coisas vao acontecer.
+   */
+  rotas.get('/api/contatos/:id/agendamentos', async ({ ctx, params }) => {
+    const contato = conversaOu404(ctx, params.id);
+    const agendamentos = listar('agendamentos', { workspaceId: ctx.workspaceId })
+      .filter((a) => a.contatoId === contato.id)
+      .map((a) => ({
+        ...a,
+        template: a.templateId ? achar('templates', a.templateId)?.nome || null : null,
+      }));
+    return ordenarPor(agendamentos, 'quando', 'asc');
+  });
+
   /* ---------------- Envio ---------------- */
 
   rotas.post('/api/contatos/:id/mensagens', async ({ ctx, params, corpo }) => {
