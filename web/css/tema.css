@@ -1729,6 +1729,66 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
   font-size: var(--t-sm);
 }
 
+/*
+ * As marcas de entrega no rodape do balao.
+ *
+ * As duas marcas se encostam de proposito: separadas por um espaco elas se
+ * leem como dois certos independentes ("duas coisas deram certo"), e nao como
+ * o simbolo unico de "chegou no aparelho" que todo mundo ja conhece do
+ * proprio WhatsApp.
+ */
+.entrega {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  color: var(--texto-suave);
+}
+
+.entrega svg + svg {
+  margin-left: -5px;
+}
+
+/* Lida e a unica que muda de cor. A forma nao muda entre entregue e lida, e
+   por isso o rotulo no title carrega a diferenca para quem nao ve a cor. */
+.entrega.lida {
+  color: var(--ouro-claro);
+}
+
+/*
+ * Faixa de aviso dentro da conversa.
+ *
+ * Duas hoje: o que ainda vai ser enviado (no alto) e quem esta conduzindo
+ * (junto do campo de escrita). As duas respondem a mesma pergunta em momentos
+ * diferentes — "o que acontece se eu escrever agora" — e por isso dividem o
+ * desenho: filete de um lado so, sem caixa, como o resto do sistema.
+ */
+.faixa-conversa,
+.faixa-agente {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  padding: var(--e2) var(--e3);
+  font-size: var(--t-sm);
+}
+
+.faixa-conversa {
+  border-bottom: 1px solid var(--borda);
+  color: var(--texto-suave);
+  background: var(--superficie);
+}
+
+/* A do agente e a unica com fundo proprio: ela avisa que outra coisa esta
+   respondendo por voce, e essa e a unica frase da tela que muda o resultado
+   de apertar Enter. */
+.faixa-agente {
+  margin-bottom: var(--e2);
+  border-radius: var(--raio);
+  background: var(--ouro-fraco);
+  box-shadow: inset 3px 0 0 var(--ouro);
+  color: var(--texto);
+}
+
 /* Painel da conversa: as seis abas ------------------------------------ */
 
 /*

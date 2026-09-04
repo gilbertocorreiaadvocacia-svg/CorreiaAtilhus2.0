@@ -62,6 +62,30 @@ const ABA_CONCLUIDOS = { id: 'arquivados', rotulo: 'Concluidos' };
  * quem procura digita como fala e escreve "auxílio". Comparar cru faria a
  * busca nao achar a propria etiqueta que esta na tela.
  */
+/*
+ * Quanto falta para um instante no futuro, em palavra curta.
+ *
+ * quando() do ui.js resolve o passado ("ontem", "20/08") e nao serve aqui: o
+ * que a faixa de agendamento precisa dizer e o contrario, e "20/09" sozinho
+ * nao responde "e hoje ainda?".
+ *
+ * Sem segundo e sem contagem que anda sozinha. Um relogio correndo na tela
+ * pede um temporizador para cada conversa aberta e obriga a limpa-lo em todo
+ * redesenho — muito risco de vazamento para uma precisao que ninguem usa: o
+ * que se decide olhando isto e mandar ou nao mandar mensagem agora.
+ */
+function daquiA(iso) {
+  const restante = new Date(iso).getTime() - Date.now();
+  if (Number.isNaN(restante)) return '';
+  if (restante <= 0) return 'a qualquer momento';
+  const minutos = Math.round(restante / 60000);
+  if (minutos < 60) return `em ${minutos} min`;
+  const horas = Math.round(minutos / 60);
+  if (horas < 24) return `em ${horas} h`;
+  const dias = Math.round(horas / 24);
+  return `em ${dias} ${dias === 1 ? 'dia' : 'dias'}`;
+}
+
 const normalizarTexto = (texto) =>
   String(texto || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
@@ -702,7 +726,50 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
 
     carregarMensagens();
 
-    return el('div', { class: 'conversa' }, [cabecalho, filtroDaConversa, painelMensagens, compositor]);
+    /*
+     * O que ainda vai sair para esta pessoa, no alto da conversa.
+     *
+     * Sem isto o atendente lia a conversa, achava que estava tudo parado, e
+     * mandava uma mensagem que colidia com um follow-up marcado para dali a
+     * pouco — o cliente recebia duas coisas do escritorio no mesmo dia, uma
+     * escrita a mao e outra automatica. A faixa responde antes de escrever.
+     *
+     * Nasce escondida e so aparece se houver algo pendente: uma faixa vazia
+     * roubaria altura da conversa em todo caso que nao tem agendamento, que e
+     * a maioria.
+     */
+    const faixaAgenda = el('div', { class: 'faixa-conversa', hidden: true });
+    api
+      .get(`/api/contatos/${contato.id}/agendamentos`)
+      .then((lista) => {
+        const pendentes = (lista || []).filter((a) => a.estado === 'pendente');
+        /* A conversa pode ter mudado enquanto a resposta vinha. */
+        if (!pendentes.length || !document.body.contains(faixaAgenda)) return;
+        const proximo = pendentes[0];
+        limpar(faixaAgenda);
+        faixaAgenda.append(
+          icone('relogio', 14),
+          el('span', {
+            class: 'flexivel cortar',
+            texto: `Proxima mensagem ${dataHora(proximo.quando)} · ${daquiA(proximo.quando)}`,
+          }),
+          botao(`Agendamentos ${pendentes.length}`, {
+            pequeno: true,
+            titulo: 'Ver tudo que esta marcado para esta conversa',
+            aoClicar: async () => {
+              abaPainel = 'agendamentos';
+              await desenhar();
+            },
+          }),
+        );
+        faixaAgenda.hidden = false;
+      })
+      .catch(() => {
+        /* Faixa e informacao a mais. Se a consulta falhar, a conversa continua
+           inteira — avisar aqui seria alarme por algo que nao impede nada. */
+      });
+
+    return el('div', { class: 'conversa' }, [cabecalho, faixaAgenda, filtroDaConversa, painelMensagens, compositor]);
   }
 
   /**
@@ -748,6 +815,44 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
     return alvo;
   }
 
+  /*
+   * A confirmacao de entrega, em marcas de certo.
+   *
+   * Os dois drivers ja traduzem o retorno do WhatsApp para enviada, entregue e
+   * lida — a Meta pelo bloco `statuses` do webhook, o QR Code pelos ACKs — e o
+   * balao mostrava isso escrevendo a palavra crua no rodape. Uma coluna de
+   * "enviada / entregue / lida" repetida em toda mensagem e muito texto para
+   * uma informacao que se le de relance, e ainda por cima competia com a hora.
+   *
+   * Uma marca saiu daqui, duas chegaram no aparelho, duas em dourado foram
+   * lidas. A palavra continua existindo no title e no aria-label: a cor
+   * sozinha nao distingue entregue de lida para quem nao a ve, e duas marcas
+   * cinza e duas marcas douradas sao a mesma forma.
+   */
+  const ENTREGA = {
+    enviando: { marcas: 0, rotulo: 'Enviando…' },
+    enviada: { marcas: 1, rotulo: 'Enviada' },
+    entregue: { marcas: 2, rotulo: 'Entregue no aparelho' },
+    lida: { marcas: 2, rotulo: 'Lida', lida: true },
+  };
+
+  function selosDeEntrega(mensagem) {
+    /* Mensagem recebida nao tem entrega para confirmar, e erro ja e mostrado
+       pelo selo vermelho ao lado — duas marcas ali diriam o contrario. */
+    if (mensagem.direcao !== 'saida' || mensagem.situacao === 'erro') return null;
+    const passo = ENTREGA[mensagem.situacao];
+    if (!passo) return null;
+
+    const alvo = el('span', {
+      class: `entrega${passo.lida ? ' lida' : ''}`,
+      title: passo.rotulo,
+      'aria-label': passo.rotulo,
+    });
+    if (!passo.marcas) alvo.append(icone('relogio', 12));
+    else for (let i = 0; i < passo.marcas; i += 1) alvo.append(icone('ok', 12));
+    return alvo;
+  }
+
   function balao(mensagem) {
     const classes = ['balao'];
     if (mensagem.nota) classes.push('nota');
@@ -757,7 +862,12 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
     const autor = mensagem.autor?.nome;
     const mostraAutor = mensagem.direcao !== 'entrada' && autor;
 
-    return el('div', { class: classes.join(' ') }, [
+    return el('div', {
+      class: classes.join(' '),
+      /* Achavel sem recarregar a conversa: e por aqui que a confirmacao de
+         entrega, que chega por evento, troca as marcas desta mensagem. */
+      'data-id': mensagem.id,
+    }, [
       mensagem.nota ? el('div', { class: 'balao-autor', texto: `Nota interna · ${autor || 'equipe'}` }) : null,
       !mensagem.nota && mostraAutor ? el('div', { class: 'balao-autor', texto: autor }) : null,
       el('div', { texto: mensagem.conteudo || (mensagem.midia ? `[${mensagem.tipo}] ${mensagem.midia.nome || ''}` : '') }),
@@ -777,9 +887,7 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
         mensagem.origemAutomacao ? selo(mensagem.origemAutomacao === 'followup' ? 'follow-up' : 'agendada', '') : null,
         mensagem.situacao === 'erro'
           ? selo(`erro ${mensagem.erro?.codigo || ''}`.trim(), 'erro')
-          : mensagem.direcao === 'saida'
-            ? document.createTextNode(mensagem.situacao || '')
-            : null,
+          : selosDeEntrega(mensagem),
       ]),
       mensagem.situacao === 'erro' && mensagem.erro?.mensagem
         ? el('div', { class: 't-xs mt-1 c-erro', texto: mensagem.erro.mensagem })
@@ -906,8 +1014,44 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
           })
         : null;
 
+    /*
+     * Quem esta conduzindo a conversa, dito antes de escrever.
+     *
+     * Havia um botao "Assumir conversa" perdido no meio dos outros cinco da
+     * fileira. Ele resolvia a acao e nao dizia o principal: que existe um
+     * agente respondendo, e que escrever aqui NAO tira a conversa dele. Sem
+     * essa frase, o atendente escrevia achando que tinha assumido, e a IA
+     * respondia por cima logo depois.
+     *
+     * As duas saidas ficam na mesma faixa porque sao a mesma decisao: dar uma
+     * resposta e seguir, ou tomar a conversa para si.
+     */
+    const faixaAgente =
+      contato.responsavel?.tipo === 'agente'
+        ? el('div', { class: 'faixa-agente' }, [
+            icone('agentes', 14),
+            el('span', { class: 'flexivel' }, [
+              el('b', { texto: contato.responsavel.nome || 'A IA' }),
+              document.createTextNode(' esta atendendo. O que voce escrever sai agora, sem tirar a conversa dela.'),
+            ]),
+            botao('Assumir a conversa', {
+              pequeno: true,
+              tipo: 'principal',
+              titulo: 'A IA para de responder e a conversa passa a ser sua',
+              aoClicar: async () => {
+                await api.patch(`/api/contatos/${contato.id}`, {
+                  responsavel: { tipo: 'membro', id: estado.sessao.membro.id },
+                });
+                aviso('Voce assumiu a conversa. A IA parou de responder.', 'sucesso');
+                await desenhar();
+              },
+            }),
+          ])
+        : null;
+
     return el('div', { class: 'compositor' }, [
       avisoJanela,
+      faixaAgente,
       texto,
       seletorArquivo,
       el('div', { class: 'linha-botoes mt-2' }, [
@@ -924,21 +1068,30 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
               rotuloAgenda.style.display = 'inline-flex';
             }),
         }),
-        contato.responsavel?.tipo === 'agente'
-          ? botao('Assumir conversa', {
-              pequeno: true,
-              aoClicar: async () => {
-                await api.patch(`/api/contatos/${contato.id}`, {
-                  responsavel: { tipo: 'membro', id: estado.sessao.membro.id },
-                });
-                aviso('Voce assumiu a conversa. A IA parou de responder.', 'sucesso');
-                await desenhar();
-              },
-            })
-          : null,
+        /* O "Assumir conversa" que ficava aqui subiu para a faixa do agente,
+           onde a acao vem junto da frase que explica por que ela existe. */
         rotuloAnexo,
         rotuloAgenda,
         el('div', { class: 'flexivel' }),
+        /*
+         * De qual numero a mensagem sai.
+         *
+         * O escritorio tem uma conexao hoje, mas ja teve duas em teste, e o
+         * cliente reconhece o escritorio pelo numero: mandar do errado e
+         * comecar a conversa de novo com alguem que ja confiava. E rotulo, e
+         * nao seletor, porque trocar a conexao no meio de uma conversa manda o
+         * cliente para um numero que ele nao conhece — se isso um dia for
+         * preciso, e decisao do escritorio, nao um menu ao lado do Enviar.
+         */
+        (() => {
+          const conexao = acharConexao(contato.conexaoId);
+          if (!conexao) return null;
+          return el('span', {
+            class: 't-xs c-fraco cortar',
+            title: `${conexao.nome} · ${telefone(conexao.numero)}`,
+            texto: `Enviando de ${telefone(conexao.numero) || conexao.nome}`,
+          });
+        })(),
         botao('Enviar', { tipo: 'principal', icone: 'enviar', pequeno: true, aoClicar: enviar }),
       ]),
     ]);
@@ -2262,6 +2415,30 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
     if (!document.body.contains(container) || dados.contatoId !== vivo.contatoId) return;
     pararDigitando();
     if (vivo.recarregar) vivo.recarregar();
+  });
+
+  /*
+   * A confirmacao de entrega, ao vivo.
+   *
+   * O servidor emitia 'mensagem-situacao' desde que a camada de driver
+   * existe, e nao havia ninguem escutando: a marca so mudava quando alguma
+   * outra coisa redesenhava a tela. Na pratica o atendente mandava a mensagem
+   * e a tela ficava dizendo "enviada" para sempre.
+   *
+   * Troca so as marcas daquele balao, em vez de recarregar a conversa: cada
+   * mensagem gera tres eventos (enviada, entregue, lida), e recarregar a lista
+   * inteira tres vezes por mensagem faria a conversa piscar e perder a posicao
+   * da rolagem enquanto se le.
+   */
+  ouvir('mensagem-situacao', (dados) => {
+    if (!document.body.contains(container) || dados.contatoId !== vivo.contatoId) return;
+    const alvo = vivo.painel?.querySelector(`.balao[data-id="${dados.mensagemId}"]`);
+    if (!alvo) return;
+    const marcas = selosDeEntrega({ direcao: 'saida', situacao: dados.situacao });
+    if (!marcas) return;
+    const antigas = alvo.querySelector('.entrega');
+    if (antigas) antigas.replaceWith(marcas);
+    else alvo.querySelector('.balao-rodape')?.append(marcas);
   });
 
   ouvir('contato', async () => {
