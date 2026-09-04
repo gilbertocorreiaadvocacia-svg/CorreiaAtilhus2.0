@@ -49,6 +49,24 @@ const CHAVE_COLUNAS = 'correia.conexoes.colunas';
 const CHAVE_POR_PAGINA = 'correia.conexoes.porPagina';
 
 /**
+ * Os caminhos de conexao disponiveis, lidos do servidor.
+ *
+ * A lista vem de la e nao daqui porque quem sabe quais drivers existem e o
+ * servidor: escrever os tres a mao nesta tela garantiria que um dia ela
+ * oferecesse um caminho que o servidor nao sabe mais atender, ou escondesse um
+ * que ele passou a atender.
+ */
+let TIPOS = [
+  { id: 'simulador', nome: 'Simulador', temSessao: false },
+  { id: 'oficial', nome: 'API Oficial (Meta)', temSessao: false },
+  { id: 'qrcode', nome: 'QR Code (nao oficial)', temSessao: true },
+];
+
+function tipoDe(id) {
+  return TIPOS.find((t) => t.id === id) || TIPOS[0];
+}
+
+/**
  * Preferencia de tela, e nao dado do escritorio: quem esconde a coluna de
  * departamento esconde para si, no seu computador. Por isso vai para o
  * navegador e nao para o banco. Leitura defensiva porque navegador com dados
@@ -73,6 +91,15 @@ function gravarPreferencia(chave, valor) {
 
 export async function paginaConexoes({ definirAcoes } = {}) {
   const container = el('div');
+
+  /* Se a chamada falhar, a lista de reserva acima continua valendo: e melhor a
+     tela abrir com os tres caminhos conhecidos do que nao abrir. */
+  try {
+    const tipos = await api.get('/api/conexoes-tipos');
+    if (Array.isArray(tipos) && tipos.length) TIPOS = tipos;
+  } catch {
+    /* segue com a lista de reserva */
+  }
 
   let filtro = '';
   let pagina = 1;
@@ -218,7 +245,16 @@ export async function paginaConexoes({ definirAcoes } = {}) {
         el('div', { class: 'conexao-identidade' }, [
           avatar({ nome: conexao.nome }, 32),
           el('div', {}, [
-            el('div', { class: 'nome', texto: conexao.nome }),
+            el('div', { class: 'linha-p' }, [
+              el('span', { class: 'nome', texto: conexao.nome }),
+              /* O caminho fica na linha, e nao so no painel: um destes numeros
+                 e nao oficial e pode ser banido, e quem varre a tabela precisa
+                 ver isso sem abrir nada. */
+              selo(
+                tipoDe(conexao.tipo).nome,
+                conexao.tipo === 'oficial' ? 'ouro' : conexao.tipo === 'qrcode' ? 'alerta' : 'info',
+              ),
+            ]),
             conexao.numero ? el('div', { class: 'numero', texto: telefone(conexao.numero) }) : null,
           ]),
         ]),
@@ -358,7 +394,7 @@ function abrirDetalhes(conexao, recarregarTela) {
   function trocar(nome) {
     for (const [chave, b] of botoes) b.classList.toggle('ativo', chave === nome);
     limpar(corpoAba);
-    if (nome === 'Geral') corpoAba.append(abaGeral(conexao, () => trocar('Logs')));
+    if (nome === 'Geral') corpoAba.append(abaGeral(conexao, () => trocar('Logs'), recarregarTela));
     if (nome === 'Saude') corpoAba.append(abaSaude(conexao));
     if (nome === 'Logs') corpoAba.append(abaLogs(conexao));
     if (nome === 'Configuracoes') corpoAba.append(abaConfiguracoes(conexao, painel, recarregarTela));
@@ -387,7 +423,7 @@ function abrirDetalhes(conexao, recarregarTela) {
   return painel;
 }
 
-function abaGeral(conexao, irParaLogs) {
+function abaGeral(conexao, irParaLogs, aoMudar) {
   const conectada = conexao.estado === 'conectado';
   const status = estado.status.find((s) => s.id === conexao.statusPadraoId);
   const departamento = estado.departamentos.find((d) => d.id === conexao.departamentoPadraoId);
@@ -398,7 +434,7 @@ function abaGeral(conexao, irParaLogs) {
       avatar({ nome: conexao.nome }, 56),
       el('div', { class: 'nome' }, [conexao.nome]),
       conexao.numero ? el('div', { class: 'numero', texto: telefone(conexao.numero) }) : null,
-      selo(conexao.tipo === 'oficial' ? 'API Oficial (Meta)' : 'Simulador', conexao.tipo === 'oficial' ? 'ouro' : 'info'),
+      selo(tipoDe(conexao.tipo).nome, conexao.tipo === 'oficial' ? 'ouro' : conexao.tipo === 'qrcode' ? 'alerta' : 'info'),
     ]),
 
     el('div', { class: 'conexao-estado' }, [
@@ -406,7 +442,15 @@ function abaGeral(conexao, irParaLogs) {
         el('span', { class: 'ponto', estilo: { background: conectada ? 'var(--sucesso)' : 'var(--erro)' } }),
         document.createTextNode(conectada ? 'Conectado' : 'Desconectado'),
       ]),
-      botao('Ver eventos', { pequeno: true, aoClicar: irParaLogs }),
+      el('div', { class: 'linha-botoes' }, [
+        /* Numero caido com sessao para abrir e a unica situacao desta tela em
+           que ha uma acao obvia a tomar. Ela fica aqui, ao lado do estado, e
+           nao escondida na quinta aba. */
+        !conectada && tipoDe(conexao.tipo).temSessao
+          ? botao('Conectar', { pequeno: true, tipo: 'principal', aoClicar: () => abrirQrCode(conexao, aoMudar) })
+          : null,
+        botao('Ver eventos', { pequeno: true, aoClicar: irParaLogs }),
+      ]),
     ]),
 
     conexao.conectadoEm
@@ -458,13 +502,54 @@ function abaGeral(conexao, irParaLogs) {
 function abaSaude(conexao) {
   const faltando = credenciaisFaltando(conexao);
 
-  if (conexao.tipo !== 'oficial') {
+  if (conexao.tipo === 'simulador') {
     return el('div', {}, [
       el('div', { class: 'alerta-caixa' }, [
         el('div', { texto: 'Conexao em modo simulador.' }),
         el('div', {
           class: 'mt-1',
           texto: 'Nada sai desta maquina: a mensagem e gravada e aparece na tela como enviada. Nao ha numero real para adoecer, entao nao ha saude a medir aqui.',
+        }),
+      ]),
+    ]);
+  }
+
+  /*
+   * No caminho por QR Code nao existe nota de qualidade: quem pontua o numero e
+   * a Meta, e ela nao conhece esta sessao. O que da para medir e o que
+   * substitui a nota, e e um risco de natureza diferente: a sessao pode cair a
+   * qualquer momento, e o numero pode ser banido sem aviso.
+   */
+  if (conexao.tipo === 'qrcode') {
+    return el('div', {}, [
+      faltando.length
+        ? el('div', { class: 'alerta-caixa erro mb-3' }, [
+            el('div', { texto: `Falta configurar: ${faltando.map((f) => f.rotulo).join(', ')}.` }),
+            el('div', { class: 'mt-1', texto: 'Sem isso a sessao nao abre.' }),
+          ])
+        : null,
+
+      el('div', { class: 'lista-simples' }, [
+        linhaDado('Situacao', conexao.estado === 'conectado' ? 'Sessao aberta' : 'Sessao fechada'),
+        linhaDado('Servico', conexao.qrcode?.servidor || 'nao configurado'),
+        linhaDado('Instancia', conexao.qrcode?.instancia || '-'),
+        conexao.conectadoEm ? linhaDado('Ultima conexao', dataHora(conexao.conectadoEm)) : null,
+        conexao.ultimoErro ? linhaDado('Ultimo erro', conexao.ultimoErro) : null,
+      ]),
+
+      el('div', { class: 'alerta-caixa erro mt-4' }, [
+        el('div', { texto: 'Nao ha nota de qualidade neste caminho, e nao ha aviso antes do banimento.' }),
+        el('div', {
+          class: 'mt-1',
+          texto: 'A Meta nao pontua esta sessao porque nao a reconhece. O que protege o numero aqui e o ritmo: intervalo entre envios, fila conferida toda segunda e sequencia de follow-up curta. Um dia critico na Central de agendamentos vale mais aqui do que no caminho oficial.',
+        }),
+      ]),
+
+      el('div', { class: 'alerta-caixa mt-3' }, [
+        el('div', { texto: 'O numero de pos-venda nao deveria estar neste caminho.' }),
+        el('div', {
+          class: 'mt-1',
+          texto: 'Se este numero cair, o relacionamento com quem ja assinou contrato cai junto. E para isso que existe o segundo numero, na API Oficial.',
         }),
       ]),
     ]);
@@ -576,7 +661,40 @@ function abaConfiguracoes(conexao, painel, recarregarTela) {
 }
 
 function abaAcoes(conexao, painel, recarregarTela) {
+  const temSessao = tipoDe(conexao.tipo).temSessao;
+
   return el('div', { class: 'lista-simples' }, [
+    temSessao
+      ? acao(
+          conexao.estado === 'conectado' ? 'Reconectar' : 'Conectar pelo QR Code',
+          'Abre a sessao no servico e mostra o QR Code para ler no aplicativo do WhatsApp, em Aparelhos conectados.',
+          botao(conexao.estado === 'conectado' ? 'Reconectar' : 'Conectar', {
+            tipo: 'principal',
+            aoClicar: () => abrirQrCode(conexao, recarregarTela),
+          }),
+        )
+      : null,
+    temSessao && conexao.estado === 'conectado'
+      ? acao(
+          'Encerrar a sessao',
+          'Desliga este numero do sistema, como "Sair" em Aparelhos conectados. A configuracao fica guardada para reconectar depois.',
+          botao('Desconectar', {
+            tipo: 'perigo',
+            aoClicar: () =>
+              confirmar(
+                `Encerrar a sessao de ${conexao.nome}?`,
+                'O numero para de enviar e de receber ate alguem ler o QR Code de novo.',
+                async () => {
+                  const resultado = await api.post(`/api/conexoes/${conexao.id}/desconectar`);
+                  aviso(resultado.erro || 'Sessao encerrada.', resultado.erro ? 'erro' : 'sucesso');
+                  painel.fechar();
+                  await recarregarTela();
+                },
+                'Desconectar',
+              ),
+          }),
+        )
+      : null,
     acao(
       'Testar conexao',
       'Pergunta a Meta se as credenciais ainda respondem e atualiza a situacao e a qualidade.',
@@ -604,6 +722,109 @@ function abaAcoes(conexao, painel, recarregarTela) {
         )
       : null,
   ]);
+}
+
+/**
+ * A tela do QR Code.
+ *
+ * Pergunta ao servico de quanto em quanto tempo se a sessao abriu, em vez de
+ * esperar a pessoa fechar e reabrir a tela para descobrir. O QR do WhatsApp
+ * vence em cerca de vinte segundos e o servico gera outro sozinho; quem esta
+ * com o celular na mao nao tem como saber disso, entao a tela avisa e oferece
+ * o botao de gerar de novo.
+ */
+function abrirQrCode(conexao, recarregarTela) {
+  const area = el('div', { class: 'qrcode-area' }, [el('div', { class: 'c-fraco', texto: 'Abrindo a sessao...' })]);
+  const situacao = el('p', { class: 'ajuda' });
+  let sondagem = null;
+  let fechado = false;
+
+  const painel = gaveta({
+    titulo: `Conectar ${conexao.nome}`,
+    rotuloCancelar: 'Fechar',
+    corpo: [
+      el('ol', { class: 'lista-passos' }, [
+        el('li', { texto: 'No celular, abra o WhatsApp que vai atender por este numero.' }),
+        el('li', { texto: 'Toque em Configuracoes e depois em Aparelhos conectados.' }),
+        el('li', { texto: 'Toque em Conectar um aparelho e aponte a camera para o codigo abaixo.' }),
+      ]),
+      area,
+      situacao,
+    ],
+    aoFechar: () => {
+      fechado = true;
+      if (sondagem) clearInterval(sondagem);
+    },
+  });
+
+  async function gerar() {
+    limpar(area);
+    area.append(el('div', { class: 'c-fraco', texto: 'Gerando o codigo...' }));
+    try {
+      const resultado = await api.post(`/api/conexoes/${conexao.id}/conectar`);
+      if (fechado) return;
+      limpar(area);
+
+      if (resultado.erro) {
+        area.append(el('div', { class: 'alerta-caixa erro', texto: resultado.erro }));
+        situacao.textContent = 'Confira o endereco e a chave do servico na aba Configuracoes.';
+        return;
+      }
+
+      if (resultado.estado === 'conectado') {
+        area.append(el('div', { class: 'alerta-caixa', texto: 'Sessao aberta. Este numero ja esta atendendo.' }));
+        situacao.textContent = '';
+        await recarregarTela();
+        return;
+      }
+
+      if (resultado.qrCode) {
+        /* O servico devolve ora o data URI completo, ora so o base64 cru. */
+        const fonte = String(resultado.qrCode).startsWith('data:')
+          ? resultado.qrCode
+          : `data:image/png;base64,${resultado.qrCode}`;
+        area.append(el('img', { class: 'qrcode-imagem', src: fonte, alt: 'QR Code para conectar o WhatsApp' }));
+      } else if (resultado.codigoPareamento) {
+        area.append(el('div', { class: 'mono t-xl', texto: resultado.codigoPareamento }));
+        situacao.textContent = 'Digite este codigo no celular, em Conectar com numero de telefone.';
+      } else {
+        area.append(el('div', { class: 'c-fraco', texto: 'O servico nao devolveu codigo. Tente gerar de novo.' }));
+      }
+
+      area.append(
+        el('div', { class: 'linha-botoes mt-3' }, [botao('Gerar outro codigo', { pequeno: true, aoClicar: gerar })]),
+      );
+      situacao.textContent = situacao.textContent || 'O codigo vence em poucos segundos. Se vencer, gere outro.';
+      vigiar();
+    } catch (erro) {
+      if (fechado) return;
+      limpar(area);
+      area.append(el('div', { class: 'alerta-caixa erro', texto: erro.message }));
+    }
+  }
+
+  function vigiar() {
+    if (sondagem) clearInterval(sondagem);
+    sondagem = setInterval(async () => {
+      if (fechado) return clearInterval(sondagem);
+      try {
+        const teste = await api.post(`/api/conexoes/${conexao.id}/testar`);
+        if (!teste.ok || fechado) return;
+        clearInterval(sondagem);
+        limpar(area);
+        area.append(el('div', { class: 'alerta-caixa', texto: 'Conectado! O numero ja esta atendendo.' }));
+        situacao.textContent = '';
+        aviso(`${conexao.nome} conectado.`, 'sucesso');
+        await recarregarTela();
+      } catch {
+        /* Sondagem que falha nao vira erro na tela: o servico pode estar
+           demorando, e a pessoa esta olhando para o celular, nao para aqui. */
+      }
+    }, 3000);
+  }
+
+  gerar();
+  return painel;
 }
 
 function acao(titulo, texto, controle) {
@@ -677,6 +898,17 @@ function abrirDocumentacao() {
         texto: 'Precisa de cinco credenciais do painel da Meta: ID do numero, ID da conta (WABA), token de acesso, chave secreta do app e token de verificacao. O token do painel expira em 24 horas, entao gere um token de usuario do sistema.',
       }),
 
+      el('h3', { class: 'cartao-titulo mt-4', texto: 'QR Code (nao oficial)' }),
+      el('p', {
+        texto: 'Le o QR Code como o WhatsApp Web le. Entra em grupo, recebe audio gravado e manda mensagem a qualquer hora, sem template e sem janela de 24 horas.',
+      }),
+      el('p', {
+        html: 'Em troca: <strong>viola os termos da Meta e o numero pode ser banido</strong>, sem aviso. Use no numero comercial, que ja corre risco por natureza, e nunca no de pos-venda.',
+      }),
+      el('p', {
+        texto: 'Quem segura a sessao e um servico a parte (Evolution API) rodando nesta mesma maquina. O sistema so fala HTTP com ele, e por isso continua abrindo com dois cliques, sem instalar pacote nenhum.',
+      }),
+
       el('h3', { class: 'cartao-titulo mt-4', texto: 'Toda conversa nova' }),
       el('p', {
         texto: 'Cada conexao define o que acontece quando alguem escreve pela primeira vez: status padrao, departamento padrao e responsavel padrao, que normalmente e o agente de triagem.',
@@ -703,11 +935,13 @@ function abrirDocumentacao() {
 function formulario(conexao, { aoSalvar }) {
   const novo = !conexao;
   const nome = entradaTexto(conexao?.nome || '');
+  const ROTULOS = {
+    simulador: 'Simulador (funciona hoje, sem chip)',
+    oficial: 'API Oficial da Meta (Cloud API)',
+    qrcode: 'QR Code (nao oficial, le pelo celular)',
+  };
   const tipo = selecao(
-    [
-      { valor: 'simulador', rotulo: 'Simulador (funciona hoje, sem chip)' },
-      { valor: 'oficial', rotulo: 'API Oficial da Meta (Cloud API)' },
-    ],
+    TIPOS.map((t) => ({ valor: t.id, rotulo: ROTULOS[t.id] || t.nome })),
     conexao?.tipo || 'simulador',
   );
   const numero = entradaTexto(conexao?.numero || '');
@@ -751,8 +985,41 @@ function formulario(conexao, { aoSalvar }) {
     campo('Token de verificacao', verifyToken, 'Mesmo valor no campo "Verificar token" do painel da Meta.'),
   ]);
 
+  const qrServidor = entradaTexto(conexao?.qrcode?.servidor || '', { placeholder: 'http://localhost:8080' });
+  const qrChave = entradaTexto('', {
+    type: 'password',
+    placeholder: conexao?.qrcode?.chave ? 'guardada; deixe em branco para manter' : '',
+  });
+  const qrInstancia = entradaTexto(conexao?.qrcode?.instancia || '');
+  const qrUrlWebhook = entradaTexto(conexao?.qrcode?.urlWebhook || '', {
+    placeholder: `${location.origin} (padrao)`,
+  });
+
+  const blocoQrCode = el('div', { estilo: { display: tipo.value === 'qrcode' ? 'block' : 'none' } }, [
+    subtitulo(
+      'Servico de sessao',
+      'O CorreiaAtilhus2.0 nao carrega a biblioteca de WhatsApp dentro dele: quem segura a sessao e um servico a parte (Evolution API) rodando nesta mesma maquina. E o que mantem o sistema abrindo com dois cliques, sem instalar pacote nenhum.',
+    ),
+    el('div', { class: 'alerta-caixa mb-3' }, [
+      el('div', { texto: 'Este caminho nao e oficial.' }),
+      el('div', {
+        class: 'mt-1',
+        texto: 'Ele le o QR Code como o WhatsApp Web, entra em grupo e nao depende de template aprovado. Em troca, viola os termos da Meta e o numero pode ser banido. Use no numero comercial, nunca no de pos-venda.',
+      }),
+    ]),
+    campo('Endereco do servico', qrServidor, 'Onde a Evolution API responde. Normalmente http://localhost:8080.'),
+    campo('Chave de API do servico', qrChave, 'A apikey global configurada no servico.'),
+    campo('Nome da instancia', qrInstancia, 'Uma instancia por numero. Ja vem preenchido com o id da conexao.'),
+    campo(
+      'Endereco de retorno (webhook)',
+      qrUrlWebhook,
+      'So mexa se o servico rodar em Docker: la dentro, localhost e o proprio container e nao esta maquina. Nesse caso use http://host.docker.internal:4477.',
+    ),
+  ]);
+
   tipo.addEventListener('change', () => {
     blocoOficial.style.display = tipo.value === 'oficial' ? 'block' : 'none';
+    blocoQrCode.style.display = tipo.value === 'qrcode' ? 'block' : 'none';
   });
 
   async function salvar() {
@@ -777,6 +1044,14 @@ function formulario(conexao, { aoSalvar }) {
          a string vazia, salvar o nome da conexao apagaria o token do numero. */
       if (token.value.trim()) dados.oficial.token = token.value.trim();
     }
+    if (tipo.value === 'qrcode') {
+      dados.qrcode = {
+        servidor: qrServidor.value.trim(),
+        instancia: qrInstancia.value.trim() || conexao?.id || '',
+        urlWebhook: qrUrlWebhook.value.trim(),
+      };
+      if (qrChave.value.trim()) dados.qrcode.chave = qrChave.value.trim();
+    }
     if (novo) await api.post('/api/conexoes', dados);
     else await api.patch(`/api/conexoes/${conexao.id}`, dados);
     aviso('Conexao salva.', 'sucesso');
@@ -792,6 +1067,7 @@ function formulario(conexao, { aoSalvar }) {
     campo('Departamento padrao', departamentoPadrao),
     campo('Responsavel padrao', responsavelPadrao, 'Normalmente o agente de triagem.'),
     blocoOficial,
+    blocoQrCode,
   ];
 
   return { campos, salvar };
@@ -843,6 +1119,14 @@ function descreverResponsavel(responsavel) {
  * de qualquer origem, por isso ela entra na lista sem marcar bloqueio.
  */
 function credenciaisFaltando(conexao) {
+  if (conexao.tipo === 'qrcode') {
+    const cfg = conexao.qrcode || {};
+    const faltas = [];
+    if (!cfg.servidor) faltas.push({ rotulo: 'endereco do servico', bloqueia: true });
+    if (!cfg.chave) faltas.push({ rotulo: 'chave de API do servico', bloqueia: true });
+    if (!cfg.instancia) faltas.push({ rotulo: 'nome da instancia', bloqueia: true });
+    return faltas;
+  }
   if (conexao.tipo !== 'oficial') return [];
   const oficial = conexao.oficial || {};
   const faltas = [];

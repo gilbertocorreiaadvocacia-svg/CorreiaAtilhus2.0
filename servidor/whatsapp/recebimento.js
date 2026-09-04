@@ -14,7 +14,7 @@ import { agora, normalizar, normalizarTelefone, novoId } from '../nucleo/util.js
 import { agendarResposta, agentePorPalavraChave, cancelarResposta } from '../ia/motor.js';
 import { agendarFollowupsDoStatus, cancelarFollowups, limparAgendamentosDoContato, reagendarFollowups } from '../automacao/followup.js';
 import { marcarComoLida } from './envio.js';
-import { baixarMidiaDaMeta } from './midia.js';
+import { driverDa } from './drivers/index.js';
 import { transcrever, transcricaoDisponivel } from '../ia/audio.js';
 
 /**
@@ -162,11 +162,24 @@ export async function receberMensagem({
 
   const primeira = novo || !contato.primeiraMensagemEm;
 
-  // Na Cloud API o anexo chega como id. Baixamos na hora: a URL da Meta expira.
+  /*
+   * O anexo chega como referencia, nunca como arquivo: um id, na Cloud API, ou
+   * uma chave de mensagem cifrada, na sessao por QR Code. Nos dois casos a
+   * referencia vence em minutos, entao o arquivo e buscado e guardado aqui na
+   * hora em que ele chega. Quem sabe como buscar e o driver.
+   */
   let anexo = midia;
-  if (anexo?.id && conexao.tipo === 'oficial') {
-    const baixado = await baixarMidiaDaMeta(conexao, anexo.id, anexo.nome);
+  if (anexo && !anexo.url) {
+    const baixado = await driverDa(conexao).baixarMidia?.({ conexao, midia: anexo });
     if (baixado) anexo = { ...anexo, ...baixado };
+  }
+  if (anexo) {
+    /* O base64 e a chave sao andaimes do transporte: depois de o arquivo estar
+       em disco eles nao dizem mais nada, e gravados na mensagem inchariam o
+       JSON da conversa e o espelho do Supabase com o arquivo inteiro em texto,
+       uma vez por anexo. */
+    const { base64, chave, ...guardavel } = anexo;
+    anexo = guardavel;
   }
 
   // Audio sem transcricao e uma conversa que o agente nao consegue ler.
@@ -226,7 +239,7 @@ export async function receberMensagem({
 
   reagendarFollowups(contato);
 
-  if (idExterno) marcarComoLida(conexao, idExterno).catch(() => {});
+  if (idExterno) marcarComoLida(conexao, idExterno, contato).catch(() => {});
 
   emitir(workspaceId, 'mensagem', { contatoId: contato.id, mensagem });
   emitir(workspaceId, 'contato', { contatoId: contato.id });

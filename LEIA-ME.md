@@ -44,18 +44,54 @@ Troque a senha em **Configurações › Membros** assim que entrar.
 
 ### Conexão de WhatsApp
 
-Dois modos, na mesma tela:
+Três caminhos, escolhidos **por número**, na mesma tela:
 
-| Modo | Para que serve |
-| --- | --- |
-| **Simulador** | Funciona hoje, sem chip. Roda o funil inteiro, agente, menção, follow-up, contrato, para você testar antes de ligar em produção. |
-| **API Oficial (Meta)** | Cloud API de verdade: webhook com conferência de assinatura, janela de 24 horas, template aprovado, status de entrega e alerta de qualidade do número. |
+| Caminho | Para que serve | O que custa |
+| --- | --- | --- |
+| **Simulador** | Funciona hoje, sem chip. Roda o funil inteiro, agente, menção, follow-up, contrato, para testar antes de ligar em produção. | Nada sai desta máquina. |
+| **API Oficial (Meta)** | Cloud API de verdade: webhook com conferência de assinatura, status de entrega e alerta de qualidade do número. | Exige número verificado e WABA. Fora da janela de 24 horas só passa template aprovado, e grupo não funciona. |
+| **QR Code (não oficial)** | Lê o QR pelo celular, como o WhatsApp Web. Entra em grupo, recebe áudio e manda mensagem a qualquer hora, sem template. | **Viola os termos da Meta: o número pode ser banido, sem aviso.** |
+
+A escolha é por número justamente porque os riscos são diferentes. O **comercial**
+é o que corre risco de qualquer jeito: dispara follow-up, fala com quem nunca
+respondeu e é o primeiro a ser denunciado. O de **pós-venda** fala com quem já
+assinou contrato e não pode cair nunca — esse deveria ficar na API Oficial.
 
 Cada conexão define o que acontece em **toda conversa nova**: status padrão,
 departamento padrão e responsável padrão (normalmente o agente de triagem).
 
-Para a API Oficial, a URL do webhook aparece no próprio cartão da conexão -
-é só colar no painel da Meta junto com o token de verificação.
+Para a API Oficial, a URL do webhook aparece na aba **Saúde** do painel da
+conexão — é só colar no painel da Meta junto com o token de verificação.
+
+**Para o QR Code, é preciso um serviço a mais.** O sistema não carrega a
+biblioteca de WhatsApp dentro dele de propósito: ela traz umas trezentas
+dependências e um módulo nativo, e isso acabaria com o "abrir com dois cliques,
+sem instalar nada". Em vez disso, o CorreiaAtilhus2.0 conversa por HTTP com a
+**Evolution API**, que roda na mesma máquina e segura a sessão.
+
+Instalar, uma vez, com o Docker Desktop aberto:
+
+```
+docker run -d --name evolution -p 8080:8080 -e AUTHENTICATION_API_KEY=escolha-uma-chave-longa -v evolution_dados:/evolution/instances atendai/evolution-api:v2.1.1
+```
+
+Depois, em **Conexões › Nova conexão › QR Code**, preencha:
+
+- **Endereço do serviço:** `http://localhost:8080`
+- **Chave de API:** a mesma que você pôs no `AUTHENTICATION_API_KEY`
+- **Nome da instância:** já vem preenchido, uma por número
+- **Endereço de retorno:** deixe em branco. Só mexa se o serviço rodar em
+  Docker e não enxergar esta máquina — aí use `http://host.docker.internal:4477`
+
+Feito isso, **Ações › Conectar** mostra o QR Code. Abra o WhatsApp do número no
+celular, vá em *Configurações › Aparelhos conectados › Conectar um aparelho* e
+aponte a câmera. A tela percebe sozinha quando a sessão abre.
+
+A tela lista os números em tabela, com busca, escolha de colunas e ordem
+arrastável. Clicar em um número abre o painel de detalhes, com cinco abas:
+**Geral** (o que ele é), **Saúde** (ele está bem?), **Logs** (o que aconteceu
+com ele — criação, teste, queda, volta e mudança de qualidade, com hora),
+**Configurações** e **Ações**.
 
 ### Atendimento
 
@@ -487,6 +523,7 @@ servidor/
   rotas/                sessão, atendimento, tarefas, automações, conexões, painel, integrações, API pública
   ia/                   motor do agente, menções, provedores, resumo
   whatsapp/             envio, recebimento, templates da Meta
+  whatsapp/drivers/     um por caminho: simulador, oficial (Meta), qrcode
   automacao/            follow-up, agendador e horário comercial
   integracoes/          ZapSign, agenda, andamento processual, chamadas personalizadas
 web/

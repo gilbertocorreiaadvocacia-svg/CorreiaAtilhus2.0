@@ -5042,3 +5042,37 @@ tbody tr:focus-within .conexao-alca {
   height: 14px;
   flex: none;
 }
+
+/* QR Code da sessao -------------------------------------------------------
+   O codigo precisa caber inteiro na tela e ficar grande o bastante para a
+   camera do celular ler de uma vez: fundo branco fixo (o leitor precisa do
+   contraste, e no tema escuro um QR invertido nao le) e largura confortavel. */
+.qrcode-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--e3);
+  min-height: 260px;
+  justify-content: center;
+  padding: var(--e4);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+}
+
+.qrcode-imagem {
+  width: 240px;
+  height: 240px;
+  padding: var(--e2);
+  background: #fff;
+  border-radius: var(--raio-p);
+}
+
+/* Passo a passo numerado, dentro da gaveta. */
+.lista-passos {
+  margin: 0 0 var(--e4);
+  padding-left: var(--e5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--e1);
+  color: var(--texto-suave);
+}
