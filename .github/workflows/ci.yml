@@ -1,0 +1,52 @@
+# Conferencia automatica a cada envio.
+#
+# O sistema nao tem dependencia nenhuma e nao tem passo de build, entao nao ha
+# `npm install` aqui: a CI faz exatamente o que uma pessoa faria na maquina do
+# escritorio, `npm test`, e nada mais.
+#
+# A suite sobe o sistema de verdade numa pasta de dados descartavel e conversa
+# com ele por HTTP. Ela cobre o que quebra de verdade neste projeto, que e a
+# costura entre o webhook, o banco em arquivo e o envio: conversa criada pelo
+# evento da Meta, rastro do anuncio guardado, eco do proprio envio descartado,
+# grupo ignorado, chave de webhook conferida e segredo preservado ao salvar.
+#
+# O passo de sintaxe roda junto e vale mais do que parece: erro de sintaxe num
+# modulo do navegador nao aparece em teste de servidor nenhum, e so quebraria na
+# tela de quem abriu o sistema, sem mensagem util.
+
+name: Conferencia
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+# Envio novo cancela a conferencia do envio anterior do mesmo ramo: o que
+# importa e se o topo do ramo esta de pe, nao o commit do meio.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  conferir:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      # As duas versoes com suporte da linha LTS. O escritorio roda a LTS
+      # recomendada pelo site do Node, e a anterior fica aqui para uma maquina
+      # que ainda nao atualizou nao descobrir o problema em producao.
+      matrix:
+        node: ['20', '22']
+
+    name: Node ${{ matrix.node }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Rodar a suite
+        run: npm test

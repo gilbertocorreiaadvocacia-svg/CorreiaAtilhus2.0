@@ -22,6 +22,28 @@ No Windows, dois cliques em `INICIAR.bat` fazem o mesmo e já abrem o navegador.
 Abre em `http://localhost:4477`. Primeiro acesso: `admin@correia.adv.br` /
 `correia2026` — **troque a senha em Configurações › Membros assim que entrar.**
 
+---
+
+## Como conferir
+
+```bash
+npm test
+```
+
+Sobe o sistema numa pasta de dados **descartável** (nunca a `dados/` de
+verdade), em porta sorteada, e conversa com ele por HTTP. Cobre a costura que
+quebra de verdade neste projeto: conversa criada pelo evento da Meta, rastro do
+anúncio guardado, eco do próprio envio descartado, grupo ignorado, chave do
+webhook conferida e segredo preservado ao salvar. Junto vai um `node --check`
+em todo arquivo `.js` — sem passo de build, erro de sintaxe num módulo do
+navegador só apareceria na tela de quem abriu o sistema.
+
+O caminho por QR Code é testado contra uma **Evolution API de mentira**
+(`servidor/testes/evolution-falsa.js`), que responde as mesmas rotas no mesmo
+formato. Isso prova que o driver monta o pedido certo e entende a resposta; não
+prova que a Evolution de verdade responde assim — isso só a primeira conexão
+real diz.
+
 **Precisa só do Node.js 18+.** Nada de `npm install`: o projeto tem **zero
 dependências**, roda com o `node:http` que já vem no Node, e o navegador carrega
 módulos ES nativos sem passo de build.

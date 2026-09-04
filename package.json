@@ -7,7 +7,8 @@
   "main": "servidor/index.js",
   "scripts": {
     "start": "node servidor/index.js",
-    "dev": "node --watch servidor/index.js"
+    "dev": "node --watch servidor/index.js",
+    "test": "node servidor/testes/executar.js"
   },
   "engines": {
     "node": ">=18"

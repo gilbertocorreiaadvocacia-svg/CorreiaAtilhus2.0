@@ -5,7 +5,17 @@ const aqui = path.dirname(fileURLToPath(import.meta.url));
 
 export const RAIZ = path.resolve(aqui, '..');
 export const PASTA_WEB = path.join(RAIZ, 'web');
-export const PASTA_DADOS = path.join(RAIZ, 'dados');
+/*
+ * A pasta dos dados e configuravel por variavel de ambiente.
+ *
+ * No dia a dia ninguem mexe nisso: e sempre `dados/`, ao lado do programa, e e
+ * essa pasta que se copia para fazer backup. A variavel existe para os testes,
+ * que precisam de uma base descartavel: sem ela, rodar a suite na maquina do
+ * escritorio apagaria as conversas de verdade para semear as de mentira.
+ */
+export const PASTA_DADOS = process.env.CORREIA_DADOS
+  ? path.resolve(process.env.CORREIA_DADOS)
+  : path.join(RAIZ, 'dados');
 export const PASTA_MENSAGENS = path.join(PASTA_DADOS, 'mensagens');
 export const PASTA_ARQUIVOS = path.join(PASTA_DADOS, 'arquivos');
 export const PASTA_MIDIA = path.join(PASTA_DADOS, 'midia');
