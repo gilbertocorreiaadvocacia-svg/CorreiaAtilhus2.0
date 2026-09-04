@@ -314,6 +314,79 @@ export async function testarConversas({ base }) {
       contagens[aba] === lista.length, `contador ${contagens[aba]}, lista ${lista.length}`);
   }
 
+  /* ---------------- O nome que vem do perfil do WhatsApp ---------------- */
+
+  /*
+   * Tres regras, e as tres importam pelo mesmo motivo: o nome na lista e como
+   * o escritorio reconhece o caso.
+   *
+   * 1. Conversa sem nome ganha o do perfil quando a pessoa escreve.
+   * 2. Nome escrito por alguem do escritorio nunca e substituido.
+   * 3. Trocar o nome no WhatsApp depois nao renomeia a conversa aqui.
+   *
+   * A terceira e a que sustenta a segunda: sem ela, bastaria o cliente mudar o
+   * proprio nome para apagar a anotacao que o escritorio fez.
+   */
+  const lerContato = async (id) => (await api.get(`/api/contatos/${id}`)).dados;
+
+  /* 1. Contato criado sem nome fica com o proprio numero no lugar do nome. */
+  const semNome = (
+    await api.post('/api/contatos', { conexaoId: conexao.id, telefone: TELEFONE(20) })
+  ).dados;
+  s.ok('contato criado sem nome fica com o numero no lugar do nome',
+    semNome.nome === semNome.telefone, `nome veio "${semNome.nome}"`);
+
+  await api.post('/api/simulador/mensagem', {
+    conexaoId: conexao.id,
+    telefone: TELEFONE(20),
+    nome: 'Joana da Silva',
+    conteudo: 'boa tarde',
+  });
+  await esperar(900);
+  s.ok('o nome do perfil do WhatsApp preenche a conversa que estava sem nome',
+    (await lerContato(semNome.id))?.nome === 'Joana da Silva');
+
+  /* 2. Nome escrito por gente do escritorio nao e sobrescrito. */
+  await api.patch(`/api/contatos/${semNome.id}`, { nome: 'Joana - BPC do filho' });
+  await api.post('/api/simulador/mensagem', {
+    conexaoId: conexao.id,
+    telefone: TELEFONE(20),
+    nome: 'Joana da Silva',
+    conteudo: 'mais uma',
+  });
+  await esperar(900);
+  s.ok('nome escrito pelo escritorio nao e substituido pelo do perfil',
+    (await lerContato(semNome.id))?.nome === 'Joana - BPC do filho');
+
+  /* 3. Cliente que troca o nome no WhatsApp nao renomeia a conversa. */
+  await api.post('/api/simulador/mensagem', {
+    conexaoId: conexao.id,
+    telefone: TELEFONE(20),
+    nome: 'Jojo 2026',
+    conteudo: 'troquei meu nome',
+  });
+  await esperar(900);
+  s.ok('cliente que troca o nome no WhatsApp nao renomeia a conversa',
+    (await lerContato(semNome.id))?.nome === 'Joana - BPC do filho');
+
+  /* A mudanca fica registrada no historico, senao um nome que aparece sozinho
+     na lista se le como erro do sistema. */
+  const logsDoNome = ((await api.get(`/api/contatos/${semNome.id}/logs`)).dados || []).filter(
+    (l) => l.tipo === 'nome',
+  );
+  s.ok('o preenchimento do nome fica no historico da conversa',
+    logsDoNome.length === 1 && logsDoNome[0].descricao.includes('Joana da Silva'),
+    JSON.stringify(logsDoNome.map((l) => l.descricao)));
+
+  /* Mensagem sem nome de perfil nao apaga o que ja existe. */
+  const semPerfil = (
+    await api.post('/api/contatos', { conexaoId: conexao.id, telefone: TELEFONE(21), nome: 'Cadastro Manual' })
+  ).dados;
+  await api.post('/api/simulador/mensagem', { conexaoId: conexao.id, telefone: TELEFONE(21), conteudo: 'oi' });
+  await esperar(900);
+  s.ok('mensagem sem nome de perfil nao apaga o nome que ja existia',
+    (await lerContato(semPerfil.id))?.nome === 'Cadastro Manual');
+
   /* ---------------- Aviso de mensagem nova ---------------- */
 
   /*
@@ -369,7 +442,7 @@ export async function testarConversas({ base }) {
 
   /* ---------------- Limpeza ---------------- */
 
-  for (const contato of [pendente, naIa, ativo, arquivado, voltou, comDono, comAgente, semDono]) {
+  for (const contato of [pendente, naIa, ativo, arquivado, voltou, comDono, comAgente, semDono, semNome, semPerfil]) {
     await api.delete(`/api/contatos/${contato.id}`);
   }
 

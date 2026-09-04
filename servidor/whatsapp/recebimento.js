@@ -261,6 +261,40 @@ export async function receberMensagem({
     previa: (mensagem.conteudo || `[${tipo}]`).slice(0, 120),
   };
 
+  /*
+   * O nome do perfil do WhatsApp, quando a conversa ainda nao tem nome.
+   *
+   * Os dois drivers ja liam esse nome — profile.name na Cloud API da Meta,
+   * pushName na sessao por QR Code — e ele so era usado na CRIACAO do contato.
+   * Para quem ja existia, a linha `if (contato) return` de acharOuCriarContato
+   * jogava fora. Na pratica: contato cadastrado a mao, ou criado numa
+   * importacao sem a coluna de nome, ficava sendo um numero para sempre na
+   * lista, por mais que a pessoa escrevesse todo dia.
+   *
+   * SO PREENCHE O QUE ESTA VAZIO. Contato sem nome nasce com o proprio numero
+   * no lugar do nome, e essa igualdade e a marca de "nunca teve nome". Nome
+   * que alguem escreveu nao e tocado: o cliente que se chama "Maria" no
+   * WhatsApp pode ser "Maria Souza - BPC do filho" na ficha do escritorio, e
+   * essa versao vale mais do que a do perfil dele.
+   *
+   * Pela mesma razao, trocar o nome no WhatsApp depois NAO renomeia a conversa
+   * aqui. E a mesma regra que a importacao de CSV ja segue — primeiro que
+   * escreve, fica. Se o escritorio preferir o contrario, o que muda e a
+   * condicao desta linha.
+   */
+  const nomeDoPerfil = String(nome || '').trim();
+  const semNome = !contato.nome || contato.nome === contato.telefone;
+  if (nomeDoPerfil && nomeDoPerfil !== contato.telefone && semNome) {
+    mudancas.nome = nomeDoPerfil;
+    registrarLog(
+      workspaceId,
+      contato.id,
+      'nome',
+      `Nome preenchido pelo perfil do WhatsApp: ${nomeDoPerfil}`,
+      { tipo: 'sistema', nome: 'WhatsApp' },
+    );
+  }
+
   if (primeira) {
     mudancas.primeiraMensagemEm = mensagem.criadoEm;
     const origem = detectarOrigem(workspaceId, mensagem.conteudo);

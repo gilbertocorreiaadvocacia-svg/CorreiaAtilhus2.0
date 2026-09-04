@@ -1615,6 +1615,7 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
     criacao: 'mais',
     status: 'raio',
     responsavel: 'pessoa',
+    nome: 'pessoa',
     departamento: 'usuarios',
     arquivo: 'arquivar',
     desarquivar: 'atualizar',
