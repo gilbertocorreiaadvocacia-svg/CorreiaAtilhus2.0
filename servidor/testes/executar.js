@@ -10,6 +10,7 @@ import { subirEvolucaoFalsa } from './evolution-falsa.js';
 import { testarQrCode } from './conexoes-qrcode.js';
 import { testarSimuladorEOficial } from './conexoes-regressao.js';
 import { testarPortaOcupada } from './porta-ocupada.js';
+import { testarConversas } from './conversas.js';
 
 /**
  * A suite do CorreiaAtilhus2.0. Rode com `npm test`.
@@ -120,6 +121,7 @@ async function principal() {
 
     suites.push(await testarSimuladorEOficial({ base }));
     suites.push(await testarQrCode({ base, evolucao, chaveEvolucao: CHAVE_EVOLUCAO }));
+    suites.push(await testarConversas({ base }));
     /* Sobe processos proprios, em porta propria: nao encosta no servidor acima. */
     suites.push(await testarPortaOcupada({ raiz: RAIZ, portaLivre }));
   } catch (erro) {
