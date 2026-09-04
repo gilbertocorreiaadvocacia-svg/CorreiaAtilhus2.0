@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
-import { INTERVALO_AGENDADOR, PORTA } from './config.js';
+import { INTERVALO_AGENDADOR, PORTA, RAIZ } from './config.js';
 import { caminhoDaMidia } from './nucleo/midia.js';
 import { atualizar, encerrarBanco, iniciarBanco, listar } from './nucleo/banco.js';
 import { migrarCoresParaTokens } from './nucleo/paleta.js';
@@ -20,6 +20,9 @@ import { registrarIntegracoes } from './rotas/integracoes.js';
 import { autenticarChave, dentroDoLimite, registrarPublica } from './rotas/publica.js';
 
 iniciarBanco();
+/* Quando ESTA copia subiu. Vai na saude, para dar para distinguir duas. */
+const INICIADO_EM = new Date().toISOString();
+
 const semeado = semearSePrecisar();
 /* Depois de semear, para pegar tambem a base que acabou de nascer. */
 const coresTrocadas = migrarCoresParaTokens({ listar, atualizar });
@@ -78,9 +81,31 @@ rotas.get('/api/eventos', async ({ req, res, ctx }) => {
   return null;
 }, { cru: true });
 
-rotas.get('/api/saude', async () => ({ ok: true, versao: '0.1.0', agora: new Date().toISOString() }), {
-  publica: true,
-});
+/*
+ * Saude. Alem de dizer que esta de pe, diz DE ONDE esta de pe.
+ *
+ * A pasta parece informacao inutil ate o dia em que existem duas copias do
+ * sistema na maquina: a que subiu sozinha no login e a que alguem acabou de
+ * abrir no editor. As duas atendem em localhost:4477, a tela e identica, e nao
+ * ha como saber qual esta na frente. Quem nao descobre isso passa a tarde
+ * mexendo no codigo certo e olhando para a copia errada.
+ *
+ * O caminho fica exposto sem sessao porque o servidor escuta so em 127.0.0.1:
+ * quem alcanca esta rota ja esta nesta maquina, e a resposta e para ele mesmo
+ * se achar.
+ */
+rotas.get(
+  '/api/saude',
+  async () => ({
+    ok: true,
+    versao: '0.1.0',
+    agora: new Date().toISOString(),
+    raiz: RAIZ,
+    pid: process.pid,
+    desde: INICIADO_EM,
+  }),
+  { publica: true },
+);
 
 /* ------------------------------------------------------------------ */
 /* Servidor                                                            */
@@ -199,13 +224,67 @@ const servidor = http.createServer(async (req, res) => {
  * mesmos arquivos de dados. Aqui o segundo simplesmente avisa que ja esta no ar
  * e sai limpo, deixando o primeiro dono unico do disco.
  */
-servidor.on('error', (erro) => {
-  if (erro.code === 'EADDRINUSE') {
-    console.log(`\n  O CorreiaAtilhus2.0 ja esta rodando na porta ${PORTA}.`);
-    console.log('  Abra http://localhost:' + PORTA + ' no navegador.\n');
+servidor.on('error', async (erro) => {
+  if (erro.code !== 'EADDRINUSE') {
+    console.error('[erro no servidor]', erro);
+    process.exit(1);
+  }
+
+  const linha = '─'.repeat(58);
+
+  /*
+   * Antes de dizer qualquer coisa, pergunta a quem esta na porta DE ONDE ele
+   * roda. Duas copias na mesma maquina atendem em localhost:4477 com telas
+   * identicas, e o antigo aviso ("ja esta rodando, abra o navegador") mandava a
+   * pessoa olhar justamente para a copia errada: ela editava o codigo aqui,
+   * recarregava a pagina e nao via mudanca nenhuma, sem nada na tela que
+   * explicasse o porque.
+   */
+  let outra = null;
+  try {
+    const resposta = await fetch(`http://127.0.0.1:${PORTA}/api/saude`, {
+      signal: AbortSignal.timeout(2000),
+    });
+    if (resposta.ok) outra = await resposta.json();
+  } catch {
+    /* Nao respondeu, ou nao e o nosso sistema. Tratado abaixo. */
+  }
+
+  if (!outra?.ok) {
+    console.log(`\n${linha}`);
+    console.log(`  A porta ${PORTA} esta ocupada por outro programa.`);
+    console.log('  Nao e o CorreiaAtilhus2.0: ele nao respondeu na porta.');
+    console.log('');
+    console.log(`  Feche o outro programa, ou rode com outra porta:  PORTA=4488`);
+    console.log(`${linha}\n`);
+    process.exit(1);
+  }
+
+  const mesmaPasta = path.resolve(outra.raiz || '') === path.resolve(RAIZ);
+
+  if (mesmaPasta) {
+    /* Caso benigno: o inicio automatico ja subiu ESTA pasta, e alguem mandou
+       subir de novo. Nada de errado, nada a fazer. */
+    console.log(`\n  O CorreiaAtilhus2.0 desta pasta ja esta rodando na porta ${PORTA}.`);
+    console.log(`  Abra http://localhost:${PORTA} no navegador.\n`);
     process.exit(0);
   }
-  console.error('[erro no servidor]', erro);
+
+  /* O caso que engana: outra COPIA, de outra pasta, esta na frente. */
+  console.log(`\n${linha}`);
+  console.log('  ATENCAO: outra copia do sistema esta ocupando a porta.');
+  console.log(linha);
+  console.log(`  No ar agora:  ${outra.raiz}`);
+  console.log(`  Esta pasta:   ${RAIZ}`);
+  console.log('');
+  console.log(`  O que abre em localhost:${PORTA} e a copia de cima, NAO esta.`);
+  console.log('  Alterar o codigo aqui nao muda nada na tela enquanto ela estiver no ar.');
+  console.log('');
+  console.log('  Como resolver, na copia que esta no ar:');
+  console.log('    1. rode  windows\\desinstalar-inicio.cmd  para ela nao subir mais sozinha;');
+  console.log(`    2. encerre o processo Node (Gerenciador de Tarefas), ou reinicie o Windows;`);
+  console.log('    3. volte aqui e suba de novo (F5).');
+  console.log(`${linha}\n`);
   process.exit(1);
 });
 
