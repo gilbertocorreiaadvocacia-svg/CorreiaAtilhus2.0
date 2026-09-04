@@ -16,9 +16,14 @@
 
 name: Conferencia
 
+# `push` so na main, e `pull_request` no resto. Com push em todos os ramos, todo
+# commit de uma PR era conferido DUAS vezes, uma por evento, gastando o dobro de
+# tempo de maquina e enchendo a PR de checagem repetida. O ramo sem PR aberta
+# deixa de ser conferido, o que e a troca certa aqui: enquanto o trabalho nao
+# virou PR, ele ainda nao esta pedindo para entrar na main.
 on:
   push:
-    branches: ['**']
+    branches: [main]
   pull_request:
 
 # Envio novo cancela a conferencia do envio anterior do mesmo ramo: o que
