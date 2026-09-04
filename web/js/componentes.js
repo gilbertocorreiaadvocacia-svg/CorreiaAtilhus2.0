@@ -217,7 +217,21 @@ export function seletorPeriodo({ de, ate, aoAplicar } = {}) {
  * `aoConfirmar` pode devolver promessa. Se lancar erro, a gaveta continua
  * aberta com o texto ja digitado e o erro sai no aviso.
  */
-export function gaveta({ titulo, descricao, corpo, confirmar, aoConfirmar, aoFechar } = {}) {
+export function gaveta({
+  titulo,
+  descricao,
+  corpo,
+  confirmar,
+  aoConfirmar,
+  aoFechar,
+  /* Painel de leitura nao tem o que cancelar: quem so olhou fecha, nao desiste.
+     O rotulo continua "Cancelar" por padrao para todo formulario ja existente. */
+  rotuloCancelar = 'Cancelar',
+  /* A gaveta de formulario tem a largura de uma coluna de campos. A de
+     detalhes carrega tabela, lista de eventos e blocos lado a lado, e em 480px
+     tudo isso quebra em uma linha por palavra. */
+  larga = false,
+} = {}) {
   const cortina = el('div', { class: 'gaveta-cortina' });
   let fechada = false;
 
@@ -251,7 +265,7 @@ export function gaveta({ titulo, descricao, corpo, confirmar, aoConfirmar, aoFec
       })
     : null;
 
-  const caixa = el('aside', { class: 'gaveta', role: 'dialog', 'aria-modal': 'true', 'aria-label': titulo || 'Painel' }, [
+  const caixa = el('aside', { class: `gaveta ${larga ? 'larga' : ''}`.trim(), role: 'dialog', 'aria-modal': 'true', 'aria-label': titulo || 'Painel' }, [
     el('header', { class: 'gaveta-cabecalho' }, [
       // O crescimento vive aqui, no filho direto do flex: no h2 ele seria
       // inerte e o botao Fechar grudava no texto em vez de ir para a borda.
@@ -262,7 +276,7 @@ export function gaveta({ titulo, descricao, corpo, confirmar, aoConfirmar, aoFec
       botao('', { icone: 'fechar', pequeno: true, titulo: 'Fechar', aoClicar: fechar }),
     ]),
     el('div', { class: 'gaveta-corpo' }, [].concat(corpo || [])),
-    el('footer', { class: 'gaveta-rodape' }, [botao('Cancelar', { aoClicar: fechar }), botaoConfirmar]),
+    el('footer', { class: 'gaveta-rodape' }, [botao(rotuloCancelar, { aoClicar: fechar }), botaoConfirmar]),
   ]);
 
   cortina.append(caixa);
@@ -683,3 +697,115 @@ export function seletorDeCor(valorInicial) {
 
 /* Distribuicao em barras -------------------------------------------------- */
 
+
+/* Menu de acoes ----------------------------------------------------------- */
+
+/**
+ * Menu suspenso das tres reticencias, no fim da linha de uma tabela.
+ *
+ * Existe porque linha de tabela nao comporta quatro botoes lado a lado: com
+ * Configurar, Testar, Webhook e Excluir escritos por extenso, a coluna de acoes
+ * ficava mais larga que a coluna que importa, e o nome da conexao era o
+ * primeiro a ser cortado. Aqui a linha mostra so o gatilho, e as acoes aparecem
+ * quando alguem realmente vai agir.
+ *
+ * O menu e fixo, e nao absoluto, pelo mesmo motivo da dica: a area de tabela
+ * rola com overflow, e overflow em um eixo corta o outro junto.
+ *
+ * `itens` aceita `null` no meio da lista, para a tela poder esconder uma acao
+ * sem montar o vetor condicionalmente. `{ separador: true }` desenha a linha
+ * que separa o que muda o cadastro do que apaga.
+ */
+export function menuAcoes(itens, { rotulo = 'Acoes', texto = '', iconeGatilho = 'opcoes' } = {}) {
+  const lista = el('div', { class: 'menu-acoes-lista', role: 'menu', hidden: true });
+  /* Sem `texto`, o gatilho e so o icone das reticencias, que e o que cabe no
+     fim de uma linha de tabela. Com `texto`, vira um botao escrito, para o
+     menu que fica solto numa barra e precisa dizer o que ele abre. */
+  const gatilho = botao(texto, { icone: iconeGatilho, pequeno: !texto, titulo: rotulo });
+  gatilho.setAttribute('aria-haspopup', 'menu');
+  gatilho.setAttribute('aria-expanded', 'false');
+
+  const caixa = el('div', { class: 'menu-acoes' }, [gatilho, lista]);
+  let aberto = false;
+
+  function fechar() {
+    if (!aberto) return;
+    aberto = false;
+    lista.setAttribute('hidden', '');
+    gatilho.setAttribute('aria-expanded', 'false');
+    document.removeEventListener('keydown', aoTeclar, true);
+    document.removeEventListener('mousedown', aoClicarFora, true);
+    window.removeEventListener('scroll', fechar, true);
+    window.removeEventListener('resize', fechar);
+  }
+
+  function aoTeclar(evento) {
+    if (evento.key === 'Escape') {
+      fechar();
+      gatilho.focus();
+    }
+  }
+
+  function aoClicarFora(evento) {
+    if (!caixa.contains(evento.target)) fechar();
+  }
+
+  function posicionar() {
+    const area = gatilho.getBoundingClientRect();
+    const alvo = lista.getBoundingClientRect();
+    /* Encosta a direita do menu na direita do gatilho: a coluna de acoes fica
+       na borda da tabela, e abrir para a direita jogaria o menu para fora da
+       tela. Se nao couber para baixo, sobe. */
+    const esquerda = Math.max(8, Math.min(area.right - alvo.width, window.innerWidth - alvo.width - 8));
+    const cabeAbaixo = area.bottom + alvo.height + 8 < window.innerHeight;
+    lista.style.left = `${esquerda}px`;
+    lista.style.top = cabeAbaixo ? `${area.bottom + 4}px` : `${area.top - alvo.height - 4}px`;
+  }
+
+  function abrir() {
+    if (aberto) return;
+    aberto = true;
+    lista.removeAttribute('hidden');
+    gatilho.setAttribute('aria-expanded', 'true');
+    posicionar();
+    document.addEventListener('keydown', aoTeclar, true);
+    document.addEventListener('mousedown', aoClicarFora, true);
+    /* Captura no scroll para pegar tambem a rolagem da area da tabela, que nao
+       borbulha ate a janela. */
+    window.addEventListener('scroll', fechar, true);
+    window.addEventListener('resize', fechar);
+  }
+
+  gatilho.addEventListener('click', () => (aberto ? fechar() : abrir()));
+
+  for (const item of itens.filter(Boolean)) {
+    if (item.separador) {
+      lista.append(el('div', { class: 'menu-acoes-separador' }));
+      continue;
+    }
+    const marcavel = item.marcado !== undefined;
+    const opcao = el('button', {
+      type: 'button',
+      class: `menu-acoes-item ${item.perigo ? 'perigo' : ''}`.trim(),
+      role: marcavel ? 'menuitemcheckbox' : 'menuitem',
+      'aria-checked': marcavel ? String(Boolean(item.marcado)) : null,
+    });
+    /* Item que liga e desliga guarda o lugar do check mesmo desmarcado: sem a
+       caixa vazia, a lista inteira dancava para a esquerda a cada clique. */
+    if (marcavel) {
+      opcao.append(
+        item.marcado ? icone('ok', 14) : el('span', { class: 'menu-acoes-vazio', 'aria-hidden': 'true' }),
+      );
+    } else if (item.icone) {
+      opcao.append(icone(item.icone, 14));
+    }
+    opcao.append(document.createTextNode(item.rotulo));
+    opcao.addEventListener('click', () => {
+      fechar();
+      item.aoClicar?.();
+    });
+    lista.append(opcao);
+  }
+
+  return caixa;
+}

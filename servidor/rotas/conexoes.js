@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { achar, atualizar, inserir, listar, registrarLog, remover } from '../nucleo/banco.js';
 import { emitir } from '../nucleo/eventos.js';
-import { agora, novoId } from '../nucleo/util.js';
+import { agora, novoId, ordenarPor } from '../nucleo/util.js';
 import { receberMensagem, atualizarSituacaoExterna } from '../whatsapp/recebimento.js';
 import { notificar } from '../ia/mencoes.js';
 import { comCodigo, exigirConfiguracao } from './sessao.js';
@@ -42,20 +42,54 @@ function extrairTexto(mensagem) {
   }
 }
 
+/**
+ * Trilha de eventos do numero.
+ *
+ * Reaproveita a colecao `logs`, que ja e espelhada no Supabase e ja tem o
+ * carimbo de tempo e o autor: o que faltava era como achar de novo o que
+ * aconteceu com UM numero. O `contatoId` fica nulo (o evento e do numero, nao
+ * de uma conversa) e o vinculo vai em `dados.conexaoId`, que e por onde a aba
+ * Logs do painel filtra.
+ *
+ * Sem isso, "o numero caiu ontem a tarde" nao tinha onde ser lido: a tela
+ * mostrava so o estado de agora, e quem chegava de manha via "desconectado"
+ * sem nenhuma pista de quando ou por que.
+ */
+function registrarEvento(conexao, tipo, descricao, autor = null) {
+  return registrarLog(conexao.workspaceId, null, `conexao_${tipo}`, descricao, autor, {
+    conexaoId: conexao.id,
+    conexaoNome: conexao.nome,
+  });
+}
+
 export function registrarConexoes(rotas) {
-  rotas.get('/api/conexoes', async ({ ctx }) =>
-    listar('conexoes', { workspaceId: ctx.workspaceId }).map((conexao) => ({
+  /*
+   * A ordem e escolhida na tela e vale para todo mundo, por isso mora no
+   * registro e nao no navegador de quem arrastou. Conexao criada antes de
+   * existir o campo cai no fim da fila em vez de sumir da lista, e a data de
+   * criacao desempata para a ordem nunca oscilar entre dois carregamentos.
+   */
+  rotas.get('/api/conexoes', async ({ ctx }) => {
+    const lista = listar('conexoes', { workspaceId: ctx.workspaceId }).map((conexao) => ({
       ...conexao,
+      ordem: Number.isFinite(conexao.ordem) ? conexao.ordem : Number.MAX_SAFE_INTEGER,
       oficial: conexao.oficial ? { ...conexao.oficial, token: conexao.oficial.token ? '***' : '' } : null,
       webhookUrl: conexao.tipo === 'oficial' ? `/webhook/${conexao.id}` : null,
-    })),
-  );
+    }));
+    return ordenarPor(lista, 'ordem').sort(
+      (a, b) => a.ordem - b.ordem || String(a.criadoEm).localeCompare(String(b.criadoEm)),
+    );
+  });
 
   rotas.post('/api/conexoes', async ({ ctx, corpo }) => {
     exigirConfiguracao(ctx);
+    const existentes = listar('conexoes', { workspaceId: ctx.workspaceId });
     const conexao = inserir('conexoes', {
       id: novoId('cnx'),
       workspaceId: ctx.workspaceId,
+      /* Fim da fila. Entrando em zero, o numero novo (que ainda nem conectou)
+         empurraria para baixo o numero que o escritorio usa o dia inteiro. */
+      ordem: existentes.length,
       nome: corpo.nome || 'Nova conexao',
       tipo: corpo.tipo || 'simulador',
       numero: corpo.numero || '',
@@ -70,6 +104,11 @@ export function registrarConexoes(rotas) {
         verifyToken: crypto.randomBytes(16).toString('hex'),
         appSecret: '',
       },
+    });
+    registrarEvento(conexao, 'criada', `Conexao criada em modo ${conexao.tipo}.`, {
+      tipo: 'membro',
+      id: ctx.membro?.id || null,
+      nome: ctx.usuario?.nome || 'Equipe',
     });
     return conexao;
   });
@@ -102,6 +141,50 @@ export function registrarConexoes(rotas) {
     return { ok: true };
   });
 
+  /**
+   * Ordem das conexoes na tela, arrastada pela alca da linha.
+   *
+   * Recebe a lista inteira de ids, e nao "mova o item X para a posicao Y": com
+   * duas pessoas reordenando ao mesmo tempo, um deslocamento relativo aplicado
+   * sobre uma lista que ja mudou embaralha tudo. A lista inteira e o estado
+   * final que a pessoa esta vendo, e o ultimo a salvar vence, que e o
+   * comportamento que ela espera.
+   */
+  rotas.post('/api/conexoes/ordenar', async ({ ctx, corpo }) => {
+    exigirConfiguracao(ctx);
+    const ids = Array.isArray(corpo.ids) ? corpo.ids : [];
+    if (!ids.length) throw comCodigo('Envie a lista de ids na ordem desejada.', 400);
+
+    const minhas = new Set(listar('conexoes', { workspaceId: ctx.workspaceId }).map((c) => c.id));
+    /* Id de fora do workspace nao reordena nada aqui: sem esta conferencia,
+       uma lista forjada renumeraria conexao de outro escritorio. */
+    for (const id of ids) {
+      if (!minhas.has(id)) throw comCodigo('Conexao nao encontrada.', 404);
+    }
+
+    ids.forEach((id, indice) => atualizar('conexoes', id, { ordem: indice }));
+    emitir(ctx.workspaceId, 'conexao', { ordenadas: true });
+    return { ok: true, total: ids.length };
+  });
+
+  /** Eventos do numero: o que a aba Logs e o "Ver eventos" do painel leem. */
+  rotas.get('/api/conexoes/:id/eventos', async ({ ctx, params, query }) => {
+    const conexao = achar('conexoes', params.id);
+    if (!conexao || conexao.workspaceId !== ctx.workspaceId) throw comCodigo('Conexao nao encontrada.', 404);
+
+    const limite = Math.min(Number(query.limite) || 50, 200);
+    return listar('logs', { workspaceId: ctx.workspaceId })
+      .filter((log) => log.dados?.conexaoId === params.id)
+      .sort((a, b) => String(b.criadoEm).localeCompare(String(a.criadoEm)))
+      .slice(0, limite)
+      .map((log) => ({
+        id: log.id,
+        em: log.criadoEm,
+        tipo: String(log.tipo || '').replace(/^conexao_/, ''),
+        descricao: log.descricao,
+      }));
+  });
+
   /** Confere se as credenciais da Cloud API respondem. */
   rotas.post('/api/conexoes/:id/testar', async ({ ctx, params }) => {
     const conexao = achar('conexoes', params.id);
@@ -111,6 +194,7 @@ export function registrarConexoes(rotas) {
     const { phoneNumberId, token } = conexao.oficial || {};
     if (!phoneNumberId || !token) {
       atualizar('conexoes', params.id, { estado: 'desconectado' });
+      registrarEvento(conexao, 'teste', 'Teste sem o ID do numero ou o token de acesso.');
       return { ok: false, erro: 'Preencha o ID do numero e o token de acesso.' };
     }
     try {
@@ -119,8 +203,10 @@ export function registrarConexoes(rotas) {
       });
       const dados = await resposta.json().catch(() => ({}));
       if (!resposta.ok) {
-        atualizar('conexoes', params.id, { estado: 'desconectado', ultimoErro: dados?.error?.message });
-        return { ok: false, erro: dados?.error?.message || `Graph API ${resposta.status}` };
+        const motivo = dados?.error?.message || `Graph API ${resposta.status}`;
+        atualizar('conexoes', params.id, { estado: 'desconectado', ultimoErro: motivo });
+        registrarEvento(conexao, 'desconectado', `A Meta recusou o teste: ${motivo}`);
+        return { ok: false, erro: motivo };
       }
       atualizar('conexoes', params.id, {
         estado: 'conectado',
@@ -130,6 +216,11 @@ export function registrarConexoes(rotas) {
         conectadoEm: agora(),
         ultimoErro: null,
       });
+      registrarEvento(
+        conexao,
+        'conectado',
+        `Numero respondeu: ${dados.display_phone_number || conexao.numero}${dados.quality_rating ? ` (qualidade ${dados.quality_rating})` : ''}.`,
+      );
       emitir(ctx.workspaceId, 'conexao', { conexaoId: params.id });
       return { ok: true, numero: dados.display_phone_number, qualidade: dados.quality_rating };
     } catch (erro) {
@@ -274,7 +365,7 @@ export function registrarConexoes(rotas) {
 
         if (alteracao.field === 'phone_number_quality_update') {
           atualizar('conexoes', conexao.id, { qualidade: valor.current_limit || valor.event || null });
-          registrarLog(conexao.workspaceId, null, 'qualidade', `Qualidade do numero: ${valor.event}`);
+          registrarEvento(conexao, 'qualidade', `A Meta mudou a qualidade do numero para ${valor.event}.`);
           for (const membro of listar('membros', { workspaceId: conexao.workspaceId })) {
             if (membro.papel === 'administrador') {
               notificar(conexao.workspaceId, membro.id, 'sistema', 'Qualidade do numero mudou', `${conexao.nome}: ${valor.event}`);

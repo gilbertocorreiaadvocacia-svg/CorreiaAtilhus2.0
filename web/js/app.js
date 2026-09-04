@@ -47,7 +47,7 @@ const PAGINAS = {
      perguntas diferentes (quantos fecharam / o que esta parado), tem filtros
      diferentes e quem abre uma raramente quer a outra no mesmo minuto. */
   posvenda: { titulo: 'Pos-venda', montar: paginaPosVenda },
-  conexoes: { titulo: 'Conexoes de WhatsApp', montar: paginaConexoes },
+  conexoes: { titulo: 'Conexoes', subtitulo: 'Gerencie suas conexoes com canais de comunicacao.', montar: paginaConexoes },
 
   atendimento: { titulo: 'Conversas', montar: paginaAtendimento, cheia: true, visualizacao: 'conversas' },
   contatos: { titulo: 'Contatos', montar: paginaAtendimento, cheia: true, visualizacao: 'contatos' },
@@ -725,7 +725,10 @@ async function desenharRota() {
   // ela mora. Quem chegou por link direto ve de onde a tela veio.
   const grupo = grupoDaRota(nome);
   tituloTopo.textContent = pagina.titulo;
-  definirSubtitulo(grupo ? grupo.rotulo : '');
+  /* Tela solta no menu nao tem grupo para mostrar, e a linha do subtitulo
+     ficava vazia. Quando a tela declara um subtitulo proprio, ele ocupa esse
+     lugar: e onde a pessoa ja procura o que a tela faz. */
+  definirSubtitulo(pagina.subtitulo || (grupo ? grupo.rotulo : ''));
   /* Cada tela repovoa as proprias acoes. Limpar aqui evita que o filtro de uma
      fique no cabecalho da seguinte. */
   limpar(acoesTopo);

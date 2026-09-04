@@ -4802,3 +4802,243 @@ textarea.area-g {
     grid-column: 1 / -1;
   }
 }
+
+/* ------------------------------------------------------------------
+   Menu de acoes (as tres reticencias da linha de tabela)
+
+   A lista e fixa na janela, e nao absoluta no gatilho: a area de tabela rola
+   com overflow, e overflow em um eixo corta o outro junto, entao um menu
+   absoluto era decepado na borda do painel. Quem calcula left e top e
+   posicionar(), em componentes.js.
+   ------------------------------------------------------------------ */
+
+.menu-acoes {
+  display: inline-flex;
+}
+
+.menu-acoes-lista {
+  position: fixed;
+  z-index: 120;
+  min-width: 200px;
+  padding: var(--e1);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--superficie);
+  border: 1px solid var(--borda-forte);
+  border-radius: var(--raio);
+  box-shadow: var(--sombra);
+}
+
+.menu-acoes-item {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  width: 100%;
+  min-height: var(--controle);
+  padding: 0 var(--e3);
+  background: none;
+  border: none;
+  border-radius: var(--raio-p);
+  color: var(--texto);
+  font-size: var(--t-md);
+  text-align: left;
+  cursor: pointer;
+}
+
+.menu-acoes-item:hover {
+  background: var(--superficie-2);
+}
+
+.menu-acoes-item:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: -2px;
+}
+
+.menu-acoes-item.perigo {
+  color: var(--erro);
+}
+
+.menu-acoes-separador {
+  height: 1px;
+  margin: var(--e1) 0;
+  background: var(--borda);
+}
+
+/* ------------------------------------------------------------------
+   Conexoes
+
+   A tela e uma tabela, e nao uma grade de cartoes: o escritorio trabalha com
+   varios numeros, e a pergunta diaria ("qual caiu?", "qual manda para qual
+   departamento?") se responde varrendo uma coluna com o olho, coisa que
+   cartao empilhado nao deixa fazer.
+   ------------------------------------------------------------------ */
+
+.conexoes-barra {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  margin-bottom: var(--e3);
+}
+
+/* A busca ocupa o espaco que sobra; o seletor de colunas fica do tamanho dele.
+   Nao ha classe: o campo e um input[type=search] comum, ja desenhado no reset
+   de formulario deste arquivo, e aqui so recebe o crescimento. */
+.conexoes-barra input[type='search'] {
+  flex: 1;
+  min-width: 0;
+}
+
+/* A alca de arrastar so aparece na linha sob o cursor: mostrada sempre, ela
+   competia com o nome da conexao pela atencao em toda linha da tabela. */
+.conexao-alca {
+  width: 28px;
+  color: var(--texto-fraco);
+  cursor: grab;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+tbody tr:hover .conexao-alca,
+tbody tr:focus-within .conexao-alca {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .conexao-alca {
+    opacity: 1;
+    transition: none;
+  }
+}
+
+.conexao-arrastando {
+  opacity: 0.4;
+}
+
+.conexao-alvo td {
+  box-shadow: inset 0 2px 0 var(--ouro);
+}
+
+/* Identidade da conexao: avatar a esquerda, nome em cima, numero embaixo. O
+   numero em --t-sm e --texto-fraco porque ele identifica, nao classifica: quem
+   varre a tabela procura o nome, e cai no numero so quando dois se parecem. */
+.conexao-identidade {
+  display: flex;
+  align-items: center;
+  gap: var(--e3);
+}
+
+.conexao-identidade .nome {
+  font-weight: 600;
+}
+
+.conexao-identidade .numero {
+  font-size: var(--t-sm);
+  color: var(--texto-fraco);
+}
+
+/* Coluna de acoes: encosta na direita e nao estica. */
+.conexoes-acoes {
+  width: 1%;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* Painel de detalhes ----------------------------------------------- */
+
+.gaveta.larga {
+  width: min(720px, 100vw);
+}
+
+/* Cabecalho do painel: avatar grande, nome e numero centralizados, como o
+   cartao de contato que ele e. */
+.conexao-cabecalho {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--e2);
+  padding: var(--e4) 0;
+  text-align: center;
+}
+
+.conexao-cabecalho .nome {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  font-size: var(--t-lg);
+  font-weight: 600;
+}
+
+.conexao-cabecalho .numero {
+  color: var(--texto-fraco);
+}
+
+/* Bloco de estado dentro do painel: o ponto e o texto a esquerda, o atalho
+   para os eventos a direita. */
+.conexao-estado {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e3);
+  padding: var(--e3) var(--e4);
+  background: var(--superficie-2);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+}
+
+.conexao-estado .rotulo {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  font-weight: 600;
+}
+
+/* Caixa de um bloco de configuracao do painel (Classes padrao, Responsavel
+   padrao). Mesma moldura do estado, sem o fundo: aqui o conteudo e dado
+   cadastrado, nao um alarme. */
+.conexao-bloco {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e2);
+  padding: var(--e3) var(--e4);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+}
+
+.conexao-bloco .item {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  color: var(--texto-suave);
+}
+
+/* Lista de eventos da conexao (aba Logs e "Ver eventos"). Linha por linha, a
+   hora a esquerda em largura fixa para as horas alinharem entre si. */
+.conexao-evento {
+  display: flex;
+  gap: var(--e3);
+  padding: var(--e2) 0;
+  border-bottom: 1px solid var(--borda);
+  font-size: var(--t-md);
+}
+
+.conexao-evento:last-child {
+  border-bottom: none;
+}
+
+.conexao-evento .quando {
+  flex: none;
+  width: 132px;
+  color: var(--texto-fraco);
+  font-size: var(--t-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Item de menu que liga e desliga guarda o lugar do check quando esta
+   desmarcado. Sem isto, a lista inteira andava para a esquerda a cada clique. */
+.menu-acoes-vazio {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
