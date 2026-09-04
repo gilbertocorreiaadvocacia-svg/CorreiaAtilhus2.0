@@ -1289,9 +1289,75 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
   border-bottom-color: var(--ouro);
 }
 
+/*
+ * A contagem de cada aba: numero simples quando so informa, selo preenchido
+ * quando pede acao.
+ *
+ * A ideia primeira era dar selo a todas, como no modelo de referencia. Medido,
+ * o fundo discreto (--superficie-2) da 1.04:1 contra a fileira — ou seja, nao
+ * existe para quem olha. Ficaria o custo do desenho sem o efeito dele.
+ *
+ * Entao a distincao passou a valer alguma coisa: quatro abas com numero solto,
+ * e o selo cheio reservado para Pendentes com gente esperando. Assim a unica
+ * contagem preenchida da fileira e a unica que quer que alguem faca algo.
+ *
+ * O recuo e o raio ficam nos dois estados para o numero nao pular de lugar
+ * quando a aba enche e esvazia.
+ */
 .abas .conta {
   margin-left: var(--e2);
+  min-width: 18px;
+  padding: 1px var(--e1);
+  border-radius: var(--raio-pilula);
   font-size: var(--t-xs);
+  color: var(--texto-fraco);
+  text-align: center;
+}
+
+/*
+ * Pendente cheio e uma pessoa esperando sem ninguem designado. O preenchimento
+ * e o mesmo de .nao-lidas de proposito: "isto quer sua atencao" tem um desenho
+ * so no sistema inteiro.
+ *
+ * Nao ha uma cor por aba como no modelo de referencia. Quatro cores
+ * decorativas gastariam a paleta medida do sistema para dizer o que o rotulo
+ * da aba ja diz, e apagariam justamente este contraste, que diz o que o rotulo
+ * nao diz.
+ */
+.abas .conta.atencao {
+  background: var(--ouro-acao-de);
+  color: var(--sobre-ouro);
+  font-weight: 700;
+}
+
+/* Contador de mensagens da conversa, ao lado da hora. Numero tabular para a
+   coluna de horas nao dancar de linha para linha conforme o digito muda. */
+.item-conversa .conta-mensagens {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+  font-size: var(--t-xs);
+  font-variant-numeric: lining-nums tabular-nums;
+  color: var(--texto-fraco);
+}
+
+/* As etiquetas na linha nao podem empurrar a altura: uma so fileira, e o que
+   nao couber corta. O "+N" ao lado ja avisa que ha mais. */
+.item-conversa .marcas {
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
+.item-conversa .marcas .selo {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.item-conversa .marcas .mais-etiquetas {
+  flex: none;
   color: var(--texto-fraco);
 }
 

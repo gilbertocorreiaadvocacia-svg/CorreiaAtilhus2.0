@@ -157,6 +157,23 @@ export async function testarConversas({ base }) {
     (await abasDe(voltou.id)).join() === 'pendentes',
   );
 
+  /* ---------------- Dados que a linha da lista desenha ---------------- */
+
+  /*
+   * O total de mensagens vem junto da conversa.
+   *
+   * A lista mostra esse numero ao lado da hora, e ele separa dois casos que
+   * antes se liam igual: conversa de 200 mensagens parada ha tres dias e
+   * conversa de duas mensagens parada ha tres dias.
+   */
+  const listadas = (await api.get('/api/contatos?aba=todas&limite=1000')).dados?.contatos || [];
+  const comMensagemNaLista = listadas.find((c) => c.id === voltou.id);
+  const semMensagemNaLista = listadas.find((c) => c.id === pendente.id);
+  s.ok('a conversa traz quantas mensagens ja teve',
+    comMensagemNaLista?.totalMensagens >= 1, `veio ${comMensagemNaLista?.totalMensagens}`);
+  s.ok('conversa que nunca trocou mensagem vem com zero, e nao sem o campo',
+    semMensagemNaLista?.totalMensagens === 0, `veio ${semMensagemNaLista?.totalMensagens}`);
+
   /* ---------------- Busca ---------------- */
 
   /*
@@ -213,18 +230,35 @@ export async function testarConversas({ base }) {
   /* ---------------- Caracterizacoes (comportamento que vou corrigir) -------- */
 
   /*
-   * CARACTERIZACAO 1 - o contador ignora o filtro.
+   * O contador de cada aba conta o que a aba vai mostrar.
    *
-   * As contagens das abas saem de contagensPorAba(), que le o workspace
-   * inteiro e nao enxerga busca, etiqueta, status nem modo foco. Na tela isso
-   * aparece como aba escrita "12" mostrando 3 linhas. Vou corrigir na fase da
-   * lista; ate la, o teste registra o que o sistema faz hoje.
+   * Este era o bug travado antes como CARACTERIZACAO: a contagem saia de uma
+   * varredura propria do workspace, cega a busca, etiqueta, status e modo
+   * foco, entao a aba escrevia "12" e abria com 3 linhas. Numero errado e pior
+   * do que numero nenhum numa fila — um "0" em Pendentes durante uma busca
+   * dizia que ninguem estava esperando.
+   *
+   * A afirmacao e a mesma para qualquer filtro: contador e lista sao a mesma
+   * conta, feita uma vez.
    */
-  const semBusca = (await api.get('/api/contatos?aba=todas&limite=1')).dados?.contagens;
-  const comBusca = (await api.get('/api/contatos?aba=todas&busca=Teste%20Pendente&limite=1')).dados?.contagens;
-  s.ok('CARACTERIZACAO: hoje o contador da aba ignora a busca',
-    JSON.stringify(semBusca) === JSON.stringify(comBusca),
-    'se falhou, o contador passou a respeitar o filtro — atualize este teste');
+  const comBusca = (await api.get('/api/contatos?aba=todas&busca=Teste&limite=1')).dados?.contagens || {};
+  for (const aba of ['ia', 'ativos', 'pendentes', 'arquivados']) {
+    const lista = (await api.get(`/api/contatos?aba=${aba}&busca=Teste&limite=1000`)).dados?.contatos || [];
+    s.ok(`com busca, o contador de ${aba} bate com a lista`,
+      comBusca[aba] === lista.length, `contador ${comBusca[aba]}, lista ${lista.length}`);
+  }
+
+  const comEtiqueta = (await api.get('/api/contatos?aba=todas&etiqueta=etq-teste-conversas&limite=1')).dados?.contagens || {};
+  s.ok('com filtro de etiqueta, o contador so conta quem tem a etiqueta',
+    comEtiqueta.pendentes === 1 && comEtiqueta.ia === 0 && comEtiqueta.ativos === 0,
+    JSON.stringify(comEtiqueta));
+
+  /* Um filtro que nao casa com nada zera todos os contadores. Antes eles
+     continuavam mostrando a base inteira embaixo de uma lista vazia. */
+  const semNenhum = (await api.get('/api/contatos?aba=todas&busca=zzzznaoexistezzzz&limite=1')).dados?.contagens || {};
+  s.ok('busca sem resultado zera os contadores das abas',
+    ['ia', 'ativos', 'pendentes', 'grupos', 'arquivados'].every((a) => semNenhum[a] === 0),
+    JSON.stringify(semNenhum));
 
   /*
    * CARACTERIZACAO 2 - a aba Grupos e fachada.

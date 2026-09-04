@@ -55,6 +55,16 @@ const ABAS = [
  */
 const ABA_CONCLUIDOS = { id: 'arquivados', rotulo: 'Concluidos' };
 
+/*
+ * Texto comparavel: sem maiuscula e sem acento.
+ *
+ * As etiquetas do escritorio sao escritas sem acento ("Auxilio-doenca"), mas
+ * quem procura digita como fala e escreve "auxílio". Comparar cru faria a
+ * busca nao achar a propria etiqueta que esta na tela.
+ */
+const normalizarTexto = (texto) =>
+  String(texto || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
 /* Linhas por pagina na tabela de contatos, ate a pessoa escolher outro tamanho. */
 const POR_PAGINA_CONTATOS = 25;
 
@@ -141,6 +151,11 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
   let paginaContatos = 1;
   let porPaginaContatos = POR_PAGINA_CONTATOS;
   let ordemContatos = { coluna: 'ultimaMensagem', direcao: 'decrescente' };
+
+  /* O que foi digitado na busca de etiquetas do painel da direita. Vive aqui,
+     e nao dentro do painel, para nao ser apagado toda vez que um evento ao
+     vivo redesenha a tela. */
+  let termoEtiqueta = '';
   let areaContatos = null;
 
   const container = el('div', { class: 'atendimento' });
@@ -252,18 +267,34 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
         filtro.busca = busca.value;
         await buscar();
         atualizarLista();
+        atualizarContagens();
       }, 260);
     });
 
+    /*
+     * Os numeros das abas sao reescritos no lugar, sem redesenhar a tela.
+     *
+     * O contador agora conta o resultado do filtro, entao ele muda a cada
+     * tecla digitada na busca. E a busca nao pode chamar desenhar(): isso
+     * recria o proprio campo e tira o foco de quem esta digitando. Guardar os
+     * <span> e trocar so o texto resolve os dois lados — o numero acompanha a
+     * lista, e o cursor fica onde estava.
+     */
+    const contadores = new Map();
+
     const abas = el('div', { class: 'abas' });
     for (const aba of ABAS) {
+      /* Pendente cheio quer dizer gente esperando sem responsavel: e a unica
+         contagem da fileira que pede acao, e a unica preenchida. */
+      const conta = el('span', { class: 'conta', texto: String(contagens[aba.id] ?? 0) });
+      contadores.set(aba.id, conta);
       abas.append(
         el('button', { class: filtro.aba === aba.id ? 'ativo' : '', aoClick: async () => {
           filtro.aba = aba.id;
           await desenhar();
         } }, [
           document.createTextNode(aba.rotulo),
-          el('span', { class: 'conta', texto: String(contagens[aba.id] ?? 0) }),
+          conta,
         ]),
       );
     }
@@ -271,6 +302,9 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
     /* Mesmo papel de uma aba, e por isso o mesmo aria-current e o mesmo clique
        que troca a fila. So o desenho muda: linha inteira, e nao um pedaco da
        fileira de cima. */
+    const contaConcluidos = el('span', { class: 'conta', texto: String(contagens[ABA_CONCLUIDOS.id] ?? 0) });
+    contadores.set(ABA_CONCLUIDOS.id, contaConcluidos);
+
     const ativoConcluidos = filtro.aba === ABA_CONCLUIDOS.id;
     const concluidos = el('button', {
       type: 'button',
@@ -284,7 +318,7 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
     }, [
       icone('arquivar', 14),
       el('span', { class: 'flexivel', texto: ABA_CONCLUIDOS.rotulo }),
-      el('span', { class: 'conta', texto: String(contagens[ABA_CONCLUIDOS.id] ?? 0) }),
+      contaConcluidos,
     ]);
 
     const filtrosAtivos = Object.entries(filtro).filter(
@@ -310,6 +344,13 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
       corpo,
     ]);
 
+    function atualizarContagens() {
+      for (const [id, span] of contadores) {
+        span.textContent = String(contagens[id] ?? 0);
+        span.classList.toggle('atencao', id === 'pendentes' && (contagens.pendentes || 0) > 0);
+      }
+    }
+
     function atualizarLista() {
       limpar(corpo);
       if (!contatos.length) {
@@ -320,7 +361,79 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
     }
 
     atualizarLista();
+    /* Tambem no primeiro desenho, e nao so depois de uma busca: e daqui que
+       sai o selo cheio de Pendentes. */
+    atualizarContagens();
     return coluna;
+  }
+
+  /*
+   * Quantas etiquetas cabem na linha antes de virar "+N".
+   *
+   * Duas. A coluna tem 320px e a etiqueta e escrita em caixa alta: com tres,
+   * "AUXILIO-ACIDENTE" e "JA RECEBE BENEFICIO" ja estouravam para uma segunda
+   * fileira e a linha da conversa crescia de altura, cabendo menos conversa na
+   * tela. O que passa de duas continua alcancavel: o "+2" carrega os nomes no
+   * title, e o painel da direita mostra todas.
+   */
+  const ETIQUETAS_NA_LINHA = 2;
+
+  /**
+   * As etiquetas da conversa, na propria linha da lista.
+   *
+   * Sao a classificacao que o escritorio da para o caso — se e BPC, se e
+   * acidente, se a pessoa ja tem advogado. Ate agora so existiam no painel da
+   * direita, o que obrigava a abrir conversa por conversa para achar, por
+   * exemplo, os urgentes. Na linha, a triagem se faz correndo o olho.
+   *
+   * A cor vem no .ponto e nao no texto: etiqueta e categoria, e categoria
+   * pintada por cima da palavra briga com o status, que ja usa cor nesta
+   * mesma linha.
+   */
+  function etiquetasDa(contato) {
+    const etiquetas = (contato.etiquetas || []).map(acharEtiqueta).filter(Boolean);
+    if (!etiquetas.length) return null;
+
+    const mostradas = etiquetas.slice(0, ETIQUETAS_NA_LINHA);
+    const sobra = etiquetas.length - mostradas.length;
+
+    const marcas = el('div', {
+      class: 'marcas',
+      /* O title leva a lista inteira, inclusive o que o "+N" escondeu: cortar
+         sem deixar como ver seria trocar informacao por enfeite. */
+      title: etiquetas.map((e) => e.nome).join(' · '),
+    });
+
+    for (const etiqueta of mostradas) {
+      marcas.append(
+        el('span', { class: 'selo' }, [
+          el('span', { class: 'ponto', estilo: { background: etiqueta.cor } }),
+          document.createTextNode(etiqueta.nome),
+        ]),
+      );
+    }
+    if (sobra > 0) marcas.append(el('span', { class: 'selo mais-etiquetas', texto: `+${sobra}` }));
+
+    return marcas;
+  }
+
+  /**
+   * Redesenha so as etiquetas de uma conversa na lista da esquerda.
+   *
+   * Existe para o clique numa etiqueta nao precisar de desenhar() inteiro. A
+   * lista e o painel mostram a mesma informacao, entao precisam concordar na
+   * hora; redesenhar tudo faria concordarem, mas apagaria a busca de etiqueta
+   * e o foco de quem esta digitando.
+   *
+   * Silenciosa quando a conversa nao esta na lista visivel: e o caso normal de
+   * quem etiqueta uma conversa e depois troca de aba.
+   */
+  function atualizarMarcasNaLista(contato) {
+    const linha = document.querySelector(`.item-conversa[data-id="${contato.id}"] .dados`);
+    if (!linha) return;
+    linha.querySelector('.marcas')?.remove();
+    const marcas = etiquetasDa(contato);
+    if (marcas) linha.append(marcas);
   }
 
   /**
@@ -337,6 +450,9 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
     const item = el('button', {
       type: 'button',
       class: `item-conversa ${ativo ? 'ativo' : ''}`.trim(),
+      /* Deixa a linha achavel sem redesenhar a lista: e por aqui que o clique
+         numa etiqueta, no painel da direita, atualiza esta linha. */
+      'data-id': contato.id,
       'aria-current': ativo ? 'true' : null,
       /* O nome do status vai no title: a cor sozinha nao carrega significado
          para quem nao a distingue, e a lista nao tem espaco para o rotulo. */
@@ -352,6 +468,24 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
       el('div', { class: 'dados' }, [
         el('div', { class: 'topo-item' }, [
           el('div', { class: 'nome', texto: contato.nome }),
+          /*
+           * Quantas mensagens ja se trocou com esta pessoa.
+           *
+           * Fica ao lado da hora porque as duas respondem a mesma pergunta
+           * antes de abrir a conversa: ha quanto tempo, e quanto ja se falou.
+           * Uma conversa de 200 mensagens parada ha tres dias e um caso; uma
+           * de duas mensagens parada ha tres dias e outro, e a lista nao
+           * separava os dois.
+           *
+           * Some quando e zero: contato cadastrado a mao e que nunca escreveu
+           * nao ganha um "0" para explicar.
+           */
+          contato.totalMensagens
+            ? el('div', { class: 'conta-mensagens', title: plural(contato.totalMensagens, 'mensagem', 'mensagens') }, [
+                icone('conversas', 11),
+                el('span', { texto: String(contato.totalMensagens) }),
+              ])
+            : null,
           el('div', { class: 'quando', texto: quando(contato.ultimaMensagemEm) }),
         ]),
         /* Previa, marcador de IA e contador dividem a segunda linha. Empilhados,
@@ -364,6 +498,7 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
           responsavel?.tipo === 'agente' ? el('span', { class: 'marca-ia', texto: 'IA' }) : null,
           contato.naoLidas ? el('span', { class: 'nao-lidas', texto: String(contato.naoLidas) }) : null,
         ]),
+        etiquetasDa(contato),
       ]),
     ]);
     return item;
@@ -979,21 +1114,99 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
 
     const responsavelAtual = contato.responsavel ? `${contato.responsavel.tipo}:${contato.responsavel.id}` : '';
 
-    const etiquetas = el('div', { class: 'linha-botoes' });
+    /*
+     * As etiquetas, com busca quando a lista fica grande demais para correr o
+     * olho, e com a cor de cada uma a vista.
+     *
+     * Duas coisas mudaram aqui e as duas tem o mesmo motivo — marcar etiqueta
+     * e coisa que se faz no meio de uma conversa com o cliente, entao nao pode
+     * custar atencao:
+     *
+     * 1. A cor da etiqueta agora aparece (era so o nome). E a mesma cor que a
+     *    linha da lista mostra, entao os dois lugares passam a se reconhecer.
+     * 2. Marcar nao redesenha a tela inteira. Antes cada clique chamava
+     *    desenhar(), o que com um campo de busca aqui dentro apagaria o que a
+     *    pessoa acabou de digitar e tiraria o foco do campo. Agora o clique
+     *    atualiza o proprio botao e a linha correspondente na lista, e mais
+     *    nada se mexe.
+     */
+    const marcadas = new Set(contato.etiquetas || []);
+    const listaEtiquetas = el('div', { class: 'linha-botoes' });
+    const botoesEtiqueta = new Map();
+
     for (const etiqueta of estado.etiquetas) {
-      const marcada = (contato.etiquetas || []).includes(etiqueta.id);
-      etiquetas.append(
-        el('button', {
-          class: `selo selo-clicavel ${marcada ? 'ouro' : ''}`.trim(),
-          texto: etiqueta.nome,
-          aoClick: async () => {
-            const atuais = new Set(contato.etiquetas || []);
-            if (marcada) atuais.delete(etiqueta.id);
-            else atuais.add(etiqueta.id);
-            await salvar({ etiquetas: [...atuais] });
-          },
-        }),
-      );
+      const alvo = el('button', {
+        type: 'button',
+        class: `selo selo-clicavel${marcadas.has(etiqueta.id) ? ' ouro' : ''}`,
+        'aria-pressed': marcadas.has(etiqueta.id) ? 'true' : 'false',
+      }, [
+        el('span', { class: 'ponto', estilo: { background: etiqueta.cor } }),
+        document.createTextNode(etiqueta.nome),
+      ]);
+
+      alvo.addEventListener('click', async () => {
+        /* Trava o botao durante o pedido: dois cliques rapidos mandavam dois
+           pedidos opostos e a etiqueta voltava ao estado inicial. */
+        if (alvo.disabled) return;
+        alvo.disabled = true;
+        const ligando = !marcadas.has(etiqueta.id);
+        if (ligando) marcadas.add(etiqueta.id);
+        else marcadas.delete(etiqueta.id);
+        try {
+          await api.patch(`/api/contatos/${contato.id}`, { etiquetas: [...marcadas] });
+          contato.etiquetas = [...marcadas];
+          alvo.classList.toggle('ouro', ligando);
+          alvo.setAttribute('aria-pressed', ligando ? 'true' : 'false');
+          atualizarMarcasNaLista(contato);
+        } catch (erro) {
+          if (ligando) marcadas.delete(etiqueta.id);
+          else marcadas.add(etiqueta.id);
+          aviso(erro.message, 'erro');
+        }
+        alvo.disabled = false;
+      });
+
+      botoesEtiqueta.set(alvo, normalizarTexto(etiqueta.nome));
+      listaEtiquetas.append(alvo);
+    }
+
+    /*
+     * A busca so existe quando ha o que procurar.
+     *
+     * Abaixo de sete etiquetas o olho acha mais rapido do que a mao digita, e
+     * um campo que nao serve para nada ainda ocupa uma linha do painel — que e
+     * justamente o que este painel nao tem sobrando.
+     */
+    const semResultado = el('div', { class: 't-xs c-fraco mt-2', texto: 'Nenhuma etiqueta com esse nome.', hidden: true });
+    const etiquetas = el('div', {});
+    if (estado.etiquetas.length > 6) {
+      const campoBusca = entradaTexto(termoEtiqueta, { type: 'search', placeholder: 'Buscar etiqueta…' });
+      const filtrar = () => {
+        /* Guardado fora desta funcao para sobreviver ao redesenho. Qualquer
+           alteracao na conversa chega por evento e refaz a tela — inclusive a
+           alteracao que esta propria pessoa acabou de fazer ao marcar uma
+           etiqueta. Sem guardar, marcar duas etiquetas seguidas obrigava a
+           digitar o termo de novo entre uma e outra. */
+        termoEtiqueta = campoBusca.value;
+        const termo = normalizarTexto(termoEtiqueta);
+        let visiveis = 0;
+        for (const [alvo, nome] of botoesEtiqueta) {
+          const bate = !termo || nome.includes(termo);
+          alvo.hidden = !bate;
+          if (bate) visiveis += 1;
+        }
+        semResultado.hidden = visiveis > 0;
+      };
+      campoBusca.addEventListener('input', filtrar);
+      etiquetas.append(el('div', { class: 'mb-2' }, [campoBusca]), listaEtiquetas, semResultado);
+      /* Aplica o termo guardado ja no primeiro desenho, senao o campo voltaria
+         escrito com a lista inteira embaixo. */
+      filtrar();
+    } else {
+      /* Poucas etiquetas: nao ha campo de busca, e um termo antigo nao pode
+         continuar escondendo botao que ninguem tem como revelar. */
+      termoEtiqueta = '';
+      etiquetas.append(listaEtiquetas, semResultado);
     }
 
     /*

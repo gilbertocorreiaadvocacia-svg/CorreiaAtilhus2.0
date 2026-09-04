@@ -46,6 +46,22 @@ function enriquecer(contato) {
     departamento: departamento ? { id: departamento.id, nome: departamento.nome, cor: departamento.cor } : null,
     origem: origem ? { id: origem.id, nome: origem.nome } : null,
     janelaAberta: janelaAberta(contato),
+    /*
+     * Quanto ja se conversou com esta pessoa.
+     *
+     * Sai de mensagensDe(), que guarda o resultado em memoria — entao a conta
+     * custa a primeira leitura de cada conversa e nada nas seguintes. E
+     * enriquecer() so roda no lote que cabe no limite da resposta, nunca na
+     * base inteira, entao o custo tem teto.
+     *
+     * O numero nao fica gravado no contato de proposito: para isso ele teria
+     * de ser mantido no caminho de gravacao da mensagem, que e o caminho mais
+     * critico do sistema. Errar um contador na tela e um numero errado; errar
+     * naquele caminho e mensagem de cliente perdida. Se um dia a base crescer
+     * a ponto de a primeira leitura pesar, o lugar certo de resolver e um
+     * contador mantido por inserirMensagem, com backfill preguicoso.
+     */
+    totalMensagens: mensagensDe(contato.id).length,
   };
 }
 
@@ -66,9 +82,6 @@ export function registrarAtendimento(rotas) {
     contatos = filtrarConversasVisiveis(ctx, contatos);
     contatos = aplicarModoFoco(ctx, contatos);
 
-    if (query.aba && query.aba !== 'todas') {
-      contatos = contatos.filter((c) => abaDe(c) === query.aba);
-    }
     if (query.comMensagem === 'true') {
       contatos = contatos.filter((c) => c.ultimaMensagemEm);
     }
@@ -104,6 +117,28 @@ export function registrarAtendimento(rotas) {
       );
     }
 
+    /*
+     * O contador de cada aba conta o que a aba VAI MOSTRAR.
+     *
+     * Ate aqui ele saia de uma varredura propria do workspace inteiro, cega a
+     * busca, etiqueta, status e modo foco. Na tela isso virava aba escrita
+     * "12" abrindo com 3 linhas — e o numero errado e pior do que numero
+     * nenhum, porque quem confere fila decide por ele: um "0" em Pendentes
+     * durante uma busca dizia que nao havia ninguem esperando.
+     *
+     * Por isso a aba e o ultimo filtro a entrar: tudo o mais ja foi aplicado
+     * aqui em cima, e a contagem sai desta lista, nao de outra.
+     */
+    const contagens = { ia: 0, ativos: 0, pendentes: 0, grupos: 0, arquivados: 0, naoLidas: 0 };
+    for (const contato of contatos) {
+      contagens[abaDe(contato)] += 1;
+      contagens.naoLidas += contato.naoLidas || 0;
+    }
+
+    if (query.aba && query.aba !== 'todas') {
+      contatos = contatos.filter((c) => abaDe(c) === query.aba);
+    }
+
     const total = contatos.length;
 
     // Contagem por status sobre o filtro inteiro, antes do corte do limite. O
@@ -122,7 +157,7 @@ export function registrarAtendimento(rotas) {
       total,
       porStatus,
       contatos: ordenados.slice(0, limite).map(enriquecer),
-      contagens: contagensPorAba(ctx),
+      contagens,
     };
   });
 
@@ -751,14 +786,14 @@ export function registrarAtendimento(rotas) {
   });
 }
 
-export function contagensPorAba(ctx) {
-  const contatos = filtrarConversasVisiveis(ctx, listar('contatos', { workspaceId: ctx.workspaceId }));
-  const contagens = { ia: 0, ativos: 0, pendentes: 0, grupos: 0, arquivados: 0, naoLidas: 0 };
-  for (const contato of contatos) {
-    contagens[abaDe(contato)] += 1;
-    contagens.naoLidas += contato.naoLidas || 0;
-  }
-  return contagens;
-}
+/*
+ * contagensPorAba() foi embora junto com o bug que ela causava.
+ *
+ * Ela varria o workspace por conta propria, entao existiam duas contagens da
+ * mesma coisa — a dela e a lista que a tela desenhava — e as duas so
+ * concordavam quando nao havia filtro nenhum. Manter a funcao "para quem
+ * precisar" era manter a segunda fonte de verdade viva. A contagem agora sai
+ * de dentro da rota de listagem, da mesma lista que vai para a tela.
+ */
 
 export { abaDe, enriquecer };
