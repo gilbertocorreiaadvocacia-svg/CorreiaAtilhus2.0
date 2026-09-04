@@ -547,7 +547,7 @@ img.avatar {
    passou a morar dentro de .corpo e o seletor deixou de casar. A coluna perdeu
    o flex, o conteudo cresceu ate a altura total e a rolagem interna nunca era
    acionada, deixando o fim de toda tela longa inalcancavel. */
-.corpo > .principal {
+.corpo-app > .principal {
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -2324,6 +2324,10 @@ a.metrica:focus-visible {
   border-style: dashed;
 }
 
+/* Bloco de texto do item: titulo, descricao e o que mais a lista quiser
+   empilhar. Volta a ser um bloco simples desde que o esqueleto do aplicativo
+   passou a se chamar .corpo-app — ate entao a grade de duas colunas dele caia
+   aqui dentro e espremia a descricao. */
 .lista-item .corpo {
   flex: 1;
   min-width: 0;
@@ -4445,7 +4449,24 @@ textarea.area-g {
   font-size: 10px;
 }
 
-.corpo {
+/*
+ * A divisao "barra lateral + conteudo" da tela inteira.
+ *
+ * Chamava-se so `.corpo`, e esse nome ja pertencia a outras duas coisas: o
+ * bloco de texto de todo item de lista (.lista-item .corpo) e o miolo de todo
+ * modal (.modal > .corpo). Como esta regra vem depois no arquivo, a grade de
+ * 236px + 1fr vazava para dentro dos dois — a descricao de qualquer item de
+ * lista era espremida nos 12px que sobravam da segunda coluna e quebrava letra
+ * por letra, e o conteudo de qualquer modal ficava preso nos 236px da
+ * primeira. Passava despercebido porque o texto transborda a vista em vez de
+ * ser cortado: lia-se como espacamento estranho, e nao como defeito.
+ *
+ * E a segunda vez que um nome generico faz isso aqui — "principal" ja tinha
+ * colidido com .botao.principal, como conta o comentario de .corpo-app >
+ * .principal. Por isso o esqueleto ganhou nome proprio em vez de mais um
+ * seletor mais especifico em cima.
+ */
+.corpo-app {
   display: grid;
   grid-template-columns: 236px 1fr;
   flex: 1;
@@ -4608,7 +4629,7 @@ textarea.area-g {
    coluna principal empurrava o corpo para fora do .app, que tem overflow
    hidden: a rolagem do conteudo nunca era acionada e o fim de qualquer tela
    longa ficava inalcancavel. */
-.corpo > * {
+.corpo-app > * {
   min-height: 0;
   min-width: 0;
 }

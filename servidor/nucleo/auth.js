@@ -243,6 +243,25 @@ export function filtrarConversasVisiveis(ctx, contatos) {
   return contatos.filter((c) => podeVerConversa(ctx, c));
 }
 
+/**
+ * A pergunta ao contrario: dada uma conversa, quem da equipe a enxerga.
+ *
+ * As outras funcoes daqui partem de uma pessoa e filtram conversas. Quem avisa
+ * que chegou mensagem precisa do inverso — a conversa ja existe, falta saber a
+ * quem contar. Fazer isso na mao no lugar do aviso significaria reescrever as
+ * regras de departamento, conexao e mencao ali, e no dia em que uma delas
+ * mudasse o aviso continuaria seguindo a regra velha: notificacao vazando para
+ * quem nao pode abrir a conversa.
+ *
+ * O papel mora no membro, e nao no usuario, entao o contexto e montado a
+ * partir dele — do mesmo jeito que a sessao monta.
+ */
+export function membrosQuePodemVer(workspaceId, contato) {
+  return listar('membros', { workspaceId }).filter((membro) =>
+    podeVerConversa({ workspaceId, papel: membro.papel, membro }, contato),
+  );
+}
+
 /** Modo foco: o vendedor so enxerga o que e dele. */
 export function aplicarModoFoco(ctx, contatos) {
   if (!ctx?.membro?.modoFoco) return contatos;

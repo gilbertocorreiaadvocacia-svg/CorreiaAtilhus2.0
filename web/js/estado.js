@@ -1,4 +1,5 @@
 import { api } from './api.js';
+import { avisar } from './avisos.js';
 
 /**
  * Estado compartilhado da tela. As classes da conversa (status, etiquetas,
@@ -159,6 +160,10 @@ export function conectarEventos() {
       const dados = JSON.parse(pacote.data);
       estado.notificacoes.unshift(dados.notificacao);
       disparar('notificacoes', estado.notificacoes);
+      /* Som e balao do sistema depois de atualizar a lista: se o aviso falhar
+         (audio bloqueado, permissao negada), o sino ja contou de qualquer
+         jeito, que e o que nao pode faltar. */
+      avisar(dados.notificacao);
     } catch {
       /* ignora */
     }

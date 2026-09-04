@@ -10,6 +10,8 @@ import {
   registrarLog,
 } from '../nucleo/banco.js';
 import { emitir } from '../nucleo/eventos.js';
+import { membrosQuePodemVer } from '../nucleo/auth.js';
+import { notificar } from '../ia/mencoes.js';
 import { agora, normalizar, normalizarTelefone, novoId } from '../nucleo/util.js';
 import { agendarResposta, agentePorPalavraChave, cancelarResposta } from '../ia/motor.js';
 import { agendarFollowupsDoStatus, cancelarFollowups, limparAgendamentosDoContato, reagendarFollowups } from '../automacao/followup.js';
@@ -81,6 +83,56 @@ export function acharOuCriarContato({ workspaceId, conexao, telefone, nome = '',
   }
 
   return { contato, novo: true };
+}
+
+/**
+ * Quem precisa saber que o cliente escreveu.
+ *
+ * Ate agora ninguem era avisado. Uma mensagem nova mexia o contador de nao
+ * lidas da conversa e mais nada — quem nao estivesse com a tela de Conversas
+ * aberta na aba certa nao ficava sabendo, e o sino, que existe desde sempre,
+ * so tocava para mencao em nota interna e atribuicao manual. Num escritorio
+ * onde o cliente escreve e espera resposta, esse era o aviso que mais faltava.
+ *
+ * Tres casos, tres respostas diferentes:
+ *
+ * - Conversa com agente: ninguem e avisado. A IA esta respondendo, e esse e o
+ *   proposito dela. Avisar aqui faria o sino tocar o dia inteiro por conversa
+ *   que ja tem quem responda.
+ * - Conversa com dono: so o dono. E dele a resposta.
+ * - Conversa sem dono: todos que podem atende-la. E o unico caso que justifica
+ *   avisar mais de uma pessoa — a conversa esta na fila e nao e de ninguem,
+ *   entao "alguem precisa ver" quer dizer todos que podem pegar.
+ */
+function avisarMensagemNova(workspaceId, contato, mensagem) {
+  if (contato.responsavel?.tipo === 'agente') return;
+
+  const previa = (mensagem.conteudo || `[${mensagem.tipo}]`).slice(0, 120);
+
+  /*
+   * Um aviso por conversa enquanto o anterior nao foi lido.
+   *
+   * Cliente que manda cinco mensagens seguidas — coisa comum, cada frase num
+   * balao — geraria cinco linhas iguais no sino e um contador em 5 para uma
+   * conversa so. O numero do sino deve dizer quantas conversas querem atencao,
+   * nao quantas teclas o cliente apertou.
+   */
+  const jaAvisado = (membroId) =>
+    listar('notificacoes', { workspaceId, membroId, contatoId: contato.id }).some(
+      (n) => !n.lida && n.tipo === 'mensagem',
+    );
+
+  if (contato.responsavel?.tipo === 'membro') {
+    if (!jaAvisado(contato.responsavel.id)) {
+      notificar(workspaceId, contato.responsavel.id, 'mensagem', `${contato.nome} respondeu`, previa, contato.id);
+    }
+    return;
+  }
+
+  for (const membro of membrosQuePodemVer(workspaceId, contato)) {
+    if (jaAvisado(membro.id)) continue;
+    notificar(workspaceId, membro.id, 'mensagem', `Nova mensagem de ${contato.nome}`, previa, contato.id);
+  }
 }
 
 function detectarOrigem(workspaceId, texto) {
@@ -240,6 +292,11 @@ export async function receberMensagem({
   reagendarFollowups(contato);
 
   if (idExterno) marcarComoLida(conexao, idExterno, contato).catch(() => {});
+
+  /* Depois de atualizar o contato, e nao antes: o aviso le o responsavel e o
+     estado ja com o que esta mensagem mudou — uma conversa que acabou de
+     reabrir precisa avisar como pendente, e nao como arquivada. */
+  avisarMensagemNova(workspaceId, contato, mensagem);
 
   emitir(workspaceId, 'mensagem', { contatoId: contato.id, mensagem });
   emitir(workspaceId, 'contato', { contatoId: contato.id });

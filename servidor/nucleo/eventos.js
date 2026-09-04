@@ -50,11 +50,22 @@ export function emitir(workspaceId, tipo, dados = {}) {
   }
 }
 
-/** Evento dirigido a uma pessoa so, usado nas notificacoes do sino. */
-export function emitirParaUsuario(usuarioId, tipo, dados = {}) {
+/**
+ * Evento dirigido a uma pessoa so, usado nas notificacoes do sino.
+ *
+ * Filtra por workspace ALEM do usuario, e isso nao e detalhe. A mesma pessoa
+ * pode ter dois escritorios abertos em duas abas; sem o primeiro filtro, a
+ * notificacao de um aparecia no sino do outro — com o nome do cliente, o texto
+ * da mensagem e um botao que levava para uma conversa que aquela aba nem devia
+ * conseguir listar. O sino e a unica coisa do sistema que empurra dado de
+ * cliente para a tela sem alguem ter pedido, entao e onde o cuidado tem de ser
+ * maior, e nao menor.
+ */
+export function emitirParaUsuario(workspaceId, usuarioId, tipo, dados = {}) {
   const pacote = `event: ${tipo}\ndata: ${JSON.stringify({ tipo, ...dados })}\n\n`;
   for (const inscrito of inscritos) {
     if (inscrito.usuarioId !== usuarioId) continue;
+    if (workspaceId && inscrito.workspaceId !== workspaceId) continue;
     try {
       inscrito.res.write(pacote);
     } catch {

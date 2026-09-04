@@ -865,7 +865,7 @@ export function notificar(workspaceId, membroId, tipo, titulo, texto, contatoId 
     contatoId,
     lida: false,
   });
-  emitirParaUsuario(membro.usuarioId, 'notificacao', { notificacao });
+  emitirParaUsuario(workspaceId, membro.usuarioId, 'notificacao', { notificacao });
   return notificacao;
 }
 

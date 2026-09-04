@@ -314,9 +314,62 @@ export async function testarConversas({ base }) {
       contagens[aba] === lista.length, `contador ${contagens[aba]}, lista ${lista.length}`);
   }
 
+  /* ---------------- Aviso de mensagem nova ---------------- */
+
+  /*
+   * Quem e avisado quando o cliente escreve.
+   *
+   * Sao tres regras diferentes para tres situacoes, e errar qualquer uma custa
+   * caro nos dois sentidos: avisar demais e treinar a equipe a ignorar o sino;
+   * avisar de menos e cliente esperando resposta que ninguem sabe que chegou.
+   */
+  const naoLidasDe = async (contatoId) =>
+    ((await api.get('/api/notificacoes')).dados || []).filter(
+      (n) => n.contatoId === contatoId && !n.lida && n.tipo === 'mensagem',
+    );
+
+  const escrever = async (telefone, conteudo) => {
+    await api.post('/api/simulador/mensagem', { conexaoId: conexao.id, telefone, conteudo });
+    await esperar(900);
+  };
+
+  /* Com dono: so o dono, e uma vez so por mais que o cliente escreva. */
+  const comDono = await criar(10, 'Teste Aviso Dono');
+  await api.post(`/api/contatos/${comDono.id}/aceitar`);
+  await escrever(TELEFONE(10), 'bom dia');
+  await escrever(TELEFONE(10), 'queria saber do processo');
+  const avisosDoDono = await naoLidasDe(comDono.id);
+  s.ok('mensagem de cliente vira aviso para quem atende', avisosDoDono.length >= 1,
+    `veio ${avisosDoDono.length}`);
+  s.ok('cliente que manda varias mensagens seguidas gera um aviso so',
+    avisosDoDono.length === 1, `veio ${avisosDoDono.length}`);
+  s.ok('o aviso leva o nome de quem escreveu e o comeco da mensagem',
+    Boolean(avisosDoDono[0]?.titulo?.includes(comDono.nome)) && Boolean(avisosDoDono[0]?.texto));
+
+  /* Com agente: ninguem. A IA responde, e esse e o proposito dela. */
+  const comAgente = await criar(11, 'Teste Aviso IA');
+  await api.patch(`/api/contatos/${comAgente.id}`, { responsavel: { tipo: 'agente', id: agenteId } });
+  await escrever(TELEFONE(11), 'ola');
+  s.ok('conversa que a IA esta atendendo nao gera aviso',
+    (await naoLidasDe(comAgente.id)).length === 0);
+
+  /* Sem dono: quem pode atender precisa ver. */
+  const semDono = await criar(12, 'Teste Aviso Fila');
+  await api.patch(`/api/contatos/${semDono.id}`, { responsavel: null });
+  await escrever(TELEFONE(12), 'alguem me atende?');
+  s.ok('conversa sem responsavel avisa quem pode atende-la',
+    (await naoLidasDe(semDono.id)).length >= 1);
+
+  /* Depois de lido, a proxima mensagem avisa de novo — senao o segundo dia de
+     conversa passaria em silencio. */
+  await api.post('/api/notificacoes/ler', {});
+  await escrever(TELEFONE(10), 'ainda estou aqui');
+  s.ok('depois de lido, a proxima mensagem avisa de novo',
+    (await naoLidasDe(comDono.id)).length === 1);
+
   /* ---------------- Limpeza ---------------- */
 
-  for (const contato of [pendente, naIa, ativo, arquivado, voltou]) {
+  for (const contato of [pendente, naIa, ativo, arquivado, voltou, comDono, comAgente, semDono]) {
     await api.delete(`/api/contatos/${contato.id}`);
   }
 

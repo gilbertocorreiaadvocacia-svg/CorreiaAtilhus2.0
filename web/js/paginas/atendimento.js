@@ -2445,6 +2445,27 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
     if (!document.body.contains(container)) return;
     await desenhar();
   });
+
+  /*
+   * Dois eventos que o servidor emitia sem ninguem escutando.
+   *
+   * 'agendamento' e disparado quando um follow-up e criado, cancelado ou
+   * enviado, e 'contrato' quando um contrato e assinado. Sem ouvinte, a faixa
+   * do alto continuava anunciando um envio que ja aconteceu, e o contrato
+   * assinado pelo cliente so aparecia na proxima vez que alguem clicasse em
+   * alguma coisa. Os dois mudam o que a conversa mostra, entao os dois
+   * redesenham.
+   */
+  for (const evento of ['agendamento', 'contrato']) {
+    ouvir(evento, async (dados) => {
+      if (!document.body.contains(container)) return;
+      /* Agendamento de outra conversa nao muda nada aqui. Sem esta guarda, o
+         disparo automatico de follow-up de qualquer cliente do escritorio
+         redesenhava a tela de quem esta lendo outra conversa. */
+      if (dados?.contatoId && dados.contatoId !== selecionadoId) return;
+      await desenhar();
+    });
+  }
   ouvir('contatos', async () => {
     if (!document.body.contains(container)) return;
     await desenhar();

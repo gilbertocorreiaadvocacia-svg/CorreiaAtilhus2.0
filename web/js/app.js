@@ -9,7 +9,16 @@ import {
   ouvir,
   tema,
 } from './estado.js';
-import { avatar, aviso, botao, campo, el, entradaTexto, icone, limpar, modal, selecao, selo } from './ui.js';
+import { avatar, aviso, botao, campo, dataHora, el, entradaTexto, icone, limpar, modal, selecao, selo } from './ui.js';
+import {
+  definirSistema,
+  definirSom,
+  pedirPermissao,
+  permissaoDoSistema,
+  sistemaLigado,
+  somLigado,
+  tocar,
+} from './avisos.js';
 
 import { paginaInicio } from './paginas/inicio.js';
 
@@ -462,7 +471,11 @@ function montarEstrutura() {
           }),
         ]),
       ]),
-      el('div', { class: 'corpo' }, [
+      /* corpo-app, e nao corpo: "corpo" tambem e o nome do bloco de texto de
+         todo item de lista e do miolo de todo modal, e a grade de duas colunas
+         desta linha vazava para dentro deles. Ver o comentario em .corpo-app,
+         no tema. */
+      el('div', { class: 'corpo-app' }, [
         el('aside', { class: 'lateral' }, [menuNo]),
         el('div', { class: 'principal' }, [
           el('header', { class: 'topo' }, [
@@ -491,35 +504,118 @@ function abrirNotificacoes() {
   // no item inteiro: com opacity 0.6 no container, a descricao em
   // --texto-suave caia de 7,5:1 para cerca de 3,4:1 e reprovava o contraste.
   for (const notificacao of estado.notificacoes.slice(0, 40)) {
-    lista.append(
-      el('div', { class: notificacao.lida ? 'lista-item lida' : 'lista-item' }, [
-        el('div', { class: 'corpo' }, [
-          el('div', { class: 'titulo', texto: notificacao.titulo }),
-          el('div', { class: 'desc', texto: notificacao.texto || '' }),
-        ]),
-        notificacao.lida ? selo('lida', '') : null,
-        notificacao.contatoId
-          ? botao('Abrir', {
-              pequeno: true,
-              aoClicar: () => {
-                location.hash = `#/atendimento/${notificacao.contatoId}`;
-                document.querySelector('.cortina')?.remove();
-              },
-            })
-          : null,
+    const linha = el('div', { class: notificacao.lida ? 'lista-item lida' : 'lista-item' }, [
+      el('div', { class: 'corpo' }, [
+        el('div', { class: 'titulo', texto: notificacao.titulo }),
+        el('div', { class: 'desc', texto: notificacao.texto || '' }),
+        /* Quando aconteceu. Sem isto, "Nova mensagem de Maria" nao dizia se era
+           de agora ou de terca, e a lista inteira se lia como igualmente
+           urgente. */
+        el('div', { class: 't-xs c-fraco', texto: dataHora(notificacao.criadoEm) }),
       ]),
-    );
+      notificacao.lida ? selo('lida', '') : null,
+      /* Marcar uma so. So havia "marcar todas", entao quem queria limpar um
+         aviso resolvido tinha de apagar junto os que ainda nao tinha visto. */
+      notificacao.lida
+        ? null
+        : botao('', {
+            icone: 'ok',
+            titulo: 'Marcar esta como lida',
+            pequeno: true,
+            aoClicar: async () => {
+              await api.post('/api/notificacoes/ler', { ids: [notificacao.id] });
+              await carregarNotificacoes();
+              linha.classList.add('lida');
+            },
+          }),
+      notificacao.contatoId
+        ? botao('Abrir', {
+            pequeno: true,
+            aoClicar: () => {
+              location.hash = `#/atendimento/${notificacao.contatoId}`;
+              document.querySelector('.cortina')?.remove();
+            },
+          })
+        : null,
+    ]);
+    lista.append(linha);
   }
 
   modal({
     titulo: 'Notificacoes',
-    corpo: lista,
+    corpo: el('div', {}, [controlesDeAviso(), lista]),
     confirmar: 'Marcar todas como lidas',
     aoConfirmar: async () => {
       await api.post('/api/notificacoes/ler', {});
       await carregarNotificacoes();
     },
   });
+}
+
+/**
+ * Como esta pessoa quer ser avisada, neste navegador.
+ *
+ * Fica no proprio painel do sino, e nao em Configuracoes, porque e aqui que a
+ * pergunta aparece: quem abre isto ou quer ver o que chegou, ou esta incomodado
+ * com a forma como chegou.
+ *
+ * As duas escolhas valem so neste navegador, e o texto diz isso. Sao coisas de
+ * maquina, nao de conta: a permissao de notificacao ja e por navegador, e a
+ * mesma pessoa pode querer som na mesa e silencio no notebook da audiencia.
+ */
+function controlesDeAviso() {
+  const bloco = el('div', { class: 'controles-aviso mb-3' });
+
+  const caixaSom = el('input', { type: 'checkbox' });
+  caixaSom.checked = somLigado();
+  caixaSom.addEventListener('change', () => {
+    definirSom(caixaSom.checked);
+    /* Toca ao ligar: e a unica forma de saber como e o som antes de precisar
+       dele, e confirma que o audio do navegador nao esta bloqueado. */
+    if (caixaSom.checked) tocar();
+  });
+
+  const caixaSistema = el('input', { type: 'checkbox' });
+  const estadoPermissao = el('div', { class: 't-xs c-fraco' });
+
+  const atualizarPermissao = () => {
+    const permissao = permissaoDoSistema();
+    caixaSistema.checked = sistemaLigado() && permissao === 'granted';
+    caixaSistema.disabled = permissao === 'indisponivel' || permissao === 'denied';
+    estadoPermissao.textContent =
+      permissao === 'indisponivel'
+        ? 'Este navegador nao faz notificacao do sistema.'
+        : permissao === 'denied'
+          ? 'O navegador bloqueou as notificacoes deste site. Para liberar, use o cadeado na barra de endereco.'
+          : 'Aparece so quando o sistema nao esta na sua frente.';
+  };
+
+  caixaSistema.addEventListener('change', async () => {
+    if (!caixaSistema.checked) {
+      definirSistema(false);
+      atualizarPermissao();
+      return;
+    }
+    /* O pedido de permissao precisa nascer de um clique. Por isso ele mora
+       aqui, no change da caixa, e nao no carregamento da tela: pedido feito no
+       boot e recusado pelo navegador sem nem mostrar a caixa de dialogo, e
+       gasta a unica chance que existe. */
+    const resposta = await pedirPermissao();
+    definirSistema(resposta === 'granted');
+    if (resposta !== 'granted') aviso('O navegador nao liberou as notificacoes.', 'alerta');
+    atualizarPermissao();
+  });
+
+  atualizarPermissao();
+
+  bloco.append(
+    el('div', { class: 'cartao-titulo', texto: 'Como avisar' }),
+    el('label', { class: 'linha t-md' }, [caixaSom, 'Tocar um som quando chegar aviso']),
+    el('label', { class: 'linha t-md mt-2' }, [caixaSistema, 'Mostrar notificacao do sistema']),
+    estadoPermissao,
+    el('div', { class: 't-xs c-fraco mt-2', texto: 'As duas escolhas valem so neste navegador.' }),
+  );
+  return bloco;
 }
 
 /* ------------------------------------------------------------------ */

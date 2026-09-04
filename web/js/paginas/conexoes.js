@@ -1,5 +1,5 @@
 import { api } from '../api.js';
-import { estado, opcoesResponsavel, podeConfigurar, recarregar } from '../estado.js';
+import { estado, opcoesResponsavel, ouvir, podeConfigurar, recarregar } from '../estado.js';
 import { campoComDica, dica, gaveta, menuAcoes, paginacao } from '../componentes.js';
 import {
   avatar,
@@ -308,6 +308,20 @@ export async function paginaConexoes({ definirAcoes } = {}) {
     if (arrastavel) prepararArrasto(linha, conexao, desenhar);
     return linha;
   }
+
+  /*
+   * O terceiro evento que o servidor emitia sem ouvinte.
+   *
+   * 'conexao' e disparado quando um numero cai, reconecta ou muda de qualidade
+   * — exatamente o que esta tela existe para mostrar. Sem ouvi-lo, o numero do
+   * escritorio podia estar fora do ar com esta pagina aberta na frente de
+   * alguem dizendo "conectado", ate a pessoa recarregar por conta propria.
+   */
+  ouvir('conexao', async () => {
+    if (!document.body.contains(container)) return;
+    await recarregar('conexoes');
+    await desenhar();
+  });
 
   await desenhar();
   return container;
