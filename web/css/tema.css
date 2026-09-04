@@ -1242,15 +1242,29 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
 
 /* Abas ------------------------------------------------------------- */
 
+/*
+ * A fileira quebra linha em vez de rolar.
+ *
+ * Com overflow-x ela rolava, e numa coluna de 320px sem barra de rolagem
+ * visivel isso queria dizer que a ultima aba simplesmente nao existia para
+ * quem olhava: media 344px de conteudo em 295px de espaco, e Grupos ficava
+ * fora da tela inteira. Uma fila de atendimento escondida e pior do que uma
+ * fileira de duas linhas.
+ *
+ * O recuo caiu de 16px para 8px de cada lado pelo mesmo motivo: os rotulos
+ * somam 204px, todo o resto era espaco em volta. Com 8px cabem as quatro numa
+ * linha so no uso normal, e a quebra fica de reserva para quando os
+ * contadores crescerem (tres digitos por aba somam 56px).
+ */
 .abas {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--e1);
   border-bottom: 1px solid var(--borda);
-  overflow-x: auto;
 }
 
 .abas button {
-  padding: var(--e2) var(--e4);
+  padding: var(--e2);
   min-height: var(--controle);
   background: none;
   border: none;
@@ -1277,6 +1291,60 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
 
 .abas .conta {
   margin-left: var(--e2);
+  font-size: var(--t-xs);
+  color: var(--texto-fraco);
+}
+
+/*
+ * Concluidos: a fila que ja acabou.
+ *
+ * Linha inteira embaixo da fileira, e nao mais uma aba. As abas de cima sao as
+ * filas de hoje — os lugares de onde alguem tira uma conversa para responder.
+ * Esta e o arquivo, e dar a ela o mesmo desenho das outras fazia "o que falta"
+ * e "o que ja foi" pesarem igual na leitura.
+ *
+ * O estado ligado copia .item-conversa.ativo de proposito — fundo --ouro-fraco
+ * mais a barra dourada por sombra interna. Selecionado ja quer dizer isso
+ * nesta coluna, logo abaixo, e um segundo desenho para a mesma ideia so daria
+ * a quem le duas coisas para aprender. A barra vem por box-shadow e nao por
+ * borda porque borda ocupa espaco: ligar e desligar empurrava o texto 2px.
+ *
+ * Cor sozinha nao sustenta o estado: quem nao distingue o dourado do cinza
+ * precisa da barra.
+ */
+.linha-concluidos {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  width: 100%;
+  margin-top: var(--e2);
+  padding: var(--e2) var(--e3);
+  background: none;
+  border: none;
+  border-radius: var(--raio-p);
+  color: var(--texto-suave);
+  cursor: pointer;
+  font-size: var(--t-md);
+  text-align: left;
+}
+
+.linha-concluidos:hover {
+  background: var(--superficie-2);
+  color: var(--texto);
+}
+
+.linha-concluidos:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: -2px;
+}
+
+.linha-concluidos.ativo {
+  background: var(--ouro-fraco);
+  box-shadow: inset 3px 0 0 var(--ouro);
+  color: var(--ouro-claro);
+}
+
+.linha-concluidos .conta {
   font-size: var(--t-xs);
   color: var(--texto-fraco);
 }
@@ -1478,6 +1546,27 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
   padding: var(--e3) var(--e4);
   border-bottom: 1px solid var(--borda);
   background: var(--superficie);
+}
+
+/*
+ * O bloco do nome encolhe ate a reticencia, e nao empurra o cabecalho.
+ *
+ * Nao ha piso de largura aqui de proposito. Um piso parece proteger o nome,
+ * mas os cinco botoes ao lado nao encolhem: numa janela de 1280px eles ja
+ * ocupam 250 dos 392px uteis, e qualquer minimo no nome empurraria o ultimo
+ * botao para fora da tela — trocar nome ilegivel por acao inalcancavel e
+ * piorar. Entao o nome cede primeiro e corta.
+ *
+ * No monitor do escritorio essa disputa nao existe: acima de ~1500px sobra
+ * largura para nome, telefone e os cinco botoes. O aperto e so de janela
+ * estreita, e ai cortar e a saida certa.
+ *
+ * O que resolve de vez e reduzir o numero de botoes fixos aqui (as acoes de
+ * manutencao cabem atras de um menu), e isso e trabalho da etapa do painel da
+ * conversa, nao desta.
+ */
+.conversa-cabecalho .bloco-identidade {
+  min-width: 0;
 }
 
 .mensagens {

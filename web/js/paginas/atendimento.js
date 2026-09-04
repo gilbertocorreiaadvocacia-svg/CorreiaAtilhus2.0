@@ -38,8 +38,22 @@ const ABAS = [
   { id: 'ativos', rotulo: 'Ativos' },
   { id: 'pendentes', rotulo: 'Pendentes' },
   { id: 'grupos', rotulo: 'Grupos' },
-  { id: 'arquivados', rotulo: 'Arquivados' },
 ];
+
+/*
+ * Concluidos fica FORA da fileira de abas, numa linha propria embaixo dela.
+ *
+ * As quatro abas acima sao filas de trabalho: sao os lugares de onde alguem
+ * tira uma conversa para responder hoje. Concluidos nao e fila, e arquivo — o
+ * que ja acabou. Enquanto os cinco dividiam a mesma fileira, "o que falta
+ * fazer" e "o que ja foi" tinham o mesmo peso na leitura, e a fileira ainda
+ * roubava largura das quatro que importam.
+ *
+ * O identificador continua 'arquivados', igual no servidor e no banco: o que
+ * mudou foi como o escritorio chama a coisa, nao a coisa. Trocar o estado
+ * gravado obrigaria a migrar a base inteira para nao ganhar nada.
+ */
+const ABA_CONCLUIDOS = { id: 'arquivados', rotulo: 'Concluidos' };
 
 /* Linhas por pagina na tabela de contatos, ate a pessoa escolher outro tamanho. */
 const POR_PAGINA_CONTATOS = 25;
@@ -254,6 +268,25 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
       );
     }
 
+    /* Mesmo papel de uma aba, e por isso o mesmo aria-current e o mesmo clique
+       que troca a fila. So o desenho muda: linha inteira, e nao um pedaco da
+       fileira de cima. */
+    const ativoConcluidos = filtro.aba === ABA_CONCLUIDOS.id;
+    const concluidos = el('button', {
+      type: 'button',
+      class: `linha-concluidos${ativoConcluidos ? ' ativo' : ''}`,
+      'aria-current': ativoConcluidos ? 'true' : null,
+      title: 'Atendimentos encerrados. A conversa volta para a fila sozinha se o cliente escrever.',
+      aoClick: async () => {
+        filtro.aba = ABA_CONCLUIDOS.id;
+        await desenhar();
+      },
+    }, [
+      icone('arquivar', 14),
+      el('span', { class: 'flexivel', texto: ABA_CONCLUIDOS.rotulo }),
+      el('span', { class: 'conta', texto: String(contagens[ABA_CONCLUIDOS.id] ?? 0) }),
+    ]);
+
     const filtrosAtivos = Object.entries(filtro).filter(
       ([chave, valor]) => valor && !['aba', 'busca'].includes(chave),
     ).length;
@@ -272,6 +305,7 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
           botao('', { icone: 'mais', titulo: 'Nova conversa', aoClicar: abrirNovaConversa }),
         ]),
         abas,
+        concluidos,
       ]),
       corpo,
     ]);
@@ -354,9 +388,17 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
       // Mesmo ritmo da lista de conversas: nome em --t-md peso 600, telefone
       // em --t-xs fraco. Antes o nome herdava o corpo e o telefone tinha
       // 11,5px escritos na mao.
-      el('div', { class: 'flexivel encolhe' }, [
-        el('div', { class: 't-md peso-600', texto: contato.nome }),
-        el('div', { class: 't-xs c-fraco', texto: telefone(contato.telefone) }),
+      /*
+       * Nome e telefone cortam com reticencia, e nao quebram linha.
+       *
+       * Sem .cortar, um cabecalho apertado empilhava "Teste Midia" em duas
+       * linhas e o telefone em tres, e a barra inteira crescia de altura. Um
+       * nome comprido de cliente ja fazia isso antes de existir botao com
+       * palavra escrita aqui; o botao so deixou o aperto visivel todo dia.
+       */
+      el('div', { class: 'flexivel encolhe bloco-identidade' }, [
+        el('div', { class: 't-md peso-600 cortar', texto: contato.nome }),
+        el('div', { class: 't-xs c-fraco cortar', texto: telefone(contato.telefone) }),
       ]),
       contato.estado === 'pendente'
         ? botao('Aceitar atendimento', {
@@ -382,9 +424,19 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
         ) }),
       botao('', { icone: 'contrato', titulo: 'Gerar resumo', pequeno: true, aoClicar: () => abrirResumo(contato) }),
       botao('', { icone: 'conexoes', titulo: 'Unificar conversas', pequeno: true, aoClicar: () => abrirUnificar(contato) }),
-      botao('', {
+      /*
+       * O unico botao com palavra escrita no cabecalho.
+       *
+       * Os outros quatro sao acoes de manutencao e sobrevivem como icone.
+       * Este e o fim do atendimento: e a acao que mais se usa aqui e a unica
+       * cujo icone sozinho (um certo) nao diz o que vai acontecer — podia ser
+       * "marcar como lida" tanto quanto "encerrar".
+       */
+      botao(contato.estado === 'arquivado' ? 'Reabrir' : 'Concluir', {
         icone: contato.estado === 'arquivado' ? 'atualizar' : 'ok',
-        titulo: contato.estado === 'arquivado' ? 'Reabrir' : 'Arquivar',
+        titulo: contato.estado === 'arquivado'
+          ? 'Devolver a conversa para a fila de atendimento'
+          : 'Encerrar o atendimento. A conversa volta sozinha se o cliente escrever de novo.',
         pequeno: true,
         aoClicar: async () => {
           await api.post(`/api/contatos/${contato.id}/arquivar`, { arquivar: contato.estado !== 'arquivado' });
@@ -399,7 +451,7 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
             aoClicar: () =>
               confirmar(
                 `Excluir a conversa de ${contato.nome}?`,
-                'Some tudo: mensagens, arquivos, agendamentos, contratos e registros de consumo. Nao tem como desfazer. Para tirar da fila sem apagar, use Arquivar.',
+                'Some tudo: mensagens, arquivos, agendamentos, contratos e registros de consumo. Nao tem como desfazer. Para tirar da fila sem apagar, use Concluir.',
                 async () => {
                   await api.delete(`/api/contatos/${contato.id}`);
                   selecionadoId = null;
@@ -1271,7 +1323,7 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
       botao('Responsavel', { pequeno: true, aoClicar: () => acaoMassa('responsavel') }),
       botao('Etiquetas', { pequeno: true, aoClicar: () => acaoMassa('etiquetas') }),
       botao('Conexao', { pequeno: true, aoClicar: () => acaoMassa('conexao') }),
-      botao('Arquivar', { pequeno: true, aoClicar: () => acaoMassa('arquivar') }),
+      botao('Concluir', { pequeno: true, aoClicar: () => acaoMassa('arquivar') }),
     ]);
 
     const lista = contatosOrdenados();
@@ -1358,7 +1410,7 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
     if (!ids.length) return;
 
     if (tipo === 'arquivar') {
-      confirmar('Arquivar conversas?', `${plural(ids.length, 'conversa sera arquivada', 'conversas serao arquivadas')}. Elas voltam para Pendentes se o cliente escrever.`, async () => {
+      confirmar('Concluir atendimentos?', `${plural(ids.length, 'conversa sera concluida', 'conversas serao concluidas')}. Elas voltam para a fila se o cliente escrever.`, async () => {
         await api.post('/api/contatos/acoes-em-massa', { ids, acao: 'arquivar' });
         marcados.clear();
         await desenhar();

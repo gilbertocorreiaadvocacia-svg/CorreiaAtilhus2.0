@@ -32,7 +32,7 @@ const CARTOES = [
     nome: 'Casos ativos',
     icone: 'contrato',
     cor: 'var(--sucesso)',
-    conceito: 'Contratos assinados que ainda nao foram arquivados. O caso entra aqui quando assina, e nao quando alguem lembra de mudar o departamento.',
+    conceito: 'Contratos assinados cujo atendimento ainda nao foi concluido. O caso entra aqui quando assina, e nao quando alguem lembra de mudar o departamento.',
   },
   {
     chave: 'parados',

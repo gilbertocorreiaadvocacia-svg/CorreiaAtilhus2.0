@@ -303,7 +303,10 @@ export function registrarAtendimento(rotas) {
     atualizar('contatos', contato.id, {
       estado: arquivar ? 'arquivado' : contato.responsavel?.tipo === 'agente' ? 'ia' : 'pendente',
     });
-    registrarLog(ctx.workspaceId, contato.id, 'arquivo', arquivar ? 'Conversa arquivada' : 'Conversa reaberta');
+    /* O tipo do registro continua 'arquivo' porque e ele que o historico usa
+       para escolher o icone, e ha registros antigos gravados assim. O que muda
+       e a frase que a pessoa le. */
+    registrarLog(ctx.workspaceId, contato.id, 'arquivo', arquivar ? 'Atendimento concluido' : 'Conversa reaberta');
     emitir(ctx.workspaceId, 'contato', { contatoId: contato.id });
     return enriquecer(achar('contatos', contato.id));
   });
