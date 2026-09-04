@@ -10,7 +10,7 @@ depender de serviço de fora.
 
 ## Como abrir
 
-**Da forma automática (recomendada).** Dê dois cliques em **`instalar-inicio.cmd`**,
+**Da forma automática (recomendada).** Entre na pasta `windows/` e dê dois cliques em **`instalar-inicio.cmd`**,
 uma vez só. A partir daí:
 
 - o sistema **sobe sozinho, escondido, toda vez que o Windows liga** — sem janela
@@ -18,10 +18,10 @@ uma vez só. A partir daí:
 - um atalho **`CorreiaAtilhus2.0`** aparece na Área de Trabalho; clicar nele só
   abre o navegador em `http://localhost:4477`.
 
-Para desligar o início automático depois, rode **`desinstalar-inicio.cmd`** (isso
+Para desligar o início automático depois, rode **`windows/desinstalar-inicio.cmd`** (isso
 não apaga nada, só tira da inicialização).
 
-**Da forma manual (para depurar).** Dê dois cliques em **`INICIAR.bat`**. Ele sobe
+**Da forma manual (para depurar).** Dê dois cliques em **`windows/INICIAR.bat`**. Ele sobe
 o servidor com a janela preta visível e abre o navegador. Se fechar a janela, o
 sistema para. Serve para ver mensagens de erro; no dia a dia, use o início
 automático acima.

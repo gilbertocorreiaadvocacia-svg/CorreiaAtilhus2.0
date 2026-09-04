@@ -1,6 +1,6 @@
 @echo off
 title CorreiaAtilhus2.0 - Correia Advogados Associados
-cd /d "%~dp0"
+cd /d "%~dp0.."
 
 where node >nul 2>nul
 if errorlevel 1 (
@@ -15,7 +15,7 @@ if errorlevel 1 (
 rem  Segredos ficam em segredos.bat, um arquivo a parte que NAO vai para o
 rem  repositorio. E ele que liga o espelho no Supabase. Sem ele, o sistema roda
 rem  igual a sempre, so gravando nos arquivos JSON.
-if exist "%~dp0segredos.bat" call "%~dp0segredos.bat"
+if exist "%~dp0..\segredos.bat" call "%~dp0..\segredos.bat"
 
 echo.
 echo   CORREIATENDIMENTOS

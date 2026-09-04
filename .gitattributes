@@ -20,5 +20,9 @@
 *.woff binary
 *.woff2 binary
 
-# O .bat precisa de CRLF para o Windows executar sem engasgar.
+# O Windows precisa de CRLF nestes tres para executar sem engasgar. O .bat ja
+# estava aqui; o .cmd e o .vbs faltavam, e sao justamente os do inicio
+# automatico, que roda sem ninguem olhando.
 *.bat text eol=crlf
+*.cmd text eol=crlf
+*.vbs text eol=crlf

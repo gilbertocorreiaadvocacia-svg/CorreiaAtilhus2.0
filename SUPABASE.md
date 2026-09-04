@@ -21,22 +21,27 @@ sistema roda igual mesmo com o Supabase desligado.
 
 ## Ligar o espelho (escrita dupla)
 
-O espelho é ligado por duas variáveis de ambiente, guardadas no `segredos.bat`
-(que **não** vai para o repositório). Copie o `segredos-EXEMPLO.bat` como
-`segredos.bat` e cole a chave **service_role** (Painel do Supabase →
-Project Settings → API Keys → `service_role`):
+O espelho é ligado por duas variáveis de ambiente, guardadas no arquivo `.env`
+na raiz (que **não** vai para o repositório). Copie o `.env.exemplo` como `.env`
+e cole a chave **service_role** (Painel do Supabase → Project Settings →
+API Keys → `service_role`):
 
-```bat
-set CORREIA_SUPABASE_URL=https://vmmvvmmlnemdhahbyghy.supabase.co
-set CORREIA_SUPABASE_CHAVE=<a sua chave service_role>
+```
+CORREIA_SUPABASE_URL=https://vmmvvmmlnemdhahbyghy.supabase.co
+CORREIA_SUPABASE_CHAVE=<a sua chave service_role>
 ```
 
-Com o `segredos.bat` no lugar, o `INICIAR.bat` mostra **"Espelho do Supabase:
-LIGADO"** e cada alteração passa a ser copiada para o Supabase em segundo plano.
-Sem o arquivo, o espelho fica inerte e o sistema roda só nos arquivos JSON.
+Com o `.env` no lugar, cada alteração passa a ser copiada para o Supabase em
+segundo plano. Sem o arquivo, o espelho fica inerte e o sistema roda só nos
+arquivos JSON.
+
+> O `.env` substituiu o antigo `segredos.bat`, que só o CMD do Windows sabia
+> executar: quem abrisse o projeto pelo VS Code ou em outro sistema subia sem o
+> espelho e sem nenhum aviso. Na máquina do escritório o `segredos.bat` continua
+> funcionando, para nada quebrar de um dia para o outro.
 
 > A chave service_role passa por cima do RLS e dá acesso total ao banco. Ela vive
-> no `segredos.bat`, nunca no código e nunca no repositório.
+> no `.env`, nunca no código e nunca no repositório.
 
 ## Carregar os dados de hoje (uma vez)
 
@@ -68,7 +73,7 @@ tudo bate, 2 se algo diverge.
   — ou seja, ninguém sem a chave de serviço enxerga nada. É o padrão seguro:
   negar tudo, menos o servidor. O aviso `rls_enabled_no_policy` do Supabase é
   esperado nesta fase e não é um problema.
-- **Só a chave de serviço** (o servidor, via `segredos.bat`) escreve e conta.
+- **Só a chave de serviço** (o servidor, via `.env`) escreve e conta.
 - O schema `atendimento` **não está exposto** na API REST.
 
 Portão para o futuro: se um dia o schema for exposto via PostgREST (para um app

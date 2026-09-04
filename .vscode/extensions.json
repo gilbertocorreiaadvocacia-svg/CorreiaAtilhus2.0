@@ -1,0 +1,5 @@
+{
+  // O projeto nao depende de extensao nenhuma para rodar. Esta aqui so
+  // mantem o recuo e o fim de linha iguais para todo mundo que editar.
+  "recommendations": ["editorconfig.editorconfig"]
+}

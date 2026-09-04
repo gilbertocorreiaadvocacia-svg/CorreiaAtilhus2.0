@@ -1,0 +1,18 @@
+{
+  // Fim de linha LF, como manda o .gitattributes. Sem isto, o Windows grava
+  // CRLF e um arquivo mexido em uma linha aparece inteiro no diff.
+  "files.eol": "\n",
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+  "editor.tabSize": 2,
+
+  // A pasta dados/ guarda conversa de cliente, telefone, CPF e as chaves da
+  // API do WhatsApp. Tirar ela da busca evita que um Ctrl+Shift+F qualquer
+  // devolva dado sensivel de cliente no meio do resultado.
+  "search.exclude": {
+    "dados/**": true
+  },
+  "files.watcherExclude": {
+    "**/dados/**": true
+  }
+}

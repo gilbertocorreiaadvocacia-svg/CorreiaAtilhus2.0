@@ -9,7 +9,7 @@ rem
 rem  Pode passar uma mensagem:  publicar.cmd  ajustei o texto do login
 rem ---------------------------------------------------------------------
 title CorreiaAtilhus2.0 - publicar no GitHub
-cd /d "%~dp0"
+cd /d "%~dp0.."
 
 where git >nul 2>nul
 if errorlevel 1 (

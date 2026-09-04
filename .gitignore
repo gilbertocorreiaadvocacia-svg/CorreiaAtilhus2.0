@@ -19,6 +19,8 @@ arquivos/
 # ---------------------------------------------------------------
 .env
 .env.*
+# O modelo nao tem segredo nenhum dentro, e e ele que ensina o que preencher.
+!.env.exemplo
 *.local
 
 # ---------------------------------------------------------------
@@ -27,7 +29,14 @@ arquivos/
 Thumbs.db
 desktop.ini
 .DS_Store
-.vscode/
+# A configuracao do VS Code do PROJETO vai para o repositorio: e ela que faz o
+# F5 subir o sistema na maquina de quem clonar, sem ninguem ter que descobrir
+# como. O que fica de fora e o que e pessoal de cada um.
+.vscode/*
+!.vscode/launch.json
+!.vscode/tasks.json
+!.vscode/settings.json
+!.vscode/extensions.json
 .idea/
 *.swp
 

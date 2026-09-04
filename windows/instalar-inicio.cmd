@@ -10,7 +10,7 @@ rem    navegador em http://localhost:4477.
 rem  - Sobe o servidor agora, sem precisar reiniciar.
 rem ---------------------------------------------------------------------
 setlocal
-cd /d "%~dp0"
+cd /d "%~dp0.."
 
 set "STARTUP=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup"
 set "ATALHO=%STARTUP%\CorreiaAtilhus2.0.lnk"

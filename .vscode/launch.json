@@ -1,0 +1,45 @@
+{
+  // Como rodar o CorreiaAtilhus2.0 pelo VS Code.
+  //
+  // Aperte F5 (ou o triangulo verde em "Executar e Depurar") e pronto: o
+  // servidor sobe e o navegador abre sozinho. Nao precisa de arquivo .bat,
+  // nao precisa de terminal, e funciona igual no Windows, no Mac e no Linux.
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Abrir o CorreiaAtilhus2.0",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/servidor/index.js",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"],
+      // Espera o servidor anunciar o endereco e abre o navegador nele. O
+      // padrao casa com a linha "Aberto em:  http://localhost:4477" que o
+      // servidor imprime ao subir.
+      "serverReadyAction": {
+        "pattern": "Aberto em:\\s+(https?://\\S+)",
+        "uriFormat": "%s",
+        "action": "openExternally"
+      }
+    },
+    {
+      "name": "Abrir sem o navegador",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/servidor/index.js",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "name": "Rodar a suite de testes",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/servidor/testes/executar.js",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    }
+  ]
+}

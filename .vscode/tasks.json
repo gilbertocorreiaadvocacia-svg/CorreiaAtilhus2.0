@@ -1,0 +1,29 @@
+{
+  // Ctrl+Shift+P > "Executar Tarefa" para chamar qualquer uma destas.
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Abrir o sistema",
+      "type": "shell",
+      "command": "npm start",
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated" }
+    },
+    {
+      "label": "Abrir recarregando a cada alteracao",
+      "detail": "O servidor reinicia sozinho quando um arquivo muda. Bom para desenvolver.",
+      "type": "shell",
+      "command": "npm run dev",
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated" }
+    },
+    {
+      "label": "Conferir (suite de testes)",
+      "type": "shell",
+      "command": "npm test",
+      "group": { "kind": "test", "isDefault": true },
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated" }
+    }
+  ]
+}

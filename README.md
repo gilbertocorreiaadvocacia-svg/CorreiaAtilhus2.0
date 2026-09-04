@@ -13,11 +13,21 @@ depender de serviço de fora.
 
 ## Como rodar
 
+**No VS Code:** abra a pasta e aperte **F5**. O servidor sobe e o navegador abre
+sozinho. É o caminho principal, e funciona igual no Windows, no Mac e no Linux.
+
+**No terminal:**
+
 ```bash
-node servidor/index.js
+npm start        # sobe o sistema
+npm run dev      # sobe recarregando a cada alteração
+npm test         # roda a suíte de conferência
 ```
 
-No Windows, dois cliques em `INICIAR.bat` fazem o mesmo e já abrem o navegador.
+**Na máquina do escritório**, onde ninguém abre o VS Code, os atalhos do Windows
+ficam em `windows/`: `INICIAR.bat` sobe com a janela visível, e
+`instalar-inicio.cmd` liga o início automático (o sistema passa a subir sozinho,
+escondido, a cada login).
 
 Abre em `http://localhost:4477`. Primeiro acesso: `admin@correia.adv.br` /
 `correia2026` — **troque a senha em Configurações › Membros assim que entrar.**
@@ -58,6 +68,8 @@ módulos ES nativos sem passo de build.
 | `servidor/mcp/` | Servidor MCP: usar o sistema conversando pelo Claude |
 | `web/` | Interface. Módulos ES nativos, sem framework e sem build |
 | `dados/` | **Não versionado.** Criado sozinho na primeira execução |
+| `windows/` | Atalhos da máquina do escritório: subir, início automático, publicar |
+| `.vscode/` | Configuração do projeto: é ela que faz o F5 funcionar |
 
 Principais telas: Conversas (com Kanban e Contatos), Dashboard comercial,
 Pós-venda, Agentes de IA, Base de conhecimento, Templates, Central de

@@ -1,9 +1,52 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const aqui = path.dirname(fileURLToPath(import.meta.url));
 
 export const RAIZ = path.resolve(aqui, '..');
+
+/**
+ * Le o arquivo `.env` da raiz, quando ele existe.
+ *
+ * Antes, a chave do Supabase morava num `segredos.bat` que so o CMD do Windows
+ * sabia executar: quem abrisse o projeto pelo VS Code, pelo terminal ou em
+ * outro sistema simplesmente subia sem o espelho, sem nenhum aviso. O `.env` e
+ * um arquivo de texto que qualquer um le, em qualquer sistema, e o `.gitignore`
+ * ja o mantem fora do repositorio.
+ *
+ * Variavel de ambiente de verdade vence o arquivo: quem exportou a chave no
+ * terminal, ou a definiu no servidor, quis aquilo, e um arquivo esquecido na
+ * pasta nao pode sobrescrever essa escolha.
+ *
+ * Sem biblioteca: sao quinze linhas, e o projeto inteiro existe para rodar sem
+ * `npm install`.
+ */
+function carregarEnv() {
+  let bruto;
+  try {
+    bruto = fs.readFileSync(path.join(RAIZ, '.env'), 'utf8');
+  } catch {
+    return;
+  }
+  for (const linha of bruto.split('\n')) {
+    const limpa = linha.trim();
+    if (!limpa || limpa.startsWith('#')) continue;
+
+    const igual = limpa.indexOf('=');
+    if (igual < 1) continue;
+
+    const chave = limpa.slice(0, igual).trim();
+    if (chave in process.env) continue;
+
+    let valor = limpa.slice(igual + 1).trim();
+    const aspas = valor[0];
+    if ((aspas === '"' || aspas === "'") && valor.endsWith(aspas)) valor = valor.slice(1, -1);
+    process.env[chave] = valor;
+  }
+}
+
+carregarEnv();
 export const PASTA_WEB = path.join(RAIZ, 'web');
 /*
  * A pasta dos dados e configuravel por variavel de ambiente.
