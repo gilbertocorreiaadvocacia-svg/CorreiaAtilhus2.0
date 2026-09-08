@@ -180,7 +180,7 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
      dentro do painel, para nao ser apagado toda vez que um evento ao vivo
      redesenha a tela — e sao tres campos porque procurar um status nao deve
      apagar o que se digitou para achar uma etiqueta. */
-  const termos = { etiqueta: '', status: '', departamento: '' };
+  const termos = { etiqueta: '', status: '', departamento: '', origem: '' };
 
   /* Quais campos do painel estao com a lista aberta. Guardado aqui pelo mesmo
      motivo dos termos: a tela se refaz a cada evento, e um campo que fecha
@@ -1279,99 +1279,36 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
     const responsavelAtual = contato.responsavel ? `${contato.responsavel.tipo}:${contato.responsavel.id}` : '';
 
     /*
-     * As etiquetas, com busca quando a lista fica grande demais para correr o
-     * olho, e com a cor de cada uma a vista.
+     * As etiquetas: a mesma lista de escolha dos outros campos, so que de
+     * marcar varias.
      *
-     * Duas coisas mudaram aqui e as duas tem o mesmo motivo — marcar etiqueta
-     * e coisa que se faz no meio de uma conversa com o cliente, entao nao pode
-     * custar atencao:
-     *
-     * 1. A cor da etiqueta agora aparece (era so o nome). E a mesma cor que a
-     *    linha da lista mostra, entao os dois lugares passam a se reconhecer.
-     * 2. Marcar nao redesenha a tela inteira. Antes cada clique chamava
-     *    desenhar(), o que com um campo de busca aqui dentro apagaria o que a
-     *    pessoa acabou de digitar e tiraria o foco do campo. Agora o clique
-     *    atualiza o proprio botao e a linha correspondente na lista, e mais
-     *    nada se mexe.
+     * Marcar nao redesenha a tela inteira. Cada clique manda a alteracao e
+     * atualiza a linha correspondente na lista da esquerda, e mais nada se
+     * mexe: redesenhar aqui apagaria o que a pessoa acabou de digitar na
+     * busca e tiraria o foco do campo, e marcar duas etiquetas seguidas
+     * obrigaria a digitar o termo de novo entre uma e outra.
      */
     const marcadas = new Set(contato.etiquetas || []);
-    const listaEtiquetas = el('div', { class: 'linha-botoes' });
-    const botoesEtiqueta = new Map();
-
-    for (const etiqueta of estado.etiquetas) {
-      const alvo = el('button', {
-        type: 'button',
-        class: `selo selo-clicavel${marcadas.has(etiqueta.id) ? ' ouro' : ''}`,
-        'aria-pressed': marcadas.has(etiqueta.id) ? 'true' : 'false',
-      }, [
-        el('span', { class: 'ponto', estilo: { background: etiqueta.cor } }),
-        document.createTextNode(etiqueta.nome),
-      ]);
-
-      alvo.addEventListener('click', async () => {
-        /* Trava o botao durante o pedido: dois cliques rapidos mandavam dois
-           pedidos opostos e a etiqueta voltava ao estado inicial. */
-        if (alvo.disabled) return;
-        alvo.disabled = true;
-        const ligando = !marcadas.has(etiqueta.id);
-        if (ligando) marcadas.add(etiqueta.id);
-        else marcadas.delete(etiqueta.id);
+    const etiquetas = listaDeEscolha({
+      opcoes: estado.etiquetas,
+      marcados: marcadas,
+      chaveDoTermo: 'etiqueta',
+      aoEscolher: async (id, ligando) => {
+        if (ligando) marcadas.add(id);
+        else marcadas.delete(id);
         try {
           await api.patch(`/api/contatos/${contato.id}`, { etiquetas: [...marcadas] });
           contato.etiquetas = [...marcadas];
-          alvo.classList.toggle('ouro', ligando);
-          alvo.setAttribute('aria-pressed', ligando ? 'true' : 'false');
           atualizarMarcasNaLista(contato);
         } catch (erro) {
-          if (ligando) marcadas.delete(etiqueta.id);
-          else marcadas.add(etiqueta.id);
-          aviso(erro.message, 'erro');
+          /* Desfaz no conjunto tambem: sem isso a proxima marcacao mandaria
+             uma lista que ainda inclui a que o servidor recusou. */
+          if (ligando) marcadas.delete(id);
+          else marcadas.add(id);
+          throw erro;
         }
-        alvo.disabled = false;
-      });
-
-      botoesEtiqueta.set(alvo, normalizarTexto(etiqueta.nome));
-      listaEtiquetas.append(alvo);
-    }
-
-    /*
-     * A busca so existe quando ha o que procurar.
-     *
-     * Abaixo de sete etiquetas o olho acha mais rapido do que a mao digita, e
-     * um campo que nao serve para nada ainda ocupa uma linha do painel — que e
-     * justamente o que este painel nao tem sobrando.
-     */
-    const semResultado = el('div', { class: 't-xs c-fraco mt-2', texto: 'Nenhuma etiqueta com esse nome.', hidden: true });
-    const etiquetas = el('div', {});
-    if (estado.etiquetas.length > 6) {
-      const campoBusca = entradaTexto(termos.etiqueta, { type: 'search', placeholder: 'Buscar etiqueta…' });
-      const filtrar = () => {
-        /* Guardado fora desta funcao para sobreviver ao redesenho. Qualquer
-           alteracao na conversa chega por evento e refaz a tela — inclusive a
-           alteracao que esta propria pessoa acabou de fazer ao marcar uma
-           etiqueta. Sem guardar, marcar duas etiquetas seguidas obrigava a
-           digitar o termo de novo entre uma e outra. */
-        termos.etiqueta = campoBusca.value;
-        const termo = normalizarTexto(termos.etiqueta);
-        let visiveis = 0;
-        for (const [alvo, nome] of botoesEtiqueta) {
-          const bate = !termo || nome.includes(termo);
-          alvo.hidden = !bate;
-          if (bate) visiveis += 1;
-        }
-        semResultado.hidden = visiveis > 0;
-      };
-      campoBusca.addEventListener('input', filtrar);
-      etiquetas.append(el('div', { class: 'mb-2' }, [campoBusca]), listaEtiquetas, semResultado);
-      /* Aplica o termo guardado ja no primeiro desenho, senao o campo voltaria
-         escrito com a lista inteira embaixo. */
-      filtrar();
-    } else {
-      /* Poucas etiquetas: nao ha campo de busca, e um termo antigo nao pode
-         continuar escondendo botao que ninguem tem como revelar. */
-      termos.etiqueta = '';
-      etiquetas.append(listaEtiquetas, semResultado);
-    }
+      },
+    });
 
     /*
      * Variavel preenchida fica a vista; variavel em branco fica atras de um
@@ -1436,61 +1373,85 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
             },
           }),
         ]),
+        /*
+         * As quatro classificacoes da conversa num bloco so, uma por linha,
+         * cada uma com o icone do que ela e.
+         *
+         * Eram quatro secoes separadas, cada uma com o nome escrito por cima
+         * ("Status", "Departamento"...). Quatro rotulos e quatro molduras para
+         * quatro linhas de uma palavra: mais moldura do que conteudo. O icone
+         * diz a mesma coisa em 16px e sobra largura para o valor, que numa
+         * coluna de 300px e o que falta. Quem usa leitor de tela nao perde o
+         * rotulo: ele vai no aria-label do proprio campo.
+         */
         el('div', { class: 'propriedade' }, [
-          rotuloComDica('Status', 'Mudar o status troca o departamento e dispara a sequencia de follow-up.'),
-          campoRecolhivel({
-            chave: 'status',
-            resumo: seloDoValor(estado.status.find((s) => s.id === contato.statusId), 'Escolher status'),
-            conteudo: listaDeEscolha({
-              opcoes: estado.status,
-              atual: contato.statusId,
-              rotuloVazio: 'Sem status',
-              chaveDoTermo: 'status',
-              aoEscolher: (id) => {
-                fechar('status');
-                return salvar({ statusId: id });
-              },
+          el('span', { texto: 'Propriedades' }),
+          el('div', { class: 'lista-propriedades' }, [
+            campoRecolhivel({
+              chave: 'status',
+              iconeDoCampo: 'info',
+              rotulo: 'Status: mudar troca o departamento e dispara a sequencia de follow-up',
+              resumo: pilula(estado.status.find((s) => s.id === contato.statusId)) || convite('Escolher status'),
+              conteudo: listaDeEscolha({
+                opcoes: estado.status,
+                atual: contato.statusId,
+                rotuloVazio: 'Sem status',
+                chaveDoTermo: 'status',
+                nomeDoGrupo: 'escolha-status',
+                aoEscolher: (id) => {
+                  fechar('status');
+                  return salvar({ statusId: id });
+                },
+              }),
             }),
-          }),
-        ]),
-        el('div', { class: 'propriedade' }, [
-          el('span', { texto: 'Departamento' }),
-          campoRecolhivel({
-            chave: 'departamento',
-            resumo: seloDoValor(estado.departamentos.find((d) => d.id === contato.departamentoId), 'Escolher departamento'),
-            conteudo: listaDeEscolha({
-              opcoes: estado.departamentos,
-              atual: contato.departamentoId,
-              rotuloVazio: 'Sem departamento',
-              chaveDoTermo: 'departamento',
-              aoEscolher: (id) => {
-                fechar('departamento');
-                return salvar({ departamentoId: id });
-              },
+            campoRecolhivel({
+              chave: 'etiqueta',
+              iconeDoCampo: 'etiqueta',
+              rotulo: 'Etiquetas da conversa',
+              /* O resumo mostra as marcadas, nao a contagem: "Auxilio-doenca,
+                 Urgente" responde a pergunta, "2 etiquetas" obriga a abrir. */
+              resumo: (() => {
+                const marcadasAgora = (contato.etiquetas || []).map(acharEtiqueta).filter(Boolean);
+                if (!marcadasAgora.length) return convite('Adicionar etiquetas');
+                return el('span', { class: 'linha-p quebra' }, marcadasAgora.map((e) => pilula(e)));
+              })(),
+              conteudo: etiquetas,
             }),
-          }),
-        ]),
-        el('div', { class: 'propriedade' }, [
-          el('span', { texto: 'Etiquetas' }),
-          campoRecolhivel({
-            chave: 'etiqueta',
-            /* O resumo mostra as marcadas, nao a contagem: "Auxilio-doenca,
-               Urgente" responde a pergunta, "2 etiquetas" obriga a abrir. */
-            resumo: (() => {
-              const marcadasAgora = (contato.etiquetas || []).map(acharEtiqueta).filter(Boolean);
-              if (!marcadasAgora.length) return el('span', { class: 't-sm c-fraco', texto: 'Adicionar etiquetas' });
-              return el('span', { class: 'linha-p quebra' }, marcadasAgora.map((e) => seloDoValor(e, '')));
-            })(),
-            conteudo: etiquetas,
-          }),
-        ]),
-        el('div', { class: 'propriedade' }, [
-          el('span', { texto: 'Origem' }),
-          selecao(
-            [{ valor: '', rotulo: 'Nao identificada' }, ...estado.origens.map((o) => ({ valor: o.id, rotulo: o.nome }))],
-            contato.origemId || '',
-            { aoChange: (evento) => salvar({ origemId: evento.target.value }) },
-          ),
+            campoRecolhivel({
+              chave: 'departamento',
+              iconeDoCampo: 'predio',
+              rotulo: 'Departamento responsavel',
+              resumo: pilula(estado.departamentos.find((d) => d.id === contato.departamentoId)) || convite('Escolher departamento'),
+              conteudo: listaDeEscolha({
+                opcoes: estado.departamentos,
+                atual: contato.departamentoId,
+                rotuloVazio: 'Sem departamento',
+                chaveDoTermo: 'departamento',
+                nomeDoGrupo: 'escolha-departamento',
+                aoEscolher: (id) => {
+                  fechar('departamento');
+                  return salvar({ departamentoId: id });
+                },
+              }),
+            }),
+            campoRecolhivel({
+              chave: 'origem',
+              iconeDoCampo: 'origem',
+              rotulo: 'Por onde o cliente chegou',
+              resumo: pilula(estado.origens.find((o) => o.id === contato.origemId)) || convite('Selecionar origem'),
+              conteudo: listaDeEscolha({
+                opcoes: estado.origens,
+                atual: contato.origemId,
+                rotuloVazio: 'Nao identificada',
+                chaveDoTermo: 'origem',
+                nomeDoGrupo: 'escolha-origem',
+                aoEscolher: (id) => {
+                  fechar('origem');
+                  return salvar({ origemId: id });
+                },
+              }),
+            }),
+          ]),
         ]),
         el('div', { class: 'propriedade' }, [
           el('span', { texto: 'Modo audio' }),
@@ -1673,7 +1634,7 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
    * Entao o campo mostra o valor atual — com a cor, que e o que o resto do
    * sistema usa para falar de status — e abre a lista no clique.
    */
-  function campoRecolhivel({ chave, resumo, conteudo }) {
+  function campoRecolhivel({ chave, iconeDoCampo, rotulo, resumo, conteudo }) {
     const aberto = expandidos.has(chave);
 
     const corpo = el('div', { class: 'escolha-lista', hidden: !aberto }, [conteudo]);
@@ -1681,8 +1642,12 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
       type: 'button',
       class: 'escolha-resumo',
       'aria-expanded': aberto ? 'true' : 'false',
-      title: 'Clique para trocar',
+      /* O icone diz de que campo se trata para quem enxerga; o rotulo escrito
+         faz o mesmo para quem usa leitor de tela, e carrega o valor junto. */
+      'aria-label': rotulo,
+      title: rotulo,
     }, [
+      el('span', { class: 'escolha-icone' }, [icone(iconeDoCampo, 16)]),
       el('span', { class: 'flexivel encolhe' }, [resumo]),
       /* A seta gira em vez de trocar de icone: e a mesma coisa em dois
          estados, nao duas coisas. */
@@ -1700,6 +1665,34 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
     return el('div', { class: 'escolha' }, [gatilho, corpo]);
   }
 
+  /**
+   * A pilula de uma categoria: contorno e texto na cor dela, sem caixa alta.
+   *
+   * O selo plano do sistema (caixa alta, sem moldura) serve para rotular um
+   * bloco. Aqui o texto e o VALOR — o nome do status, da etiqueta, do
+   * departamento — e valor em caixa alta se le como grito e fica mais largo,
+   * o que numa coluna de 300px custa caro: "Acidente de Trabalho ou Doenca
+   * Ocupacional" nao cabe de jeito nenhum em versalete.
+   *
+   * A cor sai do proprio registro e vai para a propriedade `color`, com a
+   * moldura em currentColor: uma declaracao so pinta texto e contorno, e as
+   * duas nunca se desencontram. As nove cores do sistema foram medidas como
+   * texto sobre a superficie e passam nos dois temas.
+   */
+  function pilula(opcao) {
+    if (!opcao) return null;
+    return el('span', {
+      class: 'pilula',
+      estilo: opcao.cor ? { color: opcao.cor } : {},
+    }, [
+      opcao.cor ? el('span', { class: 'ponto', estilo: { background: 'currentColor' } }) : null,
+      document.createTextNode(opcao.nome),
+    ]);
+  }
+
+  /** Convite em texto de apoio, para o campo que ainda nao tem valor. */
+  const convite = (texto) => el('span', { class: 't-sm c-fraco', texto });
+
   /** Fecha o campo depois que a escolha foi feita: a lista ja cumpriu o papel. */
   function fechar(chave) {
     expandidos.delete(chave);
@@ -1710,50 +1703,61 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
    * ponto colorido mais o nome. Sem valor, um convite em texto de apoio — e
    * nao um selo vazio, que se leria como uma categoria chamada "nenhuma".
    */
-  function seloDoValor(opcao, rotuloVazio) {
-    if (!opcao) return el('span', { class: 't-sm c-fraco', texto: rotuloVazio });
-    return el('span', { class: 'selo' }, [
-      opcao.cor ? el('span', { class: 'ponto', estilo: { background: opcao.cor } }) : null,
-      document.createTextNode(opcao.nome),
-    ]);
-  }
-
-  function listaDeEscolha({ opcoes, atual, rotuloVazio, chaveDoTermo, aoEscolher }) {
+  /**
+   * A lista de escolha: uma linha por opcao, com a caixa de marcar a esquerda
+   * e a pilula ao lado.
+   *
+   * Uma por linha, e nao selos lado a lado. Os nomes do escritorio sao frases
+   * ("Acidente de Trabalho ou Doenca Ocupacional", "Aguardando Pericia"), e
+   * embrulhados numa fileira eles quebram em pedacos desiguais que o olho tem
+   * de remontar. Em coluna, procurar e correr o dedo para baixo.
+   *
+   * A caixa de marcar e um <input> de verdade — radio para escolha unica,
+   * checkbox para multipla. O navegador ja sabe desenhar os dois estados,
+   * anuncia-los e liga-los ao rotulo; refazer isso com <button> e aria daria
+   * mais codigo para ficar com menos.
+   */
+  function listaDeEscolha({ opcoes, atual, marcados, rotuloVazio, chaveDoTermo, nomeDoGrupo, aoEscolher }) {
+    const multiplo = Boolean(marcados);
     const bloco = el('div', {});
-    const lista = el('div', { class: 'linha-botoes', role: 'radiogroup' });
-    const botoesPorNome = new Map();
+    const lista = el('div', { class: 'lista-escolha' });
+    const linhasPorNome = new Map();
 
-    const todas = [{ id: '', nome: rotuloVazio, cor: null }, ...opcoes];
+    /* A opcao "sem" so existe na escolha unica: em multipla, "nenhuma" e
+       simplesmente nao marcar nada. */
+    const todas = multiplo ? opcoes : [{ id: '', nome: rotuloVazio, cor: null }, ...opcoes];
 
     for (const opcao of todas) {
-      const marcada = (atual || '') === opcao.id;
-      const alvo = el('button', {
-        type: 'button',
-        role: 'radio',
-        class: `selo selo-clicavel${marcada ? ' ouro' : ''}`,
-        'aria-checked': marcada ? 'true' : 'false',
-      }, [
-        opcao.cor ? el('span', { class: 'ponto', estilo: { background: opcao.cor } }) : null,
-        document.createTextNode(opcao.nome),
-      ]);
+      const marcada = multiplo ? marcados.has(opcao.id) : (atual || '') === opcao.id;
 
-      alvo.addEventListener('click', async () => {
-        if (alvo.disabled || marcada) return;
-        alvo.disabled = true;
+      const caixa = el('input', {
+        type: multiplo ? 'checkbox' : 'radio',
+        name: multiplo ? null : nomeDoGrupo,
+      });
+      caixa.checked = marcada;
+
+      const linha = el('label', { class: 'opcao-escolha' }, [caixa, pilula(opcao) || el('span', { texto: opcao.nome })]);
+
+      caixa.addEventListener('change', async () => {
+        if (caixa.disabled) return;
+        caixa.disabled = true;
         try {
-          await aoEscolher(opcao.id);
+          await aoEscolher(opcao.id, caixa.checked);
         } catch (erro) {
+          /* Devolve a caixa ao estado anterior: deixar marcado o que o
+             servidor recusou faz a tela mentir ate o proximo desenho. */
+          caixa.checked = !caixa.checked;
           aviso(erro.message, 'erro');
-          alvo.disabled = false;
         }
+        caixa.disabled = false;
       });
 
-      botoesPorNome.set(alvo, normalizarTexto(opcao.nome));
-      lista.append(alvo);
+      linhasPorNome.set(linha, normalizarTexto(opcao.nome));
+      lista.append(linha);
     }
 
-    /* Mesma regra das etiquetas: campo de busca so quando ha o que procurar.
-       Com quatro departamentos o olho acha antes da mao digitar. */
+    /* Campo de busca so quando ha o que procurar. Com quatro departamentos o
+       olho acha antes de a mao digitar. */
     const semResultado = el('div', { class: 't-xs c-fraco mt-2', texto: 'Nada com esse nome.', hidden: true });
     if (todas.length > 6) {
       const campo = entradaTexto(termos[chaveDoTermo], { type: 'search', placeholder: 'Buscar…' });
@@ -1761,9 +1765,9 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
         termos[chaveDoTermo] = campo.value;
         const termo = normalizarTexto(campo.value);
         let visiveis = 0;
-        for (const [alvo, nome] of botoesPorNome) {
+        for (const [linha, nome] of linhasPorNome) {
           const bate = !termo || nome.includes(termo);
-          alvo.hidden = !bate;
+          linha.hidden = !bate;
           if (bate) visiveis += 1;
         }
         semResultado.hidden = visiveis > 0;

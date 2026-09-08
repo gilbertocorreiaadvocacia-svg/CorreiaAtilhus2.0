@@ -1976,17 +1976,100 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
   margin-top: var(--e2);
 }
 
+/* O icone que substitui o nome escrito do campo. Fica em texto de apoio: ele
+   identifica a linha, quem tem de saltar aos olhos e o valor ao lado. */
+.escolha-icone {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  color: var(--texto-fraco);
+}
+
+.escolha-resumo:hover .escolha-icone {
+  color: var(--texto-suave);
+}
+
+/* As quatro linhas do bloco, separadas por espaco e nao por filete: sao do
+   mesmo assunto, e um risco entre cada uma faria quatro secoes de uma. */
+.lista-propriedades {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e1);
+}
+
 /*
- * Teto na lista aberta, com rolagem propria.
+ * A pilula de uma categoria.
  *
- * Sao doze status. Aberta inteira, a lista empurrava o resto do painel para
- * fora da tela e quem escolhia perdia de vista o que estava mudando. Com o
- * teto, a lista rola por dentro e os campos de baixo continuam onde estavam.
+ * E a excecao consciente a regra de "borda so em campo de digitacao, modal e
+ * gaveta": aqui a borda nao cerca uma secao, ela desenha o objeto. Status e
+ * etiqueta sao coisas com nome proprio dentro da frase da tela, e o contorno e
+ * o que faz "Aguardando Pericia" ser lido como uma coisa so e nao como duas
+ * palavras soltas ao lado de um ponto.
+ *
+ * Cor e contorno saem de currentColor, entao quem desenha define uma
+ * propriedade so e as duas nunca se desencontram. Sem caixa alta: o texto e o
+ * VALOR, e versalete em nome comprido nao cabe numa coluna de 300px.
  */
-.escolha-lista .linha-botoes {
+.pilula {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e1);
+  max-width: 100%;
+  padding: 1px var(--e2);
+  border: 1px solid currentColor;
+  border-radius: var(--raio-pilula);
+  color: var(--texto-suave);
+  font-size: var(--t-sm);
+  line-height: 1.5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Preenchimento tenue na propria cor. Fica por ultimo e sem fallback de
+   proposito: onde color-mix nao existir, a pilula continua legivel com
+   contorno e texto, que e o que carrega a informacao. */
+.pilula {
+  background: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+/* Uma opcao por linha: caixa de marcar a esquerda, pilula ao lado. Os nomes do
+   escritorio sao frases, e lado a lado eles quebram em pedacos que o olho tem
+   de remontar. */
+.lista-escolha {
+  display: flex;
+  flex-direction: column;
   max-height: 220px;
   overflow-y: auto;
 }
+
+.opcao-escolha {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  padding: var(--e1) var(--e2);
+  border-radius: var(--raio-p);
+  cursor: pointer;
+}
+
+.opcao-escolha:hover {
+  background: var(--superficie-2);
+}
+
+.opcao-escolha input {
+  flex: none;
+  margin: 0;
+  cursor: pointer;
+}
+
+/* A linha inteira acende quando a caixa recebe o foco do teclado: sem isso o
+   contorno cercaria so o quadradinho de 13px. */
+.opcao-escolha:focus-within {
+  outline: 2px solid var(--ouro);
+  outline-offset: -2px;
+}
+
 
 .propriedade > span {
   display: block;
