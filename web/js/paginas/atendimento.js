@@ -176,10 +176,11 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
   let porPaginaContatos = POR_PAGINA_CONTATOS;
   let ordemContatos = { coluna: 'ultimaMensagem', direcao: 'decrescente' };
 
-  /* O que foi digitado na busca de etiquetas do painel da direita. Vive aqui,
-     e nao dentro do painel, para nao ser apagado toda vez que um evento ao
-     vivo redesenha a tela. */
-  let termoEtiqueta = '';
+  /* O que foi digitado em cada busca do painel da direita. Vive aqui, e nao
+     dentro do painel, para nao ser apagado toda vez que um evento ao vivo
+     redesenha a tela — e sao tres campos porque procurar um status nao deve
+     apagar o que se digitou para achar uma etiqueta. */
+  const termos = { etiqueta: '', status: '', departamento: '' };
 
   /* Qual das seis abas do painel da direita esta aberta. Pelo mesmo motivo do
      termo acima: a tela se refaz a cada evento, e voltar para "Dados" no meio
@@ -1338,15 +1339,15 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
     const semResultado = el('div', { class: 't-xs c-fraco mt-2', texto: 'Nenhuma etiqueta com esse nome.', hidden: true });
     const etiquetas = el('div', {});
     if (estado.etiquetas.length > 6) {
-      const campoBusca = entradaTexto(termoEtiqueta, { type: 'search', placeholder: 'Buscar etiqueta…' });
+      const campoBusca = entradaTexto(termos.etiqueta, { type: 'search', placeholder: 'Buscar etiqueta…' });
       const filtrar = () => {
         /* Guardado fora desta funcao para sobreviver ao redesenho. Qualquer
            alteracao na conversa chega por evento e refaz a tela — inclusive a
            alteracao que esta propria pessoa acabou de fazer ao marcar uma
            etiqueta. Sem guardar, marcar duas etiquetas seguidas obrigava a
            digitar o termo de novo entre uma e outra. */
-        termoEtiqueta = campoBusca.value;
-        const termo = normalizarTexto(termoEtiqueta);
+        termos.etiqueta = campoBusca.value;
+        const termo = normalizarTexto(termos.etiqueta);
         let visiveis = 0;
         for (const [alvo, nome] of botoesEtiqueta) {
           const bate = !termo || nome.includes(termo);
@@ -1363,7 +1364,7 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
     } else {
       /* Poucas etiquetas: nao ha campo de busca, e um termo antigo nao pode
          continuar escondendo botao que ninguem tem como revelar. */
-      termoEtiqueta = '';
+      termos.etiqueta = '';
       etiquetas.append(listaEtiquetas, semResultado);
     }
 
@@ -1432,19 +1433,23 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
         ]),
         el('div', { class: 'propriedade' }, [
           rotuloComDica('Status', 'Mudar o status troca o departamento e dispara a sequencia de follow-up.'),
-          selecao(
-            [{ valor: '', rotulo: 'Sem status' }, ...estado.status.map((s) => ({ valor: s.id, rotulo: s.nome }))],
-            contato.statusId || '',
-            { aoChange: (evento) => salvar({ statusId: evento.target.value }) },
-          ),
+          listaDeEscolha({
+            opcoes: estado.status,
+            atual: contato.statusId,
+            rotuloVazio: 'Sem status',
+            chaveDoTermo: 'status',
+            aoEscolher: (id) => salvar({ statusId: id }),
+          }),
         ]),
         el('div', { class: 'propriedade' }, [
           el('span', { texto: 'Departamento' }),
-          selecao(
-            [{ valor: '', rotulo: 'Sem departamento' }, ...estado.departamentos.map((d) => ({ valor: d.id, rotulo: d.nome }))],
-            contato.departamentoId || '',
-            { aoChange: (evento) => salvar({ departamentoId: evento.target.value }) },
-          ),
+          listaDeEscolha({
+            opcoes: estado.departamentos,
+            atual: contato.departamentoId,
+            rotuloVazio: 'Sem departamento',
+            chaveDoTermo: 'departamento',
+            aoEscolher: (id) => salvar({ departamentoId: id }),
+          }),
         ]),
         el('div', { class: 'propriedade' }, [el('span', { texto: 'Etiquetas' }), etiquetas]),
         el('div', { class: 'propriedade' }, [
@@ -1599,6 +1604,85 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
     mostrarPainel(abaPainel);
 
     return el('div', { class: 'coluna' }, [cabecalho, abasPainel, corpo]);
+  }
+
+  /**
+   * Escolha de uma opcao entre varias, como lista a vista — nao como menu.
+   *
+   * Status e departamento eram <select>. Um menu suspenso esconde as opcoes
+   * ate alguem clicar, e esconde justamente o que ajuda a decidir: a cor de
+   * cada etapa, e quantas etapas existem antes e depois desta. Quem atende
+   * escolhia de cabeca, e a cor que o resto do sistema usa para falar de
+   * status (a barrinha da lista, a coluna do kanban, a bolinha do painel) nao
+   * aparecia no unico lugar onde a escolha e feita.
+   *
+   * A lista mostra tudo de uma vez, com a cor ao lado, e marca a atual. E o
+   * mesmo desenho das etiquetas logo abaixo, entao o painel inteiro passa a
+   * ter uma gramatica so: escolher e clicar num selo.
+   *
+   * role="radiogroup" e nao um monte de botao solto: a escolha e de uma so, e
+   * e isso que o leitor de tela precisa anunciar. Por isso tambem a opcao
+   * "sem" e um item da lista, e nao um clique de novo no escolhido — desmarcar
+   * clicando no marcado e invisivel para quem nao ve o estado.
+   */
+  function listaDeEscolha({ opcoes, atual, rotuloVazio, chaveDoTermo, aoEscolher }) {
+    const bloco = el('div', {});
+    const lista = el('div', { class: 'linha-botoes', role: 'radiogroup' });
+    const botoesPorNome = new Map();
+
+    const todas = [{ id: '', nome: rotuloVazio, cor: null }, ...opcoes];
+
+    for (const opcao of todas) {
+      const marcada = (atual || '') === opcao.id;
+      const alvo = el('button', {
+        type: 'button',
+        role: 'radio',
+        class: `selo selo-clicavel${marcada ? ' ouro' : ''}`,
+        'aria-checked': marcada ? 'true' : 'false',
+      }, [
+        opcao.cor ? el('span', { class: 'ponto', estilo: { background: opcao.cor } }) : null,
+        document.createTextNode(opcao.nome),
+      ]);
+
+      alvo.addEventListener('click', async () => {
+        if (alvo.disabled || marcada) return;
+        alvo.disabled = true;
+        try {
+          await aoEscolher(opcao.id);
+        } catch (erro) {
+          aviso(erro.message, 'erro');
+          alvo.disabled = false;
+        }
+      });
+
+      botoesPorNome.set(alvo, normalizarTexto(opcao.nome));
+      lista.append(alvo);
+    }
+
+    /* Mesma regra das etiquetas: campo de busca so quando ha o que procurar.
+       Com quatro departamentos o olho acha antes da mao digitar. */
+    const semResultado = el('div', { class: 't-xs c-fraco mt-2', texto: 'Nada com esse nome.', hidden: true });
+    if (todas.length > 6) {
+      const campo = entradaTexto(termos[chaveDoTermo], { type: 'search', placeholder: 'Buscar…' });
+      const filtrar = () => {
+        termos[chaveDoTermo] = campo.value;
+        const termo = normalizarTexto(campo.value);
+        let visiveis = 0;
+        for (const [alvo, nome] of botoesPorNome) {
+          const bate = !termo || nome.includes(termo);
+          alvo.hidden = !bate;
+          if (bate) visiveis += 1;
+        }
+        semResultado.hidden = visiveis > 0;
+      };
+      campo.addEventListener('input', filtrar);
+      bloco.append(el('div', { class: 'mb-2' }, [campo]), lista, semResultado);
+      filtrar();
+    } else {
+      termos[chaveDoTermo] = '';
+      bloco.append(lista, semResultado);
+    }
+    return bloco;
   }
 
   /* ---------------- Conteudo de cada aba do painel ---------------- */
@@ -2380,7 +2464,13 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
         evento.preventDefault();
         colunaNo.classList.add('alvo');
       });
-      colunaNo.addEventListener('dragleave', () => colunaNo.classList.remove('alvo'));
+      /* Mesma armadilha do quadro: dragleave sobe dos cartoes, entao a coluna
+         perdia o destaque a cada pixel que o cartao andava por dentro dela e
+         a marca de "solta aqui" piscava. So apaga ao sair da coluna mesmo. */
+      colunaNo.addEventListener('dragleave', (evento) => {
+        if (evento.relatedTarget && colunaNo.contains(evento.relatedTarget)) return;
+        colunaNo.classList.remove('alvo');
+      });
       colunaNo.addEventListener('drop', async (evento) => {
         evento.preventDefault();
         colunaNo.classList.remove('alvo');
@@ -2393,6 +2483,67 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
 
       quadro.append(colunaNo);
     }
+
+    /*
+     * O quadro rola sozinho quando o cartao chega perto da borda.
+     *
+     * Sem isto, mover um caso para frente no funil era impossivel arrastando.
+     * Sao doze status e cabem tres colunas por vez numa janela de 1320px:
+     * 2296px de quadro ficam fora da tela. E arrasto de HTML nao rola o
+     * container por conta propria — com o cartao na mao a roda do mouse nao
+     * chega no quadro e a coluna de destino simplesmente nao existe. Dava para
+     * mover so para a coluna vizinha, que quase nunca e a que se quer.
+     *
+     * A velocidade cresce conforme o cartao se aproxima da borda, em vez de
+     * ser fixa: perto da beirada quem arrasta quer atravessar o quadro, e
+     * dentro da faixa quer ajustar. Passo fixo faz as duas coisas mal.
+     */
+    const MARGEM_DE_ROLAGEM = 90;
+    let temporizadorRolagem = null;
+    let passoDaRolagem = 0;
+
+    const pararRolagem = () => {
+      if (!temporizadorRolagem) return;
+      clearInterval(temporizadorRolagem);
+      temporizadorRolagem = null;
+      passoDaRolagem = 0;
+    };
+
+    quadro.addEventListener('dragover', (evento) => {
+      /* Sem o preventDefault do container, a area entre colunas recusa o solto
+         e o cursor vira "proibido" no meio do caminho. */
+      evento.preventDefault();
+      const caixa = quadro.getBoundingClientRect();
+      const daEsquerda = evento.clientX - caixa.left;
+      const daDireita = caixa.right - evento.clientX;
+
+      if (daEsquerda < MARGEM_DE_ROLAGEM) passoDaRolagem = -Math.ceil((MARGEM_DE_ROLAGEM - daEsquerda) / 4);
+      else if (daDireita < MARGEM_DE_ROLAGEM) passoDaRolagem = Math.ceil((MARGEM_DE_ROLAGEM - daDireita) / 4);
+      else passoDaRolagem = 0;
+
+      if (!passoDaRolagem) return pararRolagem();
+      if (temporizadorRolagem) return;
+      temporizadorRolagem = setInterval(() => {
+        /* O quadro e refeito a cada desenho. Sem esta guarda, um arrasto
+           interrompido por um evento do servidor deixaria o temporizador
+           rolando um elemento que nao esta mais na tela. */
+        if (!document.body.contains(quadro)) return pararRolagem();
+        quadro.scrollLeft += passoDaRolagem;
+      }, 16);
+    });
+
+    for (const fim of ['drop', 'dragend']) quadro.addEventListener(fim, pararRolagem);
+
+    /*
+     * dragleave sobe dos filhos: passar de um cartao para a coluna dispara um,
+     * mesmo sem sair do quadro. Parar a rolagem em todos eles a matava e
+     * recriava a cada pixel, e ela nunca chegava a andar. So conta quando o
+     * ponteiro sai do quadro de verdade.
+     */
+    quadro.addEventListener('dragleave', (evento) => {
+      if (evento.relatedTarget && quadro.contains(evento.relatedTarget)) return;
+      pararRolagem();
+    });
 
     area.append(quadro);
     return area;

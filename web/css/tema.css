@@ -1044,9 +1044,16 @@ select {
    de .selo para empatar a especificidade e vencer pela ordem, e ganha a altura
    que a escala reserva para selo clicavel: sem min-height ele parava em torno
    de 26px, no meio do caminho entre dois passos.
-   O estado marcado se apoia em aria-pressed, e nao so na classe ouro escrita
+   O estado marcado se apoia no atributo ARIA, e nao so na classe ouro escrita
    pelo JavaScript: assim o desenho e o que o leitor de tela anuncia sao a mesma
-   informacao, e nao duas que podem se desencontrar. */
+   informacao, e nao duas que podem se desencontrar.
+
+   Sao DOIS atributos porque sao duas gramaticas diferentes, e as duas existem
+   no painel: etiqueta e liga-desliga independente (aria-pressed), status e
+   departamento sao escolha de um entre varios (aria-checked, dentro de um
+   radiogroup). Marcar os dois casos com o mesmo atributo faria o leitor de
+   tela anunciar "botao pressionado" onde a resposta certa e "opcao
+   selecionada, 3 de 12". */
 .selo-clicavel {
   min-height: var(--controle-p);
   cursor: pointer;
@@ -1062,7 +1069,8 @@ select {
   outline-offset: 2px;
 }
 
-.selo-clicavel[aria-pressed='true'] {
+.selo-clicavel[aria-pressed='true'],
+.selo-clicavel[aria-checked='true'] {
   background: var(--ouro-fraco);
   border-color: var(--ouro-linha);
   color: var(--ouro-claro);
@@ -1959,13 +1967,25 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
   font-size: var(--t-xs);
 }
 
+/*
+ * As colunas ocupam a altura toda, e nao a altura do proprio conteudo.
+ *
+ * Era `align-items: flex-start`, entao cada coluna media o tamanho da pilha
+ * dela: 510px a de Desistencia, com cinco casos, e 61px — so o cabecalho — a
+ * de Qualificado, vazia. E justamente para a vazia que se arrasta, porque
+ * mover um caso para uma etapa que ainda nao tem ninguem e o uso normal do
+ * quadro. Acertar uma faixa de 61px com o cartao na mao era quase impossivel,
+ * e quando errava nada acontecia e parecia que o arrasto nao funcionava.
+ *
+ * Com stretch, toda coluna e um alvo do tamanho do quadro.
+ */
 .kanban {
   display: flex;
   gap: var(--e3);
   padding: var(--e4);
   height: 100%;
   overflow-x: auto;
-  align-items: flex-start;
+  align-items: stretch;
 }
 
 .kanban-coluna {
