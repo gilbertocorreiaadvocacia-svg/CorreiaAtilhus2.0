@@ -1927,6 +1927,67 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
   border-bottom: 1px solid var(--borda);
 }
 
+/*
+ * Campo que mostra o valor e guarda as opcoes.
+ *
+ * O resumo e um botao de linha inteira, sem moldura: dentro do painel ele nao
+ * disputa com nada, e a seta ja diz que abre. Moldura em volta de cada um dos
+ * cinco campos transformaria a coluna numa pilha de caixas — que e o que a
+ * refundacao visual tirou do sistema.
+ */
+.escolha-resumo {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  width: 100%;
+  min-height: var(--controle-p);
+  padding: var(--e1) 0;
+  background: none;
+  border: none;
+  color: var(--texto);
+  cursor: pointer;
+  text-align: left;
+}
+
+.escolha-resumo:hover .seta-escolha {
+  color: var(--texto);
+}
+
+.escolha-resumo:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: 2px;
+  border-radius: var(--raio-p);
+}
+
+.seta-escolha {
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: var(--texto-fraco);
+  transition: transform 0.12s ease;
+}
+
+/* A seta gira em vez de virar outro icone: e o mesmo campo em dois estados. */
+.escolha-resumo[aria-expanded='true'] .seta-escolha {
+  transform: rotate(90deg);
+}
+
+.escolha-lista {
+  margin-top: var(--e2);
+}
+
+/*
+ * Teto na lista aberta, com rolagem propria.
+ *
+ * Sao doze status. Aberta inteira, a lista empurrava o resto do painel para
+ * fora da tela e quem escolhia perdia de vista o que estava mudando. Com o
+ * teto, a lista rola por dentro e os campos de baixo continuam onde estavam.
+ */
+.escolha-lista .linha-botoes {
+  max-height: 220px;
+  overflow-y: auto;
+}
+
 .propriedade > span {
   display: block;
   font-size: var(--t-sm);

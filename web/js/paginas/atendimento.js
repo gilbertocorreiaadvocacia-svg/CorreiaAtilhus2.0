@@ -182,6 +182,11 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
      apagar o que se digitou para achar uma etiqueta. */
   const termos = { etiqueta: '', status: '', departamento: '' };
 
+  /* Quais campos do painel estao com a lista aberta. Guardado aqui pelo mesmo
+     motivo dos termos: a tela se refaz a cada evento, e um campo que fecha
+     sozinho no meio da escolha manda a pessoa comecar de novo. */
+  const expandidos = new Set();
+
   /* Qual das seis abas do painel da direita esta aberta. Pelo mesmo motivo do
      termo acima: a tela se refaz a cada evento, e voltar para "Dados" no meio
      de uma leitura do historico seria perder o lugar sem ter pedido. */
@@ -1433,25 +1438,52 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
         ]),
         el('div', { class: 'propriedade' }, [
           rotuloComDica('Status', 'Mudar o status troca o departamento e dispara a sequencia de follow-up.'),
-          listaDeEscolha({
-            opcoes: estado.status,
-            atual: contato.statusId,
-            rotuloVazio: 'Sem status',
-            chaveDoTermo: 'status',
-            aoEscolher: (id) => salvar({ statusId: id }),
+          campoRecolhivel({
+            chave: 'status',
+            resumo: seloDoValor(estado.status.find((s) => s.id === contato.statusId), 'Escolher status'),
+            conteudo: listaDeEscolha({
+              opcoes: estado.status,
+              atual: contato.statusId,
+              rotuloVazio: 'Sem status',
+              chaveDoTermo: 'status',
+              aoEscolher: (id) => {
+                fechar('status');
+                return salvar({ statusId: id });
+              },
+            }),
           }),
         ]),
         el('div', { class: 'propriedade' }, [
           el('span', { texto: 'Departamento' }),
-          listaDeEscolha({
-            opcoes: estado.departamentos,
-            atual: contato.departamentoId,
-            rotuloVazio: 'Sem departamento',
-            chaveDoTermo: 'departamento',
-            aoEscolher: (id) => salvar({ departamentoId: id }),
+          campoRecolhivel({
+            chave: 'departamento',
+            resumo: seloDoValor(estado.departamentos.find((d) => d.id === contato.departamentoId), 'Escolher departamento'),
+            conteudo: listaDeEscolha({
+              opcoes: estado.departamentos,
+              atual: contato.departamentoId,
+              rotuloVazio: 'Sem departamento',
+              chaveDoTermo: 'departamento',
+              aoEscolher: (id) => {
+                fechar('departamento');
+                return salvar({ departamentoId: id });
+              },
+            }),
           }),
         ]),
-        el('div', { class: 'propriedade' }, [el('span', { texto: 'Etiquetas' }), etiquetas]),
+        el('div', { class: 'propriedade' }, [
+          el('span', { texto: 'Etiquetas' }),
+          campoRecolhivel({
+            chave: 'etiqueta',
+            /* O resumo mostra as marcadas, nao a contagem: "Auxilio-doenca,
+               Urgente" responde a pergunta, "2 etiquetas" obriga a abrir. */
+            resumo: (() => {
+              const marcadasAgora = (contato.etiquetas || []).map(acharEtiqueta).filter(Boolean);
+              if (!marcadasAgora.length) return el('span', { class: 't-sm c-fraco', texto: 'Adicionar etiquetas' });
+              return el('span', { class: 'linha-p quebra' }, marcadasAgora.map((e) => seloDoValor(e, '')));
+            })(),
+            conteudo: etiquetas,
+          }),
+        ]),
         el('div', { class: 'propriedade' }, [
           el('span', { texto: 'Origem' }),
           selecao(
@@ -1625,6 +1657,67 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
    * "sem" e um item da lista, e nao um clique de novo no escolhido — desmarcar
    * clicando no marcado e invisivel para quem nao ve o estado.
    */
+  /**
+   * Campo que mostra o VALOR e esconde as OPCOES.
+   *
+   * A primeira versao desta tela punha as doze opcoes de status a vista o
+   * tempo todo. Medido: 411px de um painel de 673px para um campo so, e o
+   * painel inteiro passou de 1116px, com 443px de rolagem — exatamente o
+   * problema que as seis abas tinham resolvido, de volta.
+   *
+   * O erro foi confundir duas perguntas. "Em que pe esta este caso?" e feita o
+   * tempo todo e se responde com uma palavra. "Para onde eu mudo?" e feita de
+   * vez em quando e precisa da lista inteira. Mostrar a lista sempre e pagar o
+   * preco da segunda pergunta em toda abertura de conversa.
+   *
+   * Entao o campo mostra o valor atual — com a cor, que e o que o resto do
+   * sistema usa para falar de status — e abre a lista no clique.
+   */
+  function campoRecolhivel({ chave, resumo, conteudo }) {
+    const aberto = expandidos.has(chave);
+
+    const corpo = el('div', { class: 'escolha-lista', hidden: !aberto }, [conteudo]);
+    const gatilho = el('button', {
+      type: 'button',
+      class: 'escolha-resumo',
+      'aria-expanded': aberto ? 'true' : 'false',
+      title: 'Clique para trocar',
+    }, [
+      el('span', { class: 'flexivel encolhe' }, [resumo]),
+      /* A seta gira em vez de trocar de icone: e a mesma coisa em dois
+         estados, nao duas coisas. */
+      el('span', { class: 'seta-escolha' }, [icone('abrir', 12)]),
+    ]);
+
+    gatilho.addEventListener('click', () => {
+      const vaiAbrir = corpo.hidden;
+      corpo.hidden = !vaiAbrir;
+      gatilho.setAttribute('aria-expanded', vaiAbrir ? 'true' : 'false');
+      if (vaiAbrir) expandidos.add(chave);
+      else expandidos.delete(chave);
+    });
+
+    return el('div', { class: 'escolha' }, [gatilho, corpo]);
+  }
+
+  /** Fecha o campo depois que a escolha foi feita: a lista ja cumpriu o papel. */
+  function fechar(chave) {
+    expandidos.delete(chave);
+  }
+
+  /**
+   * O selo do valor atual, do jeito que o resto do sistema desenha categoria:
+   * ponto colorido mais o nome. Sem valor, um convite em texto de apoio — e
+   * nao um selo vazio, que se leria como uma categoria chamada "nenhuma".
+   */
+  function seloDoValor(opcao, rotuloVazio) {
+    if (!opcao) return el('span', { class: 't-sm c-fraco', texto: rotuloVazio });
+    return el('span', { class: 'selo' }, [
+      opcao.cor ? el('span', { class: 'ponto', estilo: { background: opcao.cor } }) : null,
+      document.createTextNode(opcao.nome),
+    ]);
+  }
+
   function listaDeEscolha({ opcoes, atual, rotuloVazio, chaveDoTermo, aoEscolher }) {
     const bloco = el('div', {});
     const lista = el('div', { class: 'linha-botoes', role: 'radiogroup' });
