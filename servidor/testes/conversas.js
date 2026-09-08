@@ -440,9 +440,48 @@ export async function testarConversas({ base }) {
   s.ok('depois de lido, a proxima mensagem avisa de novo',
     (await naoLidasDe(comDono.id)).length === 1);
 
+  /* ---------------- Referencia vazia ---------------- */
+
+  /*
+   * Conversa sem status, sem departamento e sem origem nao pode derrubar nada.
+   *
+   * achar() recebia esses ids direto, e o padrao de parametro so cobria
+   * undefined: um null seguia para Object.entries e derrubava a requisicao
+   * inteira. A exportacao de contatos respondia 500 com a base real do
+   * escritorio, onde sete das catorze conversas estao sem departamento.
+   *
+   * O outro lado era pior porque era calado: undefined caia no filtro vazio e
+   * devolvia o PRIMEIRO registro da tabela — conversa sem status exportada
+   * como "Nova conversa", sem ninguem desconfiar. Por isso o teste confere que
+   * a coluna vem VAZIA, e nao so que a rota respondeu.
+   */
+  const semClasse = (
+    await api.post('/api/contatos', { conexaoId: conexao.id, telefone: TELEFONE(30), nome: 'Teste Sem Classe' })
+  ).dados;
+  await api.patch(`/api/contatos/${semClasse.id}`, { departamentoId: '', origemId: '' });
+
+  const exportacao = await api.get('/api/contatos-exportar');
+  s.ok('a exportacao responde mesmo com conversa sem classificacao',
+    exportacao.status === 200, `HTTP ${exportacao.status}`);
+
+  const linhaDele = String(exportacao.dados?.csv || '')
+    .split('\n')
+    .find((l) => l.startsWith('Teste Sem Classe;'));
+  const colunas = (linhaDele || '').split(';');
+  s.ok('a conversa sem classificacao sai na exportacao', Boolean(linhaDele));
+  s.ok('referencia vazia vira coluna vazia, e nao o primeiro registro da tabela',
+    colunas[3] === '' && colunas[5] === '',
+    `departamento="${colunas[3]}" origem="${colunas[5]}"`);
+
+  /* A mesma armadilha pela leitura de uma conversa so. */
+  const lida = (await api.get(`/api/contatos/${semClasse.id}`)).dados;
+  s.ok('a conversa sem classificacao e lida sem inventar valor',
+    lida?.departamento === null && lida?.origem === null,
+    JSON.stringify({ departamento: lida?.departamento, origem: lida?.origem }));
+
   /* ---------------- Limpeza ---------------- */
 
-  for (const contato of [pendente, naIa, ativo, arquivado, voltou, comDono, comAgente, semDono, semNome, semPerfil]) {
+  for (const contato of [pendente, naIa, ativo, arquivado, voltou, comDono, comAgente, semDono, semNome, semPerfil, semClasse]) {
     await api.delete(`/api/contatos/${contato.id}`);
   }
 

@@ -18,7 +18,7 @@ rem  igual a sempre, so gravando nos arquivos JSON.
 if exist "%~dp0..\segredos.bat" call "%~dp0..\segredos.bat"
 
 echo.
-echo   CORREIATENDIMENTOS
+echo   CORREIAATILHUS2.0
 echo   Correia Advogados Associados
 echo.
 if defined CORREIA_SUPABASE_CHAVE (

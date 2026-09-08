@@ -297,7 +297,7 @@ servidor.on('error', async (erro) => {
 servidor.listen(PORTA, '127.0.0.1', () => {
   const linha = '─'.repeat(58);
   console.log(`\n${linha}`);
-  console.log('  CORREIATENDIMENTOS');
+  console.log('  CORREIAATILHUS2.0');
   console.log('  Correia Advogados Associados');
   console.log(linha);
   console.log(`  Aberto em:  http://localhost:${PORTA}`);

@@ -87,12 +87,35 @@ function combina(registro, filtro) {
   });
 }
 
-export function listar(colecao, filtro = {}) {
-  return tabela(colecao).filter((registro) => combina(registro, filtro));
+export function listar(colecao, filtro) {
+  /* Sem filtro e com filtro nulo querem dizer a mesma coisa aqui: a colecao
+     inteira. O padrao de parametro sozinho nao cobria o null. */
+  return tabela(colecao).filter((registro) => combina(registro, filtro || {}));
 }
 
-export function achar(colecao, filtro = {}) {
-  if (typeof filtro === 'string') return tabela(colecao).find((r) => r.id === filtro) || null;
+/**
+ * Acha um registro por id ou por filtro.
+ *
+ * O TRATAMENTO DO NULO E O PONTO DELICADO desta funcao, e ela ja errou nos
+ * dois sentidos:
+ *
+ * - `achar('status', null)` estourava. O padrao `filtro = {}` so vale para
+ *   undefined, entao o null seguia direto para Object.entries e derrubava a
+ *   requisicao inteira. Nao era caso raro: statusId, departamentoId e
+ *   origemId sao gravados como null quando nao ha valor, e sete das catorze
+ *   conversas do escritorio estavam sem departamento — a exportacao de
+ *   contatos respondia 500 por causa disso.
+ * - `achar('status', undefined)` era pior, e calado: caia no filtro vazio e
+ *   devolvia o PRIMEIRO status da tabela. Uma conversa sem status apareceria
+ *   exportada como "Nova conversa" sem ninguem desconfiar.
+ *
+ * Os dois agora respondem a mesma coisa, que e a unica resposta certa: nao ha
+ * referencia, entao nao ha registro. Buscar a colecao inteira e trabalho de
+ * listar(), e quem quer o primeiro registro pede o primeiro da lista.
+ */
+export function achar(colecao, filtro) {
+  if (typeof filtro === 'string') return filtro ? tabela(colecao).find((r) => r.id === filtro) || null : null;
+  if (!filtro) return null;
   return tabela(colecao).find((registro) => combina(registro, filtro)) || null;
 }
 
