@@ -84,14 +84,14 @@ const ATALHOS_PERIODO = [
   { rotulo: '30 dias', faixa: () => ({ de: paraIso(somarDias(hoje(), -29)), ate: paraIso(hoje()) }) },
   { rotulo: '90 dias', faixa: () => ({ de: paraIso(somarDias(hoje(), -89)), ate: paraIso(hoje()) }) },
   {
-    rotulo: 'Este mes',
+    rotulo: 'Este mês',
     faixa: () => {
       const h = hoje();
       return { de: paraIso(new Date(h.getFullYear(), h.getMonth(), 1)), ate: paraIso(h) };
     },
   },
   {
-    rotulo: 'Mes passado',
+    rotulo: 'Mês passado',
     faixa: () => {
       const h = hoje();
       return {

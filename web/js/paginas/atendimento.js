@@ -266,7 +266,7 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
         'responsavel',
         'Responsavel',
         [
-          { valor: 'nenhum', rotulo: 'Sem responsavel' },
+          { valor: 'nenhum', rotulo: 'Sem responsável' },
           ...estado.agentes.map((a) => ({ valor: a.id, rotulo: `IA · ${a.nome}` })),
           ...estado.membros.map((m) => ({ valor: m.id, rotulo: `Equipe · ${m.usuario?.nome}` })),
         ],
@@ -294,7 +294,7 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
   /* ---------------- Coluna 1: lista ---------------- */
 
   function colunaLista() {
-    const busca = entradaTexto(filtro.busca, { type: 'search', placeholder: 'Buscar nome ou numero…' });
+    const busca = entradaTexto(filtro.busca, { type: 'search', placeholder: 'Buscar nome ou número…' });
     let temporizador = null;
     busca.addEventListener('input', () => {
       clearTimeout(temporizador);
@@ -884,7 +884,7 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
             // O italico e a unica coisa que sobra no atributo style deste
             // balao: nao existe utilitaria de estilo de fonte.
             estilo: { fontStyle: 'italic' },
-            texto: 'Transcrito automaticamente do audio.',
+            texto: 'Transcrito automaticamente do áudio.',
           })
         : null,
       el('div', { class: 'balao-rodape' }, [
@@ -1062,7 +1062,7 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
       seletorArquivo,
       el('div', { class: 'linha-botoes mt-2' }, [
         alternarNota,
-        botao('Anexar', { pequeno: true, icone: 'anexar', titulo: 'Imagem, video, audio ou PDF (ate 16 MB)', aoClicar: () => seletorArquivo.click() }),
+        botao('Anexar', { pequeno: true, icone: 'anexar', titulo: 'Imagem, vídeo, áudio ou PDF (até 16 MB)', aoClicar: () => seletorArquivo.click() }),
         botao('Template', { pequeno: true, icone: 'templates', aoClicar: () => abrirSeletorTemplate(contato, texto) }),
         botao('Agendar', {
           pequeno: true,
@@ -1182,14 +1182,14 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
   function abrirResumo(contato) {
     const modo = selecao(
       [
-        { valor: 'simples', rotulo: 'Resumo simples (todo o historico)' },
-        { valor: 'detalhado', rotulo: 'Resumo detalhado (com periodo e instrucao)' },
+        { valor: 'simples', rotulo: 'Resumo simples (todo o histórico)' },
+        { valor: 'detalhado', rotulo: 'Resumo detalhado (com período e instrução)' },
       ],
       'simples',
     );
     const de = el('input', { type: 'date' });
     const ate = el('input', { type: 'date' });
-    const instrucao = areaTexto('', { placeholder: 'O que voce quer que o resumo destaque?' });
+    const instrucao = areaTexto('', { placeholder: 'O que você quer que o resumo destaque?' });
     const extras = el('div', { estilo: { display: 'none' } }, [
       el('div', { class: 'grade g2' }, [campo('De', de), campo('Ate', ate)]),
       campo('Instrucao', instrucao),
@@ -1363,7 +1363,7 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
      */
     const painelDados = el('div', {}, [
         el('div', { class: 'propriedade' }, [
-          el('span', { texto: 'Responsavel' }),
+          el('span', { texto: 'Responsável' }),
           selecao(opcoesResponsavel(), responsavelAtual, {
             aoChange: async (evento) => {
               const valor = evento.target.value;
@@ -1390,7 +1390,7 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
             campoRecolhivel({
               chave: 'status',
               iconeDoCampo: 'info',
-              rotulo: 'Status: mudar troca o departamento e dispara a sequencia de follow-up',
+              rotulo: 'Status: mudar troca o departamento e dispara a sequência de follow-up',
               resumo: pilula(estado.status.find((s) => s.id === contato.statusId)) || convite('Escolher status'),
               conteudo: listaDeEscolha({
                 opcoes: estado.status,
@@ -1420,7 +1420,7 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
             campoRecolhivel({
               chave: 'departamento',
               iconeDoCampo: 'predio',
-              rotulo: 'Departamento responsavel',
+              rotulo: 'Departamento responsável',
               resumo: pilula(estado.departamentos.find((d) => d.id === contato.departamentoId)) || convite('Escolher departamento'),
               conteudo: listaDeEscolha({
                 opcoes: estado.departamentos,
@@ -1454,7 +1454,7 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
           ]),
         ]),
         el('div', { class: 'propriedade' }, [
-          el('span', { texto: 'Modo audio' }),
+          el('span', { texto: 'Modo áudio' }),
           el('label', { class: 'linha t-md' }, [
             (() => {
               // A largura cheia do tema vale para campo de texto, select e
@@ -1468,7 +1468,7 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
             'Responder em audio',
           ]),
         ]),
-        el('div', { class: 'propriedade' }, [el('span', { texto: 'Variaveis' }), variaveis]),
+        el('div', { class: 'propriedade' }, [el('span', { texto: 'Variáveis' }), variaveis]),
     ]);
 
     /* ---------------- As seis abas do painel ---------------- */
@@ -1491,7 +1491,7 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
       { id: 'tarefas', icone: 'ok', rotulo: 'Tarefas desta conversa' },
       { id: 'arquivos', icone: 'pasta', rotulo: 'Arquivos guardados' },
       { id: 'agendamentos', icone: 'agenda', rotulo: 'O que ainda vai ser enviado' },
-      { id: 'historico', icone: 'relogio', rotulo: 'Historico da conversa' },
+      { id: 'historico', icone: 'relogio', rotulo: 'Histórico da conversa' },
     ];
 
     const corpo = el('div', { class: 'coluna-corpo' });
@@ -1575,7 +1575,7 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
         ]),
         botao('', {
           icone: 'copiar',
-          titulo: 'Copiar o numero',
+          titulo: 'Copiar o número',
           pequeno: true,
           aoClicar: async () => {
             try {
@@ -2126,7 +2126,7 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
     const barraTopo = el('div', { class: 'linha-botoes mb-3' }, [
       botao('Filtros', { pequeno: true, icone: 'filtros', aoClicar: abrirFiltros }),
       botao('Exportar CSV', { pequeno: true, aoClicar: exportar }),
-      botao('Exportar conversas', { pequeno: true, titulo: 'Historico em texto, para treinar agente', aoClicar: abrirExportacaoHistorico }),
+      botao('Exportar conversas', { pequeno: true, titulo: 'Histórico em texto, para treinar agente', aoClicar: abrirExportacaoHistorico }),
       botao('Importar planilha', { pequeno: true, aoClicar: abrirImportacao }),
     ]);
 
@@ -2220,7 +2220,7 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
                 el('th', { texto: 'WhatsApp' }),
                 cabecalhoOrdenavel('Status', 'status'),
                 el('th', { texto: 'Departamento' }),
-                el('th', { texto: 'Responsavel' }),
+                el('th', { texto: 'Responsável' }),
                 el('th', { texto: 'Origem' }),
                 cabecalhoOrdenavel('Ultima mensagem', 'ultimaMensagem'),
               ]),
@@ -2295,13 +2295,13 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
       balao:
         tipo === 'status'
           ? dica('A trava existe para uma planilha inteira nao cair na fila de envio de uma vez, o que derruba o numero.', {
-              assunto: 'a acao em massa',
+              assunto: 'a ação em massa',
             })
           : null,
       corpo: el('div', {}, [
         campo(tipo[0].toUpperCase() + tipo.slice(1), escolha),
         tipo === 'status'
-          ? el('div', { class: 'alerta-caixa', texto: 'Acao em massa nao dispara follow-up.' })
+          ? el('div', { class: 'alerta-caixa', texto: 'Ação em massa não dispara follow-up.' })
           : null,
       ]),
       confirmar: 'Aplicar',
@@ -2348,12 +2348,12 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
       // A primeira frase da caixa diz o que escolher agora e fica visivel. A
       // segunda e o criterio por tras da escolha, lido uma vez: vai no balao.
       balao: dica('Vale mais a qualidade que a quantidade: dez conversas exemplares ensinam mais o agente do que duzentas medianas.', {
-        assunto: 'a exportacao de conversas',
+        assunto: 'a exportação de conversas',
       }),
       largo: true,
       corpo: el('div', {}, [
         el('div', { class: 'dica mb-3' }, [
-          el('div', { texto: 'Escolha os atendimentos que deram certo: lead bem qualificado, objecao contornada, contrato fechado.' }),
+          el('div', { texto: 'Escolha os atendimentos que deram certo: lead bem qualificado, objeção contornada, contrato fechado.' }),
         ]),
         // Mesma montagem de campoComDica: o <span> de fora e o rotulo que o
         // tema desenha e o de dentro alinha o texto com o icone. O helper nao
@@ -2401,7 +2401,7 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
 
   function abrirImportacao() {
     const conexao = selecao(estado.conexoes.map((c) => ({ valor: c.id, rotulo: c.nome })), estado.conexoes[0]?.id);
-    const area = areaTexto('', { placeholder: 'nome;telefone;status;origem;observacao' });
+    const area = areaTexto('', { placeholder: 'nome;telefone;status;origem;observação' });
     const seletor = el('input', { type: 'file', accept: '.csv,.txt' });
     seletor.addEventListener('change', () => {
       const arquivo = seletor.files[0];
@@ -2418,13 +2418,13 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
       // O formato das colunas e o "nao dispara follow-up" mudam o que a pessoa
       // faz agora e ficam na caixa. O porque da regra e conceito: vai no balao.
       balao: dica('Sem essa trava, uma planilha inteira cairia na fila de envio de uma vez, o que derruba o numero.', {
-        assunto: 'a importacao de contatos',
+        assunto: 'a importação de contatos',
       }),
       largo: true,
       corpo: el('div', {}, [
         el('div', { class: 'dica' }, [
           el('div', { html: 'Colunas aceitas: <strong>nome</strong> e <strong>telefone</strong> (obrigatorias), status, origem e observacao. O telefone vai com DDD; o DDI 55 entra sozinho.' }),
-          el('div', { class: 'mt-2', texto: 'Importar nao dispara follow-up.' }),
+          el('div', { class: 'mt-2', texto: 'Importar não dispara follow-up.' }),
         ]),
         campo('WhatsApp que fica com estes contatos', conexao),
         campo('Arquivo CSV', seletor),

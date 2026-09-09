@@ -51,7 +51,7 @@ const raiz = document.getElementById('raiz');
 const PAGINAS = {
   inicio: { titulo: 'Inicio', montar: paginaInicio },
   dashboard: { titulo: 'Dashboard', montar: paginaDashboard },
-  conexoes: { titulo: 'Conexoes', subtitulo: 'Gerencie suas conexoes com canais de comunicacao.', montar: paginaConexoes },
+  conexoes: { titulo: 'Conexões', subtitulo: 'Gerencie suas conexões com canais de comunicação.', montar: paginaConexoes },
 
   atendimento: { titulo: 'Conversas', montar: paginaAtendimento, cheia: true, visualizacao: 'conversas' },
   contatos: { titulo: 'Contatos', montar: paginaAtendimento, cheia: true, visualizacao: 'contatos' },
@@ -61,12 +61,12 @@ const PAGINAS = {
   conhecimento: { titulo: 'Base de conhecimento', montar: paginaConhecimento },
   templates: { titulo: 'Templates', montar: paginaTemplates },
   vozes: { titulo: 'Vozes', montar: paginaVozes },
-  integracoes: { titulo: 'Integracoes', montar: paginaIntegracoes },
+  integracoes: { titulo: 'Integrações', montar: paginaIntegracoes },
 
   tarefas: { titulo: 'Tarefas', montar: paginaTarefas },
   agendamentos: { titulo: 'Central de agendamentos', montar: paginaAgendamentos },
   simulador: { titulo: 'Simulador de WhatsApp', montar: paginaSimulador },
-  configuracoes: { titulo: 'Configuracoes', montar: paginaConfiguracoes },
+  configuracoes: { titulo: 'Configurações', montar: paginaConfiguracoes },
 };
 
 /**
@@ -82,7 +82,7 @@ const PAGINAS = {
 const MENU = [
   { rota: 'inicio', rotulo: 'Inicio', icone: 'inicio' },
   { rota: 'dashboard', rotulo: 'Dashboard', icone: 'painel' },
-  { rota: 'conexoes', rotulo: 'Conexoes', icone: 'conexoes' },
+  { rota: 'conexoes', rotulo: 'Conexões', icone: 'conexoes' },
   {
     rotulo: 'Atendimento',
     icone: 'conversas',
@@ -93,20 +93,20 @@ const MENU = [
     ],
   },
   {
-    rotulo: 'Automacoes',
+    rotulo: 'Automações',
     icone: 'raio',
     itens: [
       { rota: 'agentes', rotulo: 'Agentes', icone: 'agentes' },
       { rota: 'conhecimento', rotulo: 'Base de conhecimento', icone: 'pasta' },
       { rota: 'templates', rotulo: 'Templates', icone: 'templates' },
       { rota: 'vozes', rotulo: 'Vozes', icone: 'pessoa' },
-      { rota: 'integracoes', rotulo: 'Integracoes', icone: 'abrir' },
+      { rota: 'integracoes', rotulo: 'Integrações', icone: 'abrir' },
     ],
   },
   { rota: 'tarefas', rotulo: 'Tarefas', icone: 'ok' },
   { rota: 'agendamentos', rotulo: 'Agendamentos', icone: 'agenda' },
   { rota: 'simulador', rotulo: 'Simulador', icone: 'simulador' },
-  { rota: 'configuracoes', rotulo: 'Configuracoes', icone: 'ajustes' },
+  { rota: 'configuracoes', rotulo: 'Configurações', icone: 'ajustes' },
 ];
 
 const CHAVE_MENU = 'correiatendimentos:menu-aberto';
@@ -392,7 +392,7 @@ function montarEstrutura() {
 
   menuNo = el('nav', { class: 'menu', 'aria-label': 'Areas do sistema' });
 
-  const sino = botao('', { icone: 'sino', titulo: 'Notificacoes', aoClicar: abrirNotificacoes });
+  const sino = botao('', { icone: 'sino', titulo: 'Notificações', aoClicar: abrirNotificacoes });
   const contadorSino = el('span', { class: 'nao-lidas', estilo: { display: 'none' } });
   const caixaSino = el('div', { class: 'linha-p caixa-sino' }, [sino, contadorSino]);
 
@@ -532,7 +532,7 @@ function abrirNotificacoes() {
   }
 
   modal({
-    titulo: 'Notificacoes',
+    titulo: 'Notificações',
     corpo: el('div', {}, [controlesDeAviso(), lista]),
     confirmar: 'Marcar todas como lidas',
     aoConfirmar: async () => {
@@ -702,8 +702,8 @@ function buscaGlobal() {
   const campo = el('input', {
     type: 'search',
     class: 'busca-campo',
-    placeholder: 'Buscar conversa ou numero',
-    'aria-label': 'Buscar conversa ou numero',
+    placeholder: 'Buscar conversa ou número',
+    'aria-label': 'Buscar conversa ou número',
     autocomplete: 'off',
   });
 
@@ -723,7 +723,7 @@ function buscaGlobal() {
   const abrir = (contatos) => {
     limpar(lista);
     if (!contatos.length) {
-      lista.append(el('div', { class: 'busca-vazio', texto: 'Nenhuma conversa com esse nome ou numero' }));
+      lista.append(el('div', { class: 'busca-vazio', texto: 'Nenhuma conversa com esse nome ou número' }));
     } else {
       for (const contato of contatos) {
         const item = el('button', { type: 'button', class: 'busca-item' }, [
@@ -835,7 +835,7 @@ async function desenharRota() {
   } catch (erro) {
     limpar(areaConteudo);
     areaConteudo.append(
-      el('div', { class: 'vazio' }, [el('strong', { texto: 'Nao consegui abrir esta tela' }), el('div', { texto: erro.message })]),
+      el('div', { class: 'vazio' }, [el('strong', { texto: 'Não consegui abrir esta tela' }), el('div', { texto: erro.message })]),
     );
     if (erro.codigo === 401) telaEntrada('Sua sessao expirou. Entre de novo.');
   }

@@ -29,7 +29,7 @@ const DIAS_SEMANA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab'];
    que aquele numero ja aguentou no mesmo dia. */
 const SERIES_HORA = [
   { chave: 'pendente', nome: 'Na fila', cor: 'var(--alerta)' },
-  { chave: 'enviado', nome: 'Ja enviadas', cor: 'var(--info)' },
+  { chave: 'enviado', nome: 'Já enviadas', cor: 'var(--info)' },
 ];
 
 /** Data para AAAA-MM-DD com os campos locais: toISOString viraria o dia a noite. */
@@ -67,8 +67,8 @@ function diaDaSemana(iso) {
 function responsavelDe(agendamento) {
   const autor = agendamento.criadoPor;
   if (autor && autor.nome) return { chave: String(autor.id || autor.nome), nome: autor.nome };
-  if (agendamento.tipo === 'followup') return { chave: 'automacao', nome: 'Automacao de follow-up' };
-  return { chave: 'sem', nome: 'Sem responsavel' };
+  if (agendamento.tipo === 'followup') return { chave: 'automacao', nome: 'Automação de follow-up' };
+  return { chave: 'sem', nome: 'Sem responsável' };
 }
 
 /** Maior quantidade de mensagens marcada para o mesmo minuto. */
@@ -170,12 +170,12 @@ export async function paginaAgendamentos() {
       el('p', {
         class: 'sem-margem',
         texto:
-          'Medida por conexao, uma de cada vez. O indicador do dia mostra o pior numero daquele dia, e nao a soma dos numeros: duas conexoes com 40 envios cada seguem saudaveis, uma conexao sozinha com 80 nao.',
+          'Medida por conexão, uma de cada vez. O indicador do dia mostra o pior número daquele dia, e não a soma dos números: duas conexões com 40 envios cada seguem saudáveis, uma conexão sozinha com 80 não.',
       }),
       el('p', {
         class: 'sem-margem',
         texto:
-          'Muita mensagem em pouco tempo pelo mesmo numero e lida pela Meta como disparo em massa e pode bloquear a conexao.',
+          'Muita mensagem em pouco tempo pelo mesmo número e lida pela Meta como disparo em massa e pode bloquear a conexão.',
       }),
     ]);
   }
@@ -229,7 +229,7 @@ export async function paginaAgendamentos() {
     );
 
     const conexao = selecao(
-      [{ valor: '', rotulo: 'Todas as conexoes' }, ...estado.conexoes.map((c) => ({ valor: c.id, rotulo: c.nome }))],
+      [{ valor: '', rotulo: 'Todas as conexões' }, ...estado.conexoes.map((c) => ({ valor: c.id, rotulo: c.nome }))],
       filtro.conexao,
       {
         aoChange: async (evento) => {
@@ -241,9 +241,9 @@ export async function paginaAgendamentos() {
 
     const situacao = selecao(
       [
-        { valor: '', rotulo: 'Todas as situacoes' },
+        { valor: '', rotulo: 'Todas as situações' },
         { valor: 'pendente', rotulo: 'Na fila' },
-        { valor: 'enviado', rotulo: 'Ja enviadas' },
+        { valor: 'enviado', rotulo: 'Já enviadas' },
         { valor: 'cancelado', rotulo: 'Canceladas' },
       ],
       filtro.estado,
@@ -256,7 +256,7 @@ export async function paginaAgendamentos() {
     );
 
     const quem = selecao(
-      [{ valor: '', rotulo: 'Todos os responsaveis' }, ...opcoesResponsavel()],
+      [{ valor: '', rotulo: 'Todos os responsáveis' }, ...opcoesResponsavel()],
       responsavel,
       {
         aoChange: (evento) => {
@@ -407,7 +407,7 @@ export async function paginaAgendamentos() {
           el('span', { texto: `${diaFoco === hoje ? 'Hoje' : diaDaSemana(diaFoco)}, ${dataCurta(diaFoco)}` }),
           dica(
             'Distribuicao dos envios ao longo do dia. Pico concentrado e lido como disparo em massa; o ideal e a fila espalhada.',
-            { assunto: 'distribuicao do dia' },
+            { assunto: 'distribuição do dia' },
           ),
         ]),
         direita,
@@ -455,7 +455,7 @@ export async function paginaAgendamentos() {
 
     const todas = el('input', {
       type: 'checkbox',
-      'aria-label': 'Selecionar as mensagens desta pagina',
+      'aria-label': 'Selecionar as mensagens desta página',
     });
 
     function atualizarSelecao() {
@@ -574,13 +574,13 @@ export async function paginaAgendamentos() {
                 ]),
                 el('th', { texto: 'Tipo' }),
                 el('th', { texto: 'Contato' }),
-                el('th', { texto: 'Conexao' }),
-                el('th', { texto: 'Responsavel' }),
+                el('th', { texto: 'Conexão' }),
+                el('th', { texto: 'Responsável' }),
                 el('th', { texto: 'Mensagem' }),
-                el('th', { texto: 'Situacao' }),
+                el('th', { texto: 'Situação' }),
                 // A coluna de acoes nao tem titulo na tela, mas quem navega a
                 // tabela por leitor de tela precisa de um nome para ela.
-                el('th', {}, [el('span', { class: 'apenas-leitor', texto: 'Acoes' })]),
+                el('th', {}, [el('span', { class: 'apenas-leitor', texto: 'Ações' })]),
               ]),
             ]),
             corpo,
@@ -672,7 +672,7 @@ function abrirReagendamento(ids, recarregarTela) {
          aqui o rotulo nao fica em cima do controle como nos outros campos. */
       el('label', { class: 'campo linha' }, [
         respeitar,
-        el('span', { class: 't-md', texto: 'Respeitar o horario comercial' }),
+        el('span', { class: 't-md', texto: 'Respeitar o horário comercial' }),
       ]),
       projecao,
     ]),

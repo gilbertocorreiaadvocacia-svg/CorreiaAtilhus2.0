@@ -39,7 +39,7 @@ export async function paginaIntegracoes() {
       ...[
         podeConfigurar()
           ? null
-          : el('div', { class: 'alerta-caixa mb-4', texto: 'Seu perfil ve as integracoes, mas quem altera e o administrador ou o gerente do escritorio.' }),
+          : el('div', { class: 'alerta-caixa mb-4', texto: 'Seu perfil ve as integrações, mas quem altera e o administrador ou o gerente do escritório.' }),
         blocoIa(integracoes, desenhar),
         blocoZapsign(integracoes, desenhar),
         blocoAgenda(integracoes, desenhar),
@@ -202,7 +202,7 @@ function blocoZapsign(integracoes, recarregarTela) {
     integracoes.zapsign?.modeloPadraoId || '',
   );
   const statusPos = selecao(
-    [{ valor: '', rotulo: 'Nao alterar' }, ...estado.status.map((s) => ({ valor: s.id, rotulo: s.nome }))],
+    [{ valor: '', rotulo: 'Não alterar' }, ...estado.status.map((s) => ({ valor: s.id, rotulo: s.nome }))],
     integracoes.zapsign?.posAssinatura?.statusId || '',
   );
   const responsavelPos = selecao(
@@ -212,7 +212,7 @@ function blocoZapsign(integracoes, recarregarTela) {
       : '',
   );
   const templatePos = selecao(
-    [{ valor: '', rotulo: 'Nao enviar' }, ...estado.templates.map((t) => ({ valor: t.id, rotulo: t.nome }))],
+    [{ valor: '', rotulo: 'Não enviar' }, ...estado.templates.map((t) => ({ valor: t.id, rotulo: t.nome }))],
     integracoes.zapsign?.posAssinatura?.templateId || '',
   );
 
@@ -298,7 +298,7 @@ function blocoAgenda(integracoes, recarregarTela) {
 
   const de = el('input', { type: 'time', value: disponibilidade.de || '09:00', 'aria-label': 'Hora inicial' });
   const ate = el('input', { type: 'time', value: disponibilidade.ate || '17:00', 'aria-label': 'Hora final' });
-  const faixa = el('div', { class: 'linha' }, [de, el('span', { class: 'c-suave t-sm', texto: 'ate' }), ate]);
+  const faixa = el('div', { class: 'linha' }, [de, el('span', { class: 'c-suave t-sm', texto: 'até' }), ate]);
 
   const duracao = entradaTexto(String(integracoes.googleCalendar?.duracaoPadrao || 30), { type: 'number', min: '15', step: '15' });
   const clientId = entradaTexto(integracoes.googleCalendar?.credenciais?.clientId || '');
@@ -367,7 +367,7 @@ function blocoAndamento(integracoes, recarregarTela) {
     Object.entries(integracoes.advbox?.descricoesStatus || {})
       .map(([nome, valor]) => `${nome} = ${valor}`)
       .join('\n'),
-    { placeholder: 'Aguardando pericia = O INSS ja marcou a pericia medica. Assim que houver data, avisamos.' },
+    { placeholder: 'Aguardando perícia = O INSS ja marcou a perícia medica. Assim que houver data, avisamos.' },
   );
 
   return cartaoAjustes(
@@ -435,8 +435,8 @@ function blocoMetaConversoes(integracoes, recarregarTela) {
   // ligar a integracao. Foi para o balao do titulo, junto do resto.
   const balao = el('div', {}, [
     el('div', { texto: 'Sem isso, a Meta otimiza o anuncio por "conversa iniciada", que e barata e nao paga a conta. Devolvendo o evento de contrato assinado, a campanha passa a buscar quem fecha, e o custo por contrato cai sem mexer no orcamento.' }),
-    el('div', { class: 'mt-2', texto: 'O que sai daqui e o minimo: o identificador do clique no anuncio e o telefone com hash.' }),
-    el('div', { class: 'mt-1', texto: 'Nome, CPF e conteudo de conversa nao saem. Nada disso e necessario para a atribuicao funcionar.' }),
+    el('div', { class: 'mt-2', texto: 'O que sai daqui e o mínimo: o identificador do clique no anuncio e o telefone com hash.' }),
+    el('div', { class: 'mt-1', texto: 'Nome, CPF e conteudo de conversa não saem. Nada disso e necessário para a atribuição funcionar.' }),
   ]);
 
   return cartaoAjustes(
@@ -539,7 +539,7 @@ function blocoFerramentas(integracoes, recarregarTela) {
 
 function editarFerramenta(ferramenta, recarregarTela) {
   const nome = entradaTexto(ferramenta?.nome || '', { placeholder: 'consultar_cep' });
-  const descricao = entradaTexto(ferramenta?.descricao || '', { placeholder: 'Consulta o endereco pelo CEP informado pelo lead' });
+  const descricao = entradaTexto(ferramenta?.descricao || '', { placeholder: 'Consulta o endereço pelo CEP informado pelo lead' });
   const url = entradaTexto(ferramenta?.url || '', { placeholder: 'https://seu-n8n/webhook/abc' });
   const metodo = selecao(['POST', 'GET', 'PUT', 'DELETE'].map((m) => ({ valor: m, rotulo: m })), ferramenta?.metodo || 'POST');
   const schema = areaTexto(

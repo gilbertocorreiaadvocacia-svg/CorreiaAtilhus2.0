@@ -32,7 +32,7 @@ import {
  */
 function balaoDaBase() {
   return el('div', {}, [
-    el('div', { texto: 'O agente consulta a base so quando o assunto aparece na conversa, entao ela nao ocupa espaco no prompt e pode ser bem maior que ele.' }),
+    el('div', { texto: 'O agente consulta a base so quando o assunto aparece na conversa, entao ela não ocupa espaco no prompt e pode ser bem maior que ele.' }),
     el('div', { class: 'mt-2', texto: 'Quem le qual base se define na tela do agente, no bloco Base de conhecimento.' }),
   ]);
 }
@@ -95,7 +95,7 @@ export async function paginaConhecimento() {
                 el('th', { texto: 'Agentes que usam' }),
                 // A coluna de acoes nao tem titulo na tela, mas quem navega a
                 // tabela por leitor de tela precisa de um nome para ela.
-                el('th', {}, [el('span', { class: 'apenas-leitor', texto: 'Acoes' })]),
+                el('th', {}, [el('span', { class: 'apenas-leitor', texto: 'Ações' })]),
               ]),
             ]),
             corpo,
@@ -169,8 +169,8 @@ function linhaDaBase(base, leitores, recarregarTela) {
  * fresta de texto com o rodape de acao colado embaixo.
  */
 function editarBase(base, recarregarTela) {
-  const nome = entradaTexto(base?.nome || '', { placeholder: 'Quebra de objecoes' });
-  const descricao = entradaTexto(base?.descricao || '', { placeholder: 'Respostas para as objecoes da fase de proposta' });
+  const nome = entradaTexto(base?.nome || '', { placeholder: 'Quebra de objeções' });
+  const descricao = entradaTexto(base?.descricao || '', { placeholder: 'Respostas para as objeções da fase de proposta' });
   // .area-g mora em web/css/tema.css: altura de area de texto em passo fixo.
   const conteudo = areaTexto(base?.conteudo || '', { class: 'prompt area-g' });
 

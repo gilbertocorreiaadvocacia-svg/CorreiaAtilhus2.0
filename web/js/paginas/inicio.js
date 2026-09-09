@@ -218,7 +218,7 @@ function blocoAtencao({ fila, agentes, conexoes, painel }) {
           .join(', ')}.`,
         porque: 'Enquanto estiver assim, nada entra e nada sai por esse numero.',
         marca: selo(foraDoAr.length === 1 ? 'desconectada' : 'desconectadas', 'erro'),
-        rotulo: 'Abrir as conexoes',
+        rotulo: 'Abrir as conexões',
         destino: '#/conexoes',
       }),
     );
@@ -396,7 +396,7 @@ function blocoFunil(painel) {
      cards contam a conversa que teve o evento no periodo, entao dividir pelas
      conversas nascidas no periodo passaria de 100% em qualquer dia de mutirao
      na fila antiga. */
-  const base = painel.base ?? { total: novas, rotulo: 'novas do periodo' };
+  const base = painel.base ?? { total: novas, rotulo: 'novas do período' };
 
   return el('section', { class: 'secao-painel' }, [
     // De onde vem a conta e conceito, e conceito mora no balao do titulo. Fora

@@ -92,7 +92,7 @@ export async function paginaTarefas() {
 }
 
 function barraDeTopo(filtro, desenhar) {
-  const busca = entradaTexto(filtro.busca, { type: 'search', placeholder: 'Titulo, descricao ou nome do cliente' });
+  const busca = entradaTexto(filtro.busca, { type: 'search', placeholder: 'Título, descrição ou nome do cliente' });
   let esperando = null;
   busca.addEventListener('input', () => {
     // Espera a pessoa parar de digitar: uma consulta por tecla faz a tabela
@@ -114,23 +114,23 @@ function barraDeTopo(filtro, desenhar) {
   const situacao = selecao(
     [{ valor: 'abertas', rotulo: 'Na fila' }, ...SITUACOES, { valor: 'todas', rotulo: 'Todas' }],
     filtro.situacao,
-    { 'aria-label': 'Filtrar por situacao', aoChange: aplicar('situacao') },
+    { 'aria-label': 'Filtrar por situação', aoChange: aplicar('situacao') },
   );
 
   const responsavel = selecao(
     [
-      { valor: '', rotulo: 'Qualquer responsavel' },
-      { valor: 'nenhum', rotulo: 'Sem responsavel' },
+      { valor: '', rotulo: 'Qualquer responsável' },
+      { valor: 'nenhum', rotulo: 'Sem responsável' },
       ...estado.membros.map((membro) => ({ valor: membro.id, rotulo: membro.usuario?.nome || 'Membro' })),
     ],
     filtro.responsavel,
-    { 'aria-label': 'Filtrar por responsavel', aoChange: aplicar('responsavel') },
+    { 'aria-label': 'Filtrar por responsável', aoChange: aplicar('responsavel') },
   );
 
   const ordenar = selecao(
     [
       { valor: 'prazo', rotulo: 'Prazo' },
-      { valor: 'criacao', rotulo: 'Criacao' },
+      { valor: 'criacao', rotulo: 'Criação' },
       { valor: 'pontos', rotulo: 'Pontos' },
     ],
     filtro.ordenar,
@@ -236,15 +236,15 @@ function pintarLista(area, dados, filtro, contexto) {
         el('table', { class: 'tabela-densa' }, [
           el('thead', {}, [
             el('tr', {}, [
-              el('th', { texto: 'Titulo' }),
+              el('th', { texto: 'Título' }),
               el('th', { texto: 'Prazo' }),
               el('th', { texto: 'Pontos' }),
               el('th', { texto: 'Conversa' }),
-              el('th', { texto: 'Responsavel' }),
+              el('th', { texto: 'Responsável' }),
               el('th', { texto: 'Criador' }),
               // A coluna de acoes nao tem titulo na tela, mas quem navega a
               // tabela por leitor de tela precisa de um nome para ela.
-              el('th', {}, [el('span', { class: 'apenas-leitor', texto: 'Acoes' })]),
+              el('th', {}, [el('span', { class: 'apenas-leitor', texto: 'Ações' })]),
             ]),
           ]),
           corpo,

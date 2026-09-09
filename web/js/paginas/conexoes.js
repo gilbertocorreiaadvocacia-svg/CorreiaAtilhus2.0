@@ -38,11 +38,11 @@ import {
    navegador de quem escolheu; `fixa` marca a que nunca some, porque uma tabela
    de conexoes sem o nome da conexao nao e uma tabela de nada. */
 const COLUNAS = [
-  { chave: 'conexao', rotulo: 'Conexao', fixa: true },
-  { chave: 'statusPadrao', rotulo: 'Status padrao' },
+  { chave: 'conexao', rotulo: 'Conexão', fixa: true },
+  { chave: 'statusPadrao', rotulo: 'Status padrão' },
   { chave: 'departamento', rotulo: 'Departamento' },
-  { chave: 'responsavel', rotulo: 'Responsavel' },
-  { chave: 'situacao', rotulo: 'Situacao' },
+  { chave: 'responsavel', rotulo: 'Responsável' },
+  { chave: 'situacao', rotulo: 'Situação' },
 ];
 
 const CHAVE_COLUNAS = 'correia.conexoes.colunas';
@@ -59,7 +59,7 @@ const CHAVE_POR_PAGINA = 'correia.conexoes.porPagina';
 let TIPOS = [
   { id: 'simulador', nome: 'Simulador', temSessao: false },
   { id: 'oficial', nome: 'API Oficial (Meta)', temSessao: false },
-  { id: 'qrcode', nome: 'QR Code (nao oficial)', temSessao: true },
+  { id: 'qrcode', nome: 'QR Code (não oficial)', temSessao: true },
 ];
 
 function tipoDe(id) {
@@ -155,7 +155,7 @@ export async function paginaConexoes({ definirAcoes } = {}) {
         paginas,
         total: filtradas.length,
         porPagina,
-        rotulo: 'conexoes',
+        rotulo: 'conexões',
         aoMudar: (nova) => {
           pagina = nova;
           desenhar();
@@ -171,7 +171,7 @@ export async function paginaConexoes({ definirAcoes } = {}) {
   }
 
   function barraDeFiltros() {
-    const busca = entradaTexto(filtro, { type: 'search', placeholder: 'Pesquisar conexoes...' });
+    const busca = entradaTexto(filtro, { type: 'search', placeholder: 'Pesquisar conexões...' });
     busca.addEventListener('input', () => {
       filtro = busca.value;
       pagina = 1;
@@ -226,7 +226,7 @@ export async function paginaConexoes({ definirAcoes } = {}) {
           el('tr', {}, [
             el('th', { class: 'conexao-alca', 'aria-label': 'Ordem' }),
             ...COLUNAS.filter((c) => visiveis.has(c.chave)).map((c) => el('th', { texto: c.rotulo.toUpperCase() })),
-            el('th', { class: 'conexoes-acoes', 'aria-label': 'Acoes' }),
+            el('th', { class: 'conexoes-acoes', 'aria-label': 'Ações' }),
           ]),
         ]),
         corpo,
@@ -282,7 +282,7 @@ export async function paginaConexoes({ definirAcoes } = {}) {
         menuAcoes([
           { rotulo: 'Ver detalhes', icone: 'abrir', aoClicar: () => abrirDetalhes(conexao, desenhar) },
           podeConfigurar() ? { rotulo: 'Configurar', icone: 'ajustes', aoClicar: () => editar(conexao, desenhar) } : null,
-          { rotulo: 'Testar conexao', icone: 'atualizar', aoClicar: () => testar(conexao, desenhar) },
+          { rotulo: 'Testar conexão', icone: 'atualizar', aoClicar: () => testar(conexao, desenhar) },
           conexao.tipo === 'oficial'
             ? { rotulo: 'Copiar URL do webhook', icone: 'copiar', aoClicar: () => copiarWebhook(conexao) }
             : null,
@@ -427,7 +427,7 @@ function abrirDetalhes(conexao, recarregarTela) {
   );
 
   const painel = gaveta({
-    titulo: 'Detalhes da conexao',
+    titulo: 'Detalhes da conexão',
     larga: true,
     rotuloCancelar: 'Fechar',
     corpo: [barraAbas, corpoAba],
@@ -481,13 +481,13 @@ function abaGeral(conexao, irParaLogs, aoMudar) {
     el('div', { class: 'conexao-bloco' }, [
       el('div', { class: 'item' }, [
         icone('filtros', 14),
-        status ? selo(status.nome, '', status.cor) : el('span', { class: 'c-fraco', texto: 'Sem status padrao' }),
+        status ? selo(status.nome, '', status.cor) : el('span', { class: 'c-fraco', texto: 'Sem status padrão' }),
       ]),
       el('div', { class: 'item' }, [
         icone('pasta', 14),
         departamento
           ? selo(departamento.nome, '', departamento.cor)
-          : el('span', { class: 'c-fraco', texto: 'Sem departamento padrao' }),
+          : el('span', { class: 'c-fraco', texto: 'Sem departamento padrão' }),
       ]),
     ]),
 
@@ -519,10 +519,10 @@ function abaSaude(conexao) {
   if (conexao.tipo === 'simulador') {
     return el('div', {}, [
       el('div', { class: 'alerta-caixa' }, [
-        el('div', { texto: 'Conexao em modo simulador.' }),
+        el('div', { texto: 'Conexão em modo simulador.' }),
         el('div', {
           class: 'mt-1',
-          texto: 'Nada sai desta maquina: a mensagem e gravada e aparece na tela como enviada. Nao ha numero real para adoecer, entao nao ha saude a medir aqui.',
+          texto: 'Nada sai desta maquina: a mensagem e gravada e aparece na tela como enviada. Não ha número real para adoecer, entao não ha saude a medir aqui.',
         }),
       ]),
     ]);
@@ -539,7 +539,7 @@ function abaSaude(conexao) {
       faltando.length
         ? el('div', { class: 'alerta-caixa erro mb-3' }, [
             el('div', { texto: `Falta configurar: ${faltando.map((f) => f.rotulo).join(', ')}.` }),
-            el('div', { class: 'mt-1', texto: 'Sem isso a sessao nao abre.' }),
+            el('div', { class: 'mt-1', texto: 'Sem isso a sessão não abre.' }),
           ])
         : null,
 
@@ -552,7 +552,7 @@ function abaSaude(conexao) {
       ]),
 
       el('div', { class: 'alerta-caixa erro mt-4' }, [
-        el('div', { texto: 'Nao ha nota de qualidade neste caminho, e nao ha aviso antes do banimento.' }),
+        el('div', { texto: 'Não ha nota de qualidade neste caminho, e não ha aviso antes do banimento.' }),
         el('div', {
           class: 'mt-1',
           texto: 'A Meta nao pontua esta sessao porque nao a reconhece. O que protege o numero aqui e o ritmo: intervalo entre envios, fila conferida toda segunda e sequencia de follow-up curta. Um dia critico na Central de agendamentos vale mais aqui do que no caminho oficial.',
@@ -560,10 +560,10 @@ function abaSaude(conexao) {
       ]),
 
       el('div', { class: 'alerta-caixa mt-3' }, [
-        el('div', { texto: 'O numero de pos-venda nao deveria estar neste caminho.' }),
+        el('div', { texto: 'O número de pos-venda não deveria estar neste caminho.' }),
         el('div', {
           class: 'mt-1',
-          texto: 'Se este numero cair, o relacionamento com quem ja assinou contrato cai junto. E para isso que existe o segundo numero, na API Oficial.',
+          texto: 'Se este número cair, o relacionamento com quem ja assinou contrato cai junto. E para isso que existe o segundo número, na API Oficial.',
         }),
       ]),
     ]);
@@ -597,7 +597,7 @@ function abaSaude(conexao) {
     el('div', { class: 'mono quebra-palavra', texto: `${location.origin}/webhook/${conexao.id}` }),
 
     el('div', { class: 'alerta-caixa mt-4' }, [
-      el('div', { texto: 'A qualidade e do NUMERO, e nao do escritorio.' }),
+      el('div', { texto: 'A qualidade e do NÚMERO, e não do escritório.' }),
       el('div', {
         class: 'mt-1',
         texto: 'Quando a Meta rebaixa a nota, ela derruba junto todas as campanhas ligadas neste numero. E por isso que a fila de envio se confere toda segunda, na Central de agendamentos, antes de o dia virar critico.',
@@ -616,10 +616,10 @@ function abaLogs(conexao) {
       if (!eventos.length) {
         lista.append(
           el('div', { class: 'c-fraco' }, [
-            el('div', { texto: 'Nenhum evento registrado neste numero ainda.' }),
+            el('div', { texto: 'Nenhum evento registrado neste número ainda.' }),
             el('div', {
               class: 'mt-1',
-              texto: 'Aparecem aqui: criacao, teste de credencial, queda, volta e mudanca de qualidade avisada pela Meta.',
+              texto: 'Aparecem aqui: criação, teste de credencial, queda, volta e mudanca de qualidade avisada pela Meta.',
             }),
           ]),
         );
@@ -644,7 +644,7 @@ function abaLogs(conexao) {
 
 function abaConfiguracoes(conexao, painel, recarregarTela) {
   if (!podeConfigurar()) {
-    return el('div', { class: 'c-fraco', texto: 'So administrador e gerente configuram conexao.' });
+    return el('div', { class: 'c-fraco', texto: 'So administrador e gerente configuram conexão.' });
   }
 
   const { campos, salvar } = formulario(conexao, {
@@ -748,7 +748,7 @@ function abaAcoes(conexao, painel, recarregarTela) {
  * o botao de gerar de novo.
  */
 function abrirQrCode(conexao, recarregarTela) {
-  const area = el('div', { class: 'qrcode-area' }, [el('div', { class: 'c-fraco', texto: 'Abrindo a sessao...' })]);
+  const area = el('div', { class: 'qrcode-area' }, [el('div', { class: 'c-fraco', texto: 'Abrindo a sessão...' })]);
   const situacao = el('p', { class: 'ajuda' });
   let sondagem = null;
   let fechado = false;
@@ -758,9 +758,9 @@ function abrirQrCode(conexao, recarregarTela) {
     rotuloCancelar: 'Fechar',
     corpo: [
       el('ol', { class: 'lista-passos' }, [
-        el('li', { texto: 'No celular, abra o WhatsApp que vai atender por este numero.' }),
-        el('li', { texto: 'Toque em Configuracoes e depois em Aparelhos conectados.' }),
-        el('li', { texto: 'Toque em Conectar um aparelho e aponte a camera para o codigo abaixo.' }),
+        el('li', { texto: 'No celular, abra o WhatsApp que vai atender por este número.' }),
+        el('li', { texto: 'Toque em Configurações e depois em Aparelhos conectados.' }),
+        el('li', { texto: 'Toque em Conectar um aparelho e aponte a camera para o código abaixo.' }),
       ]),
       area,
       situacao,
@@ -773,7 +773,7 @@ function abrirQrCode(conexao, recarregarTela) {
 
   async function gerar() {
     limpar(area);
-    area.append(el('div', { class: 'c-fraco', texto: 'Gerando o codigo...' }));
+    area.append(el('div', { class: 'c-fraco', texto: 'Gerando o código...' }));
     try {
       const resultado = await api.post(`/api/conexoes/${conexao.id}/conectar`);
       if (fechado) return;
@@ -786,7 +786,7 @@ function abrirQrCode(conexao, recarregarTela) {
       }
 
       if (resultado.estado === 'conectado') {
-        area.append(el('div', { class: 'alerta-caixa', texto: 'Sessao aberta. Este numero ja esta atendendo.' }));
+        area.append(el('div', { class: 'alerta-caixa', texto: 'Sessão aberta. Este número ja esta atendendo.' }));
         situacao.textContent = '';
         await recarregarTela();
         return;
@@ -802,7 +802,7 @@ function abrirQrCode(conexao, recarregarTela) {
         area.append(el('div', { class: 'mono t-xl', texto: resultado.codigoPareamento }));
         situacao.textContent = 'Digite este codigo no celular, em Conectar com numero de telefone.';
       } else {
-        area.append(el('div', { class: 'c-fraco', texto: 'O servico nao devolveu codigo. Tente gerar de novo.' }));
+        area.append(el('div', { class: 'c-fraco', texto: 'O serviço não devolveu código. Tente gerar de novo.' }));
       }
 
       area.append(
@@ -826,7 +826,7 @@ function abrirQrCode(conexao, recarregarTela) {
         if (!teste.ok || fechado) return;
         clearInterval(sondagem);
         limpar(area);
-        area.append(el('div', { class: 'alerta-caixa', texto: 'Conectado! O numero ja esta atendendo.' }));
+        area.append(el('div', { class: 'alerta-caixa', texto: 'Conectado! O número ja esta atendendo.' }));
         situacao.textContent = '';
         aviso(`${conexao.nome} conectado.`, 'sucesso');
         await recarregarTela();
@@ -888,44 +888,44 @@ function excluir(conexao, depois) {
 
 function abrirDocumentacao() {
   gaveta({
-    titulo: 'Como funcionam as conexoes',
+    titulo: 'Como funcionam as conexões',
     rotuloCancelar: 'Fechar',
     corpo: [
-      el('h3', { class: 'cartao-titulo', texto: 'Os dois numeros do escritorio' }),
+      el('h3', { class: 'cartao-titulo', texto: 'Os dois números do escritório' }),
       el('p', {
         html: 'O escritorio deve trabalhar com <strong>no minimo dois numeros</strong>: um comercial, que faz proposta e follow-up, e um de pos-venda, que fala com quem ja assinou.',
       }),
       el('p', {
-        texto: 'O comercial e o que corre risco: se for restringido, o relacionamento com os clientes antigos continua intacto no outro chip. Nunca perca o numero de pos-venda.',
+        texto: 'O comercial e o que corre risco: se for restringido, o relacionamento com os clientes antigos continua intacto no outro chip. Nunca perca o número de pos-venda.',
       }),
 
       el('h3', { class: 'cartao-titulo mt-4', texto: 'Simulador' }),
       el('p', {
-        texto: 'Funciona hoje, sem chip. Roda o funil inteiro, agente, mencao, follow-up e contrato, para testar antes de ligar em producao. Nada sai desta maquina.',
+        texto: 'Funciona hoje, sem chip. Roda o funil inteiro, agente, menção, follow-up e contrato, para testar antes de ligar em produção. Nada sai desta maquina.',
       }),
 
       el('h3', { class: 'cartao-titulo mt-4', texto: 'API Oficial (Cloud API da Meta)' }),
       el('p', {
-        texto: 'Numero de verdade, com conferencia de assinatura no webhook, janela de 24 horas, template aprovado, status de entrega e alerta de qualidade do numero.',
+        texto: 'Número de verdade, com conferência de assinatura no webhook, janela de 24 horas, template aprovado, status de entrega e alerta de qualidade do número.',
       }),
       el('p', {
         texto: 'Precisa de cinco credenciais do painel da Meta: ID do numero, ID da conta (WABA), token de acesso, chave secreta do app e token de verificacao. O token do painel expira em 24 horas, entao gere um token de usuario do sistema.',
       }),
 
-      el('h3', { class: 'cartao-titulo mt-4', texto: 'QR Code (nao oficial)' }),
+      el('h3', { class: 'cartao-titulo mt-4', texto: 'QR Code (não oficial)' }),
       el('p', {
-        texto: 'Le o QR Code como o WhatsApp Web le. Entra em grupo, recebe audio gravado e manda mensagem a qualquer hora, sem template e sem janela de 24 horas.',
+        texto: 'Le o QR Code como o WhatsApp Web le. Entra em grupo, recebe áudio gravado e manda mensagem a qualquer hora, sem template e sem janela de 24 horas.',
       }),
       el('p', {
         html: 'Em troca: <strong>viola os termos da Meta e o numero pode ser banido</strong>, sem aviso. Use no numero comercial, que ja corre risco por natureza, e nunca no de pos-venda.',
       }),
       el('p', {
-        texto: 'Quem segura a sessao e um servico a parte (Evolution API) rodando nesta mesma maquina. O sistema so fala HTTP com ele, e por isso continua abrindo com dois cliques, sem instalar pacote nenhum.',
+        texto: 'Quem segura a sessão e um serviço a parte (Evolution API) rodando nesta mesma maquina. O sistema so fala HTTP com ele, e por isso continua abrindo com dois cliques, sem instalar pacote nenhum.',
       }),
 
       el('h3', { class: 'cartao-titulo mt-4', texto: 'Toda conversa nova' }),
       el('p', {
-        texto: 'Cada conexao define o que acontece quando alguem escreve pela primeira vez: status padrao, departamento padrao e responsavel padrao, que normalmente e o agente de triagem.',
+        texto: 'Cada conexão define o que acontece quando alguem escreve pela primeira vez: status padrão, departamento padrão e responsável padrão, que normalmente e o agente de triagem.',
       }),
 
       el('h3', { class: 'cartao-titulo mt-4', texto: 'A janela de 24 horas' }),
@@ -1015,10 +1015,10 @@ function formulario(conexao, { aoSalvar }) {
       'O CorreiaAtilhus2.0 nao carrega a biblioteca de WhatsApp dentro dele: quem segura a sessao e um servico a parte (Evolution API) rodando nesta mesma maquina. E o que mantem o sistema abrindo com dois cliques, sem instalar pacote nenhum.',
     ),
     el('div', { class: 'alerta-caixa mb-3' }, [
-      el('div', { texto: 'Este caminho nao e oficial.' }),
+      el('div', { texto: 'Este caminho não e oficial.' }),
       el('div', {
         class: 'mt-1',
-        texto: 'Ele le o QR Code como o WhatsApp Web, entra em grupo e nao depende de template aprovado. Em troca, viola os termos da Meta e o numero pode ser banido. Use no numero comercial, nunca no de pos-venda.',
+        texto: 'Ele le o QR Code como o WhatsApp Web, entra em grupo e não depende de template aprovado. Em troca, viola os termos da Meta e o número pode ser banido. Use no número comercial, nunca no de pos-venda.',
       }),
     ]),
     campo('Endereco do servico', qrServidor, 'Onde a Evolution API responde. Normalmente http://localhost:8080.'),
@@ -1136,17 +1136,17 @@ function credenciaisFaltando(conexao) {
   if (conexao.tipo === 'qrcode') {
     const cfg = conexao.qrcode || {};
     const faltas = [];
-    if (!cfg.servidor) faltas.push({ rotulo: 'endereco do servico', bloqueia: true });
-    if (!cfg.chave) faltas.push({ rotulo: 'chave de API do servico', bloqueia: true });
-    if (!cfg.instancia) faltas.push({ rotulo: 'nome da instancia', bloqueia: true });
+    if (!cfg.servidor) faltas.push({ rotulo: 'endereço do serviço', bloqueia: true });
+    if (!cfg.chave) faltas.push({ rotulo: 'chave de API do serviço', bloqueia: true });
+    if (!cfg.instancia) faltas.push({ rotulo: 'nome da instância', bloqueia: true });
     return faltas;
   }
   if (conexao.tipo !== 'oficial') return [];
   const oficial = conexao.oficial || {};
   const faltas = [];
-  if (!oficial.phoneNumberId) faltas.push({ rotulo: 'ID do numero', bloqueia: true });
+  if (!oficial.phoneNumberId) faltas.push({ rotulo: 'ID do número', bloqueia: true });
   if (!oficial.token) faltas.push({ rotulo: 'token de acesso', bloqueia: true });
-  if (!oficial.verifyToken) faltas.push({ rotulo: 'token de verificacao', bloqueia: true });
+  if (!oficial.verifyToken) faltas.push({ rotulo: 'token de verificação', bloqueia: true });
   if (!oficial.appSecret) faltas.push({ rotulo: 'chave secreta do app', bloqueia: false });
   return faltas;
 }

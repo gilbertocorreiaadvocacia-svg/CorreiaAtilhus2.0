@@ -33,7 +33,7 @@ const SITUACOES = {
 const CATEGORIAS = [
   {
     valor: 'servico',
-    rotulo: 'Servico',
+    rotulo: 'Serviço',
     rotuloLongo: 'Servico (resposta dentro das 24h (sem custo))',
     ajuda: 'Resposta dentro da janela de 24 horas, sem custo de conversa.',
   },
@@ -41,7 +41,7 @@ const CATEGORIAS = [
     valor: 'utilidade',
     rotulo: 'Utilidade',
     rotuloLongo: 'Utilidade (confirmacao, lembrete, atualizacao)',
-    ajuda: 'Confirmacao, lembrete e atualizacao de algo que o cliente ja esperava.',
+    ajuda: 'Confirmação, lembrete e atualização de algo que o cliente ja esperava.',
   },
   {
     valor: 'marketing',
@@ -50,7 +50,7 @@ const CATEGORIAS = [
     // Duas frases, no ritmo das outras duas categorias. A regra das 24 horas
     // esta inteira: e a unica que reabre a conversa, e so aprovada na Meta.
     ajuda:
-      'Proposta, follow-up e campanha. Unica categoria que reabre a conversa depois das 24 horas, e so com template aprovado na Meta.',
+      'Proposta, follow-up e campanha. Única categoria que reabre a conversa depois das 24 horas, e so com template aprovado na Meta.',
   },
 ];
 
@@ -341,7 +341,7 @@ function editar(template, recarregarTela) {
     seletor.value = '';
   });
 
-  const urlMidia = entradaTexto('', { placeholder: 'ou cole um link: https://…/video-proposta.mp4' });
+  const urlMidia = entradaTexto('', { placeholder: 'ou cole um link: https://…/vídeo-proposta.mp4' });
   urlMidia.addEventListener('change', () => {
     if (!urlMidia.value.trim()) return;
     const extensao = urlMidia.value.split('.').pop().toLowerCase();
@@ -379,11 +379,11 @@ function editar(template, recarregarTela) {
       campo('Nome', nome),
       campo('Atalho', atalho, 'E o que voce digita depois da barra no chat.'),
       campo('Conteudo', conteudo),
-      el('div', { class: 'campo' }, [el('span', { texto: 'Variaveis disponiveis' }), variaveis]),
+      el('div', { class: 'campo' }, [el('span', { texto: 'Variáveis disponíveis' }), variaveis]),
       el('div', { class: 'campo' }, [
         el('span', { texto: 'Midia' }),
         seletor,
-        el('small', { class: 'ajuda-campo', texto: 'Ate 16 MB.' }),
+        el('small', { class: 'ajuda-campo', texto: 'Até 16 MB.' }),
         urlMidia,
         midiaAtual,
       ]),
@@ -429,8 +429,8 @@ function aprovarNaMeta(template, recarregarTela) {
   const categoria = selecao(
     [
       { valor: 'utilidade', rotulo: 'Utilidade' },
-      { valor: 'marketing', rotulo: 'Marketing (obrigatorio para follow-up)' },
-      { valor: 'servico', rotulo: 'Servico' },
+      { valor: 'marketing', rotulo: 'Marketing (obrigatório para follow-up)' },
+      { valor: 'servico', rotulo: 'Serviço' },
     ],
     template.categoriaMeta || 'utilidade',
   );
@@ -443,14 +443,14 @@ function aprovarNaMeta(template, recarregarTela) {
       // uma vez: mora na dica.
       oficiais.length
         ? el('div', { class: 'dica mb-3 linha' }, [
-            el('span', { class: 'flexivel', texto: 'A analise costuma levar de 24 a 48 horas.' }),
+            el('span', { class: 'flexivel', texto: 'A análise costuma levar de 24 a 48 horas.' }),
             dica('Template com contexto claro e proposito explicito e aprovado com mais facilidade. Sem contexto, a Meta le como spam.', {
-              assunto: 'a analise da Meta',
+              assunto: 'a análise da Meta',
             }),
           ])
-        : el('div', { class: 'alerta-caixa', texto: 'Nenhuma conexao oficial cadastrada. No simulador e na API nao oficial nao existe aprovacao de template.' }),
+        : el('div', { class: 'alerta-caixa', texto: 'Nenhuma conexão oficial cadastrada. No simulador e na API não oficial não existe aprovação de template.' }),
       campo('Categoria', categoria),
-      oficiais.length ? el('div', { class: 'campo' }, [el('span', { texto: 'Enviar para quais numeros' }), lista]) : null,
+      oficiais.length ? el('div', { class: 'campo' }, [el('span', { texto: 'Enviar para quais números' }), lista]) : null,
     ]),
     confirmar: oficiais.length ? 'Solicitar aprovacao' : null,
     aoConfirmar: async () => {

@@ -58,7 +58,7 @@ export async function paginaVozes() {
     if (!vozes.length) {
       lista.append(
         el('div', { class: 'vazio' }, [
-          el('strong', { texto: 'Nenhuma voz do escritorio' }),
+          el('strong', { texto: 'Nenhuma voz do escritório' }),
           el('div', { texto: 'Escolha uma voz do catalogo abaixo, de um nome a ela e ajuste a velocidade. Depois e so vincular no agente.' }),
         ]),
       );
@@ -85,7 +85,7 @@ export async function paginaVozes() {
       ...[
         disponivel ? null : semChave(),
         cartaoComDica(
-          { titulo: 'Vozes do escritorio', conceito: balaoDoAudio(), respiro: false },
+          { titulo: 'Vozes do escritório', conceito: balaoDoAudio(), respiro: false },
           lista,
           podeConfigurar()
             ? el('div', { class: 'mt-3' }, [
@@ -109,8 +109,8 @@ export async function paginaVozes() {
 /** Quando usar audio e quanto ele custa. Conceito: vale uma leitura, nao mil. */
 function balaoDoAudio() {
   return el('div', {}, [
-    el('div', { texto: 'Audio funciona como excecao, e nao como padrao de resposta. Use em boas-vindas, quebra de objecao e momentos decisivos.' }),
-    el('div', { class: 'mt-2', texto: 'Um minuto de audio gerado custa cerca de 120 creditos, contra 9 de uma resposta em texto.' }),
+    el('div', { texto: 'Áudio funciona como exceção, e não como padrão de resposta. Use em boas-vindas, quebra de objeção e momentos decisivos.' }),
+    el('div', { class: 'mt-2', texto: 'Um minuto de áudio gerado custa cerca de 120 créditos, contra 9 de uma resposta em texto.' }),
     el('div', { class: 'mt-2', texto: 'Cada voz daqui e um nome e uma velocidade por cima de uma voz base. Depois e so escolher a voz no agente.' }),
   ]);
 }
@@ -122,7 +122,7 @@ function balaoDoAudio() {
  */
 function semChave() {
   return el('div', { class: 'alerta-caixa mb-4' }, [
-    el('div', { texto: 'Sem a chave da OpenAI em Integracoes, o sistema nao gera audio nem transcreve o que o cliente manda.' }),
+    el('div', { texto: 'Sem a chave da OpenAI em Integrações, o sistema não gera áudio nem transcreve o que o cliente manda.' }),
     el('div', { class: 'linha-botoes mt-2' }, [
       botao('Abrir Integracoes', { pequeno: true, icone: 'abrir', aoClicar: () => (location.hash = '#/integracoes') }),
     ]),
@@ -132,7 +132,7 @@ function semChave() {
 async function ouvirVoz(vozId) {
   try {
     const midia = await api.post('/api/vozes/testar', { vozId });
-    modal({ titulo: 'Previa da voz', corpo: el('div', {}, [previaDaMidia(midia)]) });
+    modal({ titulo: 'Prévia da voz', corpo: el('div', {}, [previaDaMidia(midia)]) });
   } catch (erro) {
     aviso(erro.message, 'erro');
   }
@@ -146,7 +146,7 @@ function editarVoz(voz, base, recarregarTela) {
     [
       { valor: 0.9, rotulo: 'Mais devagar (0,9x), boa para idoso' },
       { valor: 1, rotulo: 'Normal (1x)' },
-      { valor: 1.1, rotulo: 'Mais rapida (1,1x)' },
+      { valor: 1.1, rotulo: 'Mais rápida (1,1x)' },
     ],
     voz?.velocidade || 1,
   );

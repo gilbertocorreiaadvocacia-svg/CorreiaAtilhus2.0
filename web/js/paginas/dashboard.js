@@ -42,7 +42,7 @@ const CHAVES_PERDA = ['desqualificado', 'recusada', 'desistencia'];
    mais escuro, que apagava justamente o numero de Proposta. */
 const CARTOES = [
   { chave: 'nova', nome: 'Nova conversa', icone: 'conversas', corPadrao: 'var(--serie-1)', sentido: 1 },
-  { chave: 'analise', nome: 'Analise', icone: 'lupa', corPadrao: 'var(--serie-2)', sentido: 1 },
+  { chave: 'analise', nome: 'Análise', icone: 'lupa', corPadrao: 'var(--serie-2)', sentido: 1 },
   { chave: 'qualificado', nome: 'Qualificado', icone: 'ok', corPadrao: 'var(--serie-3)', sentido: 1 },
   { chave: 'proposta', nome: 'Proposta', icone: 'templates', corPadrao: 'var(--serie-4)', sentido: 1 },
   { chave: 'sucesso', nome: 'Sucesso', icone: 'contrato', corPadrao: 'var(--sucesso)', sentido: 1 },
@@ -55,13 +55,13 @@ const CARTOES = [
    areas empilhadas nada mais se le. */
 const SERIES_EVOLUCAO = [
   { chave: 'nova', nome: 'Nova conversa', cor: 'var(--serie-1)' },
-  { chave: 'analise', nome: 'Analise', cor: 'var(--serie-2)' },
+  { chave: 'analise', nome: 'Análise', cor: 'var(--serie-2)' },
   { chave: 'qualificado', nome: 'Qualificado', cor: 'var(--serie-3)' },
   { chave: 'proposta', nome: 'Proposta', cor: 'var(--serie-4)' },
   { chave: 'sucesso', nome: 'Sucesso', cor: 'var(--sucesso)' },
   { chave: 'desqualificado', nome: 'Desqualificado', cor: 'var(--serie-5)' },
   { chave: 'recusada', nome: 'Recusada', cor: 'var(--serie-7)' },
-  { chave: 'desistencia', nome: 'Desistencia', cor: 'var(--serie-8)' },
+  { chave: 'desistencia', nome: 'Desistência', cor: 'var(--serie-8)' },
 ];
 
 const ETAPAS_FUNIL = ['nova', 'analise', 'qualificado', 'proposta', 'sucesso'];
@@ -95,7 +95,7 @@ const ROSCAS = [
   },
   {
     chave: 'responsavel',
-    titulo: 'Por responsavel',
+    titulo: 'Por responsável',
     icone: 'usuarios',
     onde: 'Configuracoes > Membros',
   },
@@ -255,12 +255,12 @@ export async function paginaDashboard({ definirAcoes = () => {} } = {}) {
         {
           valor: 'evento',
           rotulo: 'Evento',
-          ajuda: 'Conta o que aconteceu dentro do periodo, mesmo em conversa que comecou antes.',
+          ajuda: 'Conta o que aconteceu dentro do período, mesmo em conversa que começou antes.',
         },
         {
           valor: 'cohort',
           rotulo: 'Cohort',
-          ajuda: 'So conversas iniciadas dentro do periodo, acompanhadas ate onde chegaram.',
+          ajuda: 'So conversas iniciadas dentro do período, acompanhadas até onde chegaram.',
         },
       ],
       aoTrocar: (valor) => {
@@ -285,7 +285,7 @@ export async function paginaDashboard({ definirAcoes = () => {} } = {}) {
 
     const agrupamento = selecao(
       [
-        { valor: 'diario', rotulo: 'Diario' },
+        { valor: 'diario', rotulo: 'Diário' },
         { valor: 'semanal', rotulo: 'Semanal' },
         { valor: 'mensal', rotulo: 'Mensal' },
         { valor: 'trimestral', rotulo: 'Trimestral' },
@@ -865,7 +865,7 @@ function comparacao(definicao, card) {
   const agora = Number(card.total) || 0;
   const delta = agora - Number(antes);
   if (!delta) {
-    return el('span', { class: 'delta c-suave', texto: 'igual ao periodo anterior' });
+    return el('span', { class: 'delta c-suave', texto: 'igual ao período anterior' });
   }
 
   const bom = delta * (definicao.sentido || 1) > 0;
@@ -893,7 +893,7 @@ function explicacaoDoCartao(definicao, card, statusPorTipo, base) {
     caixa.append(
       el('p', {
         class: 'sem-margem c-suave',
-        texto: 'Entram neste cartao os status do escritorio:',
+        texto: 'Entram neste cartao os status do escritório:',
       }),
       el(
         'div',
@@ -1045,11 +1045,11 @@ function cartaoEvolucao(dados, filtro, modoAnalise, aoTrocarModo) {
 
   const alternador = el('div', { class: 'mb-3' }, [
     grupoAlternado({
-      rotulo: 'Leitura da evolucao',
+      rotulo: 'Leitura da evolução',
       valor: modoAnalise,
       opcoes: [
-        { valor: 'periodo', rotulo: 'Por periodo', ajuda: 'Contagem de eventos em cada periodo.' },
-        { valor: 'conversoes', rotulo: 'Conversoes', ajuda: 'Percentual de cada etapa sobre as novas do periodo.' },
+        { valor: 'periodo', rotulo: 'Por período', ajuda: 'Contagem de eventos em cada período.' },
+        { valor: 'conversoes', rotulo: 'Conversoes', ajuda: 'Percentual de cada etapa sobre as novas do período.' },
       ],
       aoTrocar: aoTrocarModo,
     }),
@@ -1064,7 +1064,7 @@ function cartaoEvolucao(dados, filtro, modoAnalise, aoTrocarModo) {
 
   const conceito = leitura + ' Aponte para uma barra para ver o detalhe do periodo.';
 
-  const caixa = cartaoComDica({ titulo: 'Evolucao no periodo', conceito }, alternador);
+  const caixa = cartaoComDica({ titulo: 'Evolução no período', conceito }, alternador);
 
   if (!temEvento) {
     /* Sem serie, o grafico sairia como uma moldura vazia com os eixos zerados.
@@ -1142,7 +1142,7 @@ function rodapeDePerdas(dados) {
   const motivos = [
     { chave: 'desqualificado', nome: 'Desqualificado', cor: 'var(--serie-5)' },
     { chave: 'recusada', nome: 'Recusada', cor: 'var(--serie-7)' },
-    { chave: 'desistencia', nome: 'Desistencia', cor: 'var(--serie-8)' },
+    { chave: 'desistencia', nome: 'Desistência', cor: 'var(--serie-8)' },
   ]
     .map((motivo) => ({
       ...motivo,
@@ -1206,7 +1206,7 @@ function rodapeDeReferencia(dados) {
   });
 
   return el('div', { class: 'rosca-legenda referencia-faixa' }, [
-    el('span', { texto: 'Referencia de mercado' }),
+    el('span', { texto: 'Referência de mercado' }),
     ...linhas,
   ]);
 }
@@ -1246,8 +1246,8 @@ function cartaoFunil(dados, filtro) {
     return cartaoComDica(
       {
         titulo: 'Da origem ao desfecho',
-        ajuda: 'Sem etapa encadeada no periodo para desenhar o funil.',
-        conceito: 'O caminho de cada origem ate o desfecho: a espessura da faixa e o volume de leads.',
+        ajuda: 'Sem etapa encadeada no período para desenhar o funil.',
+        conceito: 'O caminho de cada origem até o desfecho: a espessura da faixa e o volume de leads.',
       },
       el('div', { class: 'tabela-rolagem' }, [diagrama]),
     );
@@ -1464,7 +1464,7 @@ function rodapeDoConsumo() {
   return el('p', { class: 'rodape-nota' }, [
     icone('raio', 14),
     document.createTextNode('Consumo de creditos de IA:'),
-    el('a', { href: '#/configuracoes/consumo', texto: 'Configuracoes > Consumo' }),
+    el('a', { href: '#/configuracoes/consumo', texto: 'Configurações > Consumo' }),
   ]);
 }
 

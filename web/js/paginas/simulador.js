@@ -111,12 +111,12 @@ export async function paginaSimulador() {
           conceito: [
             el('div', {
               texto:
-                'O simulador entrega a mensagem pelo mesmo caminho do WhatsApp real: cria o contato, aplica os padroes da conexao, detecta origem e ativa o agente.',
+                'O simulador entrega a mensagem pelo mesmo caminho do WhatsApp real: cria o contato, aplica os padroes da conexão, detecta origem e ativa o agente.',
             }),
             el('div', {
               class: 'mt-2',
               texto:
-                'Para testar do inicio: /restart, palavra-chave na primeira mensagem, espere o delay do agente e confira status, etiqueta e variaveis no atendimento.',
+                'Para testar do inicio: /restart, palavra-chave na primeira mensagem, espere o delay do agente e confira status, etiqueta e variáveis no atendimento.',
             }),
           ],
           respiro: false,

@@ -190,11 +190,11 @@ export async function paginaAgentes({ parametros }) {
       }
       for (const invalida of agente.mencoesInvalidas) {
         if (alvo.includes(`@${invalida.toLowerCase()}`)) {
-          chips.append(el('span', { class: 'mencao-chip invalida', texto: `@${invalida}`, title: 'Nao existe no workspace' }));
+          chips.append(el('span', { class: 'mencao-chip invalida', texto: `@${invalida}`, title: 'Não existe no workspace' }));
         }
       }
       if (!chips.children.length) {
-        chips.append(el('span', { class: 't-xs c-fraco', texto: 'Nenhuma mencao no prompt.' }));
+        chips.append(el('span', { class: 't-xs c-fraco', texto: 'Nenhuma menção no prompt.' }));
       }
     }
 
@@ -299,7 +299,7 @@ export async function paginaAgentes({ parametros }) {
         el('div', { class: 't-md peso-600 linha' }, [
           'Configuracoes do agente',
           dica('Cada campo desta coluna salva sozinho. O Salvar do meio e do nome e do prompt.', {
-            assunto: 'as configuracoes do agente',
+            assunto: 'as configurações do agente',
           }),
         ]),
       ]),
@@ -313,7 +313,7 @@ export async function paginaAgentes({ parametros }) {
             ...agente.mencoesInvalidas.map((m) => el('span', { class: 'mencao-chip invalida', texto: `@${m}` })),
           ]),
           agente.mencoesInvalidas.length
-            ? el('div', { class: 'alerta-caixa mt-2', texto: 'Mencao em vermelho nao existe no workspace. O agente se comporta de forma imprevisivel ate voce corrigir ou criar o item.' })
+            ? el('div', { class: 'alerta-caixa mt-2', texto: 'Menção em vermelho não existe no workspace. O agente se comporta de forma imprevisível até você corrigir ou criar o item.' })
             : null,
         ),
 
@@ -341,8 +341,8 @@ export async function paginaAgentes({ parametros }) {
           selecao(
             [
               { valor: 5, rotulo: '5 s (quase imediato)' },
-              { valor: 15, rotulo: '15 s (padrao)' },
-              { valor: 30, rotulo: '30 s (audio e mensagem picada)' },
+              { valor: 15, rotulo: '15 s (padrão)' },
+              { valor: 30, rotulo: '30 s (áudio e mensagem picada)' },
               { valor: 60, rotulo: '60 s (casos especificos)' },
             ],
             agente.delaySegundos ?? 15,
@@ -355,7 +355,7 @@ export async function paginaAgentes({ parametros }) {
           null,
           agente.primarioEm.length
             ? el('div', { class: 'linha-p quebra' }, agente.primarioEm.map((c) => selo(c.nome, 'ouro')))
-            : el('div', { class: 't-sm c-fraco', texto: 'Nao atende automaticamente em nenhuma conexao.' }),
+            : el('div', { class: 't-sm c-fraco', texto: 'Não atende automaticamente em nenhuma conexão.' }),
           botao('Definir na conexao', { pequeno: true, aoClicar: () => (location.hash = '#/conexoes') }),
         ),
 
@@ -392,7 +392,7 @@ export async function paginaAgentes({ parametros }) {
               aoClicar: async () => {
                 try {
                   const midia = await api.post('/api/vozes/testar', { vozId: agente.vozId });
-                  modal({ titulo: 'Previa da voz', corpo: el('div', {}, [previaDaMidia(midia)]) });
+                  modal({ titulo: 'Prévia da voz', corpo: el('div', {}, [previaDaMidia(midia)]) });
                 } catch (erro) {
                   aviso(erro.message, 'erro');
                 }
@@ -463,7 +463,7 @@ function abrirGeracao(recarregarTela) {
   );
   const descricao = areaTexto('', {
     class: 'alta',
-    placeholder: 'Explique como o escritorio atende esse caso: o que perguntar, em que ordem, o que desqualifica, como sao os honorarios.',
+    placeholder: 'Explique como o escritório atende esse caso: o que perguntar, em que ordem, o que desqualifica, como são os honorários.',
   });
   const referencia = areaTexto('', {
     placeholder: 'Opcional: cole uma conversa exemplar exportada do WhatsApp ou o script comercial.',

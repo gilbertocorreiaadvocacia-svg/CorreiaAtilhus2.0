@@ -51,7 +51,7 @@ const GRUPOS = [
       {
         id: 'minha-conta',
         rotulo: 'Minha conta',
-        descricao: 'Como voce aparece para o resto da equipe. E-mail e permissao mudam so em Membros, que ja cobra acesso de administrador.',
+        descricao: 'Como você aparece para o resto da equipe. E-mail e permissão mudam so em Membros, que ja cobra acesso de administrador.',
         montar: secaoMinhaConta,
       },
       {
@@ -63,12 +63,12 @@ const GRUPOS = [
     ],
   },
   {
-    rotulo: 'Escritorio',
+    rotulo: 'Escritório',
     itens: [
       {
         id: 'escritorio',
-        rotulo: 'Dados do escritorio',
-        descricao: 'Os agentes consultam estes campos quando o lead pergunta endereco, OAB ou telefone. Campo em branco eles nao usam, e nao inventam.',
+        rotulo: 'Dados do escritório',
+        descricao: 'Os agentes consultam estes campos quando o lead pergunta endereço, OAB ou telefone. Campo em branco eles não usam, e não inventam.',
         montar: secaoEscritorio,
       },
       {
@@ -81,18 +81,18 @@ const GRUPOS = [
       {
         id: 'classes',
         rotulo: 'Classes',
-        descricao: 'As listas que o resto do sistema usa para classificar conversa: departamento, etiqueta, origem e variavel.',
+        descricao: 'As listas que o resto do sistema usa para classificar conversa: departamento, etiqueta, origem e variável.',
         montar: secaoClasses,
       },
       {
         id: 'membros',
         rotulo: 'Membros',
-        descricao: 'Quem entra no workspace, com que permissao e ate onde enxerga.',
+        descricao: 'Quem entra no workspace, com que permissão e até onde enxerga.',
         montar: secaoMembros,
       },
       {
         id: 'horario',
-        rotulo: 'Horario comercial',
+        rotulo: 'Horário comercial',
         descricao:
           'Limita uma coisa so: o follow-up. Dentro da janela ele sai na hora prevista; fora dela, e adiado para o proximo dia util em um minuto sorteado, para a fila nao disparar toda junta na abertura. Mensagem agendada a mao ignora o horario comercial.',
         montar: secaoHorario,
@@ -100,7 +100,7 @@ const GRUPOS = [
       {
         id: 'api',
         rotulo: 'Chaves de API',
-        descricao: 'Para ligar o sistema do escritorio, o site ou uma automacao no que acontece aqui dentro.',
+        descricao: 'Para ligar o sistema do escritório, o site ou uma automação no que acontece aqui dentro.',
         montar: secaoApi,
       },
     ],
@@ -110,15 +110,15 @@ const GRUPOS = [
     itens: [
       {
         id: 'aparencia',
-        rotulo: 'Aparencia',
+        rotulo: 'Aparência',
         descricao:
-          'Vale so neste navegador, muda na hora e nao altera nada para o resto da equipe. O mesmo interruptor esta no alto da tela, ao lado do sino, para a troca rapida do dia a dia.',
+          'Vale so neste navegador, muda na hora e não altera nada para o resto da equipe. O mesmo interruptor esta no alto da tela, ao lado do sino, para a troca rápida do dia a dia.',
         montar: secaoAparencia,
       },
       {
         id: 'consumo',
         rotulo: 'Consumo',
-        descricao: 'Cada acao de IA consome creditos. A conta mostra qual etapa do funil esta cara demais.',
+        descricao: 'Cada ação de IA consome créditos. A conta mostra qual etapa do funil esta cara demais.',
         montar: secaoConsumo,
       },
     ],
@@ -184,7 +184,7 @@ export async function paginaConfiguracoes({ parametros }) {
   let atual = semAcesso || !alvo ? permitidas[0] : alvo;
   let recadoDeAcesso = semAcesso ? `${alvo.rotulo} e uma area do escritorio, so o administrador ou o gerente abre.` : '';
 
-  const indice = el('nav', { class: 'config-indice', 'aria-label': 'Areas das configuracoes' });
+  const indice = el('nav', { class: 'config-indice', 'aria-label': 'Areas das configurações' });
   const conteudo = el('div', { class: 'config-conteudo' });
   const layout = el('div', { class: 'config-layout' }, [indice, conteudo]);
 
@@ -267,7 +267,7 @@ function setaDaMigalha() {
 
 function migalha(secao) {
   return el('nav', { class: 'config-migalha', 'aria-label': 'Caminho' }, [
-    el('a', { href: '#/configuracoes', texto: 'Configuracoes' }),
+    el('a', { href: '#/configuracoes', texto: 'Configurações' }),
     setaDaMigalha(),
     el('span', { texto: secao.grupo }),
     setaDaMigalha(),
@@ -569,7 +569,7 @@ async function secaoSeguranca(recarregarTela) {
         el('div', { class: 'lista-item' }, [
           el('div', { class: 'corpo' }, [
             el('div', { class: 'titulo', texto: 'Este aparelho' }),
-            el('div', { class: 'desc', texto: 'E o unico que o servidor sabe confirmar. Os outros ele ainda nao lista.' }),
+            el('div', { class: 'desc', texto: 'E o único que o servidor sabe confirmar. Os outros ele ainda não lista.' }),
           ]),
           selo('em uso agora', 'ouro'),
         ]),
@@ -805,10 +805,10 @@ function editarStatus(status, recarregarTela) {
         'Sequencia de follow-up',
         dica(
           el('div', {}, [
-            el('div', { texto: 'A sequencia comeca quando a conversa entra neste status. Se o lead responder, ela e reagendada a partir da resposta. Se o status mudar, ela e cancelada.' }),
-            el('div', { class: 'mt-2', texto: 'Menos follow-up costuma render mais. Sequencia longa queima o numero e aumenta denuncia.' }),
+            el('div', { texto: 'A sequência começa quando a conversa entra neste status. Se o lead responder, ela e reagendada a partir da resposta. Se o status mudar, ela e cancelada.' }),
+            el('div', { class: 'mt-2', texto: 'Menos follow-up costuma render mais. Sequência longa queima o número e aumenta denuncia.' }),
           ]),
-          { assunto: 'a sequencia de follow-up' },
+          { assunto: 'a sequência de follow-up' },
         ),
       ]),
       listaPassos,
@@ -1015,7 +1015,7 @@ async function secaoMembros(recarregarTela) {
       {
         titulo: 'Como o acesso funciona',
         conceito:
-          'Duas excecoes valem acima de qualquer restricao: quem e responsavel pela conversa sempre a enxerga, e quem for mencionado em nota interna ganha acesso por 24 horas.',
+          'Duas exceções valem acima de qualquer restrição: quem e responsável pela conversa sempre a enxerga, e quem for mencionado em nota interna ganha acesso por 24 horas.',
         largura: 360,
         respiro: false,
       },
@@ -1087,10 +1087,10 @@ function editarMembro(membro, recarregarTela) {
         campo('Permissao', papel),
       ]),
       el('div', { class: 'campo' }, [el('span', { texto: 'Departamentos que enxerga' }), listaDepartamentos]),
-      el('div', { class: 'campo' }, [el('span', { texto: 'Conexoes que enxerga' }), listaConexoes]),
+      el('div', { class: 'campo' }, [el('span', { texto: 'Conexões que enxerga' }), listaConexoes]),
       el('label', { class: 'campo marcador' }, [
         modoFoco,
-        el('span', { texto: 'Modo foco (so enxerga as conversas em que e responsavel)' }),
+        el('span', { texto: 'Modo foco (so enxerga as conversas em que e responsável)' }),
       ]),
     ]),
     confirmar: 'Salvar',
@@ -1239,7 +1239,7 @@ async function secaoApi(recarregarTela) {
             pequeno: true,
             icone: 'mais',
             aoClicar: () => {
-              const nome = entradaTexto('', { placeholder: 'Site do escritorio' });
+              const nome = entradaTexto('', { placeholder: 'Site do escritório' });
               modal({
                 titulo: 'Nova chave de API',
                 corpo: campo('Para que serve', nome),
@@ -1270,7 +1270,7 @@ async function secaoApi(recarregarTela) {
                   modal({
                     titulo: 'Chave criada',
                     corpo: el('div', {}, [
-                      el('p', { class: 'cartao-ajuda', texto: 'Copie agora: por seguranca, ela nao volta a ser exibida.' }),
+                      el('p', { class: 'cartao-ajuda', texto: 'Copie agora: por seguranca, ela não volta a ser exibida.' }),
                       el('div', { class: 'chave-copiavel' }, [
                         el('span', { class: 'mono', texto: criada.chave }),
                         copiar,

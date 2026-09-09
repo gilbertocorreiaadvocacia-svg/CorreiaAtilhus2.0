@@ -111,7 +111,7 @@ export const acharConexao = (id) => estado.conexoes.find((c) => c.id === id) || 
 /** Lista de responsaveis possiveis: agentes de IA e pessoas da equipe. */
 export function opcoesResponsavel() {
   return [
-    { valor: '', rotulo: 'Sem responsavel' },
+    { valor: '', rotulo: 'Sem responsável' },
     ...estado.agentes.map((a) => ({ valor: `agente:${a.id}`, rotulo: `IA · ${a.nome}` })),
     ...estado.membros.map((m) => ({ valor: `membro:${m.id}`, rotulo: `Equipe · ${m.usuario?.nome || 'membro'}` })),
   ];
