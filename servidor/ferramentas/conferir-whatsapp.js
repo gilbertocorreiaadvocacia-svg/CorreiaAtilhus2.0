@@ -138,6 +138,34 @@ async function principal() {
 
   const versaoDocker = rodar('docker', ['--version']);
   if (!versaoDocker) {
+    /*
+     * No Windows, "instalar o Docker" quase nunca falha por causa do Docker.
+     * Ele depende do WSL 2, e no Windows Home o WSL 2 nao e alternativa: o
+     * Hyper-V nao existe nessa edicao. Quem baixa o instalador e roda sem o
+     * WSL fica com 500 MB baixados e nenhum executavel no disco — que e
+     * exatamente o estado que parece "eu ja instalei" e nao esta instalado.
+     *
+     * Por isso o conferidor olha o WSL ANTES de mandar instalar o Docker: dizer
+     * "instale o Docker" a quem ja tentou instalar o Docker nao ajuda ninguem.
+     */
+    if (process.platform === 'win32') {
+      const wsl = rodar('wsl', ['--status'], { prazoMs: 15000 });
+      const semWsl = wsl === null || /n[aã]o est[aá] instalado|is not installed/i.test(wsl);
+      if (semWsl) {
+        falhou(
+          'Falta o WSL 2, que e do que o Docker Desktop depende',
+          'Nesta edicao do Windows (Home) o Hyper-V nao existe, entao o Docker\n' +
+            'so roda sobre o WSL 2. Sem ele o instalador do Docker nao completa.\n' +
+            '\n' +
+            'Abra o PowerShell COMO ADMINISTRADOR e rode:\n' +
+            '    wsl --install\n' +
+            '\n' +
+            'REINICIE o computador (nao e opcional), rode o instalador do Docker\n' +
+            'Desktop, abra ele e espere dizer "Engine running".',
+        );
+        return;
+      }
+    }
     falhou(
       'O Docker nao esta instalado nesta maquina',
       'Instale o Docker Desktop em https://www.docker.com/products/docker-desktop\ne deixe ele ABERTO. Depois rode este conferidor de novo.',
