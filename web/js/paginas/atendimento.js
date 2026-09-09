@@ -425,19 +425,75 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
    * pintada por cima da palavra briga com o status, que ja usa cor nesta
    * mesma linha.
    */
+  /**
+   * O selinho no canto do avatar: quem esta com a conversa.
+   *
+   * .avatar-marca existe no tema desde o comeco, com tres estados desenhados, e
+   * nunca tinha sido ligado em lugar nenhum do sistema. Ele responde de relance
+   * a pergunta que faz alguem varrer a fila: esta conversa precisa de mim?
+   *
+   *   ausente (cinza) — ninguem e responsavel. E a que precisa de alguem.
+   *   ia      (roxo)  — o agente esta conduzindo.
+   *   canal   (verde) — uma pessoa da equipe ja esta com ela.
+   *
+   * O title nao e enfeite: cor sozinha nao pode ser o unico portador da
+   * informacao, e quem nao distingue os tons — ou usa leitor de tela — precisa
+   * do mesmo dado em texto.
+   */
+  function marcaDoAvatar(contato) {
+    const responsavel = contato.responsavel;
+    if (!responsavel?.id) return { marca: 'ausente', marcaTitulo: 'Sem responsavel' };
+    if (responsavel.tipo === 'agente') {
+      return { marca: 'ia', marcaTitulo: `${responsavel.nome || 'A IA'} esta conduzindo` };
+    }
+    return { marca: 'canal', marcaTitulo: `Com ${responsavel.nome || 'a equipe'}` };
+  }
+
+  /**
+   * A terceira linha: em que pe esta a conversa, e como ela foi marcada.
+   *
+   * O STATUS PASSOU A APARECER AQUI, e ele e o dado mais decisivo dos dois.
+   * Ele estava sendo calculado a cada desenho e jogado fora: a linha recebia
+   * uma variavel de estilo `--marca-status` com a cor do status, e nenhuma
+   * regra do tema.css lia essa variavel. A etapa do funil — em analise,
+   * aguardando pericia, deferido — so existia no painel da direita, uma
+   * conversa aberta por vez. A variavel saiu; o selo abaixo e o que sobrou
+   * dela, e este e visivel.
+   *
+   * O status vem primeiro porque responde antes: "aguardando pericia" muda o
+   * que fazer com a linha; "BPC/LOAS" so diz do que se trata.
+   *
+   * A cor pinta o ponto, nunca o texto. Ela vem do banco, escolhida pelo
+   * escritorio, e ninguem garante que passa o contraste sobre as cinco
+   * superficies do sistema — e a mesma regra que ja vale para a etiqueta.
+   */
   function etiquetasDa(contato) {
     const etiquetas = (contato.etiquetas || []).map(acharEtiqueta).filter(Boolean);
-    if (!etiquetas.length) return null;
+    const status = contato.status;
+    if (!etiquetas.length && !status) return null;
 
-    const mostradas = etiquetas.slice(0, ETIQUETAS_NA_LINHA);
+    /* Tres selos e o teto da linha: no quarto a faixa quebra em duas. Com o
+       status ocupando um, sobram dois para etiqueta. */
+    const mostradas = etiquetas.slice(0, status ? ETIQUETAS_NA_LINHA - 1 : ETIQUETAS_NA_LINHA);
     const sobra = etiquetas.length - mostradas.length;
 
     const marcas = el('div', {
       class: 'marcas',
       /* O title leva a lista inteira, inclusive o que o "+N" escondeu: cortar
          sem deixar como ver seria trocar informacao por enfeite. */
-      title: etiquetas.map((e) => e.nome).join(' · '),
+      title: [status ? `Status: ${status.nome}` : null, ...etiquetas.map((e) => e.nome)]
+        .filter(Boolean)
+        .join(' · '),
     });
+
+    if (status) {
+      marcas.append(
+        el('span', { class: 'selo' }, [
+          el('span', { class: 'ponto', estilo: { background: status.cor } }),
+          document.createTextNode(status.nome),
+        ]),
+      );
+    }
 
     for (const etiqueta of mostradas) {
       marcas.append(
@@ -492,14 +548,13 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
       /* O nome do status vai no title: a cor sozinha nao carrega significado
          para quem nao a distingue, e a lista nao tem espaco para o rotulo. */
       title: contato.status ? contato.status.nome : null,
-      estilo: { '--marca-status': contato.status?.cor || 'transparent' },
       aoClick: async () => {
         selecionadoId = contato.id;
         history.replaceState(null, '', `#/atendimento/${contato.id}`);
         await desenhar();
       },
     }, [
-      avatar(contato),
+      avatar(contato, 32, marcaDoAvatar(contato)),
       el('div', { class: 'dados' }, [
         el('div', { class: 'topo-item' }, [
           el('div', { class: 'nome', texto: contato.nome }),
@@ -554,7 +609,7 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
     const compositor = montarCompositor(contato);
 
     const cabecalho = el('div', { class: 'conversa-cabecalho' }, [
-      avatar(contato),
+      avatar(contato, 32, marcaDoAvatar(contato)),
       // Mesmo ritmo da lista de conversas: nome em --t-md peso 600, telefone
       // em --t-xs fraco. Antes o nome herdava o corpo e o telefone tinha
       // 11,5px escritos na mao.
