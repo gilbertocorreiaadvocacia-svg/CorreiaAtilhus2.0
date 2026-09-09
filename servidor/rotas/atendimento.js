@@ -47,6 +47,20 @@ function enriquecer(contato) {
     origem: origem ? { id: origem.id, nome: origem.nome } : null,
     janelaAberta: janelaAberta(contato),
     /*
+     * Em que aba esta conversa aparece.
+     *
+     * Vai junto do contato porque quem abre uma conversa por link — o cartao
+     * do kanban, o botao da notificacao, a busca Ctrl+K — precisa saber para
+     * qual fila mandar a tela ANTES de pedir a lista. Sem isso a tela abria na
+     * aba fixa do codigo, e se a conversa nao estivesse nela o link nao levava
+     * a lugar nenhum.
+     *
+     * Sai de abaDe(), a mesma funcao que a listagem usa. Deduzir a aba de novo
+     * no navegador criaria uma segunda opiniao sobre a mesma coisa, que foi
+     * exatamente o defeito dos contadores.
+     */
+    aba: abaDe(contato),
+    /*
      * Quanto ja se conversou com esta pessoa.
      *
      * Sai de mensagensDe(), que guarda o resultado em memoria — entao a conta

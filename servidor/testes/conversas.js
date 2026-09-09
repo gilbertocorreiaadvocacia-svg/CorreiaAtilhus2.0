@@ -440,6 +440,42 @@ export async function testarConversas({ base }) {
   s.ok('depois de lido, a proxima mensagem avisa de novo',
     (await naoLidasDe(comDono.id)).length === 1);
 
+  /* ---------------- A aba viaja junto da conversa ---------------- */
+
+  /*
+   * Quem abre uma conversa por link precisa saber para qual fila mandar a tela.
+   *
+   * Cartao do kanban, botao da notificacao, balao do sistema, busca Ctrl+K e o
+   * simulador levam todos para #/atendimento/<id>. A tela abria numa aba fixa
+   * no codigo ('ia'), e quando a conversa nao estava nela o link nao levava a
+   * lugar nenhum — lista vazia e "Escolha uma conversa". Cinco portas quebradas
+   * pela mesma linha, e a de notificacao e a pior: o aviso falava de uma
+   * conversa que o proprio aviso nao conseguia abrir.
+   *
+   * O contrato que o navegador passou a depender: toda conversa devolvida pela
+   * API diz em que aba ela esta, pela mesma regra que a listagem usa.
+   */
+  /* Compara com a aba em que a conversa REALMENTE aparece, e nao com uma
+     expectativa escrita aqui: os testes acima mudam o estado destas conversas
+     no caminho, e uma expectativa fixa mediria o passado. */
+  for (const contato of [pendente, naIa, ativo, arquivado, voltou]) {
+    const lida = (await api.get(`/api/contatos/${contato.id}`)).dados;
+    const ondeAparece = await abasDe(contato.id);
+    s.ok(`a conversa ${contato.nome} diz a mesma aba em que aparece`,
+      lida?.aba === ondeAparece[0],
+      `campo "${lida?.aba}", aparece em "${ondeAparece.join(', ')}"`);
+  }
+
+  /* A aba tem de vir tambem na listagem, e concordar com o filtro que a
+     produziu — sao a mesma regra, e discordar aqui seria a volta do defeito
+     dos contadores. */
+  for (const aba of ['ia', 'ativos', 'pendentes', 'arquivados']) {
+    const lista = (await api.get(`/api/contatos?aba=${aba}&limite=1000`)).dados?.contatos || [];
+    s.ok(`na listagem de ${aba}, toda conversa se declara dessa aba`,
+      lista.every((c) => c.aba === aba),
+      JSON.stringify([...new Set(lista.map((c) => c.aba))]));
+  }
+
   /* ---------------- Referencia vazia ---------------- */
 
   /*

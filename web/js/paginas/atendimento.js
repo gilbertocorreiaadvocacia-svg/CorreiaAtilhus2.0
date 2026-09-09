@@ -2720,6 +2720,49 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
     await desenhar();
   });
 
+  /**
+   * Em que aba a tela deve abrir.
+   *
+   * Duas correcoes de uma vez, e as duas vinham da mesma linha: a aba nascia
+   * fixa em 'ia' no codigo.
+   *
+   * 1. LINK PARA UMA CONVERSA. Cartao do kanban, botao da notificacao, balao
+   *    do sistema, busca Ctrl+K e o simulador levam todos para
+   *    #/atendimento/<id>. Se a conversa nao estivesse na aba fixa, ela nao
+   *    vinha na lista, o contato nao era achado e a tela abria em "Escolha uma
+   *    conversa" — o link nao levava a lugar nenhum. Agora a aba vem junto da
+   *    conversa, do servidor, e a tela vai para onde ela esta.
+   *
+   * 2. ABERTURA SEM LINK. A aba 'ia' costuma estar vazia (conversa aceita por
+   *    uma pessoa sai de la), entao o sistema abria numa tela vazia com nove
+   *    atendimentos ao lado. Agora, se a aba escolhida nao tem nada, cai na
+   *    primeira que tem — na ordem da propria fileira, para nao surpreender.
+   */
+  async function escolherAbaInicial() {
+    if (visualizacao !== 'conversas') return;
+
+    if (selecionadoId) {
+      try {
+        const conversa = await api.get(`/api/contatos/${selecionadoId}`);
+        if (conversa?.aba) {
+          filtro.aba = conversa.aba;
+          return;
+        }
+      } catch {
+        /* Conversa apagada, de outro workspace ou sem permissao. Segue para a
+           escolha normal em vez de deixar a tela em branco. */
+        selecionadoId = null;
+      }
+    }
+
+    /* Sem link: descobre pelas contagens, que ja vem de graca na listagem. */
+    await buscar();
+    if (contatos.length) return;
+    const cheia = ABAS.find((aba) => (contagens[aba.id] ?? 0) > 0);
+    if (cheia) filtro.aba = cheia.id;
+  }
+
+  await escolherAbaInicial();
   await desenhar();
   return container;
 }
