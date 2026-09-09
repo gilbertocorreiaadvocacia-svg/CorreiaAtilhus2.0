@@ -1921,9 +1921,27 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
    cortado em "Documentos pendent", sem sinal de que faltava alguma coisa.
    inline-block e caixa de bloco para efeito de texto, entao a reticencia
    volta a valer; o ponto colorido e o icone continuam na linha do texto. */
+/*
+ * A etiqueta na fila perde a moldura.
+ *
+ * No painel da direita a etiqueta e um selo de verdade, com fundo e borda,
+ * porque la ela e um controle: clica para filtrar. Na fila ela e so uma
+ * legenda — de que assunto e esta conversa — e nove molduras empilhadas na
+ * coluna pesavam mais que os nomes, que sao o que se procura.
+ *
+ * Sobra o ponto colorido e o texto pequeno. A cor continua no ponto e nunca
+ * no texto: ela vem do banco, escolhida pelo escritorio, e ninguem garante
+ * que passa o contraste sobre as cinco superficies do sistema.
+ */
 .item-conversa .marcas .selo {
   display: inline-block;
   min-width: 0;
+  padding-left: 0;
+  border-color: transparent;
+  background: none;
+  color: var(--texto-fraco);
+  font-size: var(--t-nota);
+  letter-spacing: 0.04em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2123,14 +2141,31 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
    O que ficou no lugar do filete e o espaco: 2px entre uma linha e outra e
    canto arredondado. Uma fila de quarenta conversas passa a se ler como
    quarenta objetos separados, e nao como uma tabela sem grade. */
+/*
+ * A LINHA DA FILA E UMA LINHA, E NAO UM CARTAO.
+ *
+ * Ela ja foi cartao — canto arredondado, 2px de respiro entre uma e outra. O
+ * desenho aprovado desfaz isso: as linhas se encostam e o que as separa e um
+ * filete de 1px, do jeito de qualquer caixa de entrada.
+ *
+ * A diferenca nao e so de gosto. Cartao pede respiro em volta, e cada respiro
+ * some com uma linha da tela: no cartao cabiam sete conversas na coluna, e
+ * assim cabem nove. Numa fila de quarenta, isso e uma rolagem a menos por
+ * varredura.
+ *
+ * O canto some, mas os dois estados que dependiam da BORDA continuam: eles
+ * passaram para box-shadow inset, que pinta sem ocupar espaco. Borda esquerda
+ * de 2px empurrava o texto 2px ao ligar e desligar, e a linha inteira dancava.
+ */
 .item-conversa {
   display: flex;
   gap: var(--e3);
   width: 100%;
   padding: var(--e3);
-  margin: 0 0 2px;
-  border: 1px solid transparent;
-  border-radius: var(--raio-g);
+  margin: 0;
+  border: 0;
+  border-bottom: 1px solid var(--borda);
+  border-radius: 0;
   background: none;
   color: inherit;
   font: inherit;
@@ -2176,11 +2211,14 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
   color: var(--ouro);
 }
 
-/* Selecionada e nao lida ao mesmo tempo: o filete dourado cede para o
-   contorno de selecao nao ficar disputando com ele na mesma borda. */
-.item-conversa.ativo:has(.nao-lidas) {
-  box-shadow: none;
-}
+/*
+ * Selecionada e nao lida ao mesmo tempo: nada a resolver.
+ *
+ * Antes havia uma regra aqui apagando o filete, porque a selecao se marcava
+ * por BORDA e as duas disputavam a mesma aresta. Agora as duas usam o mesmo
+ * filete inset, entao a linha selecionada e nao lida simplesmente tem um
+ * filete — o fundo dourado e que diz qual esta aberta.
+ */
 
 .item-conversa:focus-visible {
   outline: 2px solid var(--ouro);
@@ -2190,9 +2228,16 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
 /* Selecionada: fundo dourado tenue e contorno dourado. O contorno faz o
    trabalho que a barra fazia, e faz para quem nao distingue o dourado do
    cinza, porque a linha existe mesmo sem a cor. */
+/*
+ * Selecionada: fundo dourado tenue e o mesmo filete inset da nao lida.
+ *
+ * Com a linha sem borda, `border-color` nao tinha mais onde pintar — pintaria
+ * so o filete de baixo, que e o separador entre linhas, e a conversa aberta
+ * apareceria com um sublinhado dourado em vez de uma marca de selecao.
+ */
 .item-conversa.ativo {
   background: var(--ouro-fraco);
-  border-color: var(--ouro-linha);
+  box-shadow: inset 2px 0 0 var(--ouro);
 }
 
 .item-conversa .dados {
@@ -2206,9 +2251,24 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
   gap: var(--e2);
 }
 
+/*
+ * O nome em caixa alta.
+ *
+ * Nome de pessoa em caixa alta e uma escolha de fila, e nao de leitura: aqui
+ * o nome nao se le, se RECONHECE, e a caixa alta da a cada linha uma silhueta
+ * de altura constante que o olho acha mais rapido descendo a coluna. Em texto
+ * corrido seria o contrario — caixa alta tira as ascendentes e descendentes
+ * que fazem a palavra ter forma, e por isso ela nao aparece em lugar nenhum
+ * dentro da conversa.
+ *
+ * O espacamento de 0.01em existe porque caixa alta aperta: sem ele "ANTONIO
+ * FERREIRA" fica com as letras encostadas nesta fonte.
+ */
 .item-conversa .nome {
   font-weight: 600;
-  font-size: var(--t-md);
+  font-size: var(--t-base);
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2258,6 +2318,33 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
   font-weight: 700;
   display: grid;
   place-items: center;
+}
+
+/* Separador de dia na conversa.
+
+   O tempo entre uma mensagem e outra e dado do caso, e nao enfeite: numa acao
+   previdenciaria a diferenca entre responder em cinco minutos e responder em
+   duas semanas e a diferenca entre atendimento e abandono. Sem separador, uma
+   conversa de tres meses lia como se tivesse acontecido de uma vez so.
+
+   Os dois filetes saem do proprio separador por ::before e ::after, e nao de
+   uma borda no elemento: assim o rotulo fica no meio de uma linha continua em
+   vez de flutuar sobre um vazio. */
+.dia-separador {
+  display: flex;
+  align-items: center;
+  gap: var(--e3);
+  margin: var(--e3) 0 var(--e1);
+  color: var(--texto-suave);
+  font-size: var(--t-nota);
+}
+
+.dia-separador::before,
+.dia-separador::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--borda);
 }
 
 /*

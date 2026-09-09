@@ -411,6 +411,15 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
    * tela. O que passa de duas continua alcancavel: o "+2" carrega os nomes no
    * title, e o painel da direita mostra todas.
    */
+  /*
+   * Duas etiquetas por linha, e nao uma.
+   *
+   * O desenho mostra uma so, mas o dado de exemplo dele tinha uma etiqueta
+   * por conversa. Na base de verdade a maioria tem duas ou tres, e com teto
+   * de uma quase toda linha ganhava um "+1" — um selo gasto para dizer que
+   * ha mais, no lugar de simplesmente mostrar a segunda. Com a etiqueta sem
+   * moldura, duas pesam menos do que uma pesava antes.
+   */
   const ETIQUETAS_NA_LINHA = 2;
 
   /**
@@ -452,48 +461,38 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
   /**
    * A terceira linha: em que pe esta a conversa, e como ela foi marcada.
    *
-   * O STATUS PASSOU A APARECER AQUI, e ele e o dado mais decisivo dos dois.
-   * Ele estava sendo calculado a cada desenho e jogado fora: a linha recebia
-   * uma variavel de estilo `--marca-status` com a cor do status, e nenhuma
-   * regra do tema.css lia essa variavel. A etapa do funil — em analise,
-   * aguardando pericia, deferido — so existia no painel da direita, uma
-   * conversa aberta por vez. A variavel saiu; o selo abaixo e o que sobrou
-   * dela, e este e visivel.
+   * UMA etiqueta, e sem o status.
    *
-   * O status vem primeiro porque responde antes: "aguardando pericia" muda o
-   * que fazer com a linha; "BPC/LOAS" so diz do que se trata.
+   * O status chegou a ficar aqui, e saiu: no desenho aprovado a linha carrega
+   * so a legenda de assunto, e a etapa do funil vive no painel da direita, em
+   * PROPRIEDADES. Numa fila de quarenta linhas, dois selos por linha viravam
+   * oitenta selos competindo com os nomes, que sao o que se procura.
+   *
+   * (A variavel `--marca-status`, que a linha recebia a cada desenho e que
+   * nenhuma regra do tema lia, nao voltou. Aquela era cor calculada e jogada
+   * fora.)
    *
    * A cor pinta o ponto, nunca o texto. Ela vem do banco, escolhida pelo
    * escritorio, e ninguem garante que passa o contraste sobre as cinco
-   * superficies do sistema — e a mesma regra que ja vale para a etiqueta.
+   * superficies do sistema.
    */
   function etiquetasDa(contato) {
     const etiquetas = (contato.etiquetas || []).map(acharEtiqueta).filter(Boolean);
-    const status = contato.status;
-    if (!etiquetas.length && !status) return null;
+    if (!etiquetas.length) return null;
 
-    /* Tres selos e o teto da linha: no quarto a faixa quebra em duas. Com o
-       status ocupando um, sobram dois para etiqueta. */
-    const mostradas = etiquetas.slice(0, status ? ETIQUETAS_NA_LINHA - 1 : ETIQUETAS_NA_LINHA);
+    const mostradas = etiquetas.slice(0, ETIQUETAS_NA_LINHA);
     const sobra = etiquetas.length - mostradas.length;
 
     const marcas = el('div', {
       class: 'marcas',
-      /* O title leva a lista inteira, inclusive o que o "+N" escondeu: cortar
-         sem deixar como ver seria trocar informacao por enfeite. */
-      title: [status ? `Status: ${status.nome}` : null, ...etiquetas.map((e) => e.nome)]
+      /* O title leva a lista inteira, inclusive o que o "+N" escondeu, e agora
+         tambem o status — que saiu da linha mas continua sendo o dado que
+         explica a conversa. Cortar sem deixar como ver seria trocar
+         informacao por enfeite. */
+      title: [contato.status ? `Status: ${contato.status.nome}` : null, ...etiquetas.map((e) => e.nome)]
         .filter(Boolean)
         .join(' · '),
     });
-
-    if (status) {
-      marcas.append(
-        el('span', { class: 'selo' }, [
-          el('span', { class: 'ponto', estilo: { background: status.cor } }),
-          document.createTextNode(status.nome),
-        ]),
-      );
-    }
 
     for (const etiqueta of mostradas) {
       marcas.append(
@@ -554,7 +553,7 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
         await desenhar();
       },
     }, [
-      avatar(contato, 32, marcaDoAvatar(contato)),
+      avatar(contato, 38, marcaDoAvatar(contato)),
       el('div', { class: 'dados' }, [
         el('div', { class: 'topo-item' }, [
           el('div', { class: 'nome', texto: contato.nome }),
