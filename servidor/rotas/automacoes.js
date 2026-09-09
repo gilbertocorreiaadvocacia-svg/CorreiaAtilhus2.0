@@ -197,10 +197,33 @@ export function registrarAutomacoes(rotas) {
     'foto',
   ]);
 
+  /**
+   * A foto tem que ser um arquivo desta maquina.
+   *
+   * O campo passava pela lista como texto livre, e texto livre aqui e duas
+   * coisas ruins de uma vez. Um endereco de fora — { foto: 'https://…' } —
+   * faria o navegador de toda a equipe buscar num terceiro a cada desenho da
+   * lista, entregando a ele a hora e o IP de quem esta trabalhando. E um
+   * 'data:image/png;base64,…' gravaria a imagem INTEIRA dentro do registro do
+   * agente, que vive num arquivo JSON lido por completo na memoria e espelhado
+   * no Supabase — uma foto de 4 MB viraria 4 MB de texto em cada leitura.
+   *
+   * O upload legitimo devolve sempre /midia/<arquivo>, entao e isso que se
+   * aceita. Vazio e nulo continuam valendo: e assim que se tira a foto.
+   */
+  const CAMINHO_DE_MIDIA = /^\/midia\/[\w.-]+$/;
+
   function apenasCamposDoAgente(corpo) {
     const limpo = {};
     for (const [chave, valor] of Object.entries(corpo || {})) {
-      if (CAMPOS_DO_AGENTE.has(chave)) limpo[chave] = valor;
+      if (!CAMPOS_DO_AGENTE.has(chave)) continue;
+      if (chave === 'foto') {
+        if (valor === null || valor === '') { limpo.foto = null; continue; }
+        if (!CAMINHO_DE_MIDIA.test(String(valor))) {
+          throw comCodigo('A foto precisa ser um arquivo enviado pelo proprio sistema.', 400);
+        }
+      }
+      limpo[chave] = valor;
     }
     return limpo;
   }

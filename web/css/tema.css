@@ -1916,11 +1916,22 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
   color: var(--texto-fraco);
 }
 
+/* text-overflow nao funciona em caixa flex: o texto de um inline-flex vira
+   item anonimo, e a reticencia nunca aparecia — "Documentos pendentes" saia
+   cortado em "Documentos pendent", sem sinal de que faltava alguma coisa.
+   inline-block e caixa de bloco para efeito de texto, entao a reticencia
+   volta a valer; o ponto colorido e o icone continuam na linha do texto. */
 .item-conversa .marcas .selo {
+  display: inline-block;
   min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.item-conversa .marcas .selo > .ponto,
+.item-conversa .marcas .selo > svg {
+  vertical-align: -1px;
 }
 
 .item-conversa .marcas .mais-etiquetas {
@@ -2047,6 +2058,13 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  /* O MESMO BUG DO min-height, no outro eixo.
+     A faixa 1fr da grade e minmax(auto, 1fr), e esse "auto" vira o min-content
+     da coluna. O cabecalho da conversa e flex nowrap com o bloco de identidade
+     mais tres botoes, o que da 646px de min-content: num notebook de 13" a
+     faixa do meio se recusava a encolher abaixo disso e a tela inteira passava
+     3px da janela, com barra de rolagem horizontal no sistema todo. */
+  min-width: 0;
   border-right: 1px solid var(--borda);
   background: var(--superficie);
 }
@@ -2056,10 +2074,25 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
   border-left: 1px solid var(--borda);
 }
 
+/*
+ * A busca e as abas ficam no lugar enquanto a fila rola.
+ *
+ * A fila de atendimento tem quarenta conversas e rola bastante. Sem sticky, o
+ * campo de busca e as seis abas subiam junto com a lista: para trocar de aba
+ * ou buscar era preciso voltar ao topo primeiro. Sao os dois controles mais
+ * usados da tela e estavam a uma rolagem de distancia.
+ *
+ * O fundo e opaco de proposito. Com cor translucida as linhas da fila
+ * apareciam por tras do campo de busca enquanto passavam.
+ */
 .coluna-cabecalho {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   flex: none;
   padding: var(--e3);
   border-bottom: 1px solid var(--borda);
+  background: var(--superficie);
 }
 
 .coluna-corpo {
@@ -2107,6 +2140,46 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
 
 .item-conversa:hover {
   background: var(--superficie-2);
+}
+
+/*
+ * NAO LIDA PESA MAIS QUE LIDA.
+ *
+ * Numa fila de quarenta conversas, trinta ja foram respondidas e dez esperam.
+ * Antes as quarenta linhas tinham exatamente o mesmo peso: o unico sinal de
+ * "esta esperando" era a bolinha verde de contagem, 19px no canto direito da
+ * previa. Achar as dez exigia varrer a coluna inteira procurando bolinha.
+ *
+ * Agora a diferenca esta na propria linha: filete dourado na borda esquerda,
+ * nome em branco cheio e previa mais forte. A fila passa a se ler de relance
+ * — o que pesa espera, o que recua ja foi.
+ *
+ * :has e o que permite isso sem tocar no JavaScript: a linha se pinta a
+ * partir de um filho que ela ja tem. Onde :has nao existir, a linha
+ * simplesmente fica como era antes e a bolinha continua marcando — degrada
+ * para o desenho atual, nao para desenho quebrado.
+ */
+.item-conversa:has(.nao-lidas) {
+  box-shadow: inset 2px 0 0 var(--ouro);
+}
+
+.item-conversa:has(.nao-lidas) .nome {
+  color: var(--texto);
+  font-weight: 700;
+}
+
+.item-conversa:has(.nao-lidas) .previa {
+  color: var(--texto);
+}
+
+.item-conversa:has(.nao-lidas) .quando {
+  color: var(--ouro);
+}
+
+/* Selecionada e nao lida ao mesmo tempo: o filete dourado cede para o
+   contorno de selecao nao ficar disputando com ele na mesma borda. */
+.item-conversa.ativo:has(.nao-lidas) {
+  box-shadow: none;
 }
 
 .item-conversa:focus-visible {
@@ -2187,6 +2260,28 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
   place-items: center;
 }
 
+/*
+ * A COLUNA DO MEIO E UM POCO, NAO UM PAINEL.
+ *
+ * As duas laterais ficam em --superficie e esta desce para --fundo. A conversa
+ * vira o lugar mais fundo da tela e as laterais sobem para o nivel de painel:
+ * e a gramatica de qualquer ferramenta de trabalho, com o documento recuado e
+ * as ferramentas nas beiradas.
+ *
+ * O QUE ISSO NAO FAZ, e vale dizer porque a suposicao e natural: nao aumenta
+ * o contraste do balao. Medido, --fundo e --superficie diferem 1,02:1 no tema
+ * escuro, e o balao sai de 1,05:1 para 1,08:1 contra o que esta atras dele.
+ * Nao sao "dois degraus de tom", e nao e daqui que vem a separacao.
+ *
+ * Quem separa o balao continua sendo a borda dele mais a sombra rasa. Isso
+ * basta: o balao nao e um controle, e uma caixa de texto, e o texto dentro
+ * dele mede 15:1. O poco resolve HIERARQUIA — qual das tres superficies e o
+ * assunto —, e nao legibilidade.
+ *
+ * Fica aqui, na classe, e nao num nth-child sobre .coluna: a peca do meio nao
+ * tem a classe .coluna, e uma regra escrita assim nao pegaria nada — o efeito
+ * pareceria aplicado no arquivo e nao existiria na tela.
+ */
 .conversa {
   display: flex;
   flex-direction: column;
@@ -2228,10 +2323,22 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
 .mensagens {
   flex: 1;
   overflow-y: auto;
-  padding: var(--e4);
+  /* Declarado porque overflow-y sozinho faz o navegador calcular overflow-x
+     como auto: qualquer estouro passageiro — o balao medindo 62ch na fonte
+     reserva, antes de a Instrument Sans baixar — pintava uma barra horizontal
+     atravessada no meio da conversa. Conversa rola para cima e para baixo. */
+  overflow-x: hidden;
+  /* Respiro maior nas laterais que em cima e embaixo: a conversa e uma coluna
+     de leitura, e coluna de leitura pede margem lateral. O balao ja tem
+     limite proprio de 62ch, entao esta folga nao encurta a linha em monitor
+     grande — ela so evita que o texto encoste na borda do poco. */
+  padding: var(--e4) var(--e5);
   display: flex;
   flex-direction: column;
-  gap: var(--e2);
+  /* A distancia entre duas falas subiu de 8px para 12px. A 8px, com balao de
+     entrelinha solta, duas mensagens seguidas da mesma pessoa se colavam e
+     liam como um paragrafo unico. */
+  gap: var(--e3);
   /* Sem papel de parede pontilhado. Ele era textura atras de texto que se le
      o dia inteiro, e textura atras de texto so atrapalha a leitura. */
 }
@@ -2252,6 +2359,12 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
   border: 1px solid var(--borda);
   background: var(--superficie-2);
   align-self: flex-start;
+  /* Sombra curta e rasa.
+     Ela nao e enfeite: com o balao a 1,08:1 do fundo do poco, a borda de 1px
+     sozinha e o unico contorno da peca, e a sombra e o que da a ela um
+     assentamento visivel. Um raio grande aqui viraria cartao flutuante, e
+     mensagem nao flutua: ela se apoia. */
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
 }
 
 /* A fala do escritorio se distingue por lado e por borda, nao por gradiente.
@@ -2305,11 +2418,33 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
   letter-spacing: 0.03em;
 }
 
+/*
+ * A area de escrever e o piso da conversa, e ela sobe quando esta em uso.
+ *
+ * O compositor fica em --superficie, a mesma familia das colunas laterais, e
+ * o filete de 1px no topo e que marca onde o poco termina. A diferenca de tom
+ * para o poco e pequena de proposito (1,02:1 no escuro): quem separa aqui e a
+ * linha, nao a cor. O que muda de verdade e o :focus-within logo abaixo.
+ */
 .compositor {
   flex: none;
   border-top: 1px solid var(--borda);
   background: var(--superficie);
   padding: var(--e3);
+  transition: box-shadow var(--transicao);
+}
+
+/*
+ * Escrevendo, a area inteira acende — nao so o campo.
+ *
+ * O compositor tem campo de texto, anexo, template, agendamento e o botao de
+ * enviar. Quando so o textarea ganhava contorno, o resto continuava parecendo
+ * desligado, embora Enter fosse mandar a mensagem dali. O filete dourado no
+ * topo diz que a faixa toda esta ativa, que e o que corresponde ao que
+ * acontece de verdade quando se aperta Enter.
+ */
+.compositor:focus-within {
+  box-shadow: inset 0 2px 0 var(--ouro);
 }
 
 .compositor textarea {

@@ -115,6 +115,22 @@ export async function testarAgentes({ base }) {
     s.ok('numero tambem', editada?.delaySegundos === 30);
     s.ok('a foto e um campo do agente', editada?.foto === '/midia/x.png');
 
+    /*
+     * A foto so pode apontar para a propria pasta de midia. Endereco de fora
+     * faria o navegador de toda a equipe buscar num terceiro a cada desenho da
+     * lista; data: gravaria a imagem inteira dentro do JSON do agente, que e
+     * lido por completo na memoria e espelhado no Supabase.
+     */
+    for (const ruim of ['https://exemplo.com/x.png', 'data:image/png;base64,AAAA', '/midia/../agentes.json', 'javascript:alert(1)']) {
+      const r = await api.patch(`/api/agentes/${cobaia.id}`, { foto: ruim });
+      s.ok(`foto recusada: ${ruim.slice(0, 28)}`, r.status === 400, `respondeu ${r.status}`);
+    }
+    s.ok('e a foto boa continua la depois das recusas', (await buscar())?.foto === '/midia/x.png');
+
+    /* Tirar a foto continua sendo possivel: null e '' passam sem cair na regra. */
+    await api.patch(`/api/agentes/${cobaia.id}`, { foto: null });
+    s.ok('tirar a foto continua funcionando', (await buscar())?.foto === null);
+
     /* Trocar o dono: a guarda de workspace confere o registro ANTES da
        escrita, entao um workspaceId no corpo passava por ela e o agente sumia
        da tela do escritorio sem erro nenhum. */

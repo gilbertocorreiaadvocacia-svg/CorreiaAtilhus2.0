@@ -400,9 +400,26 @@ export async function paginaAgentes({ parametros }) {
       accept: 'image/*',
       'aria-label': `Escolher a foto de ${agente.nome}`,
     });
+    /*
+     * Formatos que o navegador realmente desenha.
+     *
+     * O accept do campo e so sugestao: o seletor do Windows tem "Todos os
+     * arquivos" e o upload aceita qualquer coisa ate 16 MB. O caso que ia doer
+     * e o mais provavel num escritorio: foto tirada de iPhone e HEIC, sobe sem
+     * erro, e guardada, e o <img> simplesmente nao desenha — a pessoa ve o
+     * agente voltar as iniciais e nao tem como saber por que. Melhor recusar
+     * na hora, dizendo o que fazer.
+     */
+    const FORMATOS = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+
     seletorFoto.addEventListener('change', async () => {
       const arquivo = seletorFoto.files[0];
       if (!arquivo) return;
+      if (!FORMATOS.includes(arquivo.type)) {
+        aviso('Use uma foto em JPG, PNG ou WEBP. Foto de iPhone costuma vir em HEIC: abra e exporte como JPG antes.', 'erro');
+        seletorFoto.value = '';
+        return;
+      }
       try {
         const midia = await enviarArquivo(arquivo);
         await salvar({ foto: midia.url });
@@ -426,7 +443,17 @@ export async function paginaAgentes({ parametros }) {
       if (b === PASTA_PADRAO) return 1;
       return a.localeCompare(b, 'pt-BR');
     });
-    const NOVA_PASTA = ' nova';
+    /*
+     * O valor sentinela do <select> de pasta.
+     *
+     * Precisa ser algo que ninguem escreveria como nome de pasta, porque a
+     * lista mistura pastas de verdade com esta opcao. A primeira versao usava
+     * um caractere NUL, e foi um erro caro de um jeito inesperado: o byte 0
+     * ficou gravado no arquivo, e a partir dali o ripgrep passou a classificar
+     * agentes.js como binario e a PULAR o arquivo inteiro, em silencio, em toda
+     * busca. Uma tela de 500 linhas invisivel para quem procura.
+     */
+    const NOVA_PASTA = '::nova-pasta::';
 
     const escolhaDePasta = selecao(
       [
