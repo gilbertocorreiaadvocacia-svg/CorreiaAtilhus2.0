@@ -12,6 +12,7 @@ import { testarSimuladorEOficial } from './conexoes-regressao.js';
 import { testarPortaOcupada } from './porta-ocupada.js';
 import { testarConversas } from './conversas.js';
 import { testarAgentes } from './agentes.js';
+import { testarRede } from './rede.js';
 
 /**
  * A suite do CorreiaAtilhus2.0. Rode com `npm test`.
@@ -84,6 +85,7 @@ async function conferirSintaxe() {
 async function principal() {
   const suites = [];
   suites.push(await conferirSintaxe());
+  suites.push(await testarRede());
 
   const pastaDados = fs.mkdtempSync(path.join(os.tmpdir(), 'correiatendimentos-teste-'));
   const portaSistema = await portaLivre();

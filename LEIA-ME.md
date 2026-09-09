@@ -69,23 +69,51 @@ dependências e um módulo nativo, e isso acabaria com o "abrir com dois cliques
 sem instalar nada". Em vez disso, o CorreiaAtilhus2.0 conversa por HTTP com a
 **Evolution API**, que roda na mesma máquina e segura a sessão.
 
-Instalar, uma vez, com o Docker Desktop aberto:
+São **três passos**, e o segundo é o que ninguém adivinha: sem ele o QR conecta,
+a sessão abre e **nenhuma mensagem chega**, sem erro nenhum na tela.
+
+**1. Subir a Evolution.** Com o Docker Desktop instalado e aberto:
 
 ```
 docker run -d --name evolution -p 8080:8080 -e AUTHENTICATION_API_KEY=escolha-uma-chave-longa -v evolution_dados:/evolution/instances atendai/evolution-api:v2.1.1
 ```
 
-Depois, em **Conexões › Nova conexão › QR Code**, preencha:
+Guarde a chave que você escolheu; ela vai no passo 3.
+
+**2. Deixar a Evolution alcançar este sistema.** A Evolution roda dentro de um
+contêiner, e lá dentro `localhost` é o próprio contêiner — não esta máquina.
+Para entregar as mensagens recebidas ela precisa chamar de fora, e o sistema
+normalmente só aceita chamada da própria máquina.
+
+Crie o arquivo `segredos.bat` na pasta do projeto (há um modelo em
+`windows/segredos-EXEMPLO.bat`) com a linha:
+
+```
+set CORREIA_HOST=0.0.0.0
+```
+
+Feche e abra o sistema. Isso **não** abre o sistema para o escritório: o
+servidor passa a escutar em todas as interfaces, mas recusa quem não for desta
+máquina ou da rede virtual do Docker (`servidor/config.js`, `FAIXAS_PERMITIDAS`,
+com teste em `servidor/testes/rede.js`).
+
+**3. Criar a conexão.** Em **Conexões › Nova conexão › QR Code**:
 
 - **Endereço do serviço:** `http://localhost:8080`
-- **Chave de API:** a mesma que você pôs no `AUTHENTICATION_API_KEY`
+- **Chave de API:** a mesma do `AUTHENTICATION_API_KEY`
 - **Nome da instância:** já vem preenchido, uma por número
-- **Endereço de retorno:** deixe em branco. Só mexa se o serviço rodar em
-  Docker e não enxergar esta máquina — aí use `http://host.docker.internal:4477`
+- **Endereço de retorno:** `http://host.docker.internal:4477` — com a Evolution
+  em Docker, este campo **não** pode ficar em branco, porque o padrão
+  (`localhost`) apontaria o contêiner para ele mesmo
 
 Feito isso, **Ações › Conectar** mostra o QR Code. Abra o WhatsApp do número no
 celular, vá em *Configurações › Aparelhos conectados › Conectar um aparelho* e
 aponte a câmera. A tela percebe sozinha quando a sessão abre.
+
+**Para conferir que o caminho de volta está de pé**, mande uma mensagem de outro
+celular para o número conectado: ela tem de aparecer em Conversas em segundos.
+Se a sessão abre mas nada chega, o problema está no passo 2 ou no endereço de
+retorno — não no QR.
 
 A tela lista os números em tabela, com busca, escolha de colunas e ordem
 arrastável. Clicar em um número abre o painel de detalhes, com cinco abas:

@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
-import { INTERVALO_AGENDADOR, PORTA, RAIZ } from './config.js';
+import { HOST, INTERVALO_AGENDADOR, PORTA, RAIZ, enderecoPermitido } from './config.js';
 import { caminhoDaMidia } from './nucleo/midia.js';
 import { atualizar, encerrarBanco, iniciarBanco, listar } from './nucleo/banco.js';
 import { migrarCoresParaTokens } from './nucleo/paleta.js';
@@ -112,6 +112,24 @@ rotas.get(
 /* ------------------------------------------------------------------ */
 
 const servidor = http.createServer(async (req, res) => {
+  /*
+   * Porteiro de rede.
+   *
+   * Quando o servidor escuta so em 127.0.0.1 esta guarda nunca reprova nada —
+   * o sistema operacional ja barrou antes. Ela existe para o caso do QR Code,
+   * em que CORREIA_HOST abre as interfaces para o contêiner da Evolution
+   * conseguir entregar as mensagens: dali em diante e ESTA linha que segura o
+   * resto da rede do escritorio.
+   *
+   * Recusa antes de qualquer coisa, inclusive antes de ler o corpo: nada de
+   * sessao, nada de rota, nada de log de erro barulhento.
+   */
+  if (!enderecoPermitido(req.socket.remoteAddress)) {
+    res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('Este sistema so atende a propria maquina.\n');
+    return;
+  }
+
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   const caminho = url.pathname;
 
@@ -294,7 +312,7 @@ servidor.on('error', async (erro) => {
  * escritorio alcancava o sistema pelo IP desta maquina, sem senha de rede
  * nenhuma. O atendimento roda aqui, nesta maquina, e e so daqui que se abre.
  */
-servidor.listen(PORTA, '127.0.0.1', () => {
+servidor.listen(PORTA, HOST, () => {
   const linha = '─'.repeat(58);
   console.log(`\n${linha}`);
   console.log('  CORREIAATILHUS2.0');

@@ -68,6 +68,46 @@ export const LIMITE_MIDIA = 16 * 1024 * 1024;
 
 export const PORTA = Number(process.env.PORT || process.env.PORTA || 4477);
 
+/**
+ * Em que endereco o servidor escuta.
+ *
+ * O padrao continua sendo so esta maquina. Existe uma unica razao para mudar,
+ * e ela e o caminho por QR Code: a Evolution API roda em contêiner, e de
+ * dentro dele `localhost` e o proprio contêiner — para entregar as mensagens
+ * recebidas ela precisa chamar a maquina de fora, o que um servidor presao ao
+ * 127.0.0.1 recusa. Sem isso o QR conecta, a sessao abre e NENHUMA mensagem
+ * chega, sem erro nenhum na tela.
+ *
+ * Quem precisa disso poe `set CORREIA_HOST=0.0.0.0` no segredos.bat. Mesmo
+ * assim o sistema nao fica aberto para o escritorio: o filtro logo abaixo
+ * recusa quem nao for desta maquina ou da rede do Docker.
+ */
+export const HOST = process.env.CORREIA_HOST || '127.0.0.1';
+
+/**
+ * Quem pode falar com o servidor quando ele escuta em todas as interfaces.
+ *
+ * Esta maquina, e as faixas privadas que o Docker usa para as suas redes
+ * virtuais. Repare no que NAO esta aqui: 192.168.0.0/16 e 10.0.0.0/8 inteiras,
+ * que sao as faixas de rede de escritorio. Liberar uma delas para resolver o
+ * webhook entregaria a tela de login para qualquer computador da rede — e a
+ * senha padrao deste sistema esta publicada no README.
+ */
+const FAIXAS_PERMITIDAS = [
+  /^127\./,
+  /^::1$/,
+  /^::ffff:127\./,
+  /^172\.(1[6-9]|2\d|3[01])\./, // 172.16.0.0/12, onde o Docker cria as pontes
+  /^::ffff:172\.(1[6-9]|2\d|3[01])\./,
+  /^192\.168\.65\./, // rede interna do Docker Desktop
+  /^::ffff:192\.168\.65\./,
+];
+
+export function enderecoPermitido(endereco) {
+  if (!endereco) return false;
+  return FAIXAS_PERMITIDAS.some((faixa) => faixa.test(endereco));
+}
+
 /** Limite de corpo aceito em uma requisicao (uploads chegam em base64). */
 export const LIMITE_CORPO = 32 * 1024 * 1024;
 
