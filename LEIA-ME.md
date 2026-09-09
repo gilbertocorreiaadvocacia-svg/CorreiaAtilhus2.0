@@ -110,10 +110,21 @@ Feito isso, **Ações › Conectar** mostra o QR Code. Abra o WhatsApp do númer
 celular, vá em *Configurações › Aparelhos conectados › Conectar um aparelho* e
 aponte a câmera. A tela percebe sozinha quando a sessão abre.
 
-**Para conferir que o caminho de volta está de pé**, mande uma mensagem de outro
-celular para o número conectado: ela tem de aparecer em Conversas em segundos.
-Se a sessão abre mas nada chega, o problema está no passo 2 ou no endereço de
-retorno — não no QR.
+**Antes de ler o QR, rode o conferidor:**
+
+```
+npm run conferir-whatsapp
+```
+
+Ele testa a corrente inteira — sistema no ar, conexão configurada, Docker de
+pé, Evolution respondendo, chave aceita — e para no primeiro elo quebrado
+dizendo o que fazer. O último teste é o que ninguém consegue fazer de cabeça:
+ele sobe um contêiner descartável que chama **o mesmo endereço que a Evolution
+vai chamar**, e assim prova o caminho de volta antes de você depender dele.
+
+**Se a sessão abrir e nada chegar**, é o passo 2 ou o endereço de retorno — não
+o QR. Olhe a janela do sistema: desde a versão de hoje a guarda de rede escreve
+uma linha por endereço recusado, dizendo qual foi.
 
 A tela lista os números em tabela, com busca, escolha de colunas e ordem
 arrastável. Clicar em um número abre o painel de detalhes, com cinco abas:

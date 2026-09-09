@@ -111,6 +111,47 @@ rotas.get(
 /* Servidor                                                            */
 /* ------------------------------------------------------------------ */
 
+/**
+ * A recusa de rede deixa UM rastro por endereco.
+ *
+ * A guarda recusava calada, e para um scanner batendo na porta isso e o certo:
+ * responder pouco e nao gastar disco com quem nao interessa.
+ *
+ * So que existe um caso em que o silencio custa caro, e e justamente o caso que
+ * fez a guarda existir. Quando o contêiner da Evolution sai com um endereco
+ * fora da lista — e qual endereco ele usa depende do backend do Docker Desktop
+ * e da versao — o sintoma e este: o QR conecta, a sessao abre, e NENHUMA
+ * mensagem chega. Sem uma linha em lugar nenhum, procura-se o defeito no QR,
+ * no webhook e na Evolution, que estao todos certos.
+ *
+ * Uma linha por endereco, e nao por requisicao: a Evolution reenvia, e sem essa
+ * memoria um contêiner recusado escreveria o mesmo aviso mil vezes. O teto de
+ * enderecos anotados existe para o caso oposto — uma varredura vinda de mil
+ * origens diferentes nao pode encher o log com mil linhas.
+ */
+const recusadosAnotados = new Set();
+const TETO_DE_RECUSAS_ANOTADAS = 20;
+
+/** Faixa privada: quem vem de uma dessas quase certamente e daqui de dentro. */
+const FAIXA_PRIVADA = /^(::ffff:)?(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.)/;
+
+function anotarRecusa(endereco) {
+  if (!endereco || recusadosAnotados.has(endereco)) return;
+  if (recusadosAnotados.size >= TETO_DE_RECUSAS_ANOTADAS) return;
+  recusadosAnotados.add(endereco);
+
+  if (FAIXA_PRIVADA.test(endereco)) {
+    console.error(
+      `\n[rede] Recusei ${endereco}, que e um endereco da rede local.\n` +
+        `       Se este for o contêiner da Evolution, e por isso que o QR conecta\n` +
+        `       e nenhuma mensagem chega. Acrescente a faixa em FAIXAS_PERMITIDAS,\n` +
+        `       em servidor/config.js, e reinicie o sistema.\n`,
+    );
+    return;
+  }
+  console.error(`[rede] Recusei ${endereco} (fora da rede local).`);
+}
+
 const servidor = http.createServer(async (req, res) => {
   /*
    * Porteiro de rede.
@@ -122,9 +163,11 @@ const servidor = http.createServer(async (req, res) => {
    * resto da rede do escritorio.
    *
    * Recusa antes de qualquer coisa, inclusive antes de ler o corpo: nada de
-   * sessao, nada de rota, nada de log de erro barulhento.
+   * sessao e nada de rota. O unico rastro e a linha de anotarRecusa, uma por
+   * endereco — ver o comentario dela logo acima.
    */
   if (!enderecoPermitido(req.socket.remoteAddress)) {
+    anotarRecusa(req.socket.remoteAddress);
     res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end('Este sistema so atende a propria maquina.\n');
     return;
