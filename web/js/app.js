@@ -35,7 +35,6 @@ import { paginaTemplates } from './paginas/templates.js';
 import { paginaVozes } from './paginas/vozes.js';
 import { paginaIntegracoes } from './paginas/integracoes.js';
 import { paginaDashboard } from './paginas/dashboard.js';
-import { paginaPosVenda } from './paginas/posvenda.js';
 import { paginaAgendamentos } from './paginas/agendamentos.js';
 import { paginaTarefas } from './paginas/tarefas.js';
 import { paginaConexoes } from './paginas/conexoes.js';
@@ -52,10 +51,6 @@ const raiz = document.getElementById('raiz');
 const PAGINAS = {
   inicio: { titulo: 'Inicio', montar: paginaInicio },
   dashboard: { titulo: 'Dashboard', montar: paginaDashboard },
-  /* Tela separada, e nao uma aba dentro do dashboard: as duas respondem
-     perguntas diferentes (quantos fecharam / o que esta parado), tem filtros
-     diferentes e quem abre uma raramente quer a outra no mesmo minuto. */
-  posvenda: { titulo: 'Pos-venda', montar: paginaPosVenda },
   conexoes: { titulo: 'Conexoes', subtitulo: 'Gerencie suas conexoes com canais de comunicacao.', montar: paginaConexoes },
 
   atendimento: { titulo: 'Conversas', montar: paginaAtendimento, cheia: true, visualizacao: 'conversas' },
@@ -86,12 +81,7 @@ const PAGINAS = {
  */
 const MENU = [
   { rota: 'inicio', rotulo: 'Inicio', icone: 'inicio' },
-  /* As duas telas de metrica ficam juntas e no mesmo nivel. Pos-venda dentro de
-     Dashboard esconderia a segunda atras de um clique, e ela e a que o juridico
-     abre todo dia; Dashboard e a que o comercial abre. Nenhuma e submenu da
-     outra. */
   { rota: 'dashboard', rotulo: 'Dashboard', icone: 'painel' },
-  { rota: 'posvenda', rotulo: 'Pos-venda', icone: 'contrato' },
   { rota: 'conexoes', rotulo: 'Conexoes', icone: 'conexoes' },
   {
     rotulo: 'Atendimento',

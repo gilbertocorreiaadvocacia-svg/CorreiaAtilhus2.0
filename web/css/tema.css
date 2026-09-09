@@ -5252,40 +5252,6 @@ textarea.area-g {
   text-overflow: ellipsis;
 }
 
-/* A barra e sempre 100% da coluna: ela mostra a proporcao DENTRO da etapa, e
-   nao o tamanho da etapa. O tamanho ja esta escrito em numero ao lado. */
-/* O vao de 2px entre as faixas e desenhado pelo proprio trilho, e vale mais que
-   um filete: as quatro cores sao semanticas e por isso ficam perto demais entre
-   si (1,4:1 entre vizinhas, 1,2:1 sob daltonismo verde-vermelho). Sem a fenda,
-   a barra virava uma mancha continua para quem nao separa essas cores. */
-.barra-idade {
-  display: flex;
-  gap: 2px;
-  height: 18px;
-  overflow: hidden;
-  border-radius: 3px;
-  background: var(--superficie-3);
-}
-
-.pedaco-idade {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  min-width: 4px;
-  overflow: hidden;
-}
-
-/* O numero dentro da faixa. Preto sobre as quatro cores, que sao todas claras o
-   bastante: com --texto ele reprovava no contraste sobre a faixa verde no tema
-   escuro. */
-.pedaco-idade span {
-  color: var(--preto);
-  font-size: var(--t-nota);
-  font-weight: 700;
-  line-height: 1;
-  font-variant-numeric: lining-nums tabular-nums;
-}
 
 .etapa-numeros {
   display: flex;
