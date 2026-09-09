@@ -247,8 +247,15 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
     // a terceira coluna sumia mas a grade continuava reservando os 300px dela,
     // e sobrava uma faixa vazia na direita.
     if (visualizacao === 'conversas') {
-      container.className = 'atendimento';
-      container.append(colunaLista(), colunaConversa(), colunaPropriedades());
+      /* Duas faixas: a barra em cima, as tres colunas embaixo. A grade das
+         colunas continua sendo .atendimento, com as larguras do tema — e por
+         isso ela ganha um elemento proprio em vez de virar o container. */
+      const lista = colunaLista();
+      container.className = 'tela-atendimento';
+      container.append(
+        lista.barra,
+        el('div', { class: 'atendimento' }, [lista.coluna, colunaConversa(), colunaPropriedades()]),
+      );
     } else {
       container.className = 'atendimento coluna-unica';
       container.append(visualizacao === 'kanban' ? montarKanban() : montarTabela());
@@ -257,9 +264,18 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
 
   /* ---------------- Filtros ---------------- */
 
-  function abrirFiltros() {
+  /**
+   * Abre a janela de filtros, inteira ou so com os campos pedidos.
+   *
+   * O recorte existe porque a barra da fila passou a ter tres botoes —
+   * Responsavel, Status e Mais filtros — e os tres precisam mexer no MESMO
+   * objeto `filtro`. Duplicar a montagem para os atalhos criaria duas verdades
+   * sobre o que e um filtro, e o dia em que alguem acrescentasse um campo so
+   * um dos dois caminhos saberia dele.
+   */
+  function abrirFiltros(apenas = null) {
     const corpo = el('div');
-    const campos = [
+    const todos = [
       ['status', 'Status', estado.status.map((s) => ({ valor: s.id, rotulo: s.nome }))],
       [
         'departamento',
@@ -283,6 +299,8 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
       ['origem', 'Origem', estado.origens.map((o) => ({ valor: o.id, rotulo: o.nome }))],
     ];
 
+    const campos = apenas ? todos.filter(([chave]) => apenas.includes(chave)) : todos;
+
     const controles = {};
     for (const [chave, rotulo, opcoes] of campos) {
       controles[chave] = selecao([{ valor: '', rotulo: 'Todos' }, ...opcoes], filtro[chave] || '');
@@ -290,7 +308,7 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
     }
 
     modal({
-      titulo: 'Filtrar conversas',
+      titulo: campos.length === 1 ? `Filtrar por ${campos[0][1].toLowerCase()}` : 'Filtrar conversas',
       corpo,
       confirmar: 'Aplicar',
       aoConfirmar: async () => {
@@ -298,6 +316,18 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
         await desenhar();
       },
     });
+  }
+
+  /**
+   * O rotulo de um botao de filtro: o nome do campo, ou o que esta escolhido.
+   *
+   * Botao que diz sempre "Status" nao deixa ver que ha um filtro ligado, e
+   * conversa sumida da fila por filtro esquecido e o tipo de coisa que faz
+   * alguem achar que o sistema perdeu dado.
+   */
+  function rotuloDeFiltro(chave, padrao, lista) {
+    const escolhido = lista.find((i) => i.id === filtro[chave]);
+    return escolhido ? escolhido.nome : padrao;
   }
 
   /* ---------------- Coluna 1: lista ---------------- */
@@ -377,26 +407,56 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
       contaConcluidos,
     ]);
 
-    const filtrosAtivos = Object.entries(filtro).filter(
-      ([chave, valor]) => valor && !['aba', 'busca'].includes(chave),
+    /* Quantos filtros estao ligados alem dos dois que a barra ja mostra por
+       nome. E esse numero que aparece em "Mais filtros". */
+    const outrosFiltros = Object.entries(filtro).filter(
+      ([chave, valor]) => valor && !['aba', 'busca', 'status', 'responsavel'].includes(chave),
     ).length;
 
     const corpo = el('div', { class: 'coluna-corpo' });
 
+    /*
+     * A BARRA SAI DE DENTRO DA COLUNA.
+     *
+     * A busca e os filtros valem para a fila inteira, mas estavam espremidos
+     * nos 320px da primeira coluna, junto com as abas e a linha de concluidos
+     * — quatro coisas diferentes empilhadas num cabecalho so. Na barra, a
+     * busca ganha largura e os filtros ganham NOME em vez de um icone de funil
+     * com um numero ao lado.
+     *
+     * Ela e montada aqui, e nao em desenhar(), porque depende das mesmas
+     * funcoes que a coluna usa: buscar, atualizarLista e atualizarContagens.
+     * Move-la para fora custaria hoistar tres fechamentos e a busca deixaria
+     * de conseguir atualizar a lista sem redesenhar a tela — que e o que
+     * mantem o cursor no campo enquanto se digita.
+     */
+    const barra = el('div', { class: 'barra-fila' }, [
+      el('div', { class: 'barra-fila-busca' }, [busca]),
+      el('div', { class: 'flexivel' }),
+      botao(rotuloDeFiltro('responsavel', 'Responsável', [
+        ...estado.membros.map((m) => ({ id: m.id, nome: m.usuario?.nome || 'Membro' })),
+        ...estado.agentes.map((a) => ({ id: a.id, nome: a.nome })),
+      ]), {
+        pequeno: true,
+        titulo: 'Filtrar por quem esta com a conversa',
+        aoClicar: () => abrirFiltros(['responsavel']),
+      }),
+      botao(rotuloDeFiltro('status', 'Status', estado.status), {
+        pequeno: true,
+        titulo: 'Filtrar por etapa do funil',
+        aoClicar: () => abrirFiltros(['status']),
+      }),
+      botao(outrosFiltros ? `Mais filtros · ${outrosFiltros}` : 'Mais filtros', {
+        pequeno: true,
+        titulo: 'Departamento, etiqueta, conexao e origem',
+        aoClicar: () => abrirFiltros(),
+      }),
+      el('div', { class: 'barra-fila-divisor' }),
+      botao('Nova conversa', { pequeno: true, tipo: 'principal', aoClicar: abrirNovaConversa }),
+    ]);
+
     const coluna = el('div', { class: 'coluna' }, [
-      el('div', { class: 'coluna-cabecalho' }, [
-        el('div', { class: 'linha-botoes mb-2' }, [
-          el('div', { class: 'flexivel' }, [busca]),
-          botao(filtrosAtivos ? String(filtrosAtivos) : '', {
-            icone: 'filtros',
-            titulo: 'Filtros',
-            aoClicar: abrirFiltros,
-          }),
-          botao('', { icone: 'mais', titulo: 'Nova conversa', aoClicar: abrirNovaConversa }),
-        ]),
-        abas,
-        concluidos,
-      ]),
+      el('div', { class: 'coluna-cabecalho sem-respiro' }, [abas, concluidos]),
       corpo,
     ]);
 
@@ -420,7 +480,7 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
     /* Tambem no primeiro desenho, e nao so depois de uma busca: e daqui que
        sai o selo cheio de Pendentes. */
     atualizarContagens();
-    return coluna;
+    return { coluna, barra };
   }
 
   /*

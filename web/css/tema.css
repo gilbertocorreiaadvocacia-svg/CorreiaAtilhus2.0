@@ -2062,6 +2062,57 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
 
 /* Atendimento ------------------------------------------------------ */
 
+/*
+ * A tela de Conversas: barra em cima, as tres colunas embaixo.
+ *
+ * A busca e os filtros valem para a fila inteira e estavam espremidos nos
+ * 320px da primeira coluna, junto com as abas e a linha de concluidos. Aqui
+ * eles ganham a largura da tela e param de disputar com as abas.
+ *
+ * minmax(0, 1fr) na segunda faixa, e nao 1fr: o "auto" implicito do 1fr vira
+ * o min-content da grade de colunas, e a faixa se recusava a encolher, jogando
+ * a barra de rolagem para o documento inteiro.
+ */
+.tela-atendimento {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+}
+
+.barra-fila {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  padding: var(--e2) var(--e3);
+  background: var(--superficie);
+  border-bottom: 1px solid var(--borda);
+}
+
+/* A busca nao ocupa a barra inteira: passando de uns 340px ela vira um campo
+   vazio enorme, e o que fica longe do olho e justamente o que se digita. */
+.barra-fila-busca {
+  flex: 1;
+  max-width: 340px;
+  min-width: 0;
+}
+
+/* Separa "o que filtra" de "o que cria". Sao gestos de natureza diferente, e
+   sem o fio o Nova conversa lia como mais um filtro. */
+.barra-fila-divisor {
+  flex: none;
+  width: 1px;
+  height: 20px;
+  margin: 0 var(--e1);
+  background: var(--borda);
+}
+
+/* O cabecalho da coluna da fila perdeu o respiro: dentro dele sobraram so as
+   abas e a linha de concluidos, e as duas ja tem o proprio. */
+.coluna-cabecalho.sem-respiro {
+  padding: 0;
+}
+
 .atendimento {
   display: grid;
   grid-template-columns: 320px 1fr 300px;
