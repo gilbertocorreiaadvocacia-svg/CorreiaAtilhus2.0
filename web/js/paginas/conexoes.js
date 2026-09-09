@@ -266,7 +266,7 @@ export async function paginaConexoes({ definirAcoes } = {}) {
       responsavel: el('td', {}, [
         responsavel
           ? el('div', { class: 'conexao-identidade' }, [
-              avatar({ nome: responsavel.nome }, 24),
+              avatar(responsavel, 24),
               el('span', { texto: responsavel.nome }),
               responsavel.tipo === 'agente' ? selo('IA', 'ouro') : null,
             ])
@@ -497,7 +497,7 @@ function abaGeral(conexao, irParaLogs, aoMudar) {
         icone('usuarios', 14),
         responsavel
           ? el('span', { class: 'conexao-identidade' }, [
-              avatar({ nome: responsavel.nome }, 24),
+              avatar(responsavel, 24),
               el('span', { texto: responsavel.nome }),
               responsavel.tipo === 'agente' ? selo('IA', 'ouro') : null,
             ])
@@ -1114,14 +1114,24 @@ function subtitulo(texto, balao) {
 }
 
 /** Nome e natureza de quem recebe as conversas novas deste numero. */
+/*
+ * A FOTO SAI DAQUI, e nao das duas telas que chamam.
+ *
+ * As duas montavam o avatar com { nome: responsavel.nome } e por isso jogavam
+ * a foto fora sem erro nenhum: o agente com foto cadastrada aparecia de
+ * iniciais nesta tela e de foto na de Agentes, e nao havia como desconfiar do
+ * motivo olhando qualquer uma das duas.
+ */
 function descreverResponsavel(responsavel) {
   if (!responsavel?.id) return null;
   if (responsavel.tipo === 'agente') {
     const agente = estado.agentes.find((a) => a.id === responsavel.id);
-    return agente ? { nome: agente.nome, tipo: 'agente' } : null;
+    return agente ? { nome: agente.nome, foto: agente.foto || null, tipo: 'agente' } : null;
   }
   const membro = estado.membros.find((m) => m.id === responsavel.id);
-  return membro ? { nome: membro.usuario?.nome || 'Membro', tipo: 'membro' } : null;
+  return membro
+    ? { nome: membro.usuario?.nome || 'Membro', foto: membro.usuario?.foto || null, tipo: 'membro' }
+    : null;
 }
 
 /**

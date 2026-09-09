@@ -1032,10 +1032,33 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
      * As duas saidas ficam na mesma faixa porque sao a mesma decisao: dar uma
      * resposta e seguir, ou tomar a conversa para si.
      */
+    /*
+     * Quem esta atendendo, com a cara dele.
+     *
+     * O responsavel gravado na conversa e um retrato de tres campos — tipo, id
+     * e nome — feito no momento em que o agente assumiu. Ele NAO tem foto, e
+     * nunca vai ter: se tivesse, trocar a foto do agente deixaria o retrato
+     * velho em todas as conversas antigas. Por isso a foto se resolve pelo id,
+     * na lista viva de agentes.
+     *
+     * SEM o selinho de IA no canto, e a decisao foi medida e nao suposta.
+     * O .avatar-marca existe no tema, nunca foi usado, e a tentacao de
+     * estrear aqui era grande — mas ele tem 12px fixos, desenhados para o
+     * avatar de 32: sobre um de 24 ele fica com metade do diametro e cobre
+     * boa parte do rosto. E ele repetiria o que esta escrito ao lado: a faixa
+     * e dourada e a frase ja diz que quem atende e a IA e que escrever aqui
+     * nao toma a conversa dela. O que faltava era saber QUAL agente, e isso e
+     * a foto que responde.
+     */
+    const agenteAtendendo =
+      contato.responsavel?.tipo === 'agente'
+        ? estado.agentes.find((a) => a.id === contato.responsavel.id) || null
+        : null;
+
     const faixaAgente =
       contato.responsavel?.tipo === 'agente'
         ? el('div', { class: 'faixa-agente' }, [
-            icone('agentes', 14),
+            avatar({ nome: agenteAtendendo?.nome || contato.responsavel.nome, foto: agenteAtendendo?.foto || null }, 24),
             el('span', { class: 'flexivel' }, [
               el('b', { texto: contato.responsavel.nome || 'A IA' }),
               document.createTextNode(' esta atendendo. O que voce escrever sai agora, sem tirar a conversa dela.'),

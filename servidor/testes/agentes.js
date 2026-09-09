@@ -97,5 +97,74 @@ export async function testarAgentes({ base }) {
   s.ok('o vinculo volta exatamente como estava',
     JSON.stringify(restaurado?.conhecimentoIds) === JSON.stringify(original));
 
+  /* ---------------- O PATCH so aceita os campos do agente ---------------- */
+
+  /*
+   * Ate pouco tempo atras o corpo do PATCH ia CRU para o banco. Os dois casos
+   * abaixo sao os que doiam, e os dois eram silenciosos.
+   */
+  const cobaia = (await api.post('/api/agentes', { nome: 'Cobaia da Whitelist' })).dados;
+  if (cobaia?.id) {
+    const buscar = async () => ((await api.get('/api/agentes')).dados || []).find((a) => a.id === cobaia.id);
+
+    /* Campo legitimo continua salvando: uma whitelist apertada demais quebra a
+       tela em silencio, que e o jeito oposto de errar no mesmo lugar. */
+    await api.patch(`/api/agentes/${cobaia.id}`, { nome: 'Cobaia Renomeada', delaySegundos: 30, foto: '/midia/x.png' });
+    const editada = await buscar();
+    s.ok('campo legitimo do agente salva', editada?.nome === 'Cobaia Renomeada');
+    s.ok('numero tambem', editada?.delaySegundos === 30);
+    s.ok('a foto e um campo do agente', editada?.foto === '/midia/x.png');
+
+    /* Trocar o dono: a guarda de workspace confere o registro ANTES da
+       escrita, entao um workspaceId no corpo passava por ela e o agente sumia
+       da tela do escritorio sem erro nenhum. */
+    await api.patch(`/api/agentes/${cobaia.id}`, { workspaceId: 'wks_de_outro_escritorio' });
+    const aindaAqui = await buscar();
+    s.ok('PATCH nao consegue mudar o workspace do agente', Boolean(aindaAqui), 'o agente sumiu da listagem');
+
+    /* Campo calculado: o GET soma sete campos que nao existem no disco. Gravar
+       um deles congela um calculo que ninguem mais refaz — o agente passaria a
+       dizer que tem uma ferramenta que o prompt nao pede mais. */
+    await api.patch(`/api/agentes/${cobaia.id}`, { ferramentas: ['inventada'], caracteres: 99999, id: 'agn_outro' });
+    const depoisDoLixo = await buscar();
+    s.ok(
+      'campo calculado nao e gravado por cima',
+      !(depoisDoLixo?.ferramentas || []).includes('inventada'),
+      JSON.stringify(depoisDoLixo?.ferramentas),
+    );
+    s.ok('o id nao muda por PATCH', depoisDoLixo?.id === cobaia.id);
+    s.ok(
+      'a contagem de caracteres continua sendo calculada',
+      depoisDoLixo?.caracteres === (depoisDoLixo?.prompt || '').length,
+      String(depoisDoLixo?.caracteres),
+    );
+
+    /* ---------------- Pastas ---------------- */
+
+    const PASTA_NOVA = 'Pasta de Teste';
+    await api.patch(`/api/agentes/${cobaia.id}`, { pasta: PASTA_NOVA });
+    s.ok('mover para uma pasta que nao existia cria a pasta', (await buscar())?.pasta === PASTA_NOVA);
+
+    const renomeada = await api.patch('/api/agentes-pasta', { de: PASTA_NOVA, para: 'Pasta Renomeada' });
+    s.ok('renomear a pasta responde quantos agentes se mexeram', renomeada.dados?.movidos === 1, JSON.stringify(renomeada.dados));
+    s.ok('e o agente esta na pasta nova', (await buscar())?.pasta === 'Pasta Renomeada');
+
+    const inexistente = await api.patch('/api/agentes-pasta', { de: 'Pasta Que Nunca Existiu', para: 'X' });
+    s.ok('renomear pasta inexistente da 404', inexistente.status === 404, String(inexistente.status));
+
+    const semNome = await api.patch('/api/agentes-pasta', { de: 'Pasta Renomeada', para: '   ' });
+    s.ok('pasta sem nome e recusada', semNome.status === 400, String(semNome.status));
+
+    /* Renomear para o nome de uma pasta que ja existe junta as duas. E o
+       comportamento esperado, mas precisa ser afirmado: a pessoa ve uma pasta
+       sumir da coluna e o susto e achar que apagou os agentes dela. */
+    await api.patch('/api/agentes-pasta', { de: 'Pasta Renomeada', para: 'Meus Agentes' });
+    s.ok('renomear para uma pasta existente junta as duas', (await buscar())?.pasta === 'Meus Agentes');
+
+    await api.delete(`/api/agentes/${cobaia.id}`);
+    const sumiu = await buscar();
+    s.ok('a cobaia foi removida e a base ficou como estava', !sumiu);
+  }
+
   return s;
 }

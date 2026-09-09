@@ -449,13 +449,28 @@ export function numero(valor) {
  */
 export function avatar(pessoa, tamanho = 32, opcoes = {}) {
   const medida = `${tamanho}px`;
-  const face = pessoa?.foto
-    ? el('img', { class: 'avatar', src: pessoa.foto, alt: '', estilo: { width: medida, height: medida } })
-    : el('div', {
-        class: 'avatar',
-        estilo: { width: medida, height: medida },
-        texto: iniciais(pessoa?.nome || '') || '?',
-      });
+
+  const circulo = () =>
+    el('div', {
+      class: 'avatar',
+      estilo: { width: medida, height: medida },
+      texto: iniciais(pessoa?.nome || '') || '?',
+    });
+
+  let face = circulo();
+  if (pessoa?.foto) {
+    face = el('img', { class: 'avatar', src: pessoa.foto, alt: '', estilo: { width: medida, height: medida } });
+    /*
+     * Foto que nao carrega volta a ser as iniciais.
+     *
+     * A foto e uma URL de /midia, e o arquivo pode nao estar mais la: backup
+     * restaurado sem a pasta de midia, arquivo apagado a mao, pasta movida. Sem
+     * esta volta o que aparecia era o icone de imagem quebrada do navegador,
+     * dentro de um circulo, em toda tela que mostra a pessoa — feio, e sem
+     * dizer a ninguem o que aconteceu.
+     */
+    face.addEventListener('error', () => face.replaceWith(circulo()), { once: true });
+  }
 
   // Sem marca, devolve o circulo puro: e o que as dezenas de chamadas que ja
   // existem esperam receber, e envolver tudo numa caixa quebraria o alinhamento

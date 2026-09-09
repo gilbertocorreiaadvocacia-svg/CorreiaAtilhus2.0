@@ -379,6 +379,9 @@ export function semearSePrecisar() {
       vozId: null,
       modoAudio: false,
       pasta: 'Meus Agentes',
+      /* Sem foto, o avatar do sistema desenha as iniciais. O campo nasce aqui
+         para o registro ter a mesma forma venha ele da semente ou da tela. */
+      foto: null,
       ativo: true,
     });
     idsAgentes[dados.nome] = registro.id;

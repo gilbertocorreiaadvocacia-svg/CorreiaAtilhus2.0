@@ -158,6 +158,95 @@ export function registrarAutomacoes(rotas) {
 
   /* ---------------- Agentes ---------------- */
 
+  /**
+   * Os campos que a TELA pode mudar num agente.
+   *
+   * Ate aqui o corpo do PATCH ia cru para o banco, e isso abria dois buracos
+   * de tamanhos bem diferentes.
+   *
+   * O primeiro e de dono: um PATCH com { workspaceId: 'outro' } mudava o
+   * escritorio a que o agente pertence, e a guarda de workspace logo acima so
+   * confere o registro ANTES da escrita — depois dela o agente ja nao e mais
+   * daqui, e some da tela sem nenhum erro.
+   *
+   * O segundo e mais insidioso. O GET devolve o agente somado a sete campos
+   * CALCULADOS na hora — caracteres, mencoes, ferramentas, primarioEm. Uma tela
+   * que devolvesse esse objeto inteiro num PATCH gravaria os sete no disco, e a
+   * partir dali o registro carregaria uma copia congelada de um calculo que
+   * ninguem mais refaz: o agente diria ter uma ferramenta que o prompt nao pede
+   * mais.
+   *
+   * Campo fora da lista e descartado em silencio, de proposito: a tela nunca
+   * manda um, e recusar a chamada inteira por causa de um campo a mais faria o
+   * salvar falhar por motivo que a pessoa nao tem como entender. Quem
+   * acrescentar um campo novo ao agente precisa acrescentar aqui tambem — e o
+   * teste em servidor/testes/agentes.js afirma exatamente isso.
+   */
+  const CAMPOS_DO_AGENTE = new Set([
+    'nome',
+    'objetivo',
+    'prompt',
+    'palavrasChave',
+    'modelo',
+    'delaySegundos',
+    'conhecimentoIds',
+    'vozId',
+    'modoAudio',
+    'pasta',
+    'ativo',
+    'foto',
+  ]);
+
+  function apenasCamposDoAgente(corpo) {
+    const limpo = {};
+    for (const [chave, valor] of Object.entries(corpo || {})) {
+      if (CAMPOS_DO_AGENTE.has(chave)) limpo[chave] = valor;
+    }
+    return limpo;
+  }
+
+  /** A pasta padrao, quando ninguem escolheu nenhuma. */
+  const PASTA_PADRAO = 'Meus Agentes';
+
+  /**
+   * A forma de um agente novo, num lugar so.
+   *
+   * Havia TRES lugares criando agente com listas de campos diferentes: a
+   * semente, o POST /api/agentes e o POST /api/agentes/gerar. O terceiro ja
+   * nascia sem vozId e sem modoAudio, e o defeito era mudo: o agente gerado
+   * por IA aparecia normal na lista, e so quem fosse escolher a voz dele
+   * descobria que o campo se comportava diferente do dos outros.
+   *
+   * Com um construtor so, acrescentar campo ao agente e mexer aqui — e o
+   * agente gerado por IA nasce igual ao criado a mao. A semente continua
+   * separada de proposito: ela roda uma vez, com prompts proprios, e nao pode
+   * depender de uma rota.
+   */
+  function novoAgente(ctx, dados = {}) {
+    return {
+      id: novoId('agn'),
+      workspaceId: ctx.workspaceId,
+      nome: dados.nome || 'Novo agente',
+      objetivo: dados.objetivo || 'atender',
+      prompt: dados.prompt || '',
+      palavrasChave: dados.palavrasChave || [],
+      modelo: dados.modelo || 'claude-sonnet-5',
+      delaySegundos: dados.delaySegundos ?? 15,
+      conhecimentoIds: dados.conhecimentoIds || [],
+      vozId: null,
+      modoAudio: false,
+      pasta: dados.pasta || PASTA_PADRAO,
+      /*
+       * A foto e uma URL de /midia, guardada pelo mesmo upload que ja recebe
+       * video de proposta e audio. Nasce vazia: sem ela o avatar() do sistema
+       * desenha as iniciais, que e o que a tela ja mostrava antes de existir
+       * foto nenhuma.
+       */
+      foto: dados.foto || null,
+      ativo: dados.ativo !== false,
+    };
+  }
+
   rotas.get('/api/agentes', async ({ ctx }) =>
     listar('agentes', { workspaceId: ctx.workspaceId }).map((agente) => {
       const analise = analisarPrompt(agente.prompt || '', ctx.workspaceId);
@@ -182,27 +271,48 @@ export function registrarAutomacoes(rotas) {
 
   rotas.post('/api/agentes', async ({ ctx, corpo }) => {
     exigirConfiguracao(ctx);
-    return inserir('agentes', {
-      id: novoId('agn'),
-      workspaceId: ctx.workspaceId,
-      nome: corpo.nome || 'Novo agente',
-      objetivo: corpo.objetivo || 'atender',
-      prompt: corpo.prompt || '',
-      palavrasChave: corpo.palavrasChave || [],
-      modelo: corpo.modelo || 'claude-sonnet-5',
-      delaySegundos: corpo.delaySegundos ?? 15,
-      conhecimentoIds: corpo.conhecimentoIds || [],
-      vozId: null,
-      modoAudio: false,
-      pasta: corpo.pasta || 'Meus Agentes',
-      ativo: corpo.ativo !== false,
-    });
+    return inserir('agentes', novoAgente(ctx, corpo));
   });
 
   rotas.patch('/api/agentes/:id', async ({ ctx, params, corpo }) => {
     exigirConfiguracao(ctx);
     doWorkspace(ctx, 'agentes', params.id);
-    return atualizar('agentes', params.id, corpo);
+    return atualizar('agentes', params.id, apenasCamposDoAgente(corpo));
+  });
+
+  /**
+   * Renomear uma pasta de agentes.
+   *
+   * Nao ha tabela de pastas, e isso e de proposito: a pasta e so um texto no
+   * registro do agente, e ela existe enquanto algum agente apontar para ela.
+   * Criar pasta e mover um agente para um nome novo; esvaziar e a mesma coisa
+   * ao contrario.
+   *
+   * O que NAO da para fazer no navegador e renomear: seriam N chamadas, uma por
+   * agente, e uma falha no meio deixaria metade da pasta com o nome velho e
+   * metade com o novo — duas pastas na tela onde havia uma. Aqui e um laco so,
+   * sincrono, sobre o banco em memoria: ou renomeia tudo, ou nao renomeia nada.
+   */
+  rotas.patch('/api/agentes-pasta', async ({ ctx, corpo }) => {
+    exigirConfiguracao(ctx);
+    const de = String(corpo.de || '').trim();
+    const para = String(corpo.para || '').trim();
+    if (!de || !para) throw comCodigo('Informe o nome atual e o novo nome da pasta.', 400);
+    if (para.length > 40) throw comCodigo('Nome de pasta muito longo (maximo 40 caracteres).', 400);
+
+    const daPasta = listar('agentes', { workspaceId: ctx.workspaceId }).filter(
+      (agente) => (agente.pasta || PASTA_PADRAO) === de,
+    );
+    if (!daPasta.length) throw comCodigo('Pasta nao encontrada.', 404);
+
+    /*
+     * Renomear para um nome que ja existe junta as duas pastas. Isso e o
+     * esperado — e como funciona em qualquer gerenciador de arquivos — mas
+     * merece um retorno dizendo quantos agentes se mexeram, senao a pessoa ve
+     * uma pasta sumir da tela e acha que apagou os agentes dela.
+     */
+    for (const agente of daPasta) atualizar('agentes', agente.id, { pasta: para });
+    return { ok: true, movidos: daPasta.length, juntou: daPasta.length !== listar('agentes', { workspaceId: ctx.workspaceId }).filter((a) => (a.pasta || PASTA_PADRAO) === para).length };
   });
 
   rotas.delete('/api/agentes/:id', async ({ ctx, params }) => {
@@ -347,18 +457,16 @@ export function registrarAutomacoes(rotas) {
 
     if (!resposta.texto) throw comCodigo('A IA nao devolveu um prompt. Tente de novo.', 502);
 
-    return inserir('agentes', {
-      id: novoId('agn'),
-      workspaceId: ctx.workspaceId,
-      nome: corpo.nome || 'Agente gerado por IA',
-      objetivo: corpo.objetivo || 'atender',
-      prompt: resposta.texto,
-      palavrasChave: corpo.palavrasChave || [],
-      modelo: corpo.modeloDoAgente || 'claude-sonnet-5',
-      delaySegundos: 15,
-      conhecimentoIds: [],
-      pasta: 'Meus Agentes',
-      ativo: true,
-    });
+    return inserir(
+      'agentes',
+      novoAgente(ctx, {
+        ...corpo,
+        nome: corpo.nome || 'Agente gerado por IA',
+        // O prompt aqui e o texto que o modelo acabou de escrever, nunca o que
+        // veio no corpo da chamada.
+        prompt: resposta.texto,
+        modelo: corpo.modeloDoAgente,
+      }),
+    );
   });
 }

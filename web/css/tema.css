@@ -594,6 +594,75 @@ a {
   color: var(--texto-fraco);
 }
 
+/*
+ * Cabecalho de pasta na tela de Agentes: o nome, e o renomear a direita.
+ *
+ * A pasta aqui nao e um cadastro, e um texto no registro do agente. Ela existe
+ * enquanto alguem apontar para ela, e por isso nao ha botao de apagar: esvaziar
+ * a pasta ja e apaga-la.
+ */
+.menu-grupo-pasta {
+  display: flex;
+  align-items: baseline;
+  gap: var(--e2);
+}
+
+/*
+ * O renomear so aparece quando alguem chega perto.
+ *
+ * Visivel o tempo todo, ele viraria uma coluna de repeticoes ao lado dos nomes
+ * das pastas, competindo com os agentes — que sao o assunto da tela.
+ *
+ * O ESCONDER E POR OPACIDADE, E NAO POR visibility.
+ *
+ * Esta foi a primeira tentativa e estava errada: elemento com
+ * visibility: hidden nao recebe foco. O Tab pulava o botao, entao a regra de
+ * revelar no foco — escrita justamente para quem nao usa mouse — nunca podia
+ * disparar. O recurso simplesmente nao existia no teclado.
+ *
+ * Com opacidade o botao continua na ordem de foco. O pointer-events: none
+ * cuida do outro lado: sem ele, um botao invisivel continuaria clicavel, e um
+ * clique perdido ao lado do nome da pasta abriria uma janela do nada.
+ *
+ * text-transform volta ao normal: o cabecalho e caixa alta com espacamento de
+ * letra, e "RENOMEAR" nesse mesmo tratamento parecia o nome de uma segunda
+ * pasta em vez de uma acao.
+ */
+.pasta-renomear {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--t-xs);
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--texto-fraco);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.menu-grupo-pasta:hover .pasta-renomear,
+.pasta-renomear:focus {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.pasta-renomear:hover {
+  color: var(--texto);
+}
+
+/* :focus revela (acima), :focus-visible desenha o anel. Sao coisas diferentes:
+   quem chega de teclado precisa ver ONDE esta, quem chegou de clique ja sabe. */
+.pasta-renomear:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: 2px;
+  border-radius: var(--raio-p);
+}
+
 /* Na faixa estreita de 64px nao ha rotulo para clicar nem espaco para a seta:
    o grupo vira uma secao separada por um fio, com os itens sempre a vista. */
 .menu-faixa {

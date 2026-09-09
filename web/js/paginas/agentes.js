@@ -1,8 +1,9 @@
-import { api } from '../api.js';
+import { api, enviarArquivo } from '../api.js';
 import { dica, previaDaMidia } from '../componentes.js';
 import { estado, podeConfigurar, recarregar } from '../estado.js';
 import {
   areaTexto,
+  avatar,
   aviso,
   botao,
   campo,
@@ -25,6 +26,16 @@ import {
  * uma janelinha. A direita ficam os nove campos que definem o comportamento do
  * agente, com as mencoes reconhecidas logo abaixo do texto.
  */
+/**
+ * A pasta padrao.
+ *
+ * Tem que ser a MESMA string do servidor (PASTA_PADRAO em
+ * servidor/rotas/automacoes.js): agente sem pasta e agente na pasta "Meus
+ * Agentes" precisam cair no mesmo grupo, senao a tela mostra duas pastas onde
+ * o escritorio ve uma so.
+ */
+const PASTA_PADRAO = 'Meus Agentes';
+
 export async function paginaAgentes({ parametros }) {
   // As tres colunas desta tela sao mais estreitas na lista e mais largas na
   // configuracao que as do atendimento. A medida mora no tema, em
@@ -60,7 +71,7 @@ export async function paginaAgentes({ parametros }) {
     const agente = agentes.find((a) => a.id === selecionadoId) || null;
 
     limpar(container);
-    container.append(colunaLista(agentes), colunaPrompt(agente), colunaConfiguracao(agente));
+    container.append(colunaLista(agentes), colunaPrompt(agente), colunaConfiguracao(agente, agentes));
   }
 
   /* ---------------- Coluna 1: lista ---------------- */
@@ -70,14 +81,29 @@ export async function paginaAgentes({ parametros }) {
 
     const pastas = new Map();
     for (const agente of agentes) {
-      const pasta = agente.pasta || 'Meus Agentes';
+      const pasta = agente.pasta || PASTA_PADRAO;
       if (!pastas.has(pasta)) pastas.set(pasta, []);
       pastas.get(pasta).push(agente);
     }
 
-    for (const [pasta, lista] of pastas) {
-      corpo.append(el('div', { class: 'menu-grupo', texto: pasta }));
-      for (const agente of lista) {
+    /*
+     * A padrao primeiro, o resto em ordem alfabetica.
+     *
+     * Antes a ordem era a de criacao dos agentes, que ninguem escolheu e
+     * ninguem lembra. Isso passou a incomodar quando a pasta virou editavel:
+     * mover um agente para uma pasta nova fazia essa pasta aparecer no meio da
+     * coluna, na altura em que aquele agente por acaso estava, e parecia que a
+     * lista tinha se embaralhado sozinha.
+     */
+    const nomesDePasta = [...pastas.keys()].sort((a, b) => {
+      if (a === PASTA_PADRAO) return -1;
+      if (b === PASTA_PADRAO) return 1;
+      return a.localeCompare(b, 'pt-BR');
+    });
+
+    for (const pasta of nomesDePasta) {
+      corpo.append(cabecalhoDePasta(pasta, pastas.get(pasta).length));
+      for (const agente of pastas.get(pasta)) {
         // Botao, e nao div com aoClick: a lista de agentes e a navegacao desta
         // tela, e o clique ainda e o unico caminho para a pergunta de prompt
         // nao salvo. No teclado, o div nem chegava ao foco.
@@ -95,6 +121,15 @@ export async function paginaAgentes({ parametros }) {
               await desenhar();
             },
           }, [
+            /*
+             * A foto do agente, ou as iniciais dele.
+             *
+             * E o mesmo avatar() do resto do sistema, entao o que a equipe ve
+             * aqui e exatamente o que aparece na conversa. Sem marca de canto:
+             * nesta coluna TODO item e um agente de IA, e um selinho "IA" em
+             * cada linha marcaria o que nao distingue nada.
+             */
+            avatar(agente, 32),
             el('div', { class: 'dados' }, [
               el('div', { class: 'topo-item' }, [
                 el('div', { class: 'nome', texto: agente.nome }),
@@ -132,6 +167,58 @@ export async function paginaAgentes({ parametros }) {
       ]),
       corpo,
     ]);
+  }
+
+  /**
+   * O cabecalho de uma pasta, com o renomear escondido ate a pessoa chegar
+   * perto.
+   *
+   * Botao sempre visivel em cada pasta seria uma coluna de lapis competindo
+   * com os agentes, que sao o assunto da tela. So no hover deixaria o recurso
+   * invisivel para quem anda de Tab, por isso o :focus-within tambem revela —
+   * a regra esta em .pasta-renomear, em web/css/tema.css.
+   *
+   * Nao ha botao de apagar pasta porque nao ha pasta para apagar: ela e um
+   * texto no registro do agente e existe enquanto alguem apontar para ela.
+   * Esvaziar a pasta e o jeito de apaga-la, e isso se faz movendo os agentes.
+   */
+  function cabecalhoDePasta(pasta, quantos) {
+    return el('div', { class: 'menu-grupo menu-grupo-pasta' }, [
+      el('span', { class: 'flexivel', texto: pasta }),
+      podeConfigurar()
+        ? el('button', {
+            type: 'button',
+            class: 'pasta-renomear',
+            texto: 'renomear',
+            title: `Renomear a pasta ${pasta}`,
+            'aria-label': `Renomear a pasta ${pasta}`,
+            aoClick: () => renomearPasta(pasta, quantos),
+          })
+        : null,
+    ]);
+  }
+
+  function renomearPasta(pasta, quantos) {
+    const nome = entradaTexto(pasta, { placeholder: 'Nome da pasta' });
+    modal({
+      titulo: 'Renomear pasta',
+      corpo: el('div', {}, [
+        campo('Nome', nome),
+        el('p', {
+          class: 'dica sem-margem',
+          texto: `${plural(quantos, 'agente', 'agentes')} ${quantos === 1 ? 'muda' : 'mudam'} de pasta. Se voce usar o nome de uma pasta que ja existe, as duas viram uma so.`,
+        }),
+      ]),
+      confirmar: 'Renomear',
+      aoConfirmar: async () => {
+        const novo = nome.value.trim();
+        if (!novo) throw new Error('Escreva o nome da pasta.');
+        if (novo === pasta) return;
+        const resposta = await api.patch('/api/agentes-pasta', { de: pasta, para: novo });
+        aviso(`${plural(resposta.movidos, 'agente movido', 'agentes movidos')}.`, 'sucesso');
+        await desenhar();
+      },
+    });
   }
 
   async function criarVazio() {
@@ -241,7 +328,7 @@ export async function paginaAgentes({ parametros }) {
 
   /* ---------------- Coluna 3: configuracao ---------------- */
 
-  function colunaConfiguracao(agente) {
+  function colunaConfiguracao(agente, agentes) {
     if (!agente) return el('div', { class: 'coluna' });
 
     const salvar = async (mudancas) => {
@@ -255,7 +342,7 @@ export async function paginaAgentes({ parametros }) {
      * Uma propriedade do agente: rotulo em cima, controle embaixo.
      *
      * `explicacao` e o conceito por tras do campo e vira balao no rotulo, nunca
-     * uma linha de texto fixa embaixo do controle. Sao nove campos nesta
+     * uma linha de texto fixa embaixo do controle. Sao onze campos nesta
      * coluna: com a explicacao de cada um sempre na tela, a configuracao virava
      * um manual e o agente aberto ficava mais escondido que os textos que
      * falavam dele.
@@ -289,6 +376,93 @@ export async function paginaAgentes({ parametros }) {
       conhecimento.append(el('span', { class: 't-sm c-fraco', texto: 'Nenhuma base cadastrada.' }));
     }
 
+    /* Foto -------------------------------------------------------------- */
+
+    /*
+     * Mesmo desenho da foto de perfil em Configuracoes > Minha conta: previa
+     * com o avatar() do sistema, seletor de arquivo, e o "tirar a foto" que so
+     * aparece quando ha foto. Repetir o desenho e proposital — e o mesmo gesto,
+     * e a pessoa nao precisa aprender duas vezes.
+     *
+     * A diferenca e que aqui salva na hora, sem botao: esta coluna inteira
+     * funciona assim, e um Salvar so para a foto seria a excecao que ninguem
+     * lembraria de apertar.
+     */
+    const previaFoto = el('div', { class: 'fixo' });
+    const desenharPrevia = () => {
+      limpar(previaFoto);
+      previaFoto.append(avatar(agente, 44));
+    };
+    desenharPrevia();
+
+    const seletorFoto = el('input', {
+      type: 'file',
+      accept: 'image/*',
+      'aria-label': `Escolher a foto de ${agente.nome}`,
+    });
+    seletorFoto.addEventListener('change', async () => {
+      const arquivo = seletorFoto.files[0];
+      if (!arquivo) return;
+      try {
+        const midia = await enviarArquivo(arquivo);
+        await salvar({ foto: midia.url });
+        aviso('Foto do agente atualizada.', 'sucesso');
+      } catch (erro) {
+        aviso(erro.message, 'erro');
+        seletorFoto.value = '';
+      }
+    });
+
+    /* Pasta ------------------------------------------------------------- */
+
+    /*
+     * Nao ha cadastro de pastas: a pasta e um texto no registro do agente e
+     * existe enquanto alguem apontar para ela. Por isso a lista aqui e montada
+     * a partir dos agentes que existem, e criar pasta e simplesmente escrever
+     * um nome que ainda nao esta na lista.
+     */
+    const pastasExistentes = [...new Set((agentes || []).map((a) => a.pasta || PASTA_PADRAO))].sort((a, b) => {
+      if (a === PASTA_PADRAO) return -1;
+      if (b === PASTA_PADRAO) return 1;
+      return a.localeCompare(b, 'pt-BR');
+    });
+    const NOVA_PASTA = ' nova';
+
+    const escolhaDePasta = selecao(
+      [
+        ...pastasExistentes.map((p) => ({ valor: p, rotulo: p })),
+        { valor: NOVA_PASTA, rotulo: 'Nova pasta…' },
+      ],
+      agente.pasta || PASTA_PADRAO,
+      {
+        aoChange: async (evento) => {
+          if (evento.target.value !== NOVA_PASTA) {
+            await salvar({ pasta: evento.target.value });
+            return;
+          }
+          /* Volta o <select> para a pasta atual ANTES de abrir a janela: se a
+             pessoa desistir, o controle nao pode ficar mostrando "Nova pasta…"
+             como se fosse onde o agente esta. */
+          evento.target.value = agente.pasta || PASTA_PADRAO;
+          const nome = entradaTexto('', { placeholder: 'Comercial' });
+          modal({
+            titulo: 'Nova pasta',
+            corpo: el('div', {}, [
+              campo('Nome', nome),
+              el('p', { class: 'dica sem-margem', texto: `"${agente.nome}" vai para ela. A pasta aparece na coluna da esquerda assim que tiver o primeiro agente.` }),
+            ]),
+            confirmar: 'Mover para a pasta',
+            aoConfirmar: async () => {
+              const escolhido = nome.value.trim();
+              if (!escolhido) throw new Error('Escreva o nome da pasta.');
+              if (escolhido.length > 40) throw new Error('Nome muito longo (maximo 40 caracteres).');
+              await salvar({ pasta: escolhido });
+            },
+          });
+        },
+      },
+    );
+
     const palavras = entradaTexto((agente.palavrasChave || []).join(', '), { placeholder: 'bpc, loas' });
     palavras.addEventListener('change', () =>
       salvar({ palavrasChave: palavras.value.split(',').map((p) => p.trim()).filter(Boolean) }),
@@ -304,6 +478,33 @@ export async function paginaAgentes({ parametros }) {
         ]),
       ]),
       el('div', { class: 'coluna-corpo' }, [
+        bloco(
+          'Foto do agente',
+          'Aparece na lista ao lado e na conversa, no lugar das iniciais. Serve para a equipe distinguir de relance qual agente esta conduzindo.',
+          el('div', { class: 'linha quebra' }, [
+            previaFoto,
+            el('div', { class: 'pilha encolhe' }, [
+              seletorFoto,
+              agente.foto
+                ? botao('Tirar a foto', {
+                    pequeno: true,
+                    tipo: 'perigo',
+                    aoClicar: async () => {
+                      await salvar({ foto: null });
+                      aviso('Foto removida. O agente volta as iniciais.', 'sucesso');
+                    },
+                  })
+                : null,
+            ]),
+          ]),
+        ),
+
+        bloco(
+          'Pasta',
+          'Serve so para organizar a coluna da esquerda. Nao muda nada no atendimento: agente em pasta nenhuma atende igual.',
+          escolhaDePasta,
+        ),
+
         /* 1 e 2, mencoes e contagem ficam na coluna do prompt */
         bloco(
           'Mencoes reconhecidas',
