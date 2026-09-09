@@ -116,15 +116,15 @@ export function seletorPeriodo({ de, ate, aoAplicar } = {}) {
   let aberto = false;
 
   const caixa = el('div', { class: 'seletor-periodo' });
-  const botaoAbrir = botao('', { titulo: 'Escolher periodo' });
+  const botaoAbrir = botao('', { titulo: 'Escolher período' });
   botaoAbrir.setAttribute('aria-haspopup', 'dialog');
   botaoAbrir.setAttribute('aria-expanded', 'false');
 
   function resumo() {
     if (atual.de && atual.ate) return `${paraBr(atual.de)} a ${paraBr(atual.ate)}`;
     if (atual.de) return `A partir de ${paraBr(atual.de)}`;
-    if (atual.ate) return `Ate ${paraBr(atual.ate)}`;
-    return 'Todo o periodo';
+    if (atual.ate) return `Até ${paraBr(atual.ate)}`;
+    return 'Todo o período';
   }
 
   function pintarRotulo() {
@@ -156,7 +156,7 @@ export function seletorPeriodo({ de, ate, aoAplicar } = {}) {
     aoClicar: () => aplicar({ de: entradaDe.value, ate: entradaAte.value }),
   });
 
-  const painel = el('div', { class: 'seletor-periodo-painel', role: 'dialog', 'aria-label': 'Periodo' }, [
+  const painel = el('div', { class: 'seletor-periodo-painel', role: 'dialog', 'aria-label': 'Período' }, [
     el(
       'div',
       { class: 'atalhos-periodo' },
@@ -509,7 +509,7 @@ export function cartaoComDica({ titulo, conceito, ajuda = null, largura, respiro
   // Sem titulo, cartao() nao monta o h2 e a explicacao nao tem onde entrar. Com
   // encadeamento opcional isso passava calado: a dica inteira sumia, sem erro,
   // sem console e sem rastro na tela.
-  if (!cabeca) throw new Error('cartaoComDica exige titulo');
+  if (!cabeca) throw new Error('cartaoComDica exige título');
   if (conceito) cabeca.append(dica(conceito, { largura, assunto: titulo }));
   if (respiro ?? !ajuda) cabeca.classList.add('mb-3');
   return no;
@@ -579,17 +579,17 @@ export function paginacao({ pagina, paginas, total, porPagina, aoMudar, aoMudarT
     TAMANHOS_PAGINA.map((n) => ({ valor: n, rotulo: String(n) })),
     tamanho,
     {
-      'aria-label': 'Itens por pagina',
+      'aria-label': 'Itens por página',
       aoChange: (evento) => aoMudarTamanho?.(Number(evento.target.value)),
     },
   );
 
-  const anterior = botao('', { icone: 'voltar', pequeno: true, titulo: 'Pagina anterior', aoClicar: () => aoMudar?.(atual - 1) });
-  anterior.setAttribute('aria-label', 'Pagina anterior');
+  const anterior = botao('', { icone: 'voltar', pequeno: true, titulo: 'Página anterior', aoClicar: () => aoMudar?.(atual - 1) });
+  anterior.setAttribute('aria-label', 'Página anterior');
   anterior.disabled = atual <= 1;
 
-  const proxima = botao('', { icone: 'voltar', pequeno: true, titulo: 'Proxima pagina', aoClicar: () => aoMudar?.(atual + 1) });
-  proxima.setAttribute('aria-label', 'Proxima pagina');
+  const proxima = botao('', { icone: 'voltar', pequeno: true, titulo: 'Próxima página', aoClicar: () => aoMudar?.(atual + 1) });
+  proxima.setAttribute('aria-label', 'Próxima página');
   proxima.disabled = atual >= quantas;
   // Mesmo desenho da seta anterior, virado: o conjunto de icones so tem um lado
   // e desenhar o outro a mao sairia com peso diferente. A volta de meia volta
@@ -601,8 +601,8 @@ export function paginacao({ pagina, paginas, total, porPagina, aoMudar, aoMudarT
     el('span', { texto: plural(Number(total) || 0, singularDe(rotulo), rotulo) }),
     el('div', { class: 'paginacao-controles' }, [
       seletorTamanho,
-      el('span', { texto: 'por pagina' }),
-      el('span', { texto: `Pagina ${atual} de ${quantas}` }),
+      el('span', { texto: 'por página' }),
+      el('span', { texto: `Página ${atual} de ${quantas}` }),
       anterior,
       proxima,
     ]),
@@ -610,9 +610,9 @@ export function paginacao({ pagina, paginas, total, porPagina, aoMudar, aoMudarT
 }
 
 const SAUDE = {
-  saudavel: { texto: 'Saudavel', tipo: 'sucesso', cor: 'var(--sucesso)' },
+  saudavel: { texto: 'Saudável', tipo: 'sucesso', cor: 'var(--sucesso)' },
   risco: { texto: 'Em risco', tipo: 'alerta', cor: 'var(--alerta)' },
-  critico: { texto: 'Critico', tipo: 'erro', cor: 'var(--erro)' },
+  critico: { texto: 'Crítico', tipo: 'erro', cor: 'var(--erro)' },
 };
 
 /** Selo de saude do agente, da fila ou da conexao. */
@@ -716,7 +716,7 @@ export function seletorDeCor(valorInicial) {
  * sem montar o vetor condicionalmente. `{ separador: true }` desenha a linha
  * que separa o que muda o cadastro do que apaga.
  */
-export function menuAcoes(itens, { rotulo = 'Acoes', texto = '', iconeGatilho = 'opcoes' } = {}) {
+export function menuAcoes(itens, { rotulo = 'Ações', texto = '', iconeGatilho = 'opcoes' } = {}) {
   const lista = el('div', { class: 'menu-acoes-lista', role: 'menu', hidden: true });
   /* Sem `texto`, o gatilho e so o icone das reticencias, que e o que cabe no
      fim de uma linha de tabela. Com `texto`, vira um botao escrito, para o

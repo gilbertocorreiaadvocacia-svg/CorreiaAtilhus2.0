@@ -5,14 +5,69 @@
    a marca tem.
    ------------------------------------------------------------------ */
 
+/* ------------------------------------------------------------------
+   As duas fontes, servidas pelo proprio sistema.
+
+   Elas chegaram do refinamento apontando para fonts.googleapis.com, e nao
+   ficaram assim por dois motivos que valem mais do que a comodidade: este
+   sistema roda sem depender de servico de fora — com a internet do escritorio
+   caida a tela abre igual — e uma fonte remota conta a um terceiro, a cada
+   abertura, que alguem esta usando um sistema que trata processo de cliente.
+   E o mesmo caminho que os icones do Phosphor ja seguiam.
+
+   Instrument Sans e UM arquivo so para os quatro pesos: e fonte variavel, e o
+   Google devolvia o mesmo binario quatro vezes. Guardar os quatro seria 90 KB
+   de copia identica. Spectral e estatica, entao sao tres arquivos de verdade.
+
+   font-display: swap para a tela nunca ficar em branco esperando fonte: ela
+   abre na reserva declarada em --fonte e troca quando a local carrega — o que
+   aqui e questao de milissegundos, porque o arquivo vem do mesmo servidor.
+   ------------------------------------------------------------------ */
+
+@font-face {
+  font-family: 'Instrument Sans';
+  src: url('../assets/fontes/instrument-sans.woff2') format('woff2');
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Spectral';
+  src: url('../assets/fontes/spectral-400.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Spectral';
+  src: url('../assets/fontes/spectral-500.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Spectral';
+  src: url('../assets/fontes/spectral-600.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
-  --preto: #050505;
+  --preto: #050504;
   --fundo: #0a0a09;
-  --superficie: #111110;
-  --superficie-2: #171613;
-  --superficie-3: #1f1d19;
-  --borda: #2a2620;
-  --borda-forte: #3a342a;
+  /* As superficies encostaram no fundo. A distancia de antes (0a -> 11 -> 17
+     -> 1f) desenhava quatro degraus de cinza na mesma tela, e cada degrau
+     virava uma caixa a mais para o olho separar. Agora o que separa painel de
+     painel e a linha de 1px, nao a diferenca de tom. */
+  --superficie: #0e0d0c;
+  --superficie-2: #151412;
+  --superficie-3: #1c1b17;
+  --borda: #201e1a;
+  --borda-forte: #2b2823;
 
   --ouro: #c9a961;
   --ouro-claro: #eadfb4;
@@ -51,6 +106,40 @@
   --erro-linha: rgba(229, 127, 104, 0.38);
   --info: #7ea0d8;
 
+  /* Canal, envio e IA.
+
+     O verde e o do WhatsApp, rebaixado ate parar de brilhar: ele marca o que
+     saiu pelo aparelho e o que chegou sem resposta. Com o balao enviado em
+     dourado, como era antes, a cor da marca virava a cor mais repetida da
+     tela: centenas de baloes por conversa. Devolvendo o verde a fala, o
+     dourado volta a significar uma coisa so: acao do escritorio.
+
+     O roxo e da IA e so dela, em toda a interface. */
+  --enviado: #14382b;
+  --enviado-linha: #1e5741;
+  --enviado-texto: #e9f3ed;
+  --enviado-nome: #6fcfa1;
+  --canal: #2f9e6b;
+  --ia: #8581fa;
+  --ia-fraco: rgba(133, 129, 250, 0.14);
+  --ia-linha: rgba(133, 129, 250, 0.3);
+
+  /* A tinta que vai EM CIMA do verde e do roxo solidos.
+
+     No escuro as duas cores sao claras (o verde tem luminancia 0,26 e o roxo
+     0,28), entao branco em cima delas da 3,37:1 e 3,22:1. Isso passaria num
+     grafico, que precisa de 3:1, mas aqui o que vai em cima e o contador de
+     nao lidas: 11px em peso 700, o piso e 4,5:1. E ele e o selo mais repetido
+     do produto, aparece em toda linha da fila, e e justamente o numero que se
+     le de relance.
+
+     Tinta escura sobre a mesma cor de fundo resolve sem tocar em --canal nem
+     em --ia, que sao usados tambem como traco e como filete: 5,6:1 no verde e
+     6,1:1 no roxo. No tema claro os dois fundos ja sao escuros, e la a tinta
+     volta a ser branca. */
+  --sobre-canal: #06180f;
+  --sobre-ia: #0b0526;
+
   /* Paleta das series de grafico. A ordem e a mesma do servidor
      (servidor/rotas/painel.js), para a fatia nao trocar de cor entre a rosca e
      a lista completa. Elas vivem aqui, e nao em hex no JavaScript, porque no
@@ -84,10 +173,14 @@
      .item-conversa, o filete de .aviso e .gargalo, os segmentos do meio do
      grupo alternado) usam 0 ou valor literal e NAO seguem estes tokens, entao
      continuam retos por desenho, nao por acaso. */
-  --raio-p: 6px;
-  --raio: 8px;
+  --raio-p: 7px;
+  --raio: 9px;
   --raio-g: 12px;
   --raio-pilula: 999px;
+  /* Balao de conversa: tres cantos redondos e o canto do lado de quem falou
+     quase reto. E o que da direcao a fala sem precisar de bico desenhado. */
+  --raio-balao: 12px;
+  --raio-balao-canto: 4px;
   --sombra: 0 18px 40px rgba(0, 0, 0, 0.55);
   --transicao: 150ms ease;
 
@@ -96,13 +189,15 @@
      borrao duro, e nao a sombra da folha que esta por cima. */
   --veu: rgba(0, 0, 0, 0.66);
 
-  /* Segoe UI Variable e a fonte de interface do Windows 11: e a que o sistema
-     ja renderiza melhor aqui, e nao depende de baixar nada. */
-  --fonte: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
-  /* Serifa so no titulo de tela. Constantia ja vem no Windows e e desenhada
-     para texto de documento: e a assinatura visual de um escritorio que
-     entrega peca, parecer, contrato. Custa zero byte de download. */
-  --fonte-titulo: Constantia, 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
+  /* Instrument Sans e a fonte de interface. Ela desenha numero e maiuscula
+     mais estreitos que a Segoe, o que importa numa tela que vive cheia de
+     telefone, CPF e numero de processo. A Segoe fica como reserva: se a fonte
+     nao baixar, a interface nao muda de tamanho, so de desenho. */
+  --fonte: 'Instrument Sans', 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
+  /* Serifa so no titulo de tela e no nome do cliente. Spectral e desenhada
+     para texto de documento e tem o mesmo papel que a Constantia tinha: e a
+     assinatura de um escritorio que entrega peca, parecer, contrato. */
+  --fonte-titulo: 'Spectral', Constantia, 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
   --fonte-mono: 'Cascadia Mono', 'Consolas', 'SF Mono', monospace;
 
   /* ----------------------------------------------------------------
@@ -210,19 +305,44 @@
   --texto-suave: #5f594d;
   --texto-fraco: #6e6759;
 
-  /* Cores semanticas do tema claro. Os valores do tema escuro sao claros demais
-     para virar texto sobre fundo branco: o selo de alerta cai para 2,2:1. Aqui
-     cada um vem escurecido ate passar os 4,5:1 sobre --superficie e
-     --superficie-2, mantendo o par forte/fraco: o forte e a cor do texto, o
-     fraco continua sendo o fundo da pilula. */
-  --sucesso: #007b49;
-  --alerta: #826704;
+  /* Cores semanticas do tema claro, recalculadas contra o fundo certo.
+
+     A conta antiga mirava TEXTO SOBRE SUPERFICIE BRANCA, e nessa conta os tres
+     passavam. So que a etiqueta deixou de ser texto solto e ganhou fundo
+     tingido com o PROPRIO matiz do texto (13% da cor por cima da superficie):
+     tingir o fundo com a cor do texto aproxima as duas luminancias e come toda
+     a margem que aquela conta reservava. Medido sobre o fundo composto, o selo
+     de sucesso caia para 3,44:1, o de alerta para 3,91:1 e o de info para
+     3,99:1, em texto de 11px.
+
+     No tema escuro o mesmo tingimento puxa o fundo para o lado da superficie,
+     e nao para o lado do texto, por isso la os tres passam com folga e nao
+     mudam.
+
+     Os valores abaixo estao calculados sobre a etiqueta tingida, que e o pior
+     caso: 5,2:1 nos tres. Sobre a superficie branca, onde eles tambem
+     aparecem, sobra ainda mais. */
+  --sucesso: #005c37;
+  --alerta: #6a5403;
   --alerta-fraco: rgba(129, 74, 8, 0.12);
   --alerta-linha: rgba(129, 74, 8, 0.3);
   --erro: #920030;
   --erro-fraco: rgba(163, 47, 34, 0.12);
   --erro-linha: rgba(163, 47, 34, 0.35);
-  --info: #2f5fa6;
+  --info: #274e88;
+
+  /* Canal, envio e IA no claro. O balao enviado vira papel verde-agua: sobre
+     branco, o verde escuro do tema escuro fecharia o texto. */
+  --enviado: #e8f2ec;
+  --enviado-linha: #b9d9c8;
+  --enviado-texto: #17301f;
+  --enviado-nome: #14663f;
+  --canal: #007b49;
+  --sobre-canal: #ffffff;
+  --ia: #4801cd;
+  --sobre-ia: #ffffff;
+  --ia-fraco: rgba(72, 1, 205, 0.09);
+  --ia-linha: rgba(72, 1, 205, 0.26);
 
   /* Mesma ordem da paleta escura, escurecida para o traco de 2px continuar
      visivel sobre o cartao branco. */
@@ -368,9 +488,15 @@ a {
    Estrutura
    ------------------------------------------------------------------ */
 
+/* A casca do sistema: barra global em cima, corpo embaixo.
+
+   Ela era `display: grid` com duas colunas, e continuou assim aqui depois que
+   a barra global entrou e mudou tudo para coluna la no fim do arquivo. Duas
+   declaracoes da mesma regra, em pontos distantes, dizendo o contrario uma da
+   outra: quem lia o topo aprendia um layout que nao existia mais. Uma so. */
 .app {
-  display: grid;
-  grid-template-columns: 236px 1fr;
+  display: flex;
+  flex-direction: column;
   height: 100vh;
   overflow: hidden;
 }
@@ -555,27 +681,36 @@ img.avatar {
   background: var(--fundo);
 }
 
+/* Cabecalho de tela: titulo a esquerda e, na mesma linha, os controles que
+   valem para a tela inteira. Dentro do conteudo o filtro empurrava o primeiro
+   dado para baixo e rolava junto com a pagina, sumindo justo na hora de trocar
+   o recorte. */
 .topo {
-  min-height: calc(var(--e6) + var(--e5));
+  min-height: 76px;
   flex: none;
   display: flex;
   align-items: center;
   gap: var(--e3);
-  padding: 0 var(--e5);
+  padding: var(--e3) var(--e5);
   border-bottom: 1px solid var(--borda);
   background: var(--superficie);
 }
 
-/* Titulo de tela: o unico texto grande da pagina, e o unico em serifa.
-   Peso 400 de proposito: serifa nesse corpo ja tem presenca, e o negrito so
-   deixaria pesado. */
+/* Titulo de tela: o unico texto grande da pagina.
+
+   Ele foi serifa 21px por um tempo, e o comentario daqui ainda explicava a
+   serifa muito depois de outra regra, no fim do arquivo, ter passado tudo para
+   a fonte de interface em 26px. Vale a fonte de interface: o titulo divide a
+   linha com filtro, botao e periodo, e serifa ao lado de controle nao pousa. A
+   serifa continua onde ela e assinatura, e nao rotulo: nome de cliente e
+   titulo de secao de documento. */
 .topo h1 {
   margin: 0;
-  font-family: var(--fonte-titulo);
-  font-size: var(--t-titulo);
-  font-weight: 400;
+  font-family: var(--fonte);
+  font-size: 26px;
+  font-weight: 600;
   line-height: var(--lh-apertada);
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
 }
 
 .topo .subtitulo {
@@ -628,14 +763,14 @@ img.avatar {
   padding: 0;
 }
 
-/* 48px entre secoes, e nao 16. Com 16 a distancia entre duas secoes era a
-   mesma que entre dois paragrafos da mesma secao, e nada se agrupava. */
-.cartao + .cartao {
-  margin-top: var(--e7);
-}
+/* Distancia entre secoes.
 
+   Estava declarado DUAS vezes, com valores diferentes (48px e depois 16px), e
+   quem valia era o segundo: a distancia entre duas secoes acabava igual a
+   distancia entre dois paragrafos da mesma secao, e nada se agrupava. Um
+   valor so, no degrau que separa secao de paragrafo. */
 .cartao + .cartao {
-  margin-top: var(--e4);
+  margin-top: var(--e6);
 }
 
 /* A margem acima existe para cartao empilhado embaixo de cartao, numa coluna.
@@ -651,6 +786,11 @@ img.avatar {
    o mesmo tamanho do texto embaixo, e nao delimitava nada: quem delimitava
    era a borda do cartao. O filete faz o mesmo servico separando em vez de
    cercar, com um decimo da tinta. */
+/* Este cabeco tinha DUAS declaracoes, a 4 mil linhas de distancia uma da
+   outra, e vencia a de baixo: o rotulo de 11px em caixa alta com filete
+   dourado que o comentario descreve nunca chegava a tela, saia como frase de
+   15px sem filete. Vale o rotulo — e a forma que separa secao sem cercar nada,
+   e e a que a direcao aprovada usa em toda coluna de propriedades. */
 .cartao-titulo {
   display: flex;
   align-items: center;
@@ -1006,38 +1146,95 @@ select {
    texto, e o resto era moldura em volta de duas palavras. Como rotulo em caixa
    alta pequena elas continuam se destacando do corpo, sem virar objeto.
    A cor da categoria continua existindo: ela mora no .ponto interno. */
+/* O selo virou etiqueta de novo, e desta vez com motivo.
+
+   Como rotulo em CAIXA ALTA ele nao custava tinta, mas tambem nao delimitava:
+   numa linha de conversa com status, tipo de beneficio e responsavel, os tres
+   liam como uma frase so em versalete, e o olho tinha de separar por conta
+   propria. A etiqueta devolve o contorno APENAS onde o valor e um nome
+   proprio dentro da frase da tela.
+
+   Caixa normal, e nao versalete: os nomes do escritorio sao frases inteiras
+   ("Aguardando pericia", "Documentos pendentes"), e versalete em frase larga
+   nao cabe numa coluna de lista.
+
+   A cor continua carregando a categoria, mas agora o par fundo/borda anda
+   junto com o texto, entao a etiqueta se destaca da superficie sem depender de
+   o texto ser colorido o bastante. */
 .selo {
   display: inline-flex;
   align-items: center;
   gap: var(--e1);
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: none;
-  /* Em --texto-fraco o rotulo sumia junto com a informacao mais consultada da
-     tela, que e o status. */
+  min-height: 21px;
+  padding: 0 var(--e2);
+  border: 1px solid var(--borda-forte);
+  border-radius: var(--raio-p);
+  background: var(--superficie-3);
   color: var(--texto-suave);
   font-size: var(--t-nota);
-  font-weight: 600;
-  letter-spacing: var(--tr-alta);
-  text-transform: uppercase;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
   white-space: nowrap;
 }
 
+/* Etiqueta sem contorno, para quando ela ja esta dentro de um bloco que
+   delimita (o cabecalho de um cartao, uma celula de tabela estreita). */
+.selo.limpo {
+  border-color: transparent;
+  background: none;
+  padding: 0;
+}
+
 .selo.ouro {
+  background: var(--ouro-fraco);
+  border-color: var(--ouro-linha);
   color: var(--ouro-claro);
 }
 .selo.sucesso {
+  background: color-mix(in srgb, var(--sucesso) 13%, transparent);
+  border-color: color-mix(in srgb, var(--sucesso) 34%, transparent);
   color: var(--sucesso);
 }
 .selo.alerta {
+  background: var(--alerta-fraco);
+  border-color: var(--alerta-linha);
   color: var(--alerta);
 }
 .selo.erro {
+  background: var(--erro-fraco);
+  border-color: var(--erro-linha);
   color: var(--erro);
 }
 .selo.info {
+  background: color-mix(in srgb, var(--info) 14%, transparent);
+  border-color: color-mix(in srgb, var(--info) 34%, transparent);
   color: var(--info);
+}
+/* Etiqueta com a cor que a equipe escolheu.
+
+   O tom pinta o ponto, a borda e o fundo. O TEXTO nao: a cor vem do banco e
+   ninguem garante que ela passa o contraste sobre as cinco superficies do
+   sistema. Uma etiqueta "Urgente" em vermelho escuro sobre o cartao escuro
+   ficava em 2,1:1 e simplesmente nao se lia. Assim a etiqueta ganha a cor da
+   categoria e o texto continua legivel em qualquer tom. */
+.selo.propria {
+  background: color-mix(in srgb, var(--cor-etiqueta) 15%, transparent);
+  border-color: color-mix(in srgb, var(--cor-etiqueta) 42%, transparent);
+  color: var(--texto);
+}
+
+.selo svg {
+  flex: none;
+  opacity: 0.9;
+}
+
+/* A IA tem cor propria em todo o sistema: quem respondeu, quem classificou,
+   quem esta conduzindo. Sem ela, agente e pessoa saem iguais na tela. */
+.selo.ia {
+  background: var(--ia-fraco);
+  border-color: var(--ia-linha);
+  color: var(--ia);
 }
 
 /* Selo que responde ao clique. Ele e um <button> de verdade, entao vem depois
@@ -1312,14 +1509,28 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
  * O recuo e o raio ficam nos dois estados para o numero nao pular de lugar
  * quando a aba enche e esvazia.
  */
-.abas .conta {
-  margin-left: var(--e2);
-  min-width: 18px;
-  padding: 1px var(--e1);
+/* A forma do contador e do CONTADOR, e nao da fileira de abas.
+
+   Ela morava em `.abas .conta`, entao o mesmo elemento usado num item de menu
+   ou numa linha de conversa saia sem forma nenhuma: um retangulo de canto reto
+   colado no digito, ou texto de corpo solto quando nao tinha cor. Aqui fica o
+   que e do componente; em .abas fica so o respiro que e da fileira. */
+.conta {
+  display: inline-grid;
+  place-items: center;
+  min-width: 19px;
+  height: 19px;
+  padding: 0 var(--e1);
   border-radius: var(--raio-pilula);
-  font-size: var(--t-xs);
+  font-size: var(--t-nota);
+  font-variant-numeric: lining-nums tabular-nums;
+  line-height: 1;
   color: var(--texto-fraco);
   text-align: center;
+}
+
+.abas .conta {
+  margin-left: var(--e2);
 }
 
 /*
@@ -1338,6 +1549,260 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
   font-weight: 700;
 }
 
+/* Contador de fila.
+
+   O tipo diz de que NATUREZA e o numero, e nao so quanto ele vale: mensagem
+   que chegou e do canal, coisa parada esperando alguem e alerta, o que a IA fez
+   e roxo, e numero que so informa nao tem tipo nenhum e sai como texto de
+   apoio. Sem essa distincao, doze contadores identicos na mesma tela pedem a
+   mesma atencao e nenhum consegue. */
+.conta.canal {
+  background: var(--canal);
+  color: var(--sobre-canal);
+  font-weight: 700;
+}
+
+.conta.alerta {
+  background: var(--alerta);
+  color: var(--sobre-ouro);
+  font-weight: 700;
+}
+
+.conta.ia {
+  background: var(--ia);
+  color: var(--sobre-ia);
+  font-weight: 700;
+}
+
+.conta.info {
+  background: var(--info);
+  color: var(--preto);
+  font-weight: 700;
+}
+
+/* ------------------------------------------------------------------
+   Chave liga-desliga
+   Caixa de marcar diz "isto vai junto quando eu salvar". A chave diz
+   "isto muda agora". Nota interna, som do aviso e agente pausado sao
+   os tres casos de mudanca imediata do sistema.
+   ------------------------------------------------------------------ */
+
+.campo-interruptor {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  cursor: pointer;
+}
+
+.interruptor {
+  flex: none;
+  width: 34px;
+  height: 20px;
+  padding: 2px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--borda-forte);
+  border-radius: var(--raio-pilula);
+  background: var(--superficie-3);
+  cursor: pointer;
+}
+
+.interruptor:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: 2px;
+}
+
+.interruptor:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.interruptor-bola {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--texto-fraco);
+}
+
+/* Ligada, a chave usa a faixa de acao: e a mesma superficie do botao
+   principal, porque as duas coisas sao "o escritorio fez alguma coisa". */
+.interruptor[aria-checked='true'] {
+  background: linear-gradient(160deg, var(--ouro-acao-de), var(--ouro-acao-ate));
+  border-color: var(--ouro-acao-ate);
+}
+
+.interruptor[aria-checked='true'] .interruptor-bola {
+  margin-left: auto;
+  background: var(--sobre-ouro);
+}
+
+.interruptor-rotulo {
+  font-size: var(--t-base);
+  color: var(--texto);
+}
+
+/* ------------------------------------------------------------------
+   Filtro de barra
+   O rotulo fica sempre visivel e o valor escolhido entra ao lado dele:
+   assim a barra diz o recorte atual sem ninguem precisar abrir cada
+   filtro para conferir o que esta valendo.
+   ------------------------------------------------------------------ */
+
+.chip-filtro {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e2);
+  min-height: var(--controle);
+  padding: 0 var(--e3);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  background: var(--superficie-2);
+  color: var(--texto-suave);
+  font: inherit;
+  font-size: var(--t-base);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.chip-filtro:hover {
+  border-color: var(--ouro-linha);
+  color: var(--texto);
+}
+
+.chip-filtro:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: 2px;
+}
+
+/* Com valor escolhido o filtro fica marcado: numa barra de seis filtros,
+   saber quais estao ativos importa mais do que saber que eles existem. */
+.chip-filtro.ativo {
+  border-color: var(--ouro-linha);
+  background: var(--ouro-fraco);
+  color: var(--ouro-claro);
+}
+
+.chip-filtro-valor {
+  font-weight: 600;
+  color: var(--texto);
+}
+
+.chip-filtro.ativo .chip-filtro-valor {
+  color: var(--ouro-claro);
+}
+
+.chip-filtro-seta {
+  flex: none;
+  transform: rotate(-90deg);
+  opacity: 0.6;
+}
+
+.chip-filtro[aria-expanded='true'] .chip-filtro-seta {
+  transform: rotate(90deg);
+}
+
+/* ------------------------------------------------------------------
+   Faixa de contexto
+   A linha que explica o que esta acontecendo agora e oferece a saida:
+   "o agente esta respondendo por voce", "esta conversa passou da janela
+   de 24 horas". Frases que mudam o resultado da proxima acao, e por
+   isso ficam ancoradas no conteudo, e nao no canto da tela.
+   ------------------------------------------------------------------ */
+
+.faixa-contexto {
+  display: flex;
+  align-items: center;
+  gap: var(--e3);
+  padding: var(--e2) var(--e4);
+  border-top: 1px solid var(--borda);
+  border-bottom: 1px solid var(--borda);
+  background: var(--superficie);
+  color: var(--texto-suave);
+  font-size: var(--t-base);
+}
+
+.faixa-contexto > svg {
+  flex: none;
+}
+
+.faixa-texto {
+  flex: 1;
+  min-width: 0;
+}
+
+.faixa-texto strong {
+  color: var(--texto);
+  font-weight: 600;
+}
+
+.faixa-contexto.ia {
+  background: var(--ia-fraco);
+  border-color: var(--ia-linha);
+  color: var(--texto);
+}
+
+.faixa-contexto.ia > svg {
+  color: var(--ia);
+}
+
+.faixa-contexto.ouro {
+  background: var(--ouro-fraco);
+  border-color: var(--ouro-linha);
+  color: var(--texto);
+}
+
+.faixa-contexto.ouro > svg {
+  color: var(--ouro);
+}
+
+.faixa-contexto.alerta {
+  background: var(--alerta-fraco);
+  border-color: var(--alerta-linha);
+  color: var(--texto);
+}
+
+.faixa-contexto.alerta > svg {
+  color: var(--alerta);
+}
+
+/* ------------------------------------------------------------------
+   Marca do avatar
+   O selinho no canto: por onde a pessoa fala, se quem conduz e a IA,
+   ou se ela esta online. A lista, o cabecalho e o painel mostravam a
+   mesma informacao de tres jeitos diferentes antes disto existir.
+   ------------------------------------------------------------------ */
+
+.avatar-caixa {
+  position: relative;
+  flex: none;
+  display: inline-block;
+}
+
+.avatar-marca {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  /* A borda e da cor do fundo, e nao uma cor fixa: o selinho aparece sobre a
+     lista, sobre o cabecalho e sobre o painel, que sao superficies diferentes,
+     e um anel preto fixo desenhava um buraco no tema claro. */
+  border: 2px solid var(--superficie);
+}
+
+.avatar-marca.canal {
+  background: var(--canal);
+}
+
+.avatar-marca.ia {
+  background: var(--ia);
+}
+
+.avatar-marca.ausente {
+  background: var(--texto-fraco);
+}
+
 /* Contador de mensagens da conversa, ao lado da hora. Numero tabular para a
    coluna de horas nao dancar de linha para linha conforme o digito muda. */
 .item-conversa .conta-mensagens {
@@ -1348,13 +1813,6 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
   font-size: var(--t-xs);
   font-variant-numeric: lining-nums tabular-nums;
   color: var(--texto-fraco);
-}
-
-/* As etiquetas na linha nao podem empurrar a altura: uma so fileira, e o que
-   nao couber corta. O "+N" ao lado ja avisa que ha mais. */
-.item-conversa .marcas {
-  flex-wrap: nowrap;
-  overflow: hidden;
 }
 
 .item-conversa .marcas .selo {
@@ -1507,6 +1965,9 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
   flex: 1;
   overflow-y: auto;
   min-height: 0;
+  /* O respiro de fora do cartao da linha. Sem ele o canto arredondado encosta
+     na borda da coluna e deixa de ser canto. */
+  padding: var(--e1);
 }
 
 /* A linha da conversa e um <button> de verdade, entao aqui ela e devolvida ao
@@ -1517,18 +1978,25 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
    sete rolagens para ver tudo. Um terco daquela altura era a faixa de selos,
    que repetia o nome de quem atende em toda linha. O status virou o filete da
    borda esquerda, que nao custa altura nenhuma. */
+/* A linha virou cartao com canto, e o filete de status saiu.
+
+   O filete resolvia o problema de mostrar status sem gastar altura, mas
+   custava a unica coisa que ele nao podia custar: era a mesma cor em barra de
+   3px para doze status diferentes, e ninguem decora doze cores. Agora o status
+   e uma etiqueta escrita, dentro da linha, e a cor apoia a palavra em vez de
+   substituir ela.
+
+   O que ficou no lugar do filete e o espaco: 2px entre uma linha e outra e
+   canto arredondado. Uma fila de quarenta conversas passa a se ler como
+   quarenta objetos separados, e nao como uma tabela sem grade. */
 .item-conversa {
   display: flex;
-  gap: var(--e2);
+  gap: var(--e3);
   width: 100%;
-  padding: var(--e2) var(--e3);
-  margin: 0;
-  border: none;
-  border-bottom: 1px solid var(--borda);
-  /* Depois do border:none de proposito. Declarado antes, a forma curta o
-     zerava e o filete de status simplesmente nao existia. */
-  border-left: 3px solid var(--marca-status, transparent);
-  border-radius: 0;
+  padding: var(--e3);
+  margin: 0 0 2px;
+  border: 1px solid transparent;
+  border-radius: var(--raio-g);
   background: none;
   color: inherit;
   font: inherit;
@@ -1545,9 +2013,12 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
   outline-offset: -2px;
 }
 
+/* Selecionada: fundo dourado tenue e contorno dourado. O contorno faz o
+   trabalho que a barra fazia, e faz para quem nao distingue o dourado do
+   cinza, porque a linha existe mesmo sem a cor. */
 .item-conversa.ativo {
   background: var(--ouro-fraco);
-  box-shadow: inset 3px 0 0 var(--ouro);
+  border-color: var(--ouro-linha);
 }
 
 .item-conversa .dados {
@@ -1585,20 +2056,30 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
   margin-top: var(--e1);
 }
 
+/* As etiquetas nao podem empurrar a altura da linha: uma fileira so, e o que
+   nao couber corta — o "+N" ao lado ja avisa que ha mais.
+
+   Estava declarado assim mil linhas acima, com `nowrap`, e esta regra, mais
+   abaixo no arquivo, devolvia `wrap` sem querer: com tres etiquetas a linha
+   ganhava uma segunda fileira e a fila inteira crescia 22px por conversa. */
 .item-conversa .marcas {
   display: flex;
   gap: var(--e1);
   margin-top: var(--e2);
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow: hidden;
 }
 
+/* Mensagem nao lida e coisa do canal, nao do escritorio: ela usa o verde do
+   WhatsApp. O dourado fica reservado para o que o escritorio FAZ (enviar,
+   assumir, concluir), e nao para o que chega sozinho. */
 .nao-lidas {
-  min-width: 18px;
-  height: 18px;
+  min-width: 19px;
+  height: 19px;
   padding: 0 var(--e1);
   border-radius: var(--raio-pilula);
-  background: var(--ouro-acao-de);
-  color: var(--sobre-ouro);
+  background: var(--canal);
+  color: var(--sobre-canal);
   font-size: var(--t-xs);
   font-weight: 700;
   display: grid;
@@ -1662,7 +2143,7 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
 .balao {
   max-width: 62ch;
   padding: var(--e2) var(--e3);
-  border-radius: var(--raio);
+  border-radius: var(--raio-balao-canto) var(--raio-balao) var(--raio-balao) var(--raio-balao);
   font-size: var(--t-leitura);
   line-height: var(--lh-solta);
   white-space: pre-wrap;
@@ -1676,8 +2157,17 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
    O gradiente era enfeite num elemento que aparece centenas de vezes por tela. */
 .balao.saida {
   align-self: flex-end;
-  background: var(--ouro-fraco);
-  border-color: var(--ouro-linha);
+  background: var(--enviado);
+  border-color: var(--enviado-linha);
+  color: var(--enviado-texto);
+  border-radius: var(--raio-balao) var(--raio-balao-canto) var(--raio-balao) var(--raio-balao);
+}
+
+/* Dentro do balao verde o nome de quem escreveu nao pode sair em dourado: a
+   cor tem de vir do proprio balao, senao sobram duas cores de marca disputando
+   quatro palavras. */
+.balao.saida .balao-autor {
+  color: var(--enviado-nome);
 }
 
 .balao.nota {
@@ -2202,12 +2692,20 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
   gap: var(--e3);
 }
 
+/* Cartao de metrica: rotulo em caixa alta, numero grande, uma linha de apoio,
+   e a minilinha sangrando ate as bordas no rodape.
+
+   O filete dourado de 2px no topo saiu quando o cartao ganhou esta forma, mas
+   a regra antiga continuou aqui declarando ele, quatro mil linhas acima da que
+   o desligava. Uma so, com a forma que esta valendo. */
 .metrica {
+  display: flex;
+  flex-direction: column;
   background: var(--superficie);
   border: 1px solid var(--borda);
-  border-radius: var(--raio-g);
-  padding: var(--e4);
-  border-top: 2px solid var(--ouro);
+  border-radius: var(--raio);
+  padding: var(--e4) var(--e4) 0;
+  overflow: hidden;
 }
 
 .metrica .valor {
@@ -2222,7 +2720,7 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
      afundado. A serifa continua nos titulos de tela, onde ela e a assinatura do
      escritorio; no numero, o que se quer e o algarismo alinhado de painel. */
   font-family: var(--fonte);
-  font-size: var(--t-2xl);
+  font-size: 38px;
   font-weight: 700;
   letter-spacing: -0.02em;
   line-height: var(--lh-apertada);
@@ -2638,19 +3136,15 @@ button.mencao-chip:focus-visible {
   }
 }
 
+/* A lateral estreita NAO mora aqui.
+
+   Ela morava, e nao funcionava: .corpo-app e o seletor de escritorio so sao
+   declarados mil linhas abaixo, na secao da barra global, e com a mesma
+   especificidade quem vence e quem vem por ultimo. Escrita neste ponto do
+   arquivo, a regra perdia em qualquer largura. O bloco de tela estreita foi
+   inteiro para o fim da folha, depois das declaracoes que ele precisa
+   sobrescrever. */
 @media (max-width: 860px) {
-  .app {
-    grid-template-columns: 64px 1fr;
-  }
-  .marca-texto,
-  .menu a span,
-  .seletor-workspace,
-  .rodape-lateral .quem {
-    display: none;
-  }
-  .menu a {
-    justify-content: center;
-  }
   .atendimento {
     grid-template-columns: 1fr;
   }
@@ -2764,11 +3258,26 @@ button.mencao-chip:focus-visible {
 
 /* ------------------------------------------------------------------
    Transicao dos elementos que respondem ao ponteiro
+
    Um guarda so para todos. Antes cada regra trazia a propria linha de
    transition solta, e ela so nao virava movimento indesejado porque a
    regra global de reduce, mais abaixo, zerava a duracao por tabela.
    Depender de um efeito colateral e o que fazia dois padroes conviverem
    no mesmo arquivo: aqui a intencao fica escrita.
+
+   As propriedades vao nomeadas uma a uma, e nao na forma curta
+   "transition: var(--transicao)".
+
+   Sem nome de propriedade a forma curta vale transition-property: all, e
+   "all" inclui width, height, padding e margin. Nos seletores desta lista
+   isso e um problema real: .item-conversa e .lista-item mudam de tamanho
+   quando o conteudo muda (uma etiqueta a mais, um contador que aparece), e
+   .botao muda de largura quando o rotulo troca. Com "all", cada uma dessas
+   mudancas de layout vira uma animacao que ninguem pediu — exatamente o
+   movimento sem motivo que este bloco existe para evitar.
+
+   A lista abaixo cobre o que de fato responde ao ponteiro: cor, fundo,
+   borda, sombra, opacidade e o deslocamento do clique.
    ------------------------------------------------------------------ */
 
 @media (prefers-reduced-motion: no-preference) {
@@ -2784,8 +3293,17 @@ button.mencao-chip:focus-visible {
   .config-indice a,
   .selo-clicavel,
   .cabecalho-ordenavel,
-  .cabecalho-recolhivel {
-    transition: var(--transicao);
+  .cabecalho-recolhivel,
+  .chip-filtro,
+  .interruptor,
+  .interruptor-bola {
+    transition:
+      background-color var(--transicao),
+      border-color var(--transicao),
+      color var(--transicao),
+      box-shadow var(--transicao),
+      opacity var(--transicao),
+      transform var(--transicao);
   }
 }
 
@@ -2833,6 +3351,19 @@ button.mencao-chip:focus-visible {
     --erro-fraco: rgba(163, 47, 34, 0.12);
     --erro-linha: rgba(163, 47, 34, 0.35);
     --info: #2f5fa6;
+
+  /* Canal, envio e IA no claro. O balao enviado vira papel verde-agua: sobre
+     branco, o verde escuro do tema escuro fecharia o texto. */
+  --enviado: #e8f2ec;
+  --enviado-linha: #b9d9c8;
+  --enviado-texto: #17301f;
+  --enviado-nome: #14663f;
+  --canal: #007b49;
+  --sobre-canal: #ffffff;
+  --ia: #4801cd;
+  --sobre-ia: #ffffff;
+  --ia-fraco: rgba(72, 1, 205, 0.09);
+  --ia-linha: rgba(72, 1, 205, 0.26);
 
     /* Mesma ordem da paleta escura, escurecida para o traco de 2px continuar
        visivel sobre o cartao branco. */
@@ -3096,8 +3627,11 @@ button.mencao-chip:focus-visible {
   align-items: center;
   gap: var(--e2);
   margin-bottom: var(--e2);
-  color: var(--texto-suave);
-  font-size: var(--t-sm);
+  color: var(--texto-fraco);
+  font-size: var(--t-nota);
+  font-weight: 600;
+  letter-spacing: var(--tr-alta);
+  text-transform: uppercase;
 }
 
 .metrica-topo > svg {
@@ -3115,11 +3649,10 @@ button.mencao-chip:focus-visible {
   text-overflow: ellipsis;
 }
 
+/* Percentual, tempo e comparacao correm na mesma linha, embaixo do numero:
+   sao qualificadores dele, e empilhados viravam tres dados soltos. */
 .metrica-numeros {
-  display: flex;
-  align-items: baseline;
-  gap: var(--e2);
-  flex-wrap: wrap;
+  display: block;
 }
 
 /* A direcao da variacao vem da setinha, nao da cor: assim ela sobrevive
@@ -3159,8 +3692,10 @@ button.mencao-chip:focus-visible {
 /* Faixa curta de historico. Serve para dar a direcao, nao para ler
    valor, por isso nao tem eixo nem rotulo. */
 .metrica-mini {
-  height: calc(var(--e6) + var(--e4));
-  margin-top: var(--e3);
+  height: 56px;
+  /* Sangra ate as bordas do cartao e cola no rodape dele: a faixa e o chao do
+     cartao, e nao mais um bloco empilhado dentro dele. */
+  margin: auto calc(var(--e4) * -1) 0;
 }
 
 .metrica-mini svg {
@@ -3185,10 +3720,14 @@ button.mencao-chip:focus-visible {
   margin-top: 0;
 }
 
+/* Titulo de bloco do painel: frase, e nao carimbo. Painel com varios rotulos
+   em caixa alta espacada vira uma serie de gritos de mesmo peso, e ai nenhum
+   deles orienta a leitura. Ele e maior que o cabeco de cartao de proposito:
+   um agrupa secoes, o outro rotula uma delas. */
 .secao-painel > h2 {
   margin: 0 0 var(--e3);
   color: var(--texto);
-  font-size: var(--t-lg);
+  font-size: var(--t-leitura);
   font-weight: 600;
   text-transform: none;
   letter-spacing: normal;
@@ -4432,21 +4971,8 @@ textarea.area-g {
    conteudo ele empurrava o primeiro dado para baixo e rolava junto com a
    pagina, sumindo justo na hora de trocar o recorte.
    ===================================================================== */
-.topo {
-  min-height: 76px;
-  align-items: center;
-  padding: var(--e3) var(--e5);
-}
-
 .topo-identidade {
   flex: none;
-}
-
-.topo h1 {
-  font-family: var(--fonte);
-  font-size: 26px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
 }
 
 .topo-acoes {
@@ -4461,33 +4987,16 @@ textarea.area-g {
   margin: 0;
 }
 
-/* Rotulo de secao: frase, e nao carimbo. */
-.secao-painel > h2 {
-  color: var(--texto);
-  font-size: var(--t-leitura);
-  font-weight: 600;
-  letter-spacing: normal;
-  text-transform: none;
-}
-
 /* Titulo de cartao volta a ser frase, do tamanho do rotulo de secao, com o
    icone num quadrado arredondado a esquerda. */
-.cartao-titulo {
-  padding-bottom: 0;
-  color: var(--texto);
-  font-size: var(--t-leitura);
-  font-weight: 600;
-  letter-spacing: normal;
-  text-transform: none;
-  border-bottom: 0;
-}
-
+/* O quadrado do icone acompanha o rotulo: com 32px ele ficava tres vezes mais
+   alto que a letra de 11px ao lado. */
 .cartao-titulo .marca-icone {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 20px;
+  height: 20px;
   flex: none;
   color: var(--ouro);
   background: var(--ouro-fraco);
@@ -4495,39 +5004,13 @@ textarea.area-g {
 }
 
 .cartao-titulo .marca-icone svg {
-  width: 16px;
-  height: 16px;
+  width: 12px;
+  height: 12px;
 }
 
 /* Cartao de metrica na forma do painel de referencia:
    rotulo em caixa alta, numero grande, uma linha de apoio, e a minilinha
    sangrando ate as bordas no rodape. */
-.metrica {
-  display: flex;
-  flex-direction: column;
-  padding: var(--e4) var(--e4) 0;
-  border-top: 1px solid var(--borda);
-  border-radius: var(--raio);
-  overflow: hidden;
-}
-
-.metrica-topo {
-  color: var(--texto-fraco);
-  font-size: var(--t-nota);
-  font-weight: 600;
-  letter-spacing: var(--tr-alta);
-  text-transform: uppercase;
-}
-
-.metrica .valor {
-  font-size: 38px;
-}
-
-/* Percentual, tempo e comparacao na mesma linha, embaixo do numero. */
-.metrica-numeros {
-  display: block;
-}
-
 .metrica-numeros .variacao,
 .metrica .delta,
 .metrica-tempo {
@@ -4544,11 +5027,6 @@ textarea.area-g {
   gap: var(--e3);
   margin-top: var(--e1);
   min-height: 20px;
-}
-
-.metrica-mini {
-  height: 56px;
-  margin: auto calc(var(--e4) * -1) 0;
 }
 
 /* Controles do cabecalho: cada um vale a propria largura, numa linha so.
@@ -4586,12 +5064,6 @@ textarea.area-g {
    Barra global. Atravessa a largura toda, por cima da lateral: nada nela
    pertence a uma tela, e sim ao sistema.
    ===================================================================== */
-.app {
-  display: flex;
-  flex-direction: column;
-  grid-template-columns: none;
-}
-
 .barra-global {
   display: flex;
   align-items: center;
@@ -5575,4 +6047,51 @@ tbody tr:focus-within .conexao-alca {
   flex-direction: column;
   gap: var(--e1);
   color: var(--texto-suave);
+}
+
+/* ------------------------------------------------------------------
+   Tela estreita: a lateral vira faixa de icones
+
+   Este bloco fica no FIM do arquivo de proposito. Tudo o que ele
+   sobrescreve (.corpo-app, .seletor-workspace.unico, a barra global) e
+   declarado nas ultimas mil linhas, e com a mesma especificidade quem
+   ganha e quem vem depois. No meio do arquivo, como estava, a regra da
+   faixa de 64px perdia em qualquer largura: a lateral continuava com
+   236px num notebook pequeno, so que sem os rotulos — uma coluna larga
+   de icones centralizados, comendo um terco da tela.
+   ------------------------------------------------------------------ */
+
+@media (max-width: 860px) {
+  .corpo-app {
+    grid-template-columns: 64px 1fr;
+  }
+
+  .marca-texto,
+  .menu a span,
+  .rodape-lateral .quem,
+  .barra-global .marca-texto {
+    display: none;
+  }
+
+  /* O seletor de escritorio some nas duas formas. Escrito so como
+     .seletor-workspace, ele perdia para .seletor-workspace.unico, que tem uma
+     classe a mais e e declarada depois: o rotulo do escritorio continuava
+     ocupando a barra numa tela onde nao cabe. */
+  .seletor-workspace,
+  .seletor-workspace.unico {
+    display: none;
+  }
+
+  .menu a,
+  .menu-grupo-botao {
+    justify-content: center;
+  }
+
+  /* A busca global cede a largura fixa: com 300px ela empurrava o sino e o
+     avatar para fora da barra. */
+  .busca-global {
+    width: auto;
+    flex: 1;
+    min-width: 0;
+  }
 }

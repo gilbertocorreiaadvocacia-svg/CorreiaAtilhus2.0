@@ -125,11 +125,122 @@ export function selecao(opcoes, valor, atributos = {}) {
  * banco. Nao existe classe possivel para um valor que so aparece em tempo de
  * execucao. Tamanho, respiro e peso do selo saem todos de .selo no tema.
  */
-export function selo(texto, tipo, cor) {
-  const s = el('span', { class: `selo ${tipo || ''}`.trim() });
+export function selo(texto, tipo, cor, opcoes = {}) {
+  const classes = ['selo'];
+  if (tipo) classes.push(tipo);
+  // Etiqueta com cor escolhida pela equipe. O tom pinta o ponto, a borda e o
+  // fundo, mas NUNCA o texto: a cor vem do banco e ninguem garante que ela
+  // passa o contraste sobre as cinco superficies do sistema. Assim a etiqueta
+  // ganha a cor da categoria e o texto continua legivel em qualquer tom.
+  if (cor) classes.push('propria');
+  const s = el('span', {
+    class: classes.join(' '),
+    estilo: cor ? { '--cor-etiqueta': cor } : null,
+  });
+  if (opcoes.icone) s.append(icone(opcoes.icone, 12));
   if (cor) s.append(el('span', { class: 'ponto', estilo: { background: cor } }));
   s.append(document.createTextNode(texto));
   return s;
+}
+
+/**
+ * Contador de fila: o numero que fica ao lado do nome de uma aba, de um item
+ * de menu ou de uma conversa.
+ *
+ * O tipo diz de que natureza e o numero, e nao so quanto ele vale. Mensagem
+ * que chegou e do canal (verde). Coisa parada esperando alguem e alerta
+ * (ambar). O que a IA fez e roxo. Numero que so informa nao recebe tipo, e sai
+ * como texto de apoio: sem essa distincao, doze contadores identicos na mesma
+ * tela pedem a mesma atencao e nenhum consegue.
+ */
+export function contador(valor, tipo = '') {
+  const n = Number(valor) || 0;
+  return el('span', {
+    class: `conta ${tipo}`.trim(),
+    texto: n > 99 ? '99+' : String(n),
+    'aria-hidden': 'true',
+  });
+}
+
+/**
+ * Chave liga-desliga.
+ *
+ * E um <button role="switch">, e nao uma caixa de marcar: caixa de marcar diz
+ * "isto vai junto quando eu salvar", e a chave diz "isto muda agora". Nota
+ * interna, som do aviso e agente pausado sao os tres casos de mudanca
+ * imediata, e os tres estavam desenhados como caixa de marcar.
+ *
+ * O estado mora no aria-checked, que e o mesmo que o leitor de tela anuncia:
+ * desenho e anuncio nao podem se desencontrar.
+ */
+export function interruptor(rotulo, ligado, aoMudar, opcoes = {}) {
+  const chave = el('button', {
+    type: 'button',
+    class: 'interruptor',
+    role: 'switch',
+    'aria-checked': ligado ? 'true' : 'false',
+  }, [el('span', { class: 'interruptor-bola' })]);
+
+  chave.addEventListener('click', () => {
+    const agora = chave.getAttribute('aria-checked') !== 'true';
+    chave.setAttribute('aria-checked', agora ? 'true' : 'false');
+    aoMudar?.(agora);
+  });
+
+  if (opcoes.desabilitado) chave.disabled = true;
+
+  const caixa = el('label', { class: 'campo-interruptor' }, [
+    chave,
+    el('span', { class: 'interruptor-rotulo', texto: rotulo }),
+  ]);
+  // O clique no rotulo aciona a chave. Um <label> nao alcanca <button>, entao a
+  // ligacao e feita aqui, a mao.
+  caixa.addEventListener('click', (evento) => {
+    if (evento.target !== chave && !chave.contains(evento.target)) chave.click();
+  });
+  if (opcoes.ajuda) caixa.append(el('small', { class: 'ajuda-campo', texto: opcoes.ajuda }));
+  return Object.assign(caixa, { chave });
+}
+
+/**
+ * Filtro de barra: o botao que abre uma lista e mostra o que esta escolhido.
+ *
+ * Ele existe porque as telas montavam isso na mao, cada uma do seu jeito: o
+ * painel tinha seis larguras diferentes na mesma fileira. Aqui o rotulo fica
+ * sempre visivel e o valor escolhido entra ao lado dele, para a barra dizer o
+ * recorte atual sem ninguem precisar abrir cada filtro para conferir.
+ */
+export function chipFiltro(rotulo, { valor, iconeNome, aoClicar, aberto = false } = {}) {
+  const b = el('button', {
+    type: 'button',
+    class: `chip-filtro ${valor ? 'ativo' : ''}`.trim(),
+    'aria-haspopup': 'listbox',
+    'aria-expanded': aberto ? 'true' : 'false',
+  });
+  if (iconeNome) b.append(icone(iconeNome, 14));
+  b.append(el('span', { texto: rotulo }));
+  if (valor) b.append(el('strong', { class: 'chip-filtro-valor', texto: valor }));
+  b.append(icone('voltar', 12));
+  b.lastChild.setAttribute('class', 'chip-filtro-seta');
+  if (aoClicar) b.addEventListener('click', aoClicar);
+  return b;
+}
+
+/**
+ * Faixa de contexto: uma linha que explica o que esta acontecendo nesta tela
+ * agora e oferece a saida.
+ *
+ * E o unico lugar do sistema onde cabe dizer "o agente esta respondendo por
+ * voce" ou "esta conversa esta fora da janela de 24 horas" — frases que mudam
+ * o resultado da proxima acao. Ela nao e cartao nem aviso de canto: fica
+ * ancorada no conteudo, e some quando a condicao acaba.
+ */
+export function faixa(texto, { tipo = '', iconeNome, acoes = [] } = {}) {
+  return el('div', { class: `faixa-contexto ${tipo}`.trim() }, [
+    iconeNome ? icone(iconeNome, 16) : null,
+    el('div', { class: 'faixa-texto', html: texto }),
+    acoes.length ? el('div', { class: 'linha-p' }, acoes) : null,
+  ]);
 }
 
 export function cartao(titulo, ajuda, ...filhos) {
@@ -336,19 +447,27 @@ export function numero(valor) {
  * lista usa o circulo de 32 que ja vem de .avatar no tema, e a previa de Minha
  * conta pede 44. Valor decidido em tempo de execucao nao vira classe.
  */
-export function avatar(pessoa, tamanho = 32) {
+export function avatar(pessoa, tamanho = 32, opcoes = {}) {
   const medida = `${tamanho}px`;
-  if (pessoa?.foto) {
-    return el('img', {
-      class: 'avatar',
-      src: pessoa.foto,
-      alt: '',
-      estilo: { width: medida, height: medida },
-    });
-  }
-  return el('div', {
-    class: 'avatar',
-    estilo: { width: medida, height: medida },
-    texto: iniciais(pessoa?.nome || '') || '?',
-  });
+  const face = pessoa?.foto
+    ? el('img', { class: 'avatar', src: pessoa.foto, alt: '', estilo: { width: medida, height: medida } })
+    : el('div', {
+        class: 'avatar',
+        estilo: { width: medida, height: medida },
+        texto: iniciais(pessoa?.nome || '') || '?',
+      });
+
+  // Sem marca, devolve o circulo puro: e o que as dezenas de chamadas que ja
+  // existem esperam receber, e envolver tudo numa caixa quebraria o alinhamento
+  // delas.
+  if (!opcoes.marca) return face;
+
+  /* A marca e o selinho no canto: por onde a pessoa fala (WhatsApp), se quem
+     conduz e a IA, ou se ela esta online. Ele mora aqui, e nao em cada tela,
+     porque a lista de conversas, o cabecalho e o painel mostravam a mesma
+     informacao de tres jeitos diferentes. */
+  return el('div', { class: 'avatar-caixa', estilo: { width: medida, height: medida } }, [
+    face,
+    el('span', { class: `avatar-marca ${opcoes.marca}`, title: opcoes.marcaTitulo || null }),
+  ]);
 }
