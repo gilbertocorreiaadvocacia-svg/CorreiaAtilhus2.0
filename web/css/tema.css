@@ -382,6 +382,38 @@ body {
   font-size: var(--t-md);
   line-height: var(--lh-normal);
   -webkit-font-smoothing: antialiased;
+
+  /* ALGARISMO TABULAR E ALINHADO EM TODO O SISTEMA.
+
+     Por padrao a Instrument Sans usa figura proporcional, e a diferenca nao e
+     pequena: medido a 38px, o "1" ocupa 14,64px e o "0" ocupa 25,93px. Um
+     numero de metrica trocando de 1.408 para 2.408 mudava de largura no meio da
+     tela, a coluna de horas da fila balancava linha a linha, e o eixo do
+     grafico saia com os rotulos desalinhados entre si. Era isso que fazia o
+     numero parecer malfeito, e nao a fonte.
+
+     Com tabular todos os digitos medem 22,43px. Fica no body de proposito, e
+     nao em uma lista de seletores: a propriedade e herdada, entao alcanca
+     tambem o <text> dentro dos SVG dos graficos, que nenhuma regra de tabela
+     alcancava.
+
+     "lining" e o algarismo na altura das maiusculas. Sem ele, fonte com figura
+     antiga desenha o 4 e o 7 descendo abaixo da linha de base, e "14" parece
+     afundado. */
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+/* A excecao: texto que se LE em vez de se comparar.
+
+   Na fala do cliente o numero e parte da frase — "meu CPF e 047...", "recebi
+   1400 reais" — e ali a figura proporcional e a que compoe melhor com as
+   letras. Tabular existe para numero que fica em coluna, um embaixo do outro,
+   e nao para numero no meio de uma frase. */
+.balao,
+.cartao-ajuda,
+.ajuste-ajuda,
+.dica-balao {
+  font-variant-numeric: proportional-nums lining-nums;
 }
 
 button,
@@ -2721,8 +2753,13 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
      escritorio; no numero, o que se quer e o algarismo alinhado de painel. */
   font-family: var(--fonte);
   font-size: 38px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  /* 600 e nao 700. O peso maximo da Instrument Sans e 700, e no algarismo ele
+     fecha os contornos do 8, do 6 e do 9: a 38px o miolo da letra some. */
+  font-weight: 600;
+  /* Com algarismo tabular cada digito ja vem com a mesma largura e o proprio
+     espaco em volta. O aperto de -0,02em somado a isso encostava o "1" no
+     vizinho. */
+  letter-spacing: -0.01em;
   line-height: var(--lh-apertada);
   /* lining = algarismo alinhado na altura das maiusculas (mata o 4 afundado);
      tabular = todos da mesma largura, para a coluna de valores nao balancar a
@@ -3011,10 +3048,14 @@ a.metrica:focus-visible {
   font-size: var(--t-sm);
 }
 
-td,
-.quando,
-.nao-lidas,
-.grafico-barras {
+/* Esta lista existia para dar algarismo tabular a quatro lugares. Agora ele
+   vem do body e vale para todos, inclusive para o texto dos graficos. O que
+   sobra aqui e so a celula de tabela, que ganha alinhamento a direita quando
+   carrega numero — coluna de valor se compara pela ultima casa, nao pela
+   primeira. */
+td.numero,
+th.numero {
+  text-align: right;
   font-variant-numeric: lining-nums tabular-nums;
 }
 
