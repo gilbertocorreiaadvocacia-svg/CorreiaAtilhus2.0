@@ -61,6 +61,52 @@ function rodar(comando, argumentos, { prazoMs = 20000 } = {}) {
   }
 }
 
+/**
+ * Onde esta o docker, que nem sempre esta no PATH.
+ *
+ * O Docker Desktop 4.90 instala POR USUARIO, em AppData\Local\Programs, e nao
+ * mais em Arquivos de Programas. Duas consequencias que custaram tempo numa
+ * instalacao de verdade: o caminho novo nao e o que se procura por reflexo, e
+ * o PATH so ganha a pasta em processos abertos DEPOIS da instalacao — num
+ * terminal que ja estava aberto, `docker --version` continua dizendo que nao
+ * existe, com o Docker instalado e o engine rodando.
+ *
+ * Por isso a busca e: PATH primeiro, e os lugares conhecidos depois. Assim o
+ * conferidor funciona sem exigir que a pessoa feche e abra o terminal — e
+ * sobretudo sem acusar falta do que esta instalado.
+ */
+let caminhoDoDocker = null;
+
+function acharDocker() {
+  if (caminhoDoDocker) return caminhoDoDocker;
+
+  if (rodar('docker', ['--version'], { prazoMs: 10000 })) {
+    caminhoDoDocker = 'docker';
+    return caminhoDoDocker;
+  }
+
+  const candidatos = [
+    process.env.LOCALAPPDATA && `${process.env.LOCALAPPDATA}\\Programs\\DockerDesktop\\resources\\bin\\docker.exe`,
+    process.env.ProgramFiles && `${process.env.ProgramFiles}\\Docker\\Docker\\resources\\bin\\docker.exe`,
+    '/usr/local/bin/docker',
+    '/usr/bin/docker',
+  ].filter(Boolean);
+
+  for (const caminho of candidatos) {
+    if (rodar(caminho, ['--version'], { prazoMs: 10000 })) {
+      caminhoDoDocker = caminho;
+      return caminhoDoDocker;
+    }
+  }
+  return null;
+}
+
+/** Roda um comando do docker, ache-o onde estiver. */
+function docker(argumentos, opcoes) {
+  const exe = acharDocker();
+  return exe ? rodar(exe, argumentos, opcoes) : null;
+}
+
 async function bater(url, opcoes = {}) {
   try {
     const resposta = await fetch(url, { ...opcoes, signal: AbortSignal.timeout(8000) });
@@ -136,7 +182,7 @@ async function principal() {
 
   /* ---------------- 3. O Docker esta de pe ---------------- */
 
-  const versaoDocker = rodar('docker', ['--version']);
+  const versaoDocker = docker(['--version']);
   if (!versaoDocker) {
     /*
      * No Windows, "instalar o Docker" quase nunca falha por causa do Docker.
@@ -174,7 +220,7 @@ async function principal() {
   }
   ok('o Docker esta instalado', versaoDocker);
 
-  if (!rodar('docker', ['info', '--format', '{{.ServerVersion}}'], { prazoMs: 30000 })) {
+  if (!docker(['info', '--format', '{{.ServerVersion}}'], { prazoMs: 30000 })) {
     falhou(
       'O Docker esta instalado mas nao esta rodando',
       'Abra o Docker Desktop e espere ele dizer "Engine running".',
@@ -236,8 +282,7 @@ async function principal() {
   console.log(AZUL('  Testando o caminho de volta (contêiner -> esta maquina)…'));
 
   const alvo = retorno || `http://host.docker.internal:${PORTA}`;
-  const codigo = rodar(
-    'docker',
+  const codigo = docker(
     ['run', '--rm', 'curlimages/curl:latest', '-s', '-o', '/dev/null', '-w', '%{http_code}', `${alvo}/api/saude`],
     { prazoMs: 120000 },
   );
