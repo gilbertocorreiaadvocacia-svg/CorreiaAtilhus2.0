@@ -4284,8 +4284,17 @@ textarea.area-g {
 
 /* ------------------------------------------------------------------
    As escalas deste arquivo, em uma olhada
-   Texto: --t-xs 11, --t-sm 12, --t-md 13, --t-lg 14, --t-xl 18,
-     --t-2xl 28. Nada entre os passos, nada de meio pixel.
+   Texto: QUATRO degraus de verdade — --t-nota 11, --t-base 13,
+     --t-leitura 15, --t-titulo 21, --t-numero 34. Nada entre os passos,
+     nada de meio pixel, e NENHUM 14px: era ele que fazia titulo de
+     cartao, rotulo forte e corpo sairem do mesmo tamanho.
+     Os apelidos antigos sobrevivem apontando para esses degraus:
+     --t-xs 11, --t-sm/--t-md/--t-lg 13, --t-xl 21, --t-2xl 34. Ou seja,
+     tres apelidos diferentes dao no mesmo 13px de proposito — a
+     diferenca entre texto principal e de apoio e COR e PESO, nunca um
+     pixel.
+     (Este resumo estava desatualizado, anunciando --t-sm 12, --t-lg 14 e
+     --t-2xl 28, valores da escala velha que a refundacao aposentou.)
    Entrelinha: --lh-apertada 1,25 para numero e titulo, --lh-normal 1,5
      para corpo, --lh-solta 1,65 para paragrafo longo e prompt.
    Peso: 400 corpo, 500 rotulo, 600 titulo, 700 numero de metrica.
