@@ -2984,11 +2984,26 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
 }
 
 
+/*
+ * O nome da secao vira rotulo de secao, e nao mais um titulo em negrito.
+ *
+ * Em negrito no mesmo tamanho do conteudo, ele competia com os valores que
+ * estao logo abaixo — e numa coluna de 300px o valor e o que se procura, nao
+ * o nome da gaveta. Caixa alta pequena com espacamento largo e o oposto: le-se
+ * como divisoria, nao como conteudo.
+ *
+ * O filete embaixo faz o trabalho que a moldura fazia antes de a refundacao
+ * visual tirar as caixas do sistema: separa sem cercar.
+ */
 .propriedade > span {
   display: block;
-  font-size: var(--t-sm);
-  font-weight: 600;
+  font-size: var(--t-nota);
+  font-weight: 500;
+  letter-spacing: var(--tr-alta);
+  text-transform: uppercase;
   color: var(--texto-suave);
+  padding-bottom: var(--e2);
+  border-bottom: 1px solid var(--borda);
   margin-bottom: var(--e2);
 }
 

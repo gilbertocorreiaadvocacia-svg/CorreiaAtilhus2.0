@@ -1563,7 +1563,7 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
      */
     const painelDados = el('div', {}, [
         el('div', { class: 'propriedade' }, [
-          el('span', { texto: 'Responsável' }),
+          el('span', { texto: 'Atendimento' }),
           selecao(opcoesResponsavel(), responsavelAtual, {
             aoChange: async (evento) => {
               const valor = evento.target.value;
