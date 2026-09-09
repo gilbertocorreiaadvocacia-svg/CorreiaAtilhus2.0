@@ -390,10 +390,27 @@ export function ferramentasDoAgente(agente, workspaceId) {
       },
     });
   }
-  if (tipos.has('biblioteca')) {
+  /*
+   * A biblioteca e a unica ferramenta que nao depende so do texto do prompt.
+   *
+   * Todas as outras existem porque a mencao aparece escrita: sem @status no
+   * prompt, o agente nao mexe em status, e isso e proposital. Com a
+   * biblioteca a regra virava armadilha: quem vincula uma base na tela do
+   * agente esta dizendo "use isto", e se esquecer de escrever @biblioteca no
+   * prompt a base fica vinculada e MUDA — nenhuma tela avisa, e o agente
+   * responde de cabeca sobre requisito de beneficio.
+   *
+   * Era o caso de dois dos cinco agentes do escritorio, incluindo a Recepcao,
+   * que e quem fala com todo mundo primeiro.
+   *
+   * Entao: vinculou base, tem a ferramenta. A mencao escrita continua valendo
+   * para quem prefere deixar explicito no roteiro.
+   */
+  if (tipos.has('biblioteca') || (agente.conhecimentoIds || []).length > 0) {
     ferramentas.push({
       nome: 'consultar_biblioteca',
-      descricao: 'Consulta a base de conhecimento do escritorio (objecoes, requisitos, regras).',
+      descricao:
+        'Consulta a base de conhecimento do escritorio (objecoes, requisitos, regras). Use SEMPRE que a pergunta do cliente for sobre regra, requisito, prazo, valor ou documento: o que estiver aqui vale mais do que o seu conhecimento geral.',
       parametros: {
         type: 'object',
         properties: { pergunta: { type: 'string' } },
@@ -734,7 +751,28 @@ export async function executarFerramenta({ nome, argumentos, contato, agente, co
       lancar(workspaceId, contato.id, 'mencao_biblioteca', custoDaMencao('biblioteca'));
       registrar(`Consultou a base de conhecimento: ${argumentos.pergunta}`);
       if (!bases.length) return { resultado: 'Nenhuma base de conhecimento vinculada a este agente.' };
-      const termos = normalizar(argumentos.pergunta).split(/\s+/).filter((t) => t.length > 3);
+
+      /*
+       * O corte por tamanho existe para palavra vazia ("de", "para", "que")
+       * nao casar com tudo e empatar a pontuacao. Mas ele cortava em 3 letras,
+       * e nesta area as siglas SAO a pergunta: BPC, CID, DIB, DER, NB, LOAS.
+       * "requisitos do BPC" nao pontuava em nada e caia no caminho de reserva,
+       * que devolve as bases inteiras truncadas em 1500 caracteres — o
+       * escritorio tem uma base so sobre BPC, e ela nunca era encontrada.
+       *
+       * Agora o corte e por UTILIDADE, e nao por tamanho: uma lista curta de
+       * palavras de ligacao sai, e o resto entra. Sigla de tres letras vale
+       * mais do que palavra de seis.
+       */
+      const LIGACAO = new Set([
+        'a', 'as', 'o', 'os', 'um', 'uma', 'de', 'do', 'da', 'dos', 'das', 'em', 'no', 'na',
+        'nos', 'nas', 'por', 'para', 'com', 'sem', 'que', 'qual', 'quais', 'e', 'ou', 'se',
+        'ao', 'aos', 'meu', 'minha', 'seu', 'sua', 'esse', 'essa', 'isso', 'este', 'esta',
+        'sobre', 'como', 'quando', 'onde', 'quanto', 'quantos', 'tem', 'ter', 'ser', 'sao',
+      ]);
+      const termos = normalizar(argumentos.pergunta)
+        .split(/\s+/)
+        .filter((t) => t.length > 1 && !LIGACAO.has(t));
       const trechos = [];
       for (const base of bases) {
         for (const bloco of String(base.conteudo || '').split(/\n\s*\n/)) {

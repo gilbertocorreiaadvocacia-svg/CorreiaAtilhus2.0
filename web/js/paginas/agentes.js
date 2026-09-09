@@ -325,7 +325,15 @@ export async function paginaAgentes({ parametros }) {
           el('div', { class: 'linha-p quebra' }, (agente.ferramentas || []).map((f) => el('span', { class: 'selo', texto: f }))),
         ),
 
-        bloco('Base de conhecimento', null, conhecimento),
+        /* A explicacao vale a linha: ate pouco tempo atras vincular a base
+           aqui nao bastava — era preciso tambem escrever @biblioteca no
+           prompt, e quem esquecia ficava com a base ligada e muda. Dizer que
+           basta vincular e o que impede alguem de reintroduzir a duvida. */
+        bloco(
+          'Base de conhecimento',
+          'Marcar aqui ja basta: o agente consulta o que estiver vinculado quando a pergunta for de regra, requisito, prazo ou valor. Nao precisa citar no prompt.',
+          conhecimento,
+        ),
 
         bloco(
           'Delay de agrupamento',
