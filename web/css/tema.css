@@ -2113,9 +2113,20 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
   padding: 0;
 }
 
+/*
+ * O painel da direita tem 350px, e nao 300.
+ *
+ * Em 300 o conteudo tinha 267px uteis, e ali a pilula de uma etiqueta como
+ * "Auxilio-doenca" ja ocupava 119px: duas nao cabiam lado a lado e a segunda
+ * caia para a linha de baixo, alongando o bloco. Em 350 cabem duas.
+ *
+ * Os 50px saem da conversa, que fica com 534px em 1440. Ela nao perde leitura:
+ * o balao tem limite proprio de 62ch (por volta de 470px), entao a linha
+ * continua do mesmo tamanho — o que encolhe e a margem em volta dela.
+ */
 .atendimento {
   display: grid;
-  grid-template-columns: 320px 1fr 300px;
+  grid-template-columns: 320px 1fr 350px;
   height: 100%;
   min-height: 0;
 }
@@ -2126,7 +2137,7 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
 
 /* Contatos e kanban usam a grade inteira, sem coluna de lista. Vira classe, e
    nao um grid-template-columns escrito no atributo style a cada desenho:
-   inline vence media query, e abaixo de 1180px a largura das colunas ficava
+   inline vence media query, e abaixo de 1230px a largura das colunas ficava
    congelada em 320px enquanto a terceira ja tinha sumido. */
 .atendimento.coluna-unica {
   grid-template-columns: 1fr;
@@ -3566,7 +3577,16 @@ button.mencao-chip:focus-visible {
 }
 
 
-@media (max-width: 1180px) {
+/*
+ * 1230px, e nao 1180: o ponto de corte subiu junto com o painel.
+ *
+ * Ele nao e um numero redondo, e a largura em que a conversa fica apertada
+ * demais para valer a pena manter as tres colunas. Com o painel em 300px isso
+ * acontecia em 1180; com ele em 350, acontece 50px antes. Deixar o corte onde
+ * estava daria a conversa 275px na faixa entre 1180 e 1230 — menos do que
+ * cabe uma linha de balao.
+ */
+@media (max-width: 1230px) {
   .atendimento {
     grid-template-columns: 280px 1fr;
   }
