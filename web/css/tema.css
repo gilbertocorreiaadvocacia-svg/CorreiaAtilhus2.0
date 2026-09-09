@@ -1569,16 +1569,39 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
   border-bottom: 1px solid var(--borda);
 }
 
+/*
+ * A aba e uma coluna: icone em cima, rotulo embaixo, contador no canto.
+ *
+ * Antes eram quatro rotulos de texto lado a lado, e achar "Pendentes" exigia
+ * ler os quatro. Com o icone, cada fila ganha uma forma propria e a fileira
+ * passa a se apontar de relance.
+ *
+ * flex: 1 nas quatro para elas terem a MESMA largura. Com largura pelo
+ * conteudo, "IA" ficava minusculo ao lado de "Pendentes" e a fileira ficava
+ * torta — e pior, o alvo de clique de IA virava um terco do dos vizinhos.
+ */
 .abas button {
-  padding: var(--e2);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: var(--e2) var(--e1);
   min-height: var(--controle);
   background: none;
   border: none;
   border-bottom: 2px solid transparent;
   color: var(--texto-suave);
   cursor: pointer;
-  font-size: var(--t-md);
+  font-size: var(--t-nota);
   white-space: nowrap;
+}
+
+/* O quadrado do icone, que serve de referencia para o contador. */
+.aba-icone-conta {
+  position: relative;
+  display: grid;
+  place-items: center;
 }
 
 .abas button:hover {
@@ -1630,8 +1653,34 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
   text-align: center;
 }
 
+/*
+ * O contador senta no canto de cima do icone.
+ *
+ * O FUNDO OPACO NAO E ENFEITE: sem ele o numero cai por cima dos tracos do
+ * icone e vira rabisco — "25" sobre o robo da aba IA nao se lia. O fundo e
+ * --superficie, a cor da propria coluna, entao ele nao aparece como selo: ele
+ * abre um buraco no icone e o numero fica sobre a superficie limpa, onde o
+ * contraste de --texto-fraco ja esta medido (5,9:1 no escuro, 5,6:1 no claro).
+ *
+ * A altura cai para 15px porque 19px sobre um icone de 18px cobriria o
+ * desenho inteiro, e ai o icone deixaria de cumprir o papel dele.
+ */
 .abas .conta {
-  margin-left: var(--e2);
+  position: absolute;
+  top: -7px;
+  left: 10px;
+  min-width: 16px;
+  height: 15px;
+  padding: 0 3px;
+  background: var(--superficie);
+  /* Fora da escala de quatro degraus, e de proposito: a escala existe para
+     hierarquia de TEXTO, e a regra dela e que a diferenca entre principal e
+     apoio se faz por cor e peso, nunca por um pixel. Isto aqui nao e texto na
+     hierarquia, e um numeral dentro de uma pilula de 15px — no menor degrau
+     (11px) ele encosta nas bordas. 10px e o mesmo tamanho que a barra global
+     e o bloco de identidade ja usam, entao nao inaugura um valor novo. */
+  font-size: 10px;
+  font-weight: 700;
 }
 
 /*

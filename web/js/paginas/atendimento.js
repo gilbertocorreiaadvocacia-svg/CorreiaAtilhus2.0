@@ -33,11 +33,20 @@ import {
  * funciona e o menu mostra onde a pessoa esta.
  */
 
+/*
+ * As quatro filas de trabalho.
+ *
+ * O icone entrou junto do rotulo porque a fileira passou a ser lida de
+ * relance: com quatro colunas iguais de texto, achar "Pendentes" exigia ler
+ * as quatro. O icone da a cada fila uma forma propria, e o rotulo continua
+ * embaixo — icone sozinho seria adivinhacao, e nenhuma destas quatro tem um
+ * desenho que se entenda sem o nome.
+ */
 const ABAS = [
-  { id: 'ia', rotulo: 'IA' },
-  { id: 'ativos', rotulo: 'Ativos' },
-  { id: 'pendentes', rotulo: 'Pendentes' },
-  { id: 'grupos', rotulo: 'Grupos' },
+  { id: 'ia', rotulo: 'IA', icone: 'agentes' },
+  { id: 'ativos', rotulo: 'Ativos', icone: 'conversas' },
+  { id: 'pendentes', rotulo: 'Pendentes', icone: 'relogio' },
+  { id: 'grupos', rotulo: 'Grupos', icone: 'usuarios' },
 ];
 
 /*
@@ -323,13 +332,25 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
          contagem da fileira que pede acao, e a unica preenchida. */
       const conta = el('span', { class: 'conta', texto: String(contagens[aba.id] ?? 0) });
       contadores.set(aba.id, conta);
+      const ligada = filtro.aba === aba.id;
       abas.append(
-        el('button', { class: filtro.aba === aba.id ? 'ativo' : '', aoClick: async () => {
-          filtro.aba = aba.id;
-          await desenhar();
-        } }, [
-          document.createTextNode(aba.rotulo),
-          conta,
+        el('button', {
+          type: 'button',
+          class: ligada ? 'ativo' : '',
+          'aria-current': ligada ? 'true' : null,
+          /* O numero fica colado no icone e nao e lido junto com o rotulo por
+             quem usa leitor de tela. O title carrega a frase inteira. */
+          title: `${aba.rotulo}: ${contagens[aba.id] ?? 0}`,
+          aoClick: async () => {
+            filtro.aba = aba.id;
+            await desenhar();
+          },
+        }, [
+          /* O contador mora DENTRO do quadrado do icone, encostado no canto
+             de cima. Fora dele, ao lado do rotulo, ele empurrava a largura da
+             aba e as quatro deixavam de ter o mesmo tamanho. */
+          el('span', { class: 'aba-icone-conta' }, [icone(aba.icone, 18), conta]),
+          el('span', { texto: aba.rotulo }),
         ]),
       );
     }
@@ -476,6 +497,27 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
    * escritorio, e ninguem garante que passa o contraste sobre as cinco
    * superficies do sistema.
    */
+  /**
+   * "Hoje", "ontem", ou a data por extenso.
+   *
+   * Hoje e ontem sao os dois dias que se contam sem pensar; a partir do
+   * anteontem o nome do dia da semana ja nao situa ninguem, e o que situa e a
+   * data. O ano so aparece quando nao e este — numa conversa de tres meses
+   * atras ele nao acrescenta nada, e num processo de 2023 e a informacao.
+   */
+  function rotuloDoDia(iso) {
+    const data = new Date(iso);
+    const hoje = new Date();
+    if (data.toDateString() === hoje.toDateString()) return 'Hoje';
+    const ontem = new Date(hoje.getTime() - 86400000);
+    if (data.toDateString() === ontem.toDateString()) return 'Ontem';
+    return data.toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: 'long',
+      ...(data.getFullYear() === hoje.getFullYear() ? {} : { year: 'numeric' }),
+    });
+  }
+
   function etiquetasDa(contato) {
     const etiquetas = (contato.etiquetas || []).map(acharEtiqueta).filter(Boolean);
     if (!etiquetas.length) return null;
@@ -761,7 +803,28 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
               ),
         );
       }
-      for (const mensagem of visiveis) painelMensagens.append(balao(mensagem));
+      /*
+       * Um separador a cada virada de dia.
+       *
+       * O tempo entre uma mensagem e outra e dado do caso, e nao enfeite: numa
+       * acao previdenciaria a diferenca entre responder em cinco minutos e
+       * responder em duas semanas e a diferenca entre atendimento e abandono.
+       * Sem separador, uma conversa de tres meses lia como se tivesse
+       * acontecido de uma vez so.
+       *
+       * A comparacao e por DIA no fuso de quem olha, e nao por diferenca de
+       * horas: duas mensagens separadas por dez minutos, uma 23h55 e outra
+       * 00h05, sao de dias diferentes e e assim que quem le pensa nelas.
+       */
+      let diaAnterior = null;
+      for (const mensagem of visiveis) {
+        const dia = mensagem.criadoEm ? new Date(mensagem.criadoEm).toDateString() : null;
+        if (dia && dia !== diaAnterior) {
+          painelMensagens.append(el('div', { class: 'dia-separador' }, [el('span', { texto: rotuloDoDia(mensagem.criadoEm) })]));
+          diaAnterior = dia;
+        }
+        painelMensagens.append(balao(mensagem));
+      }
       // O indicador vive no fim da lista e precisa voltar a cada redesenho dela.
       painelMensagens.append(aviso3Pontos);
       painelMensagens.scrollTop = painelMensagens.scrollHeight;
