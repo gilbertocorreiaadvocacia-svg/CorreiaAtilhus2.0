@@ -7,10 +7,12 @@ import {
   botao,
   campo,
   confirmar,
+  dataHora,
   el,
   entradaTexto,
   limpar,
   selecao,
+  selo,
 } from '../ui.js';
 
 /**
@@ -120,26 +122,95 @@ function rodapeAjustes(...botoes) {
 /* Modelo de IA                                                        */
 /* ------------------------------------------------------------------ */
 
+/**
+ * O cartao que liga a inteligencia artificial.
+ *
+ * Ele abre dizendo o ESTADO, e nao pedindo a chave: quem chega aqui quer saber
+ * antes de tudo se os agentes estao respondendo de verdade ou rodando pelo
+ * roteiro por regras. Antes as duas situacoes tinham a mesma tela — dois
+ * campos de senha em branco — e nao havia como distinguir chave valida de
+ * chave revogada sem clicar em testar.
+ *
+ * O Claude vem primeiro porque e o que o escritorio usa. A chave da OpenAI
+ * continua existindo, mas com o nome do que ela realmente faz aqui: audio.
+ * Ela NAO foi removida de proposito — quem a apagasse deixaria todo cliente
+ * que manda audio sem resposta, em silencio, sem erro em lugar nenhum.
+ */
 function blocoIa(integracoes, recarregarTela) {
+  const ia = integracoes.ia || {};
+  const temClaude = Boolean(ia.chaveAnthropic);
+  const temAudio = Boolean(ia.chaveOpenai);
+  const teste = ia.ultimoTeste || null;
+
   const chaveAnthropic = entradaTexto('', {
     type: 'password',
-    placeholder: integracoes.ia?.chaveAnthropic ? 'ja configurada (deixe em branco para manter)' : 'sk-ant-…',
+    placeholder: temClaude ? 'ja configurada (deixe em branco para manter)' : 'sk-ant-…',
   });
   const chaveOpenai = entradaTexto('', {
     type: 'password',
-    placeholder: integracoes.ia?.chaveOpenai ? 'ja configurada' : 'sk-…',
+    placeholder: temAudio ? 'ja configurada (deixe em branco para manter)' : 'sk-…',
   });
 
+  /*
+   * A frase do estado nao repete o selo, ela diz a consequencia.
+   *
+   * "Sem chave" nao significa nada para quem nao conhece o sistema; "os
+   * agentes seguem o roteiro numerado, uma etapa por resposta" e o que muda o
+   * atendimento do cliente hoje a tarde.
+   */
+  const estadoAtual = temClaude
+    ? {
+        selo: selo('Ligada', 'sucesso'),
+        frase: 'Os agentes respondem com o Claude, entendendo o contexto da conversa inteira.',
+      }
+    : {
+        selo: selo('No roteiro por regras', 'alerta'),
+        frase:
+          'Sem chave, os agentes seguem o prompt numerado — uma etapa por resposta do cliente, sem entender o que ele escreveu.',
+      };
+
   return cartaoAjustes(
-    'Modelo de IA',
-    'Sem chave cadastrada os agentes continuam funcionando, mas pelo roteiro por regras: seguem o prompt numerado, uma etapa por resposta, sem entender contexto.',
-    // O rotulo ja diz de quem e a chave, entao a linha da Anthropic nao leva
-    // explicacao. A da OpenAI leva, porque ela faz tres coisas alem do obvio,
-    // e leva no balao: e conceito do servico, nao regra de preenchimento.
-    linhaAjuste('Chave da Anthropic (Claude)', null, chaveAnthropic),
-    linhaAjuste('Chave da OpenAI', null, chaveOpenai, {
-      balao: 'Alem dos agentes em GPT, e ela que transcreve o audio do cliente e gera as vozes do escritorio.',
-    }),
+    'Inteligência artificial',
+    'É esta chave que faz os agentes pensarem. Sem ela nada para de funcionar: os agentes caem no roteiro por regras, seguindo o prompt numerado etapa por etapa.',
+
+    el('div', { class: 'ajuste-linha' }, [
+      el('div', {}, [
+        el('p', { class: 'ajuste-rotulo' }, ['Estado', estadoAtual.selo]),
+        el('p', { class: 'ajuste-ajuda', texto: estadoAtual.frase }),
+        teste
+          ? el('p', {
+              class: 'ajuste-ajuda',
+              texto: teste.ok
+                ? `Último teste: ${teste.modelo} respondeu em ${dataHora(teste.quando)}.`
+                : `Último teste falhou em ${dataHora(teste.quando)}: ${teste.erro}`,
+            })
+          : null,
+      ]),
+    ]),
+
+    linhaAjuste(
+      'Chave da Anthropic (Claude)',
+      'Painel da Anthropic > API Keys. Começa com sk-ant-. Ela é gravada só aqui e nunca volta para a tela.',
+      chaveAnthropic,
+    ),
+
+    /*
+     * O rotulo mudou de "Chave da OpenAI" para o que ela faz.
+     *
+     * O escritorio decidiu usar so o Claude, e o nome antigo fazia esta linha
+     * parecer um concorrente esquecido na tela — candidata a ser apagada. Ela
+     * nao e: e ela que transcreve o audio que o cliente manda no WhatsApp e
+     * que gera a voz quando o agente responde falando.
+     */
+    linhaAjuste(
+      'Áudio do cliente (opcional)',
+      temAudio
+        ? 'Configurada. O agente entende o áudio que o cliente manda e consegue responder em voz.'
+        : 'Sem ela, áudio recebido no WhatsApp não é transcrito e o agente não responde em voz. Texto continua funcionando normalmente.',
+      chaveOpenai,
+      { balao: 'É uma chave da OpenAI, usada aqui só para transcrever áudio e sintetizar voz — os agentes continuam no Claude.' },
+    ),
+
     rodapeAjustes(
       podeConfigurar()
         ? botao('Salvar', {
@@ -158,15 +229,16 @@ function blocoIa(integracoes, recarregarTela) {
       // trava dos vizinhos: sem isso o botao era o unico caminho aberto para
       // qualquer perfil queimar credito clicando.
       podeConfigurar()
-        ? botao('Testar conexao', {
+        ? botao('Testar conexão', {
             pequeno: true,
             aoClicar: async () => {
               const resultado = await api.post('/api/integracoes/ia/testar', {});
               aviso(resultado.ok ? `Respondeu: ${resultado.resposta}` : resultado.erro, resultado.ok ? 'sucesso' : 'erro');
+              await recarregarTela();
             },
           })
         : null,
-      podeConfigurar() && (integracoes.ia?.chaveAnthropic || integracoes.ia?.chaveOpenai)
+      podeConfigurar() && (temClaude || temAudio)
         ? botao('Remover chaves', {
             pequeno: true,
             tipo: 'perigo',
@@ -174,7 +246,7 @@ function blocoIa(integracoes, recarregarTela) {
             aoClicar: () =>
               confirmar(
                 'Remover as chaves de IA?',
-                'Os agentes voltam a responder pelo roteiro por regras, e a transcricao e a voz param de funcionar.',
+                'Os agentes voltam a responder pelo roteiro por regras, e a transcrição e a voz param de funcionar.',
                 async () => {
                   await api.patch('/api/integracoes', { ia: { chaveAnthropic: null, chaveOpenai: null } });
                   aviso('Chaves removidas.', 'sucesso');

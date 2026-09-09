@@ -8,6 +8,99 @@ import { normalizar } from '../nucleo/util.js';
  * mencoes.
  */
 
+/**
+ * Tempo maximo de uma chamada ao modelo.
+ *
+ * Sem isso, um `fetch` que nunca responde prende a resposta do agente para
+ * sempre: o cronometro do motor ja disparou, a conversa fica com "digitando"
+ * na tela e o cliente espera sem que nenhum erro apareca em lugar nenhum.
+ * Sessenta segundos e folgado para 2000 tokens com ferramentas, e curto o
+ * bastante para o problema virar aviso no mesmo minuto.
+ *
+ * A variavel de ambiente e so para o teste: um teste que espera sessenta
+ * segundos de verdade para provar um timeout ninguem roda duas vezes.
+ */
+const TEMPO_LIMITE = Number(process.env.CORREIA_IA_TEMPO_LIMITE) || 60 * 1000;
+
+/**
+ * Onde cada provedor mora.
+ *
+ * No dia a dia ninguem mexe nisso: e sempre o endereco publico. A variavel
+ * existe pelo mesmo motivo de CORREIA_DADOS em config.js — para o teste poder
+ * apontar para um servidor de mentira. Sem ela, provar que a retentativa
+ * acontece num 429 e que ela NAO acontece num 401 exigiria queimar chave de
+ * verdade contra a API real, e uma retentativa nao testada e exatamente como
+ * se publica um laco que repete erro permanente para sempre.
+ */
+export const BASE_ANTHROPIC = process.env.CORREIA_ANTHROPIC_URL || 'https://api.anthropic.com';
+export const BASE_OPENAI = process.env.CORREIA_OPENAI_URL || 'https://api.openai.com';
+
+/** Espera padrao antes da segunda tentativa, quando o provedor nao diz outra. */
+const ESPERA_PADRAO = 2000;
+
+/**
+ * Codigos em que tentar de novo faz sentido.
+ *
+ * 429 e limite de uso, 408 e tempo esgotado, 5xx e problema do lado deles —
+ * todos passam sozinhos. Fora dessa lista fica o que nao melhora repetindo:
+ * 401 de chave errada, 400 de corpo invalido, 404 de modelo que nao existe.
+ * Repetir esses tres so gastaria o dobro para receber o mesmo erro.
+ */
+function vaiPassar(status) {
+  return status === 408 || status === 429 || status >= 500;
+}
+
+const dormir = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Uma chamada HTTP ao provedor, com tempo limite e UMA segunda tentativa.
+ *
+ * Uma, e nao tres: do outro lado ha um cliente esperando no WhatsApp, e cada
+ * tentativa custa dinheiro do escritorio. Duas chamadas cobrem o caso comum
+ * (pico momentaneo, 429 de rajada) sem transformar uma indisponibilidade em
+ * conta alta.
+ *
+ * O risco assumido e o da chamada que estourou o tempo mas foi processada do
+ * outro lado: a segunda tentativa paga de novo. Aceitavel porque a alternativa
+ * — desistir na primeira — deixa o cliente sem resposta, que e pior e mais
+ * caro.
+ */
+async function chamar(url, opcoes, provedor) {
+  let ultimoErro = null;
+
+  for (let tentativa = 1; tentativa <= 2; tentativa += 1) {
+    let resposta;
+    try {
+      resposta = await fetch(url, { ...opcoes, signal: AbortSignal.timeout(TEMPO_LIMITE) });
+    } catch (erro) {
+      // Tempo esgotado e queda de rede chegam aqui, e as duas passam sozinhas.
+      ultimoErro =
+        erro?.name === 'TimeoutError' || erro?.name === 'AbortError'
+          ? new Error(`${provedor} nao respondeu em ${TEMPO_LIMITE / 1000}s`)
+          : new Error(`Nao foi possivel falar com a ${provedor}: ${erro.message}`);
+      if (tentativa === 2) throw ultimoErro;
+      await dormir(ESPERA_PADRAO);
+      continue;
+    }
+
+    if (resposta.ok) return resposta;
+
+    const dados = await resposta.json().catch(() => ({}));
+    ultimoErro = new Error(dados?.error?.message || `${provedor} respondeu ${resposta.status}`);
+    ultimoErro.status = resposta.status;
+
+    if (tentativa === 2 || !vaiPassar(resposta.status)) throw ultimoErro;
+
+    // O provedor costuma dizer quanto esperar no 429. Obedecer isso evita
+    // levar um segundo 429 por bater cedo demais. O teto de 10s existe para
+    // um Retry-After exagerado nao segurar a resposta do cliente.
+    const pedido = Number(resposta.headers.get('retry-after'));
+    await dormir(Math.min(Number.isFinite(pedido) && pedido > 0 ? pedido * 1000 : ESPERA_PADRAO, 10_000));
+  }
+
+  throw ultimoErro;
+}
+
 export function modeloDe(id) {
   return MODELOS.find((m) => m.id === id) || MODELOS.find((m) => m.id === 'regras');
 }
@@ -58,20 +151,21 @@ async function conversarAnthropic({ modelo, chave, sistema, mensagens, ferrament
     }));
   }
 
-  const resposta = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'x-api-key': chave,
-      'anthropic-version': '2023-06-01',
-      'content-type': 'application/json',
+  const resposta = await chamar(
+    `${BASE_ANTHROPIC}/v1/messages`,
+    {
+      method: 'POST',
+      headers: {
+        'x-api-key': chave,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify(corpo),
     },
-    body: JSON.stringify(corpo),
-  });
+    'Anthropic',
+  );
 
   const dados = await resposta.json().catch(() => ({}));
-  if (!resposta.ok) {
-    throw new Error(dados?.error?.message || `Anthropic respondeu ${resposta.status}`);
-  }
 
   const texto = (dados.content || [])
     .filter((b) => b.type === 'text')
@@ -161,13 +255,16 @@ async function conversarOpenai({ modelo, chave, sistema, mensagens, ferramentas 
     }));
   }
 
-  const resposta = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${chave}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(corpo),
-  });
+  const resposta = await chamar(
+    `${BASE_OPENAI}/v1/chat/completions`,
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${chave}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(corpo),
+    },
+    'OpenAI',
+  );
   const dados = await resposta.json().catch(() => ({}));
-  if (!resposta.ok) throw new Error(dados?.error?.message || `OpenAI respondeu ${resposta.status}`);
 
   const escolha = dados.choices?.[0]?.message || {};
   const chamadas = (escolha.tool_calls || []).map((c) => ({

@@ -128,12 +128,16 @@ export function registrarIntegracoes(rotas) {
       };
     }
     if (corpo.ia) {
+      const chaveAnthropic = preservarSegredo(corpo.ia.chaveAnthropic, atual.ia?.chaveAnthropic);
       mudancas.ia = {
         ...atual.ia,
         ...corpo.ia,
-        chaveAnthropic: preservarSegredo(corpo.ia.chaveAnthropic, atual.ia?.chaveAnthropic),
+        chaveAnthropic,
         chaveOpenai: preservarSegredo(corpo.ia.chaveOpenai, atual.ia?.chaveOpenai),
       };
+      // Chave trocada apaga o veredito da anterior. Dizer "respondeu ontem"
+      // sobre uma chave que nao existe mais e pior que nao dizer nada.
+      if (chaveAnthropic !== atual.ia?.chaveAnthropic) mudancas.ia.ultimoTeste = null;
     }
     if (corpo.metaConversoes) {
       mudancas.metaConversoes = {
@@ -183,6 +187,22 @@ export function registrarIntegracoes(rotas) {
     if (!provedorDisponivel(modeloId, ctx.workspaceId)) {
       return { ok: false, erro: 'Nenhuma chave configurada para o provedor deste modelo.' };
     }
+    const registro = integracoesDo(ctx.workspaceId);
+    /*
+     * O resultado do teste fica guardado, e nao so devolvido.
+     *
+     * Sem isso a tela abria sempre igual, com a chave mascarada e nenhuma
+     * pista de se ela ainda vale: chave revogada e chave boa tinham exatamente
+     * a mesma aparencia. Guardado, o cartao consegue dizer "respondeu ha dois
+     * dias" ou "falhou, e o erro foi este".
+     */
+    const anotar = (resultado) => {
+      atualizar('integracoes', registro.id, {
+        ia: { ...registro.ia, ultimoTeste: { ...resultado, modelo: modelo.nome, quando: agora() } },
+      });
+      return resultado;
+    };
+
     try {
       const resposta = await conversar({
         modeloId,
@@ -191,9 +211,9 @@ export function registrarIntegracoes(rotas) {
         mensagens: [{ papel: 'usuario', texto: 'teste de conexao' }],
       });
       lancar(ctx.workspaceId, null, 'teste-de-conexao', modelo.creditos, modelo.nome);
-      return { ok: true, resposta: resposta.texto };
+      return anotar({ ok: true, resposta: resposta.texto });
     } catch (erro) {
-      return { ok: false, erro: erro.message };
+      return anotar({ ok: false, erro: erro.message });
     }
   });
 

@@ -7,12 +7,14 @@ import { fileURLToPath } from 'node:url';
 
 import { esperarNoAr, suite } from './apoio.js';
 import { subirEvolucaoFalsa } from './evolution-falsa.js';
+import { subirAnthropicFalsa } from './anthropic-falsa.js';
 import { testarQrCode } from './conexoes-qrcode.js';
 import { testarSimuladorEOficial } from './conexoes-regressao.js';
 import { testarPortaOcupada } from './porta-ocupada.js';
 import { testarConversas } from './conversas.js';
 import { testarAgentes } from './agentes.js';
 import { testarRede } from './rede.js';
+import { testarIa } from './ia.js';
 
 /**
  * A suite do CorreiaAtilhus2.0. Rode com `npm test`.
@@ -90,12 +92,28 @@ async function principal() {
   const pastaDados = fs.mkdtempSync(path.join(os.tmpdir(), 'correiatendimentos-teste-'));
   const portaSistema = await portaLivre();
   const portaEvolucao = await portaLivre();
+  const portaAnthropic = await portaLivre();
   const base = `http://127.0.0.1:${portaSistema}`;
   const evolucao = `http://127.0.0.1:${portaEvolucao}`;
+  const anthropic = `http://127.0.0.1:${portaAnthropic}`;
 
   const servicoFalso = await subirEvolucaoFalsa(portaEvolucao, CHAVE_EVOLUCAO);
+  const anthropicFalsa = await subirAnthropicFalsa(portaAnthropic);
   const sistema = spawn(process.execPath, [path.join(RAIZ, 'servidor/index.js')], {
-    env: { ...process.env, PORTA: String(portaSistema), CORREIA_DADOS: pastaDados },
+    env: {
+      ...process.env,
+      PORTA: String(portaSistema),
+      CORREIA_DADOS: pastaDados,
+      /* O sistema fala com a Anthropic de mentira, e nao com a de verdade:
+         a suite nao pode depender de internet nem gastar chave do escritorio. */
+      CORREIA_ANTHROPIC_URL: anthropic,
+      /* 800ms para o teste de tempo limite caber na vida de alguem. */
+      CORREIA_IA_TEMPO_LIMITE: '800',
+      /* Uma chave de ambiente vazando da maquina de quem roda o teste faria a
+         suite passar por motivo errado — ou gastar credito de verdade. */
+      ANTHROPIC_API_KEY: '',
+      OPENAI_API_KEY: '',
+    },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 
@@ -110,6 +128,7 @@ async function principal() {
       /* ja morreu */
     }
     servicoFalso.close();
+    anthropicFalsa.close();
     fs.rmSync(pastaDados, { recursive: true, force: true });
   }
 
@@ -126,6 +145,7 @@ async function principal() {
     suites.push(await testarQrCode({ base, evolucao, chaveEvolucao: CHAVE_EVOLUCAO }));
     suites.push(await testarConversas({ base }));
     suites.push(await testarAgentes({ base }));
+    suites.push(await testarIa(base, anthropic));
     /* Sobe processos proprios, em porta propria: nao encosta no servidor acima. */
     suites.push(await testarPortaOcupada({ raiz: RAIZ, portaLivre }));
   } catch (erro) {

@@ -7,7 +7,8 @@ import { caminhoDaMidia } from '../nucleo/midia.js';
 import { agora, formatarTelefone } from '../nucleo/util.js';
 import { enviarMensagem } from '../whatsapp/envio.js';
 import { sintetizar, vozDisponivel } from './audio.js';
-import { executarFerramenta, ferramentasDoAgente } from './mencoes.js';
+import { membrosQuePodemVer } from '../nucleo/auth.js';
+import { executarFerramenta, ferramentasDoAgente, notificar } from './mencoes.js';
 import { conversar, modeloDe, provedorDisponivel, responderPorRegras } from './provedores.js';
 
 const MAX_VOLTAS = 6;
@@ -30,6 +31,7 @@ export function agendarResposta(contato) {
     cronometros.delete(contato.id);
     executarAgente(contato.id).catch((erro) => {
       registrarLog(contato.workspaceId, contato.id, 'erro_ia', `Falha do agente: ${erro.message}`);
+      avisarFalhaDaIa(contato, erro);
       emitir(contato.workspaceId, 'contato', { contatoId: contato.id });
     });
   }, espera);
@@ -38,6 +40,39 @@ export function agendarResposta(contato) {
   cronometros.set(contato.id, cronometro);
 
   emitir(contato.workspaceId, 'digitando', { contatoId: contato.id, ate: Date.now() + espera });
+}
+
+/**
+ * Avisa gente de verdade quando o agente nao conseguiu responder.
+ *
+ * Ate aqui a falha virava uma linha de `erro_ia` no historico da conversa —
+ * lugar que ninguem abre sem motivo. O agente e o unico responsavel pela
+ * conversa, entao quando ele cai nao sobra ninguem: o cliente fica no vacuo e o
+ * escritorio so descobre quando ele reclama, ou desiste.
+ *
+ * Um aviso por conversa enquanto o anterior nao foi lido, a mesma regra do
+ * aviso de mensagem nova. Se a chave vencer, dez clientes travados geram dez
+ * avisos — e isso esta certo: sao dez pessoas esperando. O que nao pode e a
+ * mesma conversa avisar a cada nova tentativa.
+ */
+function avisarFalhaDaIa(contato, erro) {
+  const workspaceId = contato.workspaceId;
+  const jaAvisado = (membroId) =>
+    listar('notificacoes', { workspaceId, membroId, contatoId: contato.id }).some(
+      (n) => !n.lida && n.tipo === 'erro_ia',
+    );
+
+  for (const membro of membrosQuePodemVer(workspaceId, contato)) {
+    if (jaAvisado(membro.id)) continue;
+    notificar(
+      workspaceId,
+      membro.id,
+      'erro_ia',
+      `O agente nao respondeu ${contato.nome}`,
+      `${erro.message}. A conversa esta parada esperando resposta.`,
+      contato.id,
+    );
+  }
 }
 
 export function cancelarResposta(contatoId) {
