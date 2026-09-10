@@ -10,6 +10,15 @@
 # sobe, com o escritorio, os status, os agentes e os templates prontos.
 dados/
 
+# As copias de seguranca da pasta acima, que tem exatamente o mesmo conteudo.
+#
+# A regra `dados/` sozinha nao pega uma copia chamada `dados-backup-...`, e uma
+# copia dessas nasce justamente antes das mudancas arriscadas — o momento em
+# que se digita `git add -A` sem olhar. Aconteceu aqui: a copia apareceu como
+# nao rastreada e estava a um comando de ir para um repositorio publico.
+dados-backup*/
+dados-*.bak/
+
 # Midia enviada e recebida nas conversas (documento, laudo, foto de RG).
 midia/
 arquivos/

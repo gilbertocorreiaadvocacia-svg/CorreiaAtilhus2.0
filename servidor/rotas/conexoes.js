@@ -163,6 +163,44 @@ export function registrarConexoes(rotas) {
     return paraTela(atualizada);
   });
 
+  /**
+   * Traz o historico que ja estava no celular.
+   *
+   * Fica atras de exigirConfiguracao como as outras: a importacao escreve
+   * dezenas de conversas na base do escritorio de uma vez, e desfazer isso e
+   * bem mais trabalhoso que evitar.
+   *
+   * Nao passa pelo funil de recebimento de proposito — ele acionaria o agente,
+   * que escreveria para pessoas reais sobre assuntos de meses atras. O porque
+   * inteiro esta em servidor/whatsapp/importar-historico.js.
+   */
+  rotas.post('/api/conexoes/:id/importar-historico', async ({ ctx, params, corpo }) => {
+    exigirConfiguracao(ctx);
+    const conexao = achar('conexoes', params.id);
+    if (!conexao || conexao.workspaceId !== ctx.workspaceId) throw comCodigo('Conexao nao encontrada.', 404);
+    if (conexao.tipo !== 'qrcode') {
+      throw comCodigo('So a conexao por QR Code tem historico para trazer.', 400);
+    }
+
+    const { importarHistorico } = await import('../whatsapp/importar-historico.js');
+    try {
+      const relato = await importarHistorico({
+        conexao,
+        limitePorConversa: Math.min(Number(corpo?.limitePorConversa) || 500, 2000),
+      });
+      registrarEvento(
+        conexao,
+        'importacao',
+        `Historico importado: ${relato.conversasImportadas} conversas novas, ${relato.mensagensGravadas} mensagens`,
+      );
+      emitir(ctx.workspaceId, 'contatos', {});
+      return relato;
+    } catch (erro) {
+      registrarEvento(conexao, 'erro', `Importacao do historico falhou: ${erro.message}`);
+      throw comCodigo(erro.message, 502);
+    }
+  });
+
   rotas.delete('/api/conexoes/:id', async ({ ctx, params }) => {
     exigirConfiguracao(ctx);
     const conexao = achar('conexoes', params.id);

@@ -61,11 +61,38 @@ export function normalizar(texto = '') {
  * Telefone no formato que a Meta aceita: DDI + DDD + numero, so digitos.
  * Numero brasileiro sem DDI ganha o 55 na frente.
  */
+/**
+ * Numero DIGITADO por alguem do escritorio.
+ *
+ * Quem cadastra um cliente aqui escreve "81 99999-8888", sem o pais, porque e
+ * assim que se escreve telefone no Brasil. Por isso o 55 entra sozinho quando
+ * faltam digitos para um numero internacional.
+ *
+ * Para numero vindo do WhatsApp, use normalizarTelefoneDoWhatsApp: la o pais
+ * SEMPRE vem junto, e este palpite estraga o numero.
+ */
 export function normalizarTelefone(entrada = '') {
   let digitos = String(entrada).replace(/\D+/g, '');
   if (!digitos) return '';
   if (digitos.length <= 11) digitos = `55${digitos}`;
   return digitos;
+}
+
+/**
+ * Numero vindo do WhatsApp, que ja chega completo.
+ *
+ * O identificador do WhatsApp — 558195401514@s.whatsapp.net — sempre traz o
+ * codigo do pais. Passa-lo pelo normalizarTelefone acima quebra todo numero
+ * estrangeiro: um suico de 11 digitos, 41786028969, virava 5541786028969, um
+ * numero que nao existe. Foi assim que a importacao do historico trouxe
+ * dezenove contatos com telefone inventado.
+ *
+ * O estrago maior nao e no cadastro: e na resposta. Um cliente de fora escreve,
+ * o sistema guarda o numero errado, e a resposta sai para lugar nenhum — sem
+ * erro na tela, porque o envio usa exatamente o numero que foi gravado.
+ */
+export function normalizarTelefoneDoWhatsApp(entrada = '') {
+  return String(entrada).replace(/\D+/g, '');
 }
 
 export function formatarTelefone(numero = '') {

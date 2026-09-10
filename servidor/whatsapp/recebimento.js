@@ -12,7 +12,7 @@ import {
 import { emitir } from '../nucleo/eventos.js';
 import { membrosQuePodemVer } from '../nucleo/auth.js';
 import { notificar } from '../ia/mencoes.js';
-import { agora, normalizar, normalizarTelefone, novoId } from '../nucleo/util.js';
+import { agora, normalizar, normalizarTelefone, normalizarTelefoneDoWhatsApp, novoId } from '../nucleo/util.js';
 import { agendarResposta, agentePorPalavraChave, cancelarResposta } from '../ia/motor.js';
 import { agendarFollowupsDoStatus, cancelarFollowups, limparAgendamentosDoContato, reagendarFollowups } from '../automacao/followup.js';
 import { marcarComoLida } from './envio.js';
@@ -26,8 +26,17 @@ import { transcrever, transcricaoDisponivel } from '../ia/audio.js';
  * arquivo, para nao existirem dois caminhos que divergem com o tempo.
  */
 
-export function acharOuCriarContato({ workspaceId, conexao, telefone, nome = '', foto = null }) {
-  const numero = normalizarTelefone(telefone);
+export function acharOuCriarContato({ workspaceId, conexao, telefone, nome = '', foto = null, doWhatsApp = false }) {
+  /*
+   * De onde veio o numero muda como ele se normaliza.
+   *
+   * Digitado por alguem do escritorio, ele vem sem o pais — "81 99999-8888" — e
+   * o 55 precisa entrar. Vindo do WhatsApp, o pais SEMPRE ja esta la, e chutar
+   * o 55 estraga todo numero estrangeiro: um suico de 11 digitos virava um
+   * numero brasileiro que nao existe, e a resposta saia para o vazio sem erro
+   * nenhum na tela.
+   */
+  const numero = doWhatsApp ? normalizarTelefoneDoWhatsApp(telefone) : normalizarTelefone(telefone);
   let contato = listar('contatos', { workspaceId }).find(
     (c) => c.telefone === numero && c.conexaoId === conexao.id,
   );
@@ -207,7 +216,7 @@ export async function receberMensagem({
   metadados = null,
   daPropriaConta = false,
 }) {
-  const { contato, novo } = acharOuCriarContato({ workspaceId, conexao, telefone, nome });
+  const { contato, novo } = acharOuCriarContato({ workspaceId, conexao, telefone, nome, doWhatsApp: true });
 
   /*
    * A pessoa respondeu pelo celular, e nao pela tela.

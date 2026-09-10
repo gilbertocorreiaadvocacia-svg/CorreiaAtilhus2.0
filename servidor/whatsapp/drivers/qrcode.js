@@ -422,7 +422,15 @@ export const driverQrCode = {
  * `chave` viaja junto no anexo porque e ela que `baixarMidia` usa para pedir o
  * arquivo decifrado quando o evento nao trouxe o base64.
  */
-function extrairMensagem(item) {
+/*
+ * Exportado para a importacao de historico reusar ESTE tradutor.
+ *
+ * Escrever um segundo mapeamento la seria criar duas verdades sobre o mesmo
+ * formato: no dia em que a Evolution mudar o nome de um campo, uma metade do
+ * sistema aprende e a outra nao, e a divergencia aparece meses depois como
+ * mensagem em branco no historico.
+ */
+export function extrairMensagem(item) {
   const m = item?.message || {};
   const chave = item?.key || null;
 
