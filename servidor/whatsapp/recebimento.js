@@ -26,7 +26,14 @@ import { transcrever, transcricaoDisponivel } from '../ia/audio.js';
  * arquivo, para nao existirem dois caminhos que divergem com o tempo.
  */
 
-export function acharOuCriarContato({ workspaceId, conexao, telefone, nome = '', foto = null, doWhatsApp = false }) {
+/** Guarda o @lid num contato que ainda nao tinha, para a costura futura. */
+function costurarLid(contato, lid) {
+  if (!lid || contato.lid === lid) return;
+  atualizar('contatos', contato.id, { lid });
+  contato.lid = lid;
+}
+
+export function acharOuCriarContato({ workspaceId, conexao, telefone, nome = '', foto = null, doWhatsApp = false, lid = null }) {
   /*
    * De onde veio o numero muda como ele se normaliza.
    *
@@ -40,13 +47,48 @@ export function acharOuCriarContato({ workspaceId, conexao, telefone, nome = '',
   let contato = listar('contatos', { workspaceId }).find(
     (c) => c.telefone === numero && c.conexaoId === conexao.id,
   );
-  if (contato) return { contato, novo: false };
+  if (contato) {
+    costurarLid(contato, lid);
+    return { contato, novo: false };
+  }
+
+  /*
+   * A COSTURA: a conversa importada sem telefone reencontra o dono.
+   *
+   * O historico do WhatsApp chega enderecado por @lid, sem telefone, e a
+   * importacao guarda essas conversas chaveadas pelo proprio @lid — legiveis,
+   * mas anonimas. O telefone so aparece quando a pessoa escreve DE NOVO, e e
+   * este o momento: em vez de abrir uma segunda conversa com a mesma pessoa,
+   * a antiga recebe o telefone e o nome, e o historico inteiro passa a estar
+   * embaixo do contato certo.
+   *
+   * Sem isto, cada pessoa que voltasse a falar apareceria duas vezes na fila:
+   * uma com o historico e sem nome, outra com o nome e sem historico.
+   */
+  if (lid) {
+    const antiga = listar('contatos', { workspaceId }).find((c) => c.lid === lid && !c.telefone);
+    if (antiga) {
+      atualizar('contatos', antiga.id, {
+        telefone: numero,
+        nome: nome || (antiga.nome === 'Conversa sem identificacao' ? numero : antiga.nome),
+      });
+      Object.assign(antiga, { telefone: numero, nome: nome || antiga.nome });
+      registrarLog(
+        workspaceId,
+        antiga.id,
+        'identificacao',
+        `Conversa importada sem telefone foi identificada: ${numero}`,
+      );
+      return { contato: antiga, novo: false };
+    }
+  }
 
   contato = inserir('contatos', {
     id: novoId('ctt'),
     workspaceId,
     conexaoId: conexao.id,
     telefone: numero,
+    lid,
     nome: nome || numero,
     foto,
     statusId: conexao.statusPadraoId || null,
@@ -215,8 +257,9 @@ export async function receberMensagem({
   idExterno = null,
   metadados = null,
   daPropriaConta = false,
+  lid = null,
 }) {
-  const { contato, novo } = acharOuCriarContato({ workspaceId, conexao, telefone, nome, doWhatsApp: true });
+  const { contato, novo } = acharOuCriarContato({ workspaceId, conexao, telefone, nome, doWhatsApp: true, lid });
 
   /*
    * A pessoa respondeu pelo celular, e nao pela tela.

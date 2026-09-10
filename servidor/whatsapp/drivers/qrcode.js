@@ -399,8 +399,18 @@ export const driverQrCode = {
         const extraido = extrairMensagem(item);
         if (!extraido) continue;
 
+        /*
+         * O endereco novo do WhatsApp, @lid, nao tem telefone dentro. Quando a
+         * mensagem e recente, ela traz o telefone em remoteJidAlt — e e so
+         * ai que da para ligar a conversa a uma pessoa. Historico
+         * sincronizado nao traz.
+         */
+        const alt = String(item?.key?.remoteJidAlt || '');
+        const temTelefone = alt.endsWith('@s.whatsapp.net');
+
         saida.mensagens.push({
-          telefone: jid.split('@')[0],
+          telefone: temTelefone ? alt.split('@')[0] : jid.split('@')[0],
+          lid: jid.endsWith('@lid') ? jid : null,
           /* pushName e o nome de quem ESCREVEU. Numa mensagem nossa ele e o
              nome do proprio escritorio, e gravar isso renomearia o cliente. */
           nome: daPropriaConta ? '' : item?.pushName || '',

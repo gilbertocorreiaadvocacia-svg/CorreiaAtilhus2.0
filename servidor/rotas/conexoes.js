@@ -186,7 +186,12 @@ export function registrarConexoes(rotas) {
     try {
       const relato = await importarHistorico({
         conexao,
-        limitePorConversa: Math.min(Number(corpo?.limitePorConversa) || 500, 2000),
+                /* O teto era 2000 e cortava conversa de verdade: a maior deste
+           escritorio tem 10.487 mensagens. Medido depois de importar 15 mil,
+           a pasta de dados ficou em 7,9 MB e o maior arquivo em 896 KB — o
+           custo de guardar tudo e pequeno perto de perder metade de uma
+           conversa sem avisar. */
+        limitePorConversa: Math.min(Number(corpo?.limitePorConversa) || 500, 50000),
       });
       registrarEvento(
         conexao,

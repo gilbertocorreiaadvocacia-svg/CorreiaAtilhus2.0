@@ -39,10 +39,45 @@ import { extrairMensagem } from './drivers/qrcode.js';
 /** Chats que nao sao conversa com uma pessoa, por mais que o endereco pareca. */
 const JIDS_DE_SISTEMA = new Set(['0', 'status']);
 
+/**
+ * Conversa de pessoa vem em DOIS enderecamentos, e o segundo quase passou
+ * batido.
+ *
+ * O antigo e `numero@s.whatsapp.net`, que traz o telefone no proprio endereco.
+ * O novo e `43263406899213@lid` — um identificador opaco, sem telefone
+ * dentro. Neste escritorio a diferenca foi de 33 mensagens contra 28.509: quem
+ * filtrar so pelo formato antigo conclui que nao ha historico, e conclui
+ * errado.
+ *
+ * Grupo (@g.us) e canal (@newsletter) continuam de fora: o sistema modela
+ * conversa como uma pessoa com um telefone.
+ */
 function ehConversaDePessoa(jid) {
   const texto = String(jid || '');
+  if (texto.endsWith('@lid')) return true;
   if (!texto.endsWith('@s.whatsapp.net')) return false;
   return !JIDS_DE_SISTEMA.has(texto.split('@')[0]);
+}
+
+/**
+ * O telefone de uma conversa, quando ele existe.
+ *
+ * Numa conversa @lid o telefone so aparece se alguma mensagem trouxer
+ * `key.remoteJidAlt`, e isso so acontece nas conversas com trafego RECENTE: o
+ * WhatsApp manda o vinculo junto com mensagem nova, nunca com o historico
+ * sincronizado. Conferido no banco da Evolution — de 141 conversas @lid, 4
+ * tinham o vinculo.
+ *
+ * Sem telefone a conversa entra assim mesmo, chaveada pelo proprio @lid. Ela
+ * fica legivel e pesquisavel, e o dia em que a pessoa escrever de novo o
+ * recebimento costura as duas (ver costurarLid, em recebimento.js).
+ */
+function telefoneDosRegistros(registros) {
+  for (const item of registros) {
+    const alt = String(item?.key?.remoteJidAlt || '');
+    if (alt.endsWith('@s.whatsapp.net')) return alt.split('@')[0];
+  }
+  return '';
 }
 
 async function chamar(cfg, caminho, corpo) {
@@ -121,9 +156,8 @@ export async function importarHistorico({ conexao, limitePorConversa = 500, aoAn
   let feitas = 0;
   for (const chat of daPessoa) {
     feitas += 1;
-    const telefone = normalizarTelefoneDoWhatsApp(String(chat.remoteJid).split('@')[0]);
-    if (!telefone) { relato.puladas.push(`${chat.remoteJid}: telefone invalido`); continue; }
-    if (meuNumero && telefone === meuNumero) { relato.puladas.push(`${telefone}: e o proprio numero`); continue; }
+    const jid = String(chat.remoteJid);
+    const ehLid = jid.endsWith('@lid');
 
     let resposta;
     try {
@@ -138,13 +172,31 @@ export async function importarHistorico({ conexao, limitePorConversa = 500, aoAn
     }
 
     const registros = registrosDe(resposta);
-    if (!registros.length) { relato.puladas.push(`${telefone}: sem mensagens`); continue; }
+    if (!registros.length) { relato.puladas.push(`${jid}: sem mensagens`); continue; }
+
+    /* O telefone so da para saber depois de ler as mensagens: numa conversa
+       @lid ele vem em key.remoteJidAlt, e nao no endereco. */
+    const telefone = ehLid
+      ? normalizarTelefoneDoWhatsApp(telefoneDosRegistros(registros))
+      : normalizarTelefoneDoWhatsApp(jid.split('@')[0]);
+
+    if (telefone && meuNumero && telefone === meuNumero) {
+      relato.puladas.push(`${telefone}: e o proprio numero`);
+      continue;
+    }
+
+    /* Sem telefone, a chave e o proprio @lid. Vai no campo lid, e nao no
+       telefone: um identificador de 15 digitos no campo de telefone viraria
+       "+43 (26) 34068-99213" na tela, um numero que nao existe. */
+    const chaveLid = telefone ? null : jid;
 
     /* Do mais antigo para o mais novo: a conversa se le em ordem, e a previa
        do contato tem de sobrar a ultima. */
     registros.sort((a, b) => Number(a?.messageTimestamp || 0) - Number(b?.messageTimestamp || 0));
 
-    let contato = listar('contatos', { workspaceId }).find((c) => c.telefone === telefone) || null;
+    let contato = listar('contatos', { workspaceId }).find((c) =>
+      telefone ? c.telefone === telefone : c.lid === chaveLid,
+    ) || null;
     const jaExistia = Boolean(contato);
 
     if (!contato) {
@@ -152,8 +204,9 @@ export async function importarHistorico({ conexao, limitePorConversa = 500, aoAn
         id: novoId('ctt'),
         workspaceId,
         conexaoId: conexao.id,
-        telefone,
-        nome: nomeDoContato(registros) || telefone,
+        telefone: telefone || '',
+        lid: chaveLid,
+        nome: nomeDoContato(registros) || telefone || 'Conversa sem identificacao',
         /* Sem responsavel e arquivada, de proposito: ver o cabecalho. */
         responsavel: null,
         estado: 'arquivado',
