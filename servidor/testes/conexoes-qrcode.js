@@ -83,24 +83,73 @@ export async function testarQrCode({ base, evolucao, chaveEvolucao }) {
   s.ok('o nome do perfil do WhatsApp foi aproveitado', conversa?.nome === 'Maria de Teste');
   if (!conversa) return s;
 
-  /* 7. O eco */
-  await fetch(`${base}/webhook/${id}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', apikey: chaveEvolucao },
-    body: JSON.stringify({
-      event: 'messages.upsert',
-      data: {
-        key: { remoteJid: '5581988887777@s.whatsapp.net', fromMe: true, id: 'ECO' },
-        message: { conversation: 'eco da nossa propria resposta' },
-      },
-    }),
-  });
+  /*
+   * 7. As duas caras de uma mensagem "nossa".
+   *
+   * A sessao por QR Code usa o mesmo aparelho para os dois lados, entao tudo o
+   * que sai do numero volta como evento marcado `fromMe`. Dentro disso ha duas
+   * coisas opostas, e confundi-las quebra a conversa de um jeito ou de outro:
+   *
+   *   o ECO do que o sistema enviou   -> tem de ser DESCARTADO. Gravar de novo
+   *      poe a mesma frase duas vezes na tela, e o agente responde a si mesmo.
+   *   o que a pessoa digitou NO CELULAR -> tem de ENTRAR, como saida. Sem isso
+   *      a conversa mostra a pergunta do cliente e silencio depois, e um
+   *      atendimento que foi feito parece abandonado.
+   */
+  const daEquipe = (texto, idExt) =>
+    fetch(`${base}/webhook/${id}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: chaveEvolucao },
+      body: JSON.stringify({
+        event: 'messages.upsert',
+        data: {
+          key: { remoteJid: '5581988887777@s.whatsapp.net', fromMe: true, id: idExt },
+          message: { conversation: texto },
+        },
+      }),
+    });
+
+  const lerMensagens = async () => {
+    const r = await api.get(`/api/contatos/${conversa.id}/mensagens`);
+    return Array.isArray(r.dados) ? r.dados : r.dados?.mensagens || [];
+  };
+
+  /* 7a. Digitada no celular: entra, e entra como NOSSA. */
+  await daEquipe('respondi por aqui mesmo, pelo celular', 'CEL1');
   await esperar(800);
-  const mensagens = await api.get(`/api/contatos/${conversa.id}/mensagens`);
-  const lidas = Array.isArray(mensagens.dados) ? mensagens.dados : mensagens.dados?.mensagens || [];
+  const comCelular = await lerMensagens();
+  const doCelular = comCelular.filter((m) => m.conteudo === 'respondi por aqui mesmo, pelo celular');
+  s.ok('resposta digitada no celular aparece na conversa', doCelular.length === 1, `apareceu ${doCelular.length} vez(es)`);
+  s.ok('e aparece como nossa, nao como do cliente', doCelular[0]?.direcao === 'saida', doCelular[0]?.direcao);
   s.ok(
-    'mensagem nossa que volta no evento nao entra como do cliente',
-    !lidas.some((m) => m.conteudo === 'eco da nossa propria resposta'),
+    'com autoria que nao inventa quem digitou',
+    doCelular[0]?.autor?.nome === 'Pelo celular',
+    JSON.stringify(doCelular[0]?.autor),
+  );
+
+  /* 7b. O mesmo evento chegando duas vezes nao duplica: o id ja e conhecido. */
+  await daEquipe('respondi por aqui mesmo, pelo celular', 'CEL1');
+  await esperar(800);
+  const depoisDeRepetir = (await lerMensagens()).filter(
+    (m) => m.conteudo === 'respondi por aqui mesmo, pelo celular',
+  );
+  s.ok('o mesmo evento repetido nao duplica a mensagem', depoisDeRepetir.length === 1, `ficaram ${depoisDeRepetir.length}`);
+
+  /* 7c. O eco do que o SISTEMA enviou, com id que ele nunca viu.
+     E o caso da corrida: o webhook chega antes de o envio gravar o id. So o
+     texto identico e recente denuncia que a mensagem ja esta la. */
+  const enviadaPelaTela = await api.post(`/api/contatos/${conversa.id}/mensagens`, {
+    conteudo: 'mensagem enviada pela tela do sistema',
+  });
+  s.ok('a tela conseguiu enviar', enviadaPelaTela.status === 200, String(enviadaPelaTela.status));
+  await esperar(400);
+  await daEquipe('mensagem enviada pela tela do sistema', 'ID-QUE-O-SISTEMA-NAO-VIU');
+  await esperar(800);
+  const aposEco = (await lerMensagens()).filter((m) => m.conteudo === 'mensagem enviada pela tela do sistema');
+  s.ok(
+    'o eco do proprio envio nao vira uma segunda mensagem',
+    aposEco.length === 1,
+    `ficaram ${aposEco.length}`,
   );
 
   /* 8. Enviar */

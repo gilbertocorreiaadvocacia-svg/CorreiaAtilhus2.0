@@ -369,10 +369,26 @@ export const driverQrCode = {
 
     if (evento === 'messages.upsert') {
       for (const item of [].concat(dados)) {
-        /* Mensagem que nos mesmos enviamos volta no evento. Sem esta guarda,
-           toda resposta do agente entrava de novo como se fosse do cliente, e o
-           agente respondia a si mesmo em laco. */
-        if (item?.key?.fromMe) continue;
+        /*
+         * MENSAGEM COM fromMe: DUAS COISAS BEM DIFERENTES.
+         *
+         * A sessao por QR Code e o mesmo aparelho para os dois lados, entao o
+         * evento marcado como "minha" cobre dois casos que nao podem ser
+         * tratados igual:
+         *
+         *   1. o que o SISTEMA acabou de enviar, que volta ecoando. Este ja
+         *      esta gravado, e regrava-lo faria o agente responder a si mesmo
+         *      em laco — era o motivo da guarda que existia aqui.
+         *   2. o que a PESSOA digitou no celular, respondendo o cliente pelo
+         *      WhatsApp em vez de pela tela. Este NAO estava em lugar nenhum:
+         *      quem abrisse a conversa no sistema via a pergunta do cliente e
+         *      nenhuma resposta, e o atendimento parecia abandonado.
+         *
+         * Os dois sao separados pelo idExterno, la no funil de recebimento: o
+         * sistema guarda esse id ao enviar, entao id conhecido e eco, e id novo
+         * veio do celular. Aqui o driver so marca de onde veio.
+         */
+        const daPropriaConta = Boolean(item?.key?.fromMe);
 
         const jid = item?.key?.remoteJid || '';
         /* Grupo vem como @g.us. O sistema ainda nao gerencia grupo, e tratar
@@ -385,8 +401,11 @@ export const driverQrCode = {
 
         saida.mensagens.push({
           telefone: jid.split('@')[0],
-          nome: item?.pushName || '',
+          /* pushName e o nome de quem ESCREVEU. Numa mensagem nossa ele e o
+             nome do proprio escritorio, e gravar isso renomearia o cliente. */
+          nome: daPropriaConta ? '' : item?.pushName || '',
           idExterno: item?.key?.id || null,
+          daPropriaConta,
           ...extraido,
           metadados: null,
         });

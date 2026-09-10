@@ -205,8 +205,36 @@ export async function receberMensagem({
   midia = null,
   idExterno = null,
   metadados = null,
+  daPropriaConta = false,
 }) {
   const { contato, novo } = acharOuCriarContato({ workspaceId, conexao, telefone, nome });
+
+  /*
+   * A pessoa respondeu pelo celular, e nao pela tela.
+   *
+   * Na sessao por QR Code o aparelho e o mesmo para os dois lados, entao tudo
+   * o que sai do numero volta como evento. Ha dois casos dentro disso, e o
+   * idExterno os separa: o sistema guarda esse id ao enviar (envio.js), logo
+   * id JA CONHECIDO e o eco da propria mensagem — descartar e o certo, e era o
+   * que a guarda antiga fazia com os dois casos de uma vez.
+   *
+   * Id novo e resposta digitada no celular. Ela precisa entrar, senao quem
+   * abre a conversa no sistema ve a pergunta do cliente e nenhuma resposta, e
+   * um atendimento que foi feito parece abandonado.
+   */
+  if (daPropriaConta) {
+    const eco = acharEcoDoProprioEnvio(contato, idExterno, conteudo);
+    if (eco) {
+      /* Eco chegado antes de o envio registrar o id: aproveita para gravar o
+         id, senao o recibo de entrega que vier depois nao acha a mensagem. */
+      if (idExterno && !eco.idExterno) {
+        eco.idExterno = idExterno;
+        atualizarMensagem(contato.id, eco.id, { idExterno });
+      }
+      return { contato, mensagem: null, eco: true };
+    }
+    return registrarRespostaDoCelular({ workspaceId, conexao, contato, tipo, conteudo, midia, idExterno });
+  }
 
   if (String(conteudo).trim().toLowerCase() === '/restart') {
     return { contato: reiniciarConversa(contato, conexao), mensagem: null, reiniciado: true };
@@ -340,6 +368,126 @@ export async function receberMensagem({
   }
 
   return { contato, mensagem, novo };
+}
+
+/**
+ * Esta mensagem "nossa" e o eco de algo que o sistema acabou de enviar?
+ *
+ * O caminho seguro e o idExterno: o envio guarda esse id, entao id conhecido e
+ * eco, sem duvida nenhuma.
+ *
+ * So que ha uma corrida. O servico entrega o webhook e responde ao envio pelo
+ * MESMO instante, e nada garante a ordem: quando o eco chega primeiro, o id
+ * ainda nao foi gravado, e so pelo id a propria resposta do agente entraria de
+ * novo na conversa, agora como se tivesse sido digitada no celular. O cliente
+ * veria a mesma frase duas vezes.
+ *
+ * Por isso a segunda rede: mensagem de saida com o MESMO texto nos ultimos
+ * trinta segundos tambem e eco. A janela e curta de proposito — alguem que
+ * repete a mesma frase para o mesmo cliente meio minuto depois e raro, e o
+ * preco de errar para esse lado (uma repeticao nao registrada) e menor que o
+ * de errar para o outro (a conversa mostrando tudo em dobro).
+ */
+const JANELA_DE_ECO_MS = 30 * 1000;
+
+function acharEcoDoProprioEnvio(contato, idExterno, conteudo) {
+  const minhas = mensagensDe(contato.id).filter((m) => m.direcao === 'saida');
+
+  if (idExterno) {
+    const porId = minhas.find((m) => m.idExterno === idExterno);
+    if (porId) return porId;
+  }
+
+  const texto = String(conteudo || '').trim();
+  if (!texto) return null;
+
+  const limite = Date.now() - JANELA_DE_ECO_MS;
+  return (
+    minhas.find(
+      (m) => String(m.conteudo || '').trim() === texto && new Date(m.criadoEm).getTime() >= limite,
+    ) || null
+  );
+}
+
+/**
+ * Grava o que a equipe respondeu PELO CELULAR, em vez de pela tela.
+ *
+ * Existe porque a sessao por QR Code compartilha o aparelho: o advogado abre o
+ * WhatsApp no proprio telefone e responde o cliente dali, e ate aqui isso nao
+ * chegava ao sistema. A conversa na tela ficava com a pergunta do cliente e
+ * silencio depois — e quem olhasse a fila via um atendimento abandonado que na
+ * verdade tinha sido feito.
+ *
+ * Nao passa pelo caminho da mensagem de entrada, e nao e economia de codigo: a
+ * mensagem que NOS enviamos inverte quase tudo o que aquele caminho faz.
+ *
+ *   nao conta como nao lida  — nao ha o que ler, fomos nos que escrevemos
+ *   nao mexe em ultimaEntradaEm — o cliente nao falou; o relogio de "esperando
+ *                                 resposta" nao pode reiniciar
+ *   nao detecta origem       — origem se descobre no que o CLIENTE escreve
+ *   nao ativa agente por palavra-chave — senao uma palavra nossa ligaria um
+ *                                        agente no meio do atendimento
+ *   CANCELA a resposta do agente — e o ponto mais importante: um humano acabou
+ *                                  de responder, e deixar o agente responder
+ *                                  atras seria o cliente recebendo duas
+ *                                  respostas diferentes para a mesma pergunta
+ */
+async function registrarRespostaDoCelular({ workspaceId, conexao, contato, tipo, conteudo, midia, idExterno }) {
+  let anexo = midia;
+  if (anexo && !anexo.url) {
+    const baixado = await driverDa(conexao).baixarMidia?.({ conexao, midia: anexo });
+    if (baixado) anexo = { ...anexo, ...baixado };
+  }
+  if (anexo) {
+    const { base64, chave, ...guardavel } = anexo;
+    anexo = guardavel;
+  }
+
+  const mensagem = inserirMensagem(contato.id, {
+    id: novoId('msg'),
+    workspaceId,
+    direcao: 'saida',
+    tipo,
+    conteudo,
+    midia: anexo,
+    idExterno,
+    /*
+     * "Pelo celular" e nao o nome de quem escreveu: a sessao entrega a
+     * mensagem sem dizer QUEM do escritorio a digitou — do lado do WhatsApp e
+     * tudo o mesmo numero. Inventar um nome aqui poria a resposta na conta de
+     * alguem que talvez nao a tenha escrito.
+     */
+    autor: { tipo: 'membro', nome: 'Pelo celular' },
+    situacao: 'enviada',
+    enviadaEm: agora(),
+  });
+
+  /*
+   * A conversa volta para a fila quando o proprio escritorio escreve numa
+   * arquivada: se alguem retomou o assunto pelo celular, ela nao esta mais
+   * encerrada. Vai para pendente, e nao para a IA — quem respondeu foi gente.
+   */
+  const mudancas = {
+    ultimaMensagemEm: mensagem.criadoEm,
+    naoLidas: 0,
+    previa: (mensagem.conteudo || `[${tipo}]`).slice(0, 120),
+  };
+  if (contato.estado === 'arquivado') {
+    mudancas.estado = 'pendente';
+    registrarLog(workspaceId, contato.id, 'desarquivar', 'Conversa reaberta: o escritorio respondeu pelo celular');
+  }
+  if (!contato.primeiraMensagemEm) mudancas.primeiraMensagemEm = mensagem.criadoEm;
+
+  atualizar('contatos', contato.id, mudancas);
+  Object.assign(contato, mudancas);
+
+  cancelarResposta(contato.id);
+  reagendarFollowups(contato);
+
+  emitir(workspaceId, 'mensagem', { contatoId: contato.id, mensagem });
+  emitir(workspaceId, 'contato', { contatoId: contato.id });
+
+  return { contato, mensagem, doCelular: true };
 }
 
 /** Atualiza o estado de entrega vindo da Meta (enviada, entregue, lida, erro). */
