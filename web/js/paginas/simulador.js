@@ -269,9 +269,25 @@ export async function paginaSimulador() {
     ]);
   }
 
+  /*
+   * Vale so o carregamento mais recente.
+   *
+   * A conversa recarrega por dois caminhos quase ao mesmo tempo: o envio
+   * recarrega ao terminar, e o aviso ao vivo do servidor ("chegou mensagem")
+   * recarrega tambem. Cada carregamento limpava a lista ANTES de esperar a
+   * resposta; as duas limpezas aconteciam primeiro, as duas respostas chegavam
+   * depois, e cada balao aparecia duas vezes. Visto no teste de verdade: 2
+   * mensagens no banco, 4 baloes na tela.
+   *
+   * Agora a lista so e limpa quando a resposta chega, e so pela chamada mais
+   * recente — as anteriores chegam e sao descartadas.
+   */
+  let pedidoAtual = 0;
+
   async function carregar() {
-    limpar(mensagens);
+    const meuPedido = (pedidoAtual += 1);
     if (!contatoId) {
+      limpar(mensagens);
       mensagens.append(
         el('div', { class: 'chat-teste-vazio' }, [
           el('p', { texto: 'Escreva a primeira mensagem como se fosse o cliente.' }),
@@ -289,11 +305,14 @@ export async function paginaSimulador() {
       lista = (await api.get(`/api/contatos/${contatoId}/mensagens?limite=200`)).mensagens || [];
     } catch {
       /* A conversa foi apagada no atendimento: recomeca limpo. */
+      if (meuPedido !== pedidoAtual) return;
       contatoId = null;
       lembrar('contato', '');
       desenharCabecalho();
       return carregar();
     }
+    if (meuPedido !== pedidoAtual) return;
+    limpar(mensagens);
     for (const mensagem of lista) mensagens.append(balaoDa(mensagem));
     mensagens.append(indicador);
     mensagens.scrollTop = mensagens.scrollHeight;
