@@ -65,7 +65,7 @@ const PAGINAS = {
 
   tarefas: { titulo: 'Tarefas', montar: paginaTarefas },
   agendamentos: { titulo: 'Central de agendamentos', montar: paginaAgendamentos },
-  simulador: { titulo: 'Simulador de WhatsApp', montar: paginaSimulador },
+  simulador: { titulo: 'Chat de teste', montar: paginaSimulador },
   configuracoes: { titulo: 'Configurações', montar: paginaConfiguracoes },
 };
 
@@ -105,7 +105,7 @@ const MENU = [
   },
   { rota: 'tarefas', rotulo: 'Tarefas', icone: 'ok' },
   { rota: 'agendamentos', rotulo: 'Agendamentos', icone: 'agenda' },
-  { rota: 'simulador', rotulo: 'Simulador', icone: 'simulador' },
+  { rota: 'simulador', rotulo: 'Chat de teste', icone: 'simulador' },
   { rota: 'configuracoes', rotulo: 'Configurações', icone: 'ajustes' },
 ];
 

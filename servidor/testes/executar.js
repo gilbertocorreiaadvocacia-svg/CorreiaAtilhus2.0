@@ -13,6 +13,7 @@ import { testarSimuladorEOficial } from './conexoes-regressao.js';
 import { testarPortaOcupada } from './porta-ocupada.js';
 import { testarConversas } from './conversas.js';
 import { testarAgentes } from './agentes.js';
+import { testarChatDeTeste } from './chat-teste.js';
 import { testarRede } from './rede.js';
 import { testarIa } from './ia.js';
 
@@ -145,6 +146,7 @@ async function principal() {
     suites.push(await testarQrCode({ base, evolucao, chaveEvolucao: CHAVE_EVOLUCAO }));
     suites.push(await testarConversas({ base }));
     suites.push(await testarAgentes({ base }));
+    suites.push(await testarChatDeTeste({ base }));
     suites.push(await testarIa(base, anthropic));
     /* Sobe processos proprios, em porta propria: nao encosta no servidor acima. */
     suites.push(await testarPortaOcupada({ raiz: RAIZ, portaLivre }));

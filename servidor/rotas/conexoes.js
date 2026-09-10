@@ -2,8 +2,8 @@ import crypto from 'node:crypto';
 import { PORTA } from '../config.js';
 import { achar, atualizar, inserir, listar, registrarLog, remover } from '../nucleo/banco.js';
 import { emitir } from '../nucleo/eventos.js';
-import { agora, novoId, ordenarPor } from '../nucleo/util.js';
-import { receberMensagem, atualizarSituacaoExterna } from '../whatsapp/recebimento.js';
+import { agora, normalizarTelefone, novoId, ordenarPor } from '../nucleo/util.js';
+import { acharOuCriarContato, atualizarSituacaoExterna, receberMensagem } from '../whatsapp/recebimento.js';
 import { driverDa, listarDrivers } from '../whatsapp/drivers/index.js';
 import { notificar } from '../ia/mencoes.js';
 import { comCodigo, exigirConfiguracao } from './sessao.js';
@@ -360,13 +360,75 @@ export function registrarConexoes(rotas) {
    * testar agente, follow-up e funil inteiro antes de existir chip.
    */
   rotas.post('/api/simulador/mensagem', async ({ ctx, corpo }) => {
-    const conexao = achar('conexoes', corpo.conexaoId) || listar('conexoes', { workspaceId: ctx.workspaceId })[0];
-    if (!conexao) throw comCodigo('Cadastre uma conexao antes de simular.', 400);
+    /*
+     * O CHAT DE TESTE SO FALA POR CONEXAO DE SIMULADOR.
+     *
+     * A resposta do agente sai pelo driver da conexao usada. Por uma conexao de
+     * simulador ela e so gravada; por uma conexao de verdade ela vai para o
+     * WhatsApp do numero digitado na tela — e o numero digitado na tela e
+     * inventado. A tela antiga listava todas as conexoes e caia na primeira da
+     * lista quando nenhuma era escolhida: bastava existir um numero real para
+     * o teste mandar mensagem de agente para um desconhecido.
+     */
+    const doEscritorio = listar('conexoes', { workspaceId: ctx.workspaceId });
+    const escolhida = corpo.conexaoId ? doEscritorio.find((c) => c.id === corpo.conexaoId) : null;
+    if (corpo.conexaoId && !escolhida) throw comCodigo('Conexao nao encontrada.', 404);
+    if (escolhida && escolhida.tipo !== 'simulador') {
+      throw comCodigo(
+        'O chat de teste so funciona por uma conexao de simulador: por um numero de verdade, a resposta do agente iria para o WhatsApp de alguem.',
+        400,
+      );
+    }
+    const conexao = escolhida || doEscritorio.find((c) => c.tipo === 'simulador');
+    if (!conexao) throw comCodigo('Crie uma conexao de simulador para usar o chat de teste.', 400);
+
+    /*
+     * O numero aqui e DIGITADO, e por isso ganha o 55 como qualquer numero
+     * digitado. O funil de recebimento trata o numero como vindo do WhatsApp,
+     * sem palpite de pais — e desde que passou a ser assim, o "32 98811-2233"
+     * da tela entrava sem o 55, um numero que nao existe.
+     */
+    const telefone = normalizarTelefone(corpo.telefone);
+    if (!telefone) throw comCodigo('Informe o WhatsApp do cliente de teste.', 400);
+
+    /*
+     * O agente escolhido na tela.
+     *
+     * Sem escolha vale a regra do WhatsApp de verdade: o responsavel padrao da
+     * conexao, e a palavra-chave da primeira mensagem. Com escolha, ela vence
+     * as duas — e esse e o ponto de testar um agente especifico: quem escolheu
+     * a Recepcao e escreveu "BPC" nao pode ser desviado para a Triagem BPC.
+     */
+    let agente = null;
+    if (corpo.agenteId) {
+      agente = achar('agentes', corpo.agenteId);
+      if (!agente || agente.workspaceId !== ctx.workspaceId) throw comCodigo('Agente nao encontrado.', 404);
+      if (!agente.ativo) {
+        throw comCodigo(`O agente ${agente.nome} esta desligado. Ligue-o em Agentes para testar.`, 400);
+      }
+    }
+
+    const passarParaOAgente = (contato) => {
+      if (!agente || !contato) return;
+      const jaEle = contato.responsavel?.tipo === 'agente' && contato.responsavel.id === agente.id;
+      if (jaEle && contato.estado === 'ia') return;
+      const mudancas = { responsavel: { tipo: 'agente', id: agente.id, nome: agente.nome }, estado: 'ia' };
+      atualizar('contatos', contato.id, mudancas);
+      Object.assign(contato, mudancas);
+      registrarLog(ctx.workspaceId, contato.id, 'responsavel', `Chat de teste: conversa entregue a ${agente.nome}`);
+    };
+
+    /* ANTES da mensagem: o agente precisa ja estar na conversa quando ela
+       chega, senao quem agenda a resposta e o agente padrao da conexao. */
+    if (agente) {
+      const { contato } = acharOuCriarContato({ workspaceId: ctx.workspaceId, conexao, telefone, nome: corpo.nome || '' });
+      passarParaOAgente(contato);
+    }
 
     const resultado = await receberMensagem({
       workspaceId: ctx.workspaceId,
       conexao,
-      telefone: corpo.telefone,
+      telefone,
       nome: corpo.nome || '',
       conteudo: corpo.conteudo || '',
       tipo: corpo.tipo || 'texto',
@@ -374,10 +436,17 @@ export function registrarConexoes(rotas) {
       metadados: corpo.metadados || null,
     });
 
+    /* DEPOIS tambem: a palavra-chave da primeira mensagem e o /restart trocam
+       o responsavel por conta propria. A resposta so e gerada quando o prazo
+       do agente vence, e le o responsavel naquela hora — recolocar aqui basta
+       para quem responde ser o escolhido. */
+    passarParaOAgente(resultado.contato);
+
     return {
       ok: true,
       contatoId: resultado.contato.id,
       reiniciado: Boolean(resultado.reiniciado),
+      responsavel: resultado.contato.responsavel || null,
     };
   });
 

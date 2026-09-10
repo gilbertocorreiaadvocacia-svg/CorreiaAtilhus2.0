@@ -2177,10 +2177,154 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
 
 /* Caixa de conversa fora do painel de atendimento. No simulador ela nao tem
    pai em coluna, entao o flex de .mensagens nao tem de onde tirar altura. */
-.conversa-simulada {
-  height: calc(var(--e6) * 12);
+/*
+ * Chat de teste: ajustes a esquerda, a conversa a direita.
+ *
+ * A conversa tem altura propria, e nao a da pagina: e um chat, entao o que
+ * se escreve fica embaixo e o que chega rola por cima — com a pagina
+ * crescendo, o campo de escrever descia junto e sumia da tela a cada resposta.
+ */
+.chat-teste {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  gap: var(--e5);
+  align-items: start;
+}
+
+.chat-teste-ajustes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e3);
+  min-width: 0;
+}
+
+.chat-teste-apoio {
+  margin: 0;
+  color: var(--texto-suave);
+  font-size: var(--t-base);
+}
+
+.chat-teste-frases {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e1);
+}
+
+/* O aviso de roteiro por regras. Nao e erro — o agente responde — mas muda o
+   que se esta testando, e por isso fica a vista e nao escondido num balao. */
+.chat-teste-aviso {
+  margin: 0;
+  padding: var(--e2) var(--e3);
+  border-left: 2px solid var(--ouro);
+  background: var(--ouro-fraco);
+  color: var(--texto-suave);
+  font-size: var(--t-nota);
+  line-height: 1.5;
+}
+
+.chat-teste-janela {
+  display: flex;
+  flex-direction: column;
+  height: clamp(440px, calc(100vh - 190px), 780px);
   border: 1px solid var(--borda);
   border-radius: var(--raio-g);
+  background: var(--superficie);
+  overflow: hidden;
+}
+
+.chat-teste-cabecalho {
+  display: flex;
+  align-items: center;
+  gap: var(--e3);
+  padding: var(--e3);
+  border-bottom: 1px solid var(--borda);
+}
+
+.chat-teste-quem {
+  font-weight: 600;
+  font-size: var(--t-base);
+}
+
+.chat-teste-sub {
+  font-size: var(--t-nota);
+  color: var(--texto-suave);
+}
+
+.chat-teste-mensagens {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  background: var(--fundo);
+}
+
+.chat-teste-vazio {
+  margin: auto;
+  max-width: 44ch;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: var(--e2);
+}
+
+.chat-teste-vazio p {
+  margin: 0;
+}
+
+/* A nota interna no meio da conversa, discreta e centrada: ela nao e fala de
+   ninguem, e o registro do que a equipe anotou. */
+.chat-teste-nota {
+  align-self: center;
+  max-width: 80%;
+  padding: var(--e1) var(--e3);
+  border-radius: var(--raio);
+  background: var(--superficie-2);
+  color: var(--texto-suave);
+  font-size: var(--t-nota);
+  text-align: center;
+}
+
+.chat-teste-digitando {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--e2);
+  align-self: flex-start;
+}
+
+.chat-teste-espera {
+  font-size: var(--t-nota);
+  color: var(--texto-suave);
+  font-variant-numeric: tabular-nums;
+}
+
+.chat-teste-compositor {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--e2);
+  padding: var(--e3);
+  border-top: 1px solid var(--borda);
+}
+
+.chat-teste-compositor textarea {
+  flex: 1;
+  min-height: 44px;
+  max-height: 140px;
+  resize: none;
+}
+
+.chat-teste-sem-conexao {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--e3);
+  grid-column: 1 / -1;
+  padding: var(--e8) 0;
+}
+
+@media (max-width: 900px) {
+  .chat-teste {
+    grid-template-columns: 1fr;
+  }
 }
 
 .coluna {
