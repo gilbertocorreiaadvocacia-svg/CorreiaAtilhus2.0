@@ -72,13 +72,32 @@ sem instalar nada". Em vez disso, o CorreiaAtilhus2.0 conversa por HTTP com a
 São **três passos**, e o segundo é o que ninguém adivinha: sem ele o QR conecta,
 a sessão abre e **nenhuma mensagem chega**, sem erro nenhum na tela.
 
-**1. Subir a Evolution.** Com o Docker Desktop instalado e aberto:
+**1. Subir a Evolution.** Com o Docker Desktop instalado e **aberto** (espere ele
+dizer *Engine running*), abra o PowerShell na pasta `windows/evolution` e:
 
 ```
-docker run -d --name evolution -p 8080:8080 -e AUTHENTICATION_API_KEY=escolha-uma-chave-longa -v evolution_dados:/evolution/instances atendai/evolution-api:v2.1.1
+copy .env.exemplo .env
 ```
 
-Guarde a chave que você escolheu; ela vai no passo 3.
+Abra o `.env` no Bloco de Notas e preencha as duas linhas — a chave de API e a
+senha do banco. Invente frases longas e diferentes entre si; **guarde a chave**,
+ela vai no passo 3. Depois, na mesma pasta:
+
+```
+docker compose up -d
+```
+
+A primeira vez baixa ~600 MB e leva alguns minutos.
+
+**Por que compose e não um `docker run`:** a versão 2 da Evolution não roda
+sozinha — ela exige Postgres e sai do ar sem ele. São dois contêineres que
+precisam subir na ordem certa, achar um ao outro e voltar juntos depois de um
+reinício. O `docker-compose.yml` faz isso sozinho; um `docker run` faria à mão
+toda vez.
+
+**A imagem vem com uma chave de API padrão pública.** Trocá-la não é opcional:
+ela é a única coisa que separa o WhatsApp do escritório de quem alcançar a
+porta 8080.
 
 **2. Deixar a Evolution alcançar este sistema.** A Evolution roda dentro de um
 contêiner, e lá dentro `localhost` é o próprio contêiner — não esta máquina.

@@ -1,0 +1,81 @@
+# ---------------------------------------------------------------------
+#  A Evolution API, que segura a sessao do WhatsApp por QR Code.
+#
+#  Suba com:   docker compose up -d      (desta pasta)
+#  Derrube com: docker compose down      (os dados ficam, nos volumes)
+#
+#  POR QUE COMPOSE E NAO UM `docker run`
+#  A versao 2 da Evolution nao roda sozinha: ela exige Postgres, e sai do ar
+#  se ele nao estiver la. Sao dois conteineres que precisam subir na ordem
+#  certa, achar um ao outro pelo nome e voltar juntos depois de um reinicio.
+#  Um `docker run` faz isso a mao toda vez; o compose faz sozinho.
+#
+#  A CHAVE NAO ESTA AQUI. Ela mora no arquivo `.env` ao lado, que nao vai para
+#  o repositorio. Ha um modelo em `.env.exemplo`.
+# ---------------------------------------------------------------------
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: evolution-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: evolution
+      POSTGRES_PASSWORD: ${POSTGRES_SENHA:?defina POSTGRES_SENHA no arquivo .env}
+      POSTGRES_DB: evolution_db
+    volumes:
+      - evolution_postgres:/var/lib/postgresql/data
+    # A porta NAO e publicada de proposito: quem fala com o banco e a Evolution,
+    # pela rede interna do compose. Publicar 5432 poria o banco do WhatsApp ao
+    # alcance da rede do escritorio sem nenhuma necessidade.
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U evolution -d evolution_db']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  evolution:
+    image: evoapicloud/evolution-api:v2.3.7
+    container_name: evolution
+    restart: unless-stopped
+    # A Evolution roda as migracoes do banco na PARTIDA. Sem esperar o Postgres
+    # ficar pronto de verdade — e nao so o conteiner existir — a primeira
+    # subida falha com "Migration failed" e ela sai.
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - '8080:8080'
+    environment:
+      # A chave que o CorreiaAtilhus2.0 usa para falar com a Evolution.
+      # A imagem vem com uma chave padrao PUBLICA; trocar nao e opcional.
+      AUTHENTICATION_API_KEY: ${AUTHENTICATION_API_KEY:?defina AUTHENTICATION_API_KEY no arquivo .env}
+
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://evolution:${POSTGRES_SENHA}@postgres:5432/evolution_db?schema=evolution_api
+      # O script de migracao da imagem le DATABASE_URL; o aplicativo le
+      # DATABASE_CONNECTION_URI. Os dois apontam para o mesmo lugar.
+      DATABASE_URL: postgresql://evolution:${POSTGRES_SENHA}@postgres:5432/evolution_db?schema=evolution_api
+      DATABASE_CONNECTION_CLIENT_NAME: evolution_exchange
+
+      # Cache em memoria, e nao Redis. O padrao da imagem e Redis ligado, o que
+      # exigiria um terceiro conteiner. Para um escritorio com um numero, o
+      # cache local resolve e e uma peca a menos para quebrar.
+      CACHE_REDIS_ENABLED: 'false'
+      CACHE_LOCAL_ENABLED: 'true'
+
+      # Como o aparelho aparece na lista de "Aparelhos conectados" do celular.
+      CONFIG_SESSION_PHONE_CLIENT: Correia Advogados
+      CONFIG_SESSION_PHONE_NAME: Chrome
+
+      SERVER_URL: http://localhost:8080
+      TZ: America/Sao_Paulo
+    volumes:
+      - evolution_instancias:/evolution/instances
+
+volumes:
+  # Sem estes volumes a sessao do WhatsApp morre a cada reinicio do conteiner e
+  # o QR Code precisa ser lido de novo. Eles sobrevivem a `docker compose down`;
+  # so somem com `docker compose down -v`.
+  evolution_postgres:
+  evolution_instancias:
