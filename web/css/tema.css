@@ -2431,6 +2431,17 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
   place-items: center;
 }
 
+/* O que falta carregar, no alto da conversa.
+
+   Centralizado e com respiro: ele nao e uma mensagem, e a borda de onde o que
+   esta carregado termina. Colado no primeiro balao pareceria parte da
+   conversa. */
+.carregar-anteriores {
+  display: flex;
+  justify-content: center;
+  padding: var(--e2) 0 var(--e4);
+}
+
 /* Separador de dia na conversa.
 
    O tempo entre uma mensagem e outra e dado do caso, e nao enfeite: numa acao

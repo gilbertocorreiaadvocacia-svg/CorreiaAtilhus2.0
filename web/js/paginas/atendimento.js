@@ -829,8 +829,26 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
       filtroDaConversa.append(alvo);
     }
 
+    /*
+     * Quantas mensagens a conversa carrega de uma vez.
+     *
+     * Trezentas cobrem qualquer atendimento normal sem pesar. O que estourou
+     * esse pressuposto foi a importacao do historico do WhatsApp: a maior
+     * conversa deste escritorio tem 10.487 mensagens, e ali as 300 ultimas sao
+     * quatro dias. A conversa parecia comecar no meio, sem nada dizendo que
+     * havia mais atras.
+     *
+     * Sobe de trezentas em trezentas, e nao tudo de uma vez: dez mil baloes no
+     * navegador travam a tela, e quem abre uma conversa quer ler o fim dela
+     * primeiro — o comeco e uma segunda pergunta, e merece um clique.
+     */
+    const PASSO_DE_MENSAGENS = 300;
+    let quantasCarregar = PASSO_DE_MENSAGENS;
+
     async function carregarMensagens() {
-      const { mensagens } = await api.get(`/api/contatos/${contato.id}/mensagens`);
+      const resposta = await api.get(`/api/contatos/${contato.id}/mensagens?limite=${quantasCarregar}`);
+      const mensagens = resposta.mensagens || [];
+      const totalNaConversa = resposta.total ?? mensagens.length;
       limpar(painelMensagens);
 
       const visiveis =
@@ -863,6 +881,28 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
               ),
         );
       }
+      /*
+       * O que ficou para tras, com um jeito de buscar.
+       *
+       * Sem esta linha a conversa longa comeca no meio e nao avisa. O botao
+       * carrega mais um passo e redesenha; o navegador mantem a rolagem no fim,
+       * que e onde a pessoa estava lendo.
+       */
+      if (totalNaConversa > mensagens.length) {
+        const faltam = totalNaConversa - mensagens.length;
+        painelMensagens.append(
+          el('div', { class: 'carregar-anteriores' }, [
+            botao(`Ver mensagens anteriores (${faltam} mais)`, {
+              pequeno: true,
+              aoClicar: async () => {
+                quantasCarregar += PASSO_DE_MENSAGENS;
+                await carregarMensagens();
+              },
+            }),
+          ]),
+        );
+      }
+
       /*
        * Um separador a cada virada de dia.
        *

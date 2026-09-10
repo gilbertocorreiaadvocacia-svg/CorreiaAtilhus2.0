@@ -179,8 +179,25 @@ export function registrarAtendimento(rotas) {
 
   rotas.get('/api/contatos/:id/mensagens', async ({ ctx, params, query }) => {
     const contato = conversaOu404(ctx, params.id);
-    const todas = mensagensDe(contato.id);
     const limite = Number(query.limite || 300);
+
+    /*
+     * ORDENA PELA DATA, e nao pela ordem em que foi gravado.
+     *
+     * Numa conversa que so cresce pelo WhatsApp as duas coisas coincidem, e por
+     * isso o `slice(-limite)` sozinho funcionou por muito tempo. A importacao
+     * de historico quebrou essa coincidencia: ela grava em lotes, e um segundo
+     * lote trazendo mensagens ANTIGAS as poe no fim da lista.
+     *
+     * O sintoma foi feio e nao acusava nada: uma conversa que ia ate hoje
+     * aparecia terminando em 18 de agosto, porque as 300 ultimas DA LISTA eram
+     * as do lote antigo. Ninguem olha para uma conversa e desconfia da ordem do
+     * arquivo — desconfia que faltou mensagem.
+     */
+    const todas = [...mensagensDe(contato.id)].sort((a, b) =>
+      String(a.criadoEm).localeCompare(String(b.criadoEm)),
+    );
+
     return {
       mensagens: todas.slice(-limite),
       total: todas.length,
