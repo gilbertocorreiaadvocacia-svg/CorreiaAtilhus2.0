@@ -2,6 +2,7 @@ import { atualizar, inserir, inserirMensagem, listar, mensagensDe, registrarLog 
 import { agora, normalizarTelefoneDoWhatsApp, novoId } from '../nucleo/util.js';
 import { extrairMensagem } from './drivers/qrcode.js';
 import { mapaDaAgenda } from './agenda.js';
+import { agendarFoto } from './fotos.js';
 import { SEM_IDENTIFICACAO, nomeValido, podeTrocarNome } from './nomes.js';
 
 /**
@@ -33,11 +34,12 @@ import { SEM_IDENTIFICACAO, nomeValido, podeTrocarNome } from './nomes.js';
  *    por agente. Quem ja e cliente, ao escrever de novo, fala com gente; a
  *    Recepcao fica para numero que o escritorio nunca viu.
  *
- * 3. A MIDIA NAO E BAIXADA. Imagem, audio e PDF ficam registrados pelo tipo e
- *    pela legenda, sem o arquivo. Baixar o anexo de 53 mil mensagens sao muitos
- *    gigabytes e horas de espera, para um material que quase todo ja nao se vai
- *    reabrir. O que chega DEPOIS da importacao continua vindo com arquivo e
- *    tudo, pelo caminho normal.
+ * 3. A MIDIA NAO E BAIXADA AGORA. Imagem, audio e PDF ficam registrados pelo
+ *    tipo, pelo nome e pela CHAVE da mensagem, sem o arquivo. Baixar o anexo
+ *    de 53 mil mensagens sao muitos gigabytes e horas de espera, para um
+ *    material que quase todo ja nao se vai reabrir. Com a chave guardada, a
+ *    tela oferece "Carregar" em cada anexo, e baixa so o que alguem quer ver.
+ *    O que chega DEPOIS da importacao continua vindo com arquivo e tudo.
  */
 
 /** Chats que nao sao conversa com uma pessoa, por mais que o endereco pareca. */
@@ -225,6 +227,7 @@ export async function importarHistorico({ conexao, responsavel = null, limitePor
   };
 
   let feitas = 0;
+  const tocadas = [];
   for (const chat of daPessoa) {
     feitas += 1;
     const jid = String(chat.remoteJid);
@@ -339,8 +342,17 @@ export async function importarHistorico({ conexao, responsavel = null, limitePor
         direcao: daEquipe ? 'saida' : 'entrada',
         tipo: extraido.tipo,
         conteudo: extraido.conteudo,
-        /* Sem o arquivo: so o tipo e a legenda. Ver o cabecalho, escolha 3. */
-        midia: null,
+        /* Sem o arquivo: o tipo, o nome e a chave para buscar depois. Ver o
+           cabecalho, escolha 3. O base64 que o historico as vezes traz nao
+           entra: guardado aqui, incharia o arquivo da conversa. */
+        midia: extraido.midia
+          ? {
+              tipo: extraido.midia.tipo,
+              mime: extraido.midia.mime || null,
+              nome: extraido.midia.nome || null,
+              chave: extraido.midia.chave || null,
+            }
+          : null,
         idExterno,
         autor: daEquipe
           ? { tipo: 'membro', nome: 'Pelo celular' }
@@ -362,7 +374,12 @@ export async function importarHistorico({ conexao, responsavel = null, limitePor
     }
 
     if (aoAndar) aoAndar({ feitas, total: daPessoa.length, telefone, nome: contato.nome });
+    tocadas.push(contato);
   }
+
+  /* As fotos de perfil entram na fila devagar (ver fotos.js), depois de tudo
+     gravado: a importacao nao espera por elas. */
+  for (const contato of tocadas) agendarFoto(contato);
 
   return relato;
 }

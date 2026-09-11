@@ -15,6 +15,7 @@ import { notificar } from '../ia/mencoes.js';
 import { agora, normalizar, normalizarTelefone, normalizarTelefoneDoWhatsApp, novoId } from '../nucleo/util.js';
 import { agendarResposta, agentePorPalavraChave, cancelarResposta } from '../ia/motor.js';
 import { nomeNaAgenda } from './agenda.js';
+import { agendarFoto } from './fotos.js';
 import { SEM_IDENTIFICACAO, nomeEhProvisorio, podeTrocarNome } from './nomes.js';
 import { agendarFollowupsDoStatus, cancelarFollowups, limparAgendamentosDoContato, reagendarFollowups } from '../automacao/followup.js';
 import { marcarComoLida } from './envio.js';
@@ -340,9 +341,12 @@ export async function receberMensagem({
     /* O base64 e a chave sao andaimes do transporte: depois de o arquivo estar
        em disco eles nao dizem mais nada, e gravados na mensagem inchariam o
        JSON da conversa e o espelho do Supabase com o arquivo inteiro em texto,
-       uma vez por anexo. */
+       uma vez por anexo.
+
+       Sem o arquivo (o download falhou), a chave FICA: e com ela que a tela
+       pede o anexo de novo depois, pelo botao "Carregar". */
     const { base64, chave, ...guardavel } = anexo;
-    anexo = guardavel;
+    anexo = guardavel.url ? guardavel : { ...guardavel, chave };
   }
 
   // Audio sem transcricao e uma conversa que o agente nao consegue ler.
@@ -459,6 +463,9 @@ export async function receberMensagem({
     agendarResposta(contato);
   }
 
+  /* A foto de perfil vem na fila, sem segurar a mensagem (ver fotos.js). */
+  agendarFoto(contato);
+
   return { contato, mensagem, novo };
 }
 
@@ -532,7 +539,7 @@ async function registrarRespostaDoCelular({ workspaceId, conexao, contato, tipo,
   }
   if (anexo) {
     const { base64, chave, ...guardavel } = anexo;
-    anexo = guardavel;
+    anexo = guardavel.url ? guardavel : { ...guardavel, chave };
   }
 
   const mensagem = inserirMensagem(contato.id, {

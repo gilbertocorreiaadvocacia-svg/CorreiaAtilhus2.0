@@ -335,6 +335,28 @@ export const driverQrCode = {
   },
 
   /**
+   * O endereco da foto de perfil de alguem, ou null.
+   *
+   * Null e resposta normal, e nao erro: muita gente esconde a foto de quem nao
+   * esta na agenda dela. O endereco devolvido e do WhatsApp e vence em poucos
+   * dias — quem chama baixa o arquivo na hora (ver whatsapp/fotos.js).
+   *
+   * `numero` e o telefone, ou o proprio codigo @lid quando a conversa ainda nao
+   * tem telefone: a Evolution aceita o endereco completo no lugar do numero.
+   */
+  async buscarFoto({ conexao, numero }) {
+    const cfg = configuracao(conexao);
+    if (faltaConfigurar(cfg) || !numero) return null;
+    const dados = await chamar(cfg, `/chat/fetchProfilePictureUrl/${cfg.instancia}`, {
+      metodo: 'POST',
+      corpo: { number: numero },
+      prazoMs: 20000,
+    });
+    const url = dados?.profilePictureUrl || null;
+    return typeof url === 'string' && /^https?:\/\//.test(url) ? url : null;
+  },
+
+  /**
    * A Evolution nao assina o corpo do evento como a Meta faz. O que da para
    * conferir e a chave: ela vem no cabecalho `apikey` quando o servico esta
    * configurado para mandar. Sem ela, o unico segredo e a propria URL, que

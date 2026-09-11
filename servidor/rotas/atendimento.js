@@ -21,6 +21,8 @@ import { emitir } from '../nucleo/eventos.js';
 import { agora, aplicarVariaveis, garantirPasta, normalizar, normalizarTelefone, novoId, ordenarPor } from '../nucleo/util.js';
 import { enviarMensagem, janelaAberta } from '../whatsapp/envio.js';
 import { acharOuCriarContato } from '../whatsapp/recebimento.js';
+import { driverDa } from '../whatsapp/drivers/index.js';
+import { agendarFoto } from '../whatsapp/fotos.js';
 import { agendarFollowupsDoStatus, aplicarStatus, cancelarFollowups, limparAgendamentosDoContato, reagendarFollowups } from '../automacao/followup.js';
 import { proximoHorarioValido, horarioComercialDe } from '../automacao/horario.js';
 import { apagarMidia, guardarBase64 } from '../nucleo/midia.js';
@@ -28,6 +30,21 @@ import { cancelarResposta } from '../ia/motor.js';
 import { inserirNota, notificar } from '../ia/mencoes.js';
 import { removerTarefasDoContato } from './tarefas.js';
 import { comCodigo } from './sessao.js';
+
+/* O tipo de cada arquivo guardado, pela extensao, para o navegador saber
+   mostrar. O que nao esta aqui sai como download. */
+const TIPOS_DE_ARQUIVO = {
+  '.pdf': 'application/pdf',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
+  '.mp4': 'video/mp4',
+  '.mp3': 'audio/mpeg',
+  '.ogg': 'audio/ogg',
+  '.txt': 'text/plain; charset=utf-8',
+};
 
 function conversaOu404(ctx, id) {
   const contato = achar('contatos', id);
@@ -175,7 +192,76 @@ export function registrarAtendimento(rotas) {
     };
   });
 
-  rotas.get('/api/contatos/:id', async ({ ctx, params }) => enriquecer(conversaOu404(ctx, params.id)));
+  rotas.get('/api/contatos/:id', async ({ ctx, params }) => {
+    const contato = conversaOu404(ctx, params.id);
+    /* Abrir a conversa e o momento em que a foto importa: se ela nunca foi
+       buscada, ou ja passou da validade, entra na fila (ver whatsapp/fotos.js). */
+    agendarFoto(contato);
+    return enriquecer(contato);
+  });
+
+  /*
+   * Tudo o que foi trocado de arquivo nesta conversa, do mais novo ao mais
+   * antigo — inclusive o que ainda nao foi baixado (veio do historico, e so
+   * tem a chave). A tela de mensagens carrega de 300 em 300; a galeria nao
+   * pode depender disso, senao a foto do laudo de dois meses atras some dela.
+   */
+  rotas.get('/api/contatos/:id/midias', async ({ ctx, params }) => {
+    const contato = conversaOu404(ctx, params.id);
+    return mensagensDe(contato.id)
+      .filter((m) => m.midia && (m.midia.url || m.midia.chave || m.idExterno))
+      .sort((a, b) => String(b.criadoEm).localeCompare(String(a.criadoEm)))
+      .map((m) => ({
+        id: m.id,
+        criadoEm: m.criadoEm,
+        direcao: m.direcao,
+        tipo: m.tipo,
+        conteudo: m.conteudo || '',
+        autor: m.autor?.nome || null,
+        midia: { tipo: m.midia.tipo, url: m.midia.url || null, nome: m.midia.nome || null, mime: m.midia.mime || null },
+      }));
+  });
+
+  /*
+   * Baixa AGORA o anexo de uma mensagem que chegou sem ele.
+   *
+   * A importacao do historico guarda so a chave de cada anexo, e o download
+   * que falha na chegada tambem. Com a chave, o WhatsApp ainda entrega o
+   * arquivo — enquanto ele existir no celular. Quando nao existe mais, a
+   * resposta diz isso, em vez de a tela ficar carregando para sempre.
+   */
+  rotas.post('/api/contatos/:id/mensagens/:mensagemId/midia', async ({ ctx, params }) => {
+    const contato = conversaOu404(ctx, params.id);
+    const mensagem = mensagensDe(contato.id).find((m) => m.id === params.mensagemId);
+    if (!mensagem?.midia) throw comCodigo('Esta mensagem nao tem anexo.', 404);
+    if (mensagem.midia.url) return mensagem;
+
+    const conexao = achar('conexoes', contato.conexaoId);
+    const driver = conexao ? driverDa(conexao) : null;
+    if (!driver?.baixarMidia) throw comCodigo('Este numero nao guarda arquivos antigos para buscar.', 400);
+
+    const chave = mensagem.midia.chave || {
+      id: mensagem.idExterno,
+      remoteJid: contato.lid || `${contato.telefone}@s.whatsapp.net`,
+      fromMe: mensagem.direcao === 'saida',
+    };
+    if (!chave.id) throw comCodigo('Esta mensagem nao guardou a referencia do anexo.', 404);
+
+    const baixado = await driver.baixarMidia({
+      conexao,
+      midia: { ...mensagem.midia, chave, base64: null, nome: mensagem.midia.nome || `${mensagem.tipo}-${mensagem.id}` },
+    });
+    if (!baixado?.url) {
+      throw comCodigo('O WhatsApp nao tem mais este arquivo. Peca para a pessoa mandar de novo.', 404);
+    }
+
+    const { chave: _descartada, ...resto } = mensagem.midia;
+    const atualizada = atualizarMensagem(contato.id, mensagem.id, {
+      midia: { ...resto, ...baixado, tipo: mensagem.midia.tipo || baixado.tipo },
+    });
+    registrarLog(ctx.workspaceId, contato.id, 'midia', `Anexo antigo carregado: ${baixado.nome || mensagem.tipo}`);
+    return atualizada;
+  });
 
   rotas.get('/api/contatos/:id/mensagens', async ({ ctx, params, query }) => {
     const contato = conversaOu404(ctx, params.id);
@@ -326,7 +412,13 @@ export function registrarAtendimento(rotas) {
          nome de sempre, e isso nao e alguem escolhendo um nome. */
       if (corpo.nome !== contato.nome) mudancas.nomeOrigem = 'manual';
     }
-    if (corpo.foto !== undefined) mudancas.foto = corpo.foto;
+    /* Foto posta por alguem do escritorio: a do WhatsApp nao passa por cima
+       (ver whatsapp/fotos.js). Tirar a foto devolve a vez ao WhatsApp. */
+    if (corpo.foto !== undefined) {
+      mudancas.foto = corpo.foto;
+      mudancas.fotoOrigem = corpo.foto ? 'manual' : null;
+      if (!corpo.foto) mudancas.fotoVerificadaEm = null;
+    }
     if (corpo.etiquetas !== undefined) mudancas.etiquetas = corpo.etiquetas;
     if (corpo.origemId !== undefined) mudancas.origemId = corpo.origemId || null;
     if (corpo.variaveis !== undefined) mudancas.variaveis = corpo.variaveis;
@@ -678,6 +770,41 @@ export function registrarAtendimento(rotas) {
     atualizar('contatos', contato.id, { arquivos });
     registrarLog(ctx.workspaceId, contato.id, 'arquivo', `Arquivo guardado: ${corpo.nome}`);
     return arquivo;
+  });
+
+  /*
+   * Abre um arquivo guardado na conversa.
+   *
+   * A nuvem da conversa guardava e nao devolvia: a lista mostrava nome e
+   * tamanho, e nao havia caminho nenhum ate o arquivo. Aqui ele sai atras da
+   * sessao e da regra de quem pode ver a conversa — diferente de /midia, estes
+   * sao documentos do caso (RG, laudo, CNIS), e nao anexo de mensagem.
+   *
+   * `?baixar=1` pede o download; sem ele, o navegador mostra no lugar (PDF e
+   * imagem abrem no visualizador da tela).
+   */
+  rotas.get('/api/contatos/:id/arquivos/:arquivoId', async ({ ctx, params, query, res }) => {
+    const contato = conversaOu404(ctx, params.id);
+    const arquivo = (contato.arquivos || []).find((a) => a.id === params.arquivoId);
+    if (!arquivo) throw comCodigo('Arquivo nao encontrado.', 404);
+
+    const raiz = path.resolve(PASTA_ARQUIVOS);
+    const completo = path.resolve(raiz, arquivo.caminho || '');
+    if (!completo.startsWith(raiz + path.sep) || !fs.existsSync(completo)) {
+      throw comCodigo('O arquivo nao esta mais no disco.', 404);
+    }
+
+    const tipo = TIPOS_DE_ARQUIVO[path.extname(completo).toLowerCase()] || 'application/octet-stream';
+    const nome = encodeURIComponent(arquivo.nome || path.basename(completo));
+    res.writeHead(200, {
+      'Content-Type': tipo,
+      'Content-Length': fs.statSync(completo).size,
+      'Content-Disposition': `${query.baixar ? 'attachment' : 'inline'}; filename*=UTF-8''${nome}`,
+      'Cache-Control': 'private, no-store',
+      'X-Content-Type-Options': 'nosniff',
+    });
+    fs.createReadStream(completo).pipe(res);
+    return null;
   });
 
   rotas.delete('/api/contatos/:id/arquivos/:arquivoId', async ({ ctx, params }) => {

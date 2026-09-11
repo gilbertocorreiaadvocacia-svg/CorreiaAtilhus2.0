@@ -1,5 +1,5 @@
 import { api, enviarArquivo } from '../api.js';
-import { campoComDica, dica, paginacao, previaDaMidia } from '../componentes.js';
+import { abrirVisualizador, campoComDica, cartaoDeArquivo, dica, paginacao, previaDaMidia } from '../componentes.js';
 import { acharConexao, acharEtiqueta, estado, opcoesResponsavel, ouvir, recarregar } from '../estado.js';
 import {
   areaTexto,
@@ -710,7 +710,7 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
     const compositor = montarCompositor(contato);
 
     const cabecalho = el('div', { class: 'conversa-cabecalho' }, [
-      avatar(contato, 32, marcaDoAvatar(contato)),
+      rostoQueAmplia(contato, avatar(contato, 32, marcaDoAvatar(contato))),
       // Mesmo ritmo da lista de conversas: nome em --t-md peso 600, telefone
       // em --t-xs fraco. Antes o nome herdava o corpo e o telefone tinha
       // 11,5px escritos na mao.
@@ -916,6 +916,10 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
        * horas: duas mensagens separadas por dez minutos, uma 23h55 e outra
        * 00h05, sao de dias diferentes e e assim que quem le pensa nelas.
        */
+      galeriaDaConversa = visiveis
+        .filter((m) => m.midia?.url && ['imagem', 'video'].includes(m.midia.tipo))
+        .map(paraVisualizador);
+
       let diaAnterior = null;
       for (const mensagem of visiveis) {
         const dia = mensagem.criadoEm ? new Date(mensagem.criadoEm).toDateString() : null;
@@ -1076,6 +1080,78 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
     return alvo;
   }
 
+  /**
+   * O rosto do contato, que amplia quando ha foto.
+   *
+   * Sem foto, devolve o avatar como estava: iniciais nao tem o que ampliar, e
+   * um botao que abre uma tela vazia seria pior do que nenhum.
+   */
+  function rostoQueAmplia(contato, rosto) {
+    if (!contato.foto) return rosto;
+    return el('button', {
+      type: 'button',
+      class: 'avatar-ampliar',
+      title: 'Ver a foto',
+      'aria-label': `Ver a foto de ${contato.nome}`,
+      aoClick: () => abrirVisualizador([{ url: contato.foto, tipo: 'imagem', nome: contato.nome }], 0),
+    }, [rosto]);
+  }
+
+  /*
+   * As imagens e videos da conversa que esta aberta, na ordem da tela.
+   *
+   * O clique numa imagem abre o visualizador ja com as outras em volta: um
+   * cliente que manda RG, comprovante e laudo em sequencia e lido passando de
+   * uma para a outra, e nao fechando e abrindo cada uma.
+   */
+  let galeriaDaConversa = [];
+
+  function abrirNaGaleria(mensagem) {
+    const indice = galeriaDaConversa.findIndex((item) => item.id === mensagem.id);
+    if (indice >= 0) abrirVisualizador(galeriaDaConversa, indice);
+    else abrirVisualizador([paraVisualizador(mensagem)], 0);
+  }
+
+  function paraVisualizador(mensagem) {
+    return {
+      id: mensagem.id,
+      url: mensagem.midia?.url,
+      tipo: mensagem.midia?.tipo || mensagem.tipo,
+      nome: mensagem.midia?.nome || null,
+      mime: mensagem.midia?.mime || null,
+      legenda: [mensagem.conteudo, dataHora(mensagem.criadoEm)].filter(Boolean).join(' · '),
+    };
+  }
+
+  const NOMES_DO_ANEXO = { imagem: 'Imagem', video: 'Vídeo', audio: 'Áudio', documento: 'Documento' };
+
+  /**
+   * Anexo que ainda nao foi baixado: veio do historico com so a chave, ou o
+   * download falhou na chegada. Um clique pede ao WhatsApp e troca o cartao
+   * pela previa de verdade, sem recarregar a conversa.
+   */
+  function anexoPendente(mensagem, aoCarregar) {
+    const rotulo = NOMES_DO_ANEXO[mensagem.midia?.tipo || mensagem.tipo] || 'Anexo';
+    const carregar = botao('Carregar', { pequeno: true });
+    carregar.addEventListener('click', async () => {
+      carregar.disabled = true;
+      carregar.lastChild.textContent = 'Carregando…';
+      try {
+        const atualizada = await api.post(`/api/contatos/${mensagem.contatoId}/mensagens/${mensagem.id}/midia`, {});
+        aoCarregar(atualizada);
+      } catch (erro) {
+        aviso(erro.message, 'erro');
+        carregar.disabled = false;
+        carregar.lastChild.textContent = 'Tentar de novo';
+      }
+    });
+    return el('div', { class: 'midia-pendente' }, [
+      icone(mensagem.midia?.tipo === 'documento' ? 'contrato' : 'anexar', 18),
+      el('span', { texto: `${rotulo}${mensagem.midia?.nome ? `: ${mensagem.midia.nome}` : ''} — ainda não baixado` }),
+      carregar,
+    ]);
+  }
+
   function balao(mensagem) {
     const classes = ['balao'];
     if (mensagem.nota) classes.push('nota');
@@ -1085,7 +1161,25 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
     const autor = mensagem.autor?.nome;
     const mostraAutor = mensagem.direcao !== 'entrada' && autor;
 
-    return el('div', {
+    /* Anexo com arquivo vira previa que amplia; sem arquivo, o cartao de
+       carregar. O texto fica so quando ha texto: "[imagem]" em cima de uma
+       imagem dizia duas vezes a mesma coisa. */
+    let anexo = null;
+    if (mensagem.midia?.url) {
+      anexo = previaDaMidia(mensagem.midia, { compacta: true, aoAbrir: () => abrirNaGaleria(mensagem) });
+    } else if (mensagem.midia) {
+      anexo = anexoPendente(mensagem, (atualizada) => {
+        const novo = balao(atualizada);
+        elemento.replaceWith(novo);
+        if (['imagem', 'video'].includes(atualizada.midia?.tipo)) {
+          const indice = galeriaDaConversa.findIndex((item) => item.id === atualizada.id);
+          if (indice >= 0) galeriaDaConversa[indice] = paraVisualizador(atualizada);
+          else galeriaDaConversa.push(paraVisualizador(atualizada));
+        }
+      });
+    }
+
+    const elemento = el('div', {
       class: classes.join(' '),
       /* Achavel sem recarregar a conversa: e por aqui que a confirmacao de
          entrega, que chega por evento, troca as marcas desta mensagem. */
@@ -1093,8 +1187,8 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
     }, [
       mensagem.nota ? el('div', { class: 'balao-autor', texto: `Nota interna · ${autor || 'equipe'}` }) : null,
       !mensagem.nota && mostraAutor ? el('div', { class: 'balao-autor', texto: autor }) : null,
-      el('div', { texto: mensagem.conteudo || (mensagem.midia ? `[${mensagem.tipo}] ${mensagem.midia.nome || ''}` : '') }),
-      previaDaMidia(mensagem.midia, { compacta: true }),
+      mensagem.conteudo ? el('div', { texto: mensagem.conteudo }) : null,
+      anexo,
       mensagem.transcricao
         ? el('div', {
             class: 't-xs c-suave mt-1',
@@ -1116,6 +1210,7 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
         ? el('div', { class: 't-xs mt-1 c-erro', texto: mensagem.erro.mensagem })
         : null,
     ]);
+    return elemento;
   }
 
   function montarCompositor(contato) {
@@ -1808,7 +1903,7 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
       // O mesmo par de nome e telefone do cabecalho da conversa, no mesmo
       // ritmo: --t-md peso 600 em cima, --t-xs fraco embaixo.
       el('div', { class: 'linha' }, [
-        avatar(contato),
+        rostoQueAmplia(contato, avatar(contato)),
         el('div', { class: 'flexivel encolhe' }, [
           el('div', { class: 't-md peso-600 cortar', texto: contato.nome }),
           el('div', { class: 't-xs c-fraco cortar', texto: telefone(contato.telefone) }),
@@ -2058,25 +2153,102 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
     return painelHistorico(contato);
   }
 
+  /*
+   * Tudo o que foi trocado de arquivo na conversa, em tres grupos: o que se
+   * ve (imagem e video, em grade), o que se ouve e o que se le.
+   *
+   * Vem de /midias, e nao das mensagens carregadas na tela: a conversa carrega
+   * de 300 em 300, e o laudo de dois meses atras sumiria da galeria. Anexo
+   * ainda nao baixado aparece tambem, com o botao de carregar.
+   */
   async function painelMidia(contato) {
-    const { mensagens } = await api.get(`/api/contatos/${contato.id}/mensagens`);
-    const comMidia = mensagens.filter((m) => m.midia?.url);
-    if (!comMidia.length) {
-      return vazio('Nada enviado ainda', 'Imagem, audio, video e PDF trocados na conversa aparecem aqui.');
+    const caixa = el('div');
+
+    async function desenharGaleria() {
+      const itens = await api.get(`/api/contatos/${contato.id}/midias`);
+      limpar(caixa);
+      if (!itens.length) {
+        caixa.append(vazio('Nada trocado ainda', 'Imagem, áudio, vídeo e PDF da conversa aparecem aqui.'));
+        return;
+      }
+
+      const carregar = async (item, alvo) => {
+        alvo.disabled = true;
+        try {
+          await api.post(`/api/contatos/${contato.id}/mensagens/${item.id}/midia`, {});
+          await desenharGaleria();
+        } catch (erro) {
+          aviso(erro.message, 'erro');
+          alvo.disabled = false;
+        }
+      };
+
+      const visuais = itens.filter((i) => ['imagem', 'video'].includes(i.midia.tipo));
+      const sons = itens.filter((i) => i.midia.tipo === 'audio');
+      const documentos = itens.filter((i) => !['imagem', 'video', 'audio'].includes(i.midia.tipo));
+      const abriveis = visuais.filter((i) => i.midia.url).map((i) => ({ ...paraVisualizador(i), id: i.id }));
+
+      if (visuais.length) {
+        caixa.append(el('h4', { class: 'painel-titulo-midia', texto: `Imagens e vídeos · ${visuais.length}` }));
+        const grade = el('div', { class: 'grade-midia' });
+        for (const item of visuais) {
+          if (!item.midia.url) {
+            const botaoCarregar = el('button', { type: 'button', class: 'miniatura-pendente', title: 'Buscar no WhatsApp' }, [
+              icone('anexar', 18),
+              NOMES_DO_ANEXO[item.midia.tipo],
+              el('span', { texto: 'Carregar' }),
+            ]);
+            botaoCarregar.addEventListener('click', () => carregar(item, botaoCarregar));
+            grade.append(botaoCarregar);
+            continue;
+          }
+          const abrir = () => abrirVisualizador(abriveis, abriveis.findIndex((a) => a.id === item.id));
+          grade.append(
+            item.midia.tipo === 'imagem'
+              ? previaDaMidia(item.midia, { compacta: true, aoAbrir: abrir })
+              : el('button', { type: 'button', class: 'midia-ampliar', 'aria-label': 'Ver o vídeo', aoClick: abrir }, [
+                  el('video', { src: item.midia.url, preload: 'metadata', muted: true, class: 'midia-previa compacta' }),
+                ]),
+          );
+        }
+        caixa.append(grade);
+      }
+
+      if (sons.length) {
+        caixa.append(el('h4', { class: 'painel-titulo-midia', texto: `Áudios · ${sons.length}` }));
+        const lista = el('div', { class: 'lista-arquivos' });
+        for (const item of sons) {
+          lista.append(
+            item.midia.url
+              ? el('div', {}, [
+                  el('div', { class: 't-xs c-fraco', texto: `${item.direcao === 'saida' ? 'Enviado' : 'Recebido'} · ${dataHora(item.criadoEm)}` }),
+                  previaDaMidia(item.midia, { compacta: true }),
+                ])
+              : anexoPendente({ ...item, contatoId: contato.id }, () => desenharGaleria()),
+          );
+        }
+        caixa.append(lista);
+      }
+
+      if (documentos.length) {
+        caixa.append(el('h4', { class: 'painel-titulo-midia', texto: `Documentos · ${documentos.length}` }));
+        const lista = el('div', { class: 'lista-arquivos' });
+        for (const item of documentos) {
+          lista.append(
+            item.midia.url
+              ? cartaoDeArquivo(
+                  { url: item.midia.url, nome: item.midia.nome || 'Documento', mime: item.midia.mime, tipo: 'documento' },
+                  { detalhe: `${item.direcao === 'saida' ? 'Enviado' : 'Recebido'} · ${dataHora(item.criadoEm)}` },
+                )
+              : anexoPendente({ ...item, contatoId: contato.id }, () => desenharGaleria()),
+          );
+        }
+        caixa.append(lista);
+      }
     }
 
-    const grade = el('div', { class: 'grade-midia' });
-    for (const mensagem of [...comMidia].reverse()) {
-      const previa = previaDaMidia(mensagem.midia, { compacta: true });
-      if (!previa) continue;
-      grade.append(
-        el('div', { class: 'item-midia' }, [
-          previa,
-          el('div', { class: 't-xs c-fraco cortar', texto: dataHora(mensagem.criadoEm) }),
-        ]),
-      );
-    }
-    return grade;
+    await desenharGaleria();
+    return caixa;
   }
 
   async function painelTarefas(contato) {
@@ -2107,24 +2279,37 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
     const bloco = el('div', { class: 'painel-bloco' });
     const lista = el('div', { class: 'lista-simples' });
 
+    /* Cada arquivo abre no visualizador (imagem e PDF na propria tela, o
+       resto com o botao de baixar). Antes a lista mostrava nome e tamanho e
+       nao levava a lugar nenhum: o arquivo era guardado e nao voltava. */
+    let arquivosAtuais = [...(contato.arquivos || [])];
+    const enderecoDe = (arquivo) => `/api/contatos/${contato.id}/arquivos/${arquivo.id}`;
+    const paraVer = (arquivo) => ({
+      url: enderecoDe(arquivo),
+      urlBaixar: `${enderecoDe(arquivo)}?baixar=1`,
+      nome: arquivo.nome,
+      tipo: arquivo.tipo === 'imagem' ? 'imagem' : 'documento',
+      legenda: `Guardado por ${arquivo.enviadoPor || 'equipe'} · ${dataHora(arquivo.criadoEm)}`,
+    });
+
     const desenhar = (arquivos) => {
       limpar(lista);
       if (!arquivos.length) {
         lista.append(el('div', { class: 't-xs c-fraco', texto: 'Nada guardado ainda.' }));
         return;
       }
-      for (const arquivo of arquivos) {
+      const todos = [...arquivos].reverse();
+      for (const arquivo of todos) {
         lista.append(
-          el('div', { class: 'lista-item' }, [
-            el('div', { class: 'corpo' }, [
-              el('div', { class: 'titulo', texto: arquivo.nome }),
-              el('div', { class: 'desc', texto: `${(arquivo.tamanho / 1024).toFixed(0)} KB · ${dataHora(arquivo.criadoEm)}` }),
-            ]),
-          ]),
+          cartaoDeArquivo(paraVer(arquivo), {
+            detalhe: `${Math.max(1, Math.round((arquivo.tamanho || 0) / 1024))} KB · ${dataHora(arquivo.criadoEm)}`,
+            aoAbrir: () => abrirVisualizador(todos.map(paraVer), todos.indexOf(arquivo)),
+          }),
         );
       }
     };
-    desenhar(contato.arquivos || []);
+    lista.className = 'lista-arquivos';
+    desenhar(arquivosAtuais);
 
     const seletor = el('input', { type: 'file', estilo: { display: 'none' } });
     seletor.addEventListener('change', async () => {
@@ -2133,11 +2318,15 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
       const leitor = new FileReader();
       leitor.onload = async () => {
         try {
-          await api.post(`/api/contatos/${contato.id}/arquivos`, {
+          const guardado = await api.post(`/api/contatos/${contato.id}/arquivos`, {
             nome: arquivo.name,
             conteudoBase64: leitor.result,
             tipo: arquivo.type.startsWith('image') ? 'imagem' : 'documento',
           });
+          /* A lista aparece com o arquivo novo na hora: antes o aviso dizia
+             "guardado" e a lista continuava sem ele ate trocar de conversa. */
+          arquivosAtuais = [...arquivosAtuais, guardado];
+          desenhar(arquivosAtuais);
           aviso('Arquivo guardado na nuvem da conversa.', 'sucesso');
         } catch (erro) {
           aviso(erro.message, 'erro');

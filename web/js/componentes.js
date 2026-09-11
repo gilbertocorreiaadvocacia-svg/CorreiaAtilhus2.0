@@ -4,37 +4,220 @@ import { el, limpar, icone, botao, campo, cartao, plural, selecao, selo, aviso }
  * Previa de midia. Aparece no editor de template, no balao da conversa e no
  * teste de voz, sempre igual, para o que a equipe ve na tela ser o que o
  * cliente recebe no celular.
+ *
+ * Imagem e documento abrem o visualizador em tela cheia (abrirVisualizador,
+ * logo abaixo). `opcoes.aoAbrir` troca esse clique — e o que a conversa usa
+ * para abrir o visualizador ja com as outras imagens dela, e nao so esta.
  */
 export function previaDaMidia(midia, opcoes = {}) {
   if (!midia?.url) return null;
   // A largura das duas previas mora em .midia-previa e .midia-previa.compacta,
   // no tema. Aqui fica so a escolha entre uma e outra.
   const medida = `midia-previa${opcoes.compacta ? ' compacta' : ''}`;
+  const abrir = () => (opcoes.aoAbrir ? opcoes.aoAbrir() : abrirVisualizador([midia], 0));
 
   if (midia.tipo === 'imagem') {
-    return el('img', { src: midia.url, alt: midia.nome || '', class: medida });
+    /* Botao em volta da imagem, e nao clique na imagem: assim ela chega pelo
+       Tab e o leitor de tela anuncia que abre. */
+    return el('button', {
+      type: 'button',
+      class: 'midia-ampliar',
+      title: 'Ampliar',
+      'aria-label': `Ampliar ${midia.nome || 'imagem'}`,
+      aoClick: abrir,
+    }, [el('img', { src: midia.url, alt: midia.nome || '', class: medida, loading: 'lazy' })]);
   }
 
   if (midia.tipo === 'video') {
-    return el('video', { src: midia.url, controls: true, class: medida });
+    return el('video', { src: midia.url, controls: true, preload: 'metadata', class: medida });
   }
 
   if (midia.tipo === 'audio') {
     // O tocador do navegador nao aceita moldura nem canto arredondado, entao a
     // variacao som tira a borda e usa largura em vez de largura maxima.
-    return el('audio', { src: midia.url, controls: true, class: `${medida} som` });
+    return el('audio', { src: midia.url, controls: true, preload: 'metadata', class: `${medida} som` });
   }
 
-  // O link troca de aba, e o texto visivel nao diz isso. O title avisa antes do
-  // clique, que e quando a informacao serve para alguma coisa.
-  return el('a', {
-    href: midia.url,
-    target: '_blank',
-    rel: 'noopener',
-    class: 'selo ouro mt-2',
-    title: 'Abre em outra aba',
-    texto: `Abrir ${midia.nome || 'documento'}`,
+  return cartaoDeArquivo(midia, { aoAbrir: abrir });
+}
+
+/** O tipo que o visualizador sabe mostrar, olhando o mime e o nome. */
+function formatoDe(item) {
+  const nome = String(item?.nome || item?.url || '').toLowerCase();
+  const mime = String(item?.mime || '').toLowerCase();
+  if (item?.tipo === 'imagem' || mime.startsWith('image/') || /\.(jpe?g|png|webp|gif)$/.test(nome)) return 'imagem';
+  if (item?.tipo === 'video' || mime.startsWith('video/') || /\.(mp4|webm)$/.test(nome)) return 'video';
+  if (item?.tipo === 'audio' || mime.startsWith('audio/') || /\.(mp3|ogg|opus|wav|m4a)$/.test(nome)) return 'audio';
+  if (mime === 'application/pdf' || /\.pdf$/.test(nome)) return 'pdf';
+  return 'arquivo';
+}
+
+/**
+ * Um documento como cartao: icone, nome e o que acontece no clique. O selo
+ * dourado de antes ("Abrir contrato.pdf") era um link que trocava de aba sem
+ * aviso, e nao dizia de que tipo era o arquivo.
+ */
+export function cartaoDeArquivo(item, { aoAbrir, detalhe } = {}) {
+  const formato = formatoDe(item);
+  const extensao = (String(item.nome || '').match(/\.([a-z0-9]{2,5})$/i)?.[1] || (formato === 'pdf' ? 'pdf' : 'arquivo')).toUpperCase();
+  return el('button', {
+    type: 'button',
+    class: 'midia-arquivo',
+    title: formato === 'pdf' ? 'Ver o documento' : 'Abrir',
+    aoClick: aoAbrir || (() => abrirVisualizador([item], 0)),
+  }, [
+    el('span', { class: 'midia-arquivo-icone' }, [icone('contrato', 18)]),
+    el('span', { class: 'midia-arquivo-dados' }, [
+      el('span', { class: 'midia-arquivo-nome', texto: item.nome || 'Documento' }),
+      el('span', { class: 'midia-arquivo-tipo', texto: detalhe || extensao }),
+    ]),
+  ]);
+}
+
+/**
+ * Visualizador de midia em tela cheia.
+ *
+ * `itens` e uma lista de { url, tipo, nome, mime, legenda }, e `inicio` o que
+ * abre primeiro. Com mais de um, as setas (e as teclas ← →) passam entre eles:
+ * e assim que se le uma pilha de fotos de documento que o cliente mandou em
+ * sequencia, sem fechar e abrir cada uma.
+ *
+ * Imagem abre ajustada a tela; um clique amplia no ponto clicado, outro volta.
+ * PDF abre no leitor do proprio navegador, dentro da tela. O que o navegador
+ * nao sabe mostrar (Word, planilha) vira um cartao com o botao de baixar.
+ */
+export function abrirVisualizador(itens, inicio = 0) {
+  const lista = (itens || []).filter((i) => i?.url);
+  if (!lista.length) return null;
+  let atual = Math.max(0, Math.min(inicio, lista.length - 1));
+  const focoAntes = document.activeElement;
+
+  const titulo = el('div', { class: 'visualizador-titulo' });
+  const contador = el('span', { class: 'visualizador-contador' });
+  const palco = el('div', { class: 'visualizador-palco' });
+  const legenda = el('div', { class: 'visualizador-legenda' });
+  const abrirFora = el('a', { class: 'botao pequeno', target: '_blank', rel: 'noopener', title: 'Abrir em outra aba' }, [icone('abrir', 14), 'Nova aba']);
+  /* Sem icone: o conjunto vendorizado nao tem o de download, e desenhar um a
+     mao e a regra que o sistema nao quebra (ver ui.js, icone). */
+  const baixar = el('a', { class: 'botao pequeno', title: 'Baixar o arquivo' }, ['Baixar']);
+  const ampliar = botao('Ampliar', { pequeno: true, icone: 'lupa' });
+  const fechar = botao('', { pequeno: true, icone: 'fechar', titulo: 'Fechar (Esc)' });
+  fechar.setAttribute('aria-label', 'Fechar');
+
+  const anterior = el('button', { type: 'button', class: 'visualizador-seta anterior', 'aria-label': 'Anterior' }, [icone('voltar', 22)]);
+  const proximo = el('button', { type: 'button', class: 'visualizador-seta proximo', 'aria-label': 'Próximo' }, [icone('voltar', 22)]);
+
+  const janela = el('div', { class: 'visualizador', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Visualizador de arquivo' }, [
+    el('div', { class: 'visualizador-barra' }, [
+      el('div', { class: 'visualizador-cabeca' }, [titulo, contador]),
+      el('div', { class: 'visualizador-acoes' }, [ampliar, abrirFora, baixar, fechar]),
+    ]),
+    el('div', { class: 'visualizador-corpo' }, [anterior, palco, proximo]),
+    legenda,
+  ]);
+
+  let imagem = null;
+  let ampliada = false;
+
+  function ajustar(evento) {
+    if (!imagem) return;
+    ampliada = !ampliada;
+    ampliar.lastChild.textContent = ampliada ? 'Ajustar à tela' : 'Ampliar';
+    palco.classList.toggle('ampliada', ampliada);
+    if (!ampliada) {
+      imagem.style.width = '';
+      return;
+    }
+    /* Amplia a partir do tamanho que ela tinha na tela, e leva a rolagem ate o
+       ponto clicado — senao a pessoa clica no numero do RG e cai no canto. */
+    const caixa = imagem.getBoundingClientRect();
+    const px = evento?.clientX != null ? (evento.clientX - caixa.left) / caixa.width : 0.5;
+    const py = evento?.clientY != null ? (evento.clientY - caixa.top) / caixa.height : 0.5;
+    const largura = Math.max(caixa.width * 2.5, imagem.naturalWidth);
+    imagem.style.width = `${largura}px`;
+    requestAnimationFrame(() => {
+      palco.scrollLeft = largura * px - palco.clientWidth / 2;
+      palco.scrollTop = imagem.offsetHeight * py - palco.clientHeight / 2;
+    });
+  }
+
+  function mostrar() {
+    const item = lista[atual];
+    const formato = formatoDe(item);
+    limpar(palco);
+    palco.classList.remove('ampliada');
+    ampliada = false;
+    imagem = null;
+
+    titulo.textContent = item.nome || { imagem: 'Imagem', video: 'Vídeo', audio: 'Áudio', pdf: 'Documento' }[formato] || 'Arquivo';
+    contador.textContent = lista.length > 1 ? `${atual + 1} de ${lista.length}` : '';
+    legenda.textContent = item.legenda || '';
+    legenda.hidden = !item.legenda;
+    abrirFora.href = item.url;
+    baixar.href = item.urlBaixar || item.url;
+    baixar.setAttribute('download', item.nome || '');
+    ampliar.hidden = formato !== 'imagem';
+    ampliar.lastChild.textContent = 'Ampliar';
+    anterior.hidden = lista.length < 2;
+    proximo.hidden = lista.length < 2;
+
+    if (formato === 'imagem') {
+      imagem = el('img', { src: item.url, alt: item.nome || '', class: 'visualizador-imagem' });
+      imagem.addEventListener('click', ajustar);
+      palco.append(imagem);
+    } else if (formato === 'video') {
+      palco.append(el('video', { src: item.url, controls: true, autoplay: true, class: 'visualizador-video' }));
+    } else if (formato === 'audio') {
+      palco.append(el('audio', { src: item.url, controls: true, autoplay: true }));
+    } else if (formato === 'pdf') {
+      palco.append(el('iframe', { src: item.url, class: 'visualizador-documento', title: item.nome || 'Documento' }));
+    } else {
+      palco.append(
+        el('div', { class: 'visualizador-sem-previa' }, [
+          icone('contrato', 40),
+          el('strong', { texto: item.nome || 'Arquivo' }),
+          el('p', { texto: 'O navegador não mostra este tipo de arquivo. Baixe para abrir no programa certo.' }),
+        ]),
+      );
+    }
+  }
+
+  function andar(passo) {
+    if (lista.length < 2) return;
+    atual = (atual + passo + lista.length) % lista.length;
+    mostrar();
+  }
+
+  function sair() {
+    document.removeEventListener('keydown', teclas, true);
+    janela.remove();
+    document.body.classList.remove('sem-rolagem');
+    if (focoAntes && typeof focoAntes.focus === 'function') focoAntes.focus();
+  }
+
+  function teclas(evento) {
+    if (evento.key === 'Escape') {
+      evento.stopPropagation();
+      sair();
+    } else if (evento.key === 'ArrowRight') andar(1);
+    else if (evento.key === 'ArrowLeft') andar(-1);
+  }
+
+  anterior.addEventListener('click', () => andar(-1));
+  proximo.addEventListener('click', () => andar(1));
+  ampliar.addEventListener('click', () => ajustar());
+  fechar.addEventListener('click', sair);
+  /* Clique no fundo escuro fecha; clique na imagem amplia. */
+  palco.addEventListener('click', (evento) => {
+    if (evento.target === palco) sair();
   });
+  document.addEventListener('keydown', teclas, true);
+
+  document.body.append(janela);
+  document.body.classList.add('sem-rolagem');
+  mostrar();
+  fechar.focus();
+  return { fechar: sair };
 }
 
 /* Datas ------------------------------------------------------------ */

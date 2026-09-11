@@ -114,6 +114,20 @@ export async function testarHistorico({ base, evolucao, chaveEvolucao }) {
       msg(C, 'Assinei o contrato', { perfil: 'Ana', alt: '5581911110003@s.whatsapp.net' }),
       msg(D, 'Quero saber da aposentadoria', { perfil: 'Carlos' }),
       msg(E, 'Ola'),
+      /* Dois anexos no historico de E: a foto do RG, que o celular ainda tem,
+         e um laudo que o WhatsApp ja nao guarda mais. */
+      {
+        key: { remoteJid: E, fromMe: false, id: 'HIST_IMG' },
+        pushName: '',
+        message: { imageMessage: { mimetype: 'image/png', caption: 'RG frente' } },
+        messageTimestamp: 1750000500,
+      },
+      {
+        key: { remoteJid: E, fromMe: false, id: 'HIST_DOC' },
+        pushName: '',
+        message: { documentMessage: { mimetype: 'application/pdf', fileName: 'laudo.pdf' } },
+        messageTimestamp: 1750000600,
+      },
       msg(F, 'mensagem no grupo', { perfil: 'Alguem' }),
       msg(G, 'nota para mim mesmo', { deMim: true }),
       msg(H, 'sou eu de novo', { perfil: 'Fulano' }),
@@ -123,6 +137,9 @@ export async function testarHistorico({ base, evolucao, chaveEvolucao }) {
       /* A Evolution poe o numero no lugar do nome quando nao tem nome. */
       { remoteJid: E, pushName: '5581911110005' },
     ],
+    /* Quem tem foto de perfil: A pelo telefone, B so pelo codigo @lid. */
+    fotos: { '5581911110001': true, [B]: true },
+    anexos: { HIST_IMG: { mime: 'image/png', nome: 'rg.png' } },
   });
 
   /* ---------------- A agenda chega, a sessao abre ---------------- */
@@ -256,6 +273,62 @@ export async function testarHistorico({ base, evolucao, chaveEvolucao }) {
   if (recepcao) {
     s.ok('e vai para a Recepcao, como toda conversa nova', pedro?.aba === 'ia', pedro?.aba);
   }
+
+  /* ---------------- A foto de cada contato ---------------- */
+
+  const contatoAtual = async (id) => (await api.get(`/api/contatos/${id}`)).dados;
+  let aFoto = null;
+  for (let i = 0; i < 30 && !aFoto?.foto; i += 1) {
+    await esperar(100);
+    aFoto = await contatoAtual(a?.id);
+  }
+  s.ok('a foto de perfil do WhatsApp chega na conversa', String(aFoto?.foto || '').startsWith('/midia/'), aFoto?.foto);
+  const imagemDaFoto = aFoto?.foto ? await fetch(`${base}${aFoto.foto}`) : null;
+  s.ok(
+    'e fica guardada aqui, e nao no endereco do WhatsApp',
+    imagemDaFoto?.status === 200 && String(imagemDaFoto.headers.get('content-type')).startsWith('image/'),
+    `${imagemDaFoto?.status} ${imagemDaFoto?.headers.get('content-type')}`,
+  );
+  const bFoto = await contatoAtual(b?.id);
+  s.ok('conversa so com o codigo @lid tambem ganha foto', String(bFoto?.foto || '').startsWith('/midia/'), bFoto?.foto);
+  const dFoto = await contatoAtual(d?.id);
+  s.ok('quem esconde a foto fica com as iniciais', !dFoto?.foto, dFoto?.foto);
+  s.ok('e a conferencia fica anotada, para nao perguntar de novo a toda hora', Boolean(dFoto?.fotoVerificadaEm));
+
+  /* A fila anda devagar de proposito (ver whatsapp/fotos.js): nenhuma
+     consulta encosta na anterior. No teste o intervalo e de 30 ms. */
+  const consultas = await evo('/__fotos');
+  const coladas = consultas.slice(1).filter((c, i) => c.quando - consultas[i].quando < 25).length;
+  s.ok('as fotos sao pedidas uma de cada vez, com intervalo', consultas.length >= 3 && coladas === 0, `${consultas.length} consultas, ${coladas} em rajada`);
+
+  /* ---------------- Anexos do historico ---------------- */
+
+  const midiasDeE = (await api.get(`/api/contatos/${e?.id}/midias`)).dados || [];
+  const rg = midiasDeE.find((m) => m.midia?.tipo === 'imagem');
+  const laudo = midiasDeE.find((m) => m.midia?.tipo === 'documento');
+  s.ok('a galeria lista os anexos do historico', Boolean(rg && laudo), JSON.stringify(midiasDeE.map((m) => m.midia?.tipo)));
+  s.ok('ainda sem o arquivo: so a chave foi guardada', !rg?.midia?.url && !laudo?.midia?.url);
+
+  const carregado = await api.post(`/api/contatos/${e?.id}/mensagens/${rg?.id}/midia`, {});
+  s.ok('carregar busca o anexo no WhatsApp', String(carregado.dados?.midia?.url || '').startsWith('/midia/'), JSON.stringify(carregado.dados));
+  const arquivoDoRg = carregado.dados?.midia?.url ? await fetch(`${base}${carregado.dados.midia.url}`) : null;
+  s.ok('e o arquivo abre', arquivoDoRg?.status === 200, String(arquivoDoRg?.status));
+  s.ok('a legenda da foto continua na mensagem', carregado.dados?.conteudo === 'RG frente', carregado.dados?.conteudo);
+
+  const semArquivo = await api.post(`/api/contatos/${e?.id}/mensagens/${laudo?.id}/midia`, {});
+  s.ok('anexo que o WhatsApp ja apagou da erro claro', semArquivo.status === 404, String(semArquivo.status));
+  s.ok('e o erro diz o que fazer', /mandar de novo/i.test(semArquivo.dados?.erro || ''), semArquivo.dados?.erro);
+
+  /* ---------------- Arquivos guardados na conversa ---------------- */
+
+  const guardado = await api.post(`/api/contatos/${e?.id}/arquivos`, {
+    nome: 'anotacao do caso.txt',
+    conteudoBase64: `data:text/plain;base64,${Buffer.from('ola arquivo').toString('base64')}`,
+  });
+  const lido = await api.get(`/api/contatos/${e?.id}/arquivos/${guardado.dados?.id}`);
+  s.ok('o arquivo guardado abre de volta', lido.status === 200 && lido.texto === 'ola arquivo', `${lido.status} ${lido.texto}`);
+  const semSessao = await fetch(`${base}/api/contatos/${e?.id}/arquivos/${guardado.dados?.id}`);
+  s.ok('e so para quem tem sessao', semSessao.status === 401, String(semSessao.status));
 
   /* Limpeza: a conversa do Pedro esta com agente, e o relogio dele nao deve
      disparar no meio da proxima suite. */

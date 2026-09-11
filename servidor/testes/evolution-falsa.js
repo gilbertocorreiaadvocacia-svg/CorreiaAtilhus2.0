@@ -38,7 +38,10 @@ const instancias = new Set();
  * chats { remoteJid, name? }, mensagens (registros com key/pushName/message/
  * messageTimestamp) e contatos { remoteJid, pushName }.
  */
-let celular = { chats: [], mensagens: [], contatos: [] };
+let celular = { chats: [], mensagens: [], contatos: [], fotos: {}, anexos: {} };
+/* Cada consulta de foto que o sistema fez, com a hora: e assim que o teste
+   confere que a fila anda devagar, e nao em rajada. */
+const consultasDeFoto = [];
 
 /**
  * Um PNG com cara de QR Code, desenhado aqui.
@@ -147,6 +150,14 @@ export function subirEvolucaoFalsa(porta = PORTA, chave = CHAVE) {
       res.end(JSON.stringify(dados));
     };
 
+    /* A foto de perfil mora num servidor de imagens, e quem busca nao manda
+       apikey — por isso esta rota vem antes da conferencia da chave. */
+    if (url.pathname.startsWith('/__imagem/')) {
+      const png = Buffer.from(QR.split(',')[1], 'base64');
+      res.writeHead(200, { 'Content-Type': 'image/png', 'Content-Length': png.length });
+      return res.end(png);
+    }
+
     if (req.headers.apikey !== chave) {
       return responder(401, { message: 'apikey invalida' });
     }
@@ -165,14 +176,25 @@ export function subirEvolucaoFalsa(porta = PORTA, chave = CHAVE) {
       enviadas.length = 0;
       configuracoes.length = 0;
       instancias.clear();
-      celular = { chats: [], mensagens: [], contatos: [] };
+      consultasDeFoto.length = 0;
+      celular = { chats: [], mensagens: [], contatos: [], fotos: {}, anexos: {} };
       return responder(200, { ok: true });
     }
     if (caminho === '/__celular') {
       const carga = corpo ? JSON.parse(corpo) : {};
-      celular = { chats: carga.chats || [], mensagens: carga.mensagens || [], contatos: carga.contatos || [] };
+      celular = {
+        chats: carga.chats || [],
+        mensagens: carga.mensagens || [],
+        contatos: carga.contatos || [],
+        /* numero (ou @lid) -> tem foto de perfil */
+        fotos: carga.fotos || {},
+        /* id da mensagem -> o anexo ainda existe no celular */
+        anexos: carga.anexos || {},
+      };
+      consultasDeFoto.length = 0;
       return responder(200, { ok: true });
     }
+    if (caminho === '/__fotos') return responder(200, consultasDeFoto);
 
     /* O protocolo de verdade. */
     if (caminho === '/instance/create') {
@@ -184,6 +206,26 @@ export function subirEvolucaoFalsa(porta = PORTA, chave = CHAVE) {
     if (caminho.startsWith('/webhook/set/')) {
       configuracoes.push({ rota: caminho, ...(corpo ? JSON.parse(corpo) : {}) });
       return responder(201, { webhook: { enabled: true } });
+    }
+    if (caminho.startsWith('/chat/fetchProfilePictureUrl/')) {
+      const numero = String((corpo ? JSON.parse(corpo) : {}).number || '');
+      consultasDeFoto.push({ numero, quando: Date.now() });
+      const temFoto = Boolean(celular.fotos?.[numero]);
+      return responder(200, {
+        wuid: numero,
+        profilePictureUrl: temFoto ? `http://${req.headers.host}/__imagem/${encodeURIComponent(numero)}.png` : null,
+      });
+    }
+    if (caminho.startsWith('/chat/getBase64FromMediaMessage/')) {
+      const id = (corpo ? JSON.parse(corpo) : {})?.message?.key?.id;
+      const anexo = celular.anexos?.[id];
+      /* Como a Evolution quando o WhatsApp ja nao tem o arquivo: erro. */
+      if (!anexo) return responder(400, { message: 'Media not found' });
+      return responder(201, {
+        base64: QR.split(',')[1],
+        mimetype: anexo.mime || 'image/png',
+        fileName: anexo.nome || null,
+      });
     }
     if (caminho.startsWith('/chat/findChats/')) return responder(200, celular.chats);
     if (caminho.startsWith('/chat/findContacts/')) return responder(200, celular.contatos);

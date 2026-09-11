@@ -5714,6 +5714,344 @@ tbody .linha-clicavel:focus-visible {
   border-radius: 0;
 }
 
+/* A imagem e um botao que amplia: sem moldura propria, o desenho e o da
+   previa; o cursor e o anel de foco dizem que ela abre. */
+.midia-ampliar {
+  display: block;
+  max-width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: zoom-in;
+}
+
+.midia-ampliar:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: 2px;
+  border-radius: var(--raio);
+}
+
+.midia-ampliar:hover .midia-previa {
+  border-color: var(--ouro-linha);
+}
+
+/* Documento na conversa e na galeria: icone, nome e tipo. */
+.midia-arquivo {
+  display: flex;
+  align-items: center;
+  gap: var(--e3);
+  width: 100%;
+  max-width: 320px;
+  margin-top: var(--e2);
+  padding: var(--e2) var(--e3);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  background: var(--superficie-2);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.midia-arquivo:hover {
+  border-color: var(--ouro-linha);
+}
+
+.midia-arquivo:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: 2px;
+}
+
+.midia-arquivo-icone {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--raio-p);
+  background: var(--ouro-fraco);
+  color: var(--ouro-claro);
+}
+
+.midia-arquivo-dados {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.midia-arquivo-nome {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--texto);
+  font-weight: 500;
+}
+
+.midia-arquivo-tipo {
+  font-size: var(--t-nota);
+  letter-spacing: var(--tr-alta);
+  color: var(--texto-fraco);
+}
+
+/* Anexo que ainda nao foi baixado (veio do historico). */
+.midia-pendente {
+  display: flex;
+  align-items: center;
+  gap: var(--e3);
+  max-width: 320px;
+  margin-top: var(--e2);
+  padding: var(--e2) var(--e3);
+  border: 1px dashed var(--borda-forte);
+  border-radius: var(--raio);
+  color: var(--texto-suave);
+}
+
+.midia-pendente > span {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ------------------------------------------------------------------
+   Visualizador em tela cheia
+   Fundo escuro nos dois temas: foto de documento se le melhor sobre preto,
+   e o claro faria a moldura branca de um RG sumir no fundo.
+   ------------------------------------------------------------------ */
+
+body.sem-rolagem {
+  overflow: hidden;
+}
+
+.visualizador {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  background: rgba(5, 5, 4, 0.94);
+  color: #efeae0;
+}
+
+.visualizador-barra {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e3);
+  padding: var(--e3) var(--e4);
+}
+
+.visualizador-cabeca {
+  display: flex;
+  align-items: baseline;
+  gap: var(--e3);
+  min-width: 0;
+}
+
+.visualizador-titulo {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.visualizador-contador {
+  flex: none;
+  font-size: var(--t-nota);
+  color: #a9a296;
+}
+
+.visualizador-acoes {
+  flex: none;
+  display: flex;
+  gap: var(--e2);
+}
+
+.visualizador-corpo {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.visualizador-palco {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--e6) var(--e4);
+  overflow: hidden;
+}
+
+/* Ampliada, a imagem passa do tamanho da tela e o palco rola nos dois eixos. */
+.visualizador-palco.ampliada {
+  display: block;
+  overflow: auto;
+  padding: 0;
+}
+
+.visualizador-imagem {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: var(--raio-p);
+  cursor: zoom-in;
+  user-select: none;
+}
+
+.visualizador-palco.ampliada .visualizador-imagem {
+  max-width: none;
+  max-height: none;
+  border-radius: 0;
+  cursor: zoom-out;
+}
+
+.visualizador-video {
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.visualizador-documento {
+  width: min(1000px, 100%);
+  height: 100%;
+  border: none;
+  border-radius: var(--raio-p);
+  background: #ffffff;
+}
+
+.visualizador-sem-previa {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--e2);
+  max-width: 360px;
+  text-align: center;
+  color: #a9a296;
+}
+
+.visualizador-sem-previa strong {
+  color: #efeae0;
+}
+
+.visualizador-legenda {
+  flex: none;
+  max-width: 70ch;
+  margin: 0 auto;
+  padding: 0 var(--e4) var(--e4);
+  text-align: center;
+  color: #efeae0;
+}
+
+.visualizador-seta {
+  position: absolute;
+  top: 50%;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-top: -22px;
+  border: 1px solid rgba(239, 234, 224, 0.2);
+  border-radius: 50%;
+  background: rgba(14, 13, 12, 0.8);
+  color: #efeae0;
+  cursor: pointer;
+}
+
+.visualizador-seta:hover {
+  border-color: #c9a961;
+}
+
+.visualizador-seta:focus-visible {
+  outline: 2px solid #c9a961;
+  outline-offset: 2px;
+}
+
+.visualizador-seta.anterior {
+  left: var(--e3);
+}
+
+.visualizador-seta.proximo {
+  right: var(--e3);
+}
+
+.visualizador-seta.proximo > svg {
+  transform: rotate(180deg);
+}
+
+/* Galeria do painel: miniatura quadrada, recortada, que abre o visualizador. */
+.grade-midia .midia-ampliar,
+.grade-midia .miniatura-pendente {
+  width: 100%;
+  aspect-ratio: 1;
+}
+
+.grade-midia .midia-ampliar .midia-previa {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  object-fit: cover;
+}
+
+.miniatura-pendente {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--e1);
+  padding: var(--e2);
+  border: 1px dashed var(--borda-forte);
+  border-radius: var(--raio);
+  background: none;
+  color: var(--texto-suave);
+  font: inherit;
+  font-size: var(--t-nota);
+  cursor: pointer;
+}
+
+.miniatura-pendente:hover {
+  border-color: var(--ouro-linha);
+  color: var(--texto);
+}
+
+.painel-titulo-midia {
+  margin: var(--e3) var(--e3) 0;
+  font-size: var(--t-nota);
+  letter-spacing: var(--tr-alta);
+  text-transform: uppercase;
+  color: var(--texto-fraco);
+}
+
+.lista-arquivos {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e1);
+  padding: 0 var(--e3) var(--e3);
+}
+
+.lista-arquivos .midia-arquivo {
+  max-width: none;
+  margin-top: 0;
+}
+
+/* A foto do contato abre ampliada: o avatar vira botao sem mudar de desenho. */
+.avatar-ampliar {
+  flex: none;
+  display: inline-grid;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  cursor: zoom-in;
+}
+
+.avatar-ampliar:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: 2px;
+}
+
 /* ------------------------------------------------------------------
    Aparencia
    Miniatura de tema em Configuracoes. E um desenho, e nao um componente:
