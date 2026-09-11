@@ -26,11 +26,19 @@ import { caminhoDaMidia, guardarBuffer } from '../../nucleo/midia.js';
  *   instancia  o nome da instancia la dentro (uma por numero)
  */
 
-const EVENTOS_ASSINADOS = [
+/*
+ * CONTACTS_UPSERT e o unico lugar onde chega o nome SALVO na agenda do
+ * celular: a tabela de contatos da Evolution troca esse nome pelo de perfil a
+ * cada mensagem. Sem assinar, toda conversa fica com o nome que a pessoa se da
+ * no perfil, e nao com o que o escritorio conhece. Ver whatsapp/agenda.js.
+ */
+export const EVENTOS_ASSINADOS = [
   'MESSAGES_UPSERT',
   'MESSAGES_UPDATE',
   'CONNECTION_UPDATE',
   'QRCODE_UPDATED',
+  'CONTACTS_UPSERT',
+  'CONTACTS_UPDATE',
 ];
 
 function configuracao(conexao) {
@@ -225,25 +233,36 @@ export const driverQrCode = {
         return { estado: 'conectado', qrCode: null };
       }
 
+      const webhook = { url: urlWebhook, byEvents: false, base64: true, events: EVENTOS_ASSINADOS };
+
       if (!estadoAtual) {
         /* Instancia inexistente: cria com o webhook ja apontado para ca. Sem
            isso, a sessao abre e as mensagens do cliente nao chegam a lugar
-           nenhum, que e o defeito mais dificil de diagnosticar deste caminho. */
+           nenhum, que e o defeito mais dificil de diagnosticar deste caminho.
+
+           syncFullHistory pede ao celular o historico INTEIRO, e nao so os
+           ultimos meses. Tem de ir aqui, na criacao: o historico e mandado uma
+           vez, na hora em que o QR Code e lido, e pedir depois nao traz nada. */
         await chamar(cfg, '/instance/create', {
           metodo: 'POST',
           corpo: {
             instanceName: cfg.instancia,
             integration: 'WHATSAPP-BAILEYS',
             qrcode: true,
-            webhook: {
-              url: urlWebhook,
-              byEvents: false,
-              base64: true,
-              events: EVENTOS_ASSINADOS,
-            },
+            syncFullHistory: true,
+            webhook,
           },
           prazoMs: 40000,
         });
+      } else {
+        /* Instancia que ja existia foi criada com a lista de eventos da epoca,
+           talvez sem os de contato. Reapontar antes de ler o QR garante que o
+           nome salvo chegue. Se falhar, a conexao segue: sem nome da agenda
+           ela ainda funciona, e o nome de perfil entra no lugar. */
+        await chamar(cfg, `/webhook/set/${cfg.instancia}`, {
+          metodo: 'POST',
+          corpo: { webhook: { enabled: true, ...webhook } },
+        }).catch(() => null);
       }
 
       const dados = await chamar(cfg, `/instance/connect/${cfg.instancia}`, { prazoMs: 40000 });
@@ -329,9 +348,24 @@ export const driverQrCode = {
   },
 
   interpretarWebhook({ corpo }) {
-    const saida = { mensagens: [], situacoes: [], conexao: null, templates: [] };
+    const saida = { mensagens: [], situacoes: [], conexao: null, templates: [], agenda: [] };
     const evento = String(corpo?.event || '').toLowerCase().replace(/_/g, '.');
     const dados = corpo?.data || {};
+
+    /*
+     * A agenda do celular. A Evolution manda { remoteJid, pushName }, e nesse
+     * evento o pushName e o nome SALVO (contact.name do WhatsApp); sem nome
+     * salvo, ela poe o proprio numero no lugar — isso nao e nome, e cai fora em
+     * guardarNaAgenda. Grupo e lista de transmissao nao sao pessoas.
+     */
+    if (evento === 'contacts.upsert' || evento === 'contacts.update') {
+      for (const item of [].concat(dados)) {
+        const jid = String(item?.remoteJid || item?.id || '');
+        if (!jid.endsWith('@s.whatsapp.net') && !jid.endsWith('@lid')) continue;
+        saida.agenda.push({ jid, nome: item?.pushName || item?.name || '' });
+      }
+      return saida;
+    }
 
     if (evento === 'qrcode.updated') {
       saida.conexao = {

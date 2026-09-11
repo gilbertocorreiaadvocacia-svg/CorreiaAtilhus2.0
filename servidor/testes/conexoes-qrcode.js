@@ -40,9 +40,12 @@ export async function testarQrCode({ base, evolucao, chaveEvolucao }) {
     qrcode: { servidor: evolucao, chave: '***', instancia: 'correia-teste' },
   });
   const aposSalvar = await api.post(`/api/conexoes/${id}/testar`);
+  /* Com a chave apagada o servico responderia "apikey invalida". Instancia
+     ainda nao criada (e o caso aqui: ninguem clicou em Conectar) ou sessao
+     fechada so chegam depois de a chave ser aceita. */
   s.ok(
     'salvar sem tocar na chave mantem a chave guardada',
-    aposSalvar.dados?.ok === true || String(aposSalvar.dados?.erro || '').includes('sessao'),
+    aposSalvar.dados?.ok === true || /sessao|does not exist/i.test(String(aposSalvar.dados?.erro || '')),
     JSON.stringify(aposSalvar.dados),
   );
 

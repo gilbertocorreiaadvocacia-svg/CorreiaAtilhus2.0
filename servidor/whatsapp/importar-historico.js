@@ -1,6 +1,8 @@
 import { atualizar, inserir, inserirMensagem, listar, mensagensDe, registrarLog } from '../nucleo/banco.js';
 import { agora, normalizarTelefoneDoWhatsApp, novoId } from '../nucleo/util.js';
 import { extrairMensagem } from './drivers/qrcode.js';
+import { mapaDaAgenda } from './agenda.js';
+import { SEM_IDENTIFICACAO, nomeValido, podeTrocarNome } from './nomes.js';
 
 /**
  * Traz para o sistema as conversas que ja estavam no celular.
@@ -24,10 +26,12 @@ import { extrairMensagem } from './drivers/qrcode.js';
  *    sistema trata a conversa como uma pessoa com um telefone, e um grupo
  *    cadastrado assim viraria um contato com o numero errado.
  *
- * 2. Entra ARQUIVADA, sem responsavel. O pedido era historico consultavel, e
- *    nao fila de trabalho — vinte conversas antigas no topo da fila enterrariam
- *    o cliente que escreveu hoje. Se qualquer uma delas voltar a falar, o
- *    proprio recebimento a devolve para a fila (ver recebimento.js).
+ * 2. Entra em ATIVOS, com a pessoa que conectou o numero como responsavel. Era
+ *    arquivada, sem dono, e o escritorio pediu o contrario: quem ja conversa
+ *    com o escritorio e cliente em andamento, e tem de estar a vista. Ha um
+ *    efeito que vale saber — conversa com pessoa responsavel NAO e respondida
+ *    por agente. Quem ja e cliente, ao escrever de novo, fala com gente; a
+ *    Recepcao fica para numero que o escritorio nunca viu.
  *
  * 3. A MIDIA NAO E BAIXADA. Imagem, audio e PDF ficam registrados pelo tipo e
  *    pela legenda, sem o arquivo. Baixar o anexo de 53 mil mensagens sao muitos
@@ -115,6 +119,54 @@ function nomeDoContato(registros) {
   return '';
 }
 
+/**
+ * Os nomes que a Evolution guarda, por endereco (@s.whatsapp.net e @lid).
+ *
+ * Nao e a mesma coisa que a agenda: o campo comeca com o nome salvo e vai sendo
+ * trocado pelo de perfil a cada mensagem. Por isso vale como perfil, abaixo da
+ * agenda que o sistema guardou do evento. Falhar aqui nao para a importacao —
+ * so deixa menos nome para escolher.
+ */
+async function nomesDaEvolution(cfg, instancia) {
+  const mapa = new Map();
+  try {
+    const lista = await chamar(cfg, `/chat/findContacts/${instancia}`, {});
+    for (const c of Array.isArray(lista) ? lista : []) {
+      const jid = String(c?.remoteJid || c?.id || '');
+      const nome = nomeValido(c?.pushName || c?.name, jid);
+      if (jid && nome) mapa.set(jid, nome);
+    }
+  } catch {
+    /* sem a lista, seguem a agenda, o nome da conversa e o das mensagens */
+  }
+  return mapa;
+}
+
+/**
+ * O melhor nome para a conversa, e de onde ele veio.
+ *
+ * Em ordem: a agenda do celular guardada pelo sistema, o que a Evolution sabe
+ * do contato, o nome da conversa, o nome que a pessoa usa nas mensagens, e por
+ * fim o numero. So o primeiro conta como agenda; o resto e perfil, e um nome da
+ * agenda que chegar depois passa por cima (ver nomes.js).
+ */
+function escolherNome({ jid, telefone, chat, registros, agenda, daEvolution }) {
+  const pn = telefone ? `${telefone}@s.whatsapp.net` : '';
+  const salvo = agenda.get(jid) || (pn && agenda.get(pn));
+  if (salvo) return { nome: salvo, origem: 'agenda' };
+
+  const candidatos = [
+    daEvolution.get(jid),
+    pn && daEvolution.get(pn),
+    nomeValido(chat?.name, jid),
+    nomeValido(chat?.pushName, jid),
+    nomeDoContato(registros),
+  ];
+  const perfil = candidatos.map((n) => nomeValido(n, jid)).find((n) => n && n !== telefone);
+  if (perfil) return { nome: perfil, origem: 'perfil' };
+  return { nome: telefone || SEM_IDENTIFICACAO, origem: null };
+}
+
 function quandoDe(item) {
   const segundos = Number(item?.messageTimestamp);
   if (!Number.isFinite(segundos) || segundos <= 0) return agora();
@@ -124,18 +176,34 @@ function quandoDe(item) {
 /**
  * Importa o historico de uma conexao por QR Code.
  *
+ * `responsavel` e a pessoa da equipe que fica com as conversas em Ativos:
+ * { tipo: 'membro', id, nome }. Sem ela a conversa nao tem como estar em
+ * Ativos — a aba e, por definicao, o que alguem aceitou.
+ *
  * `aoAndar` recebe o progresso, porque vinte conversas com centenas de
  * mensagens cada demoram o bastante para uma tela em branco parecer travada.
+ *
+ * Pode rodar quantas vezes quiser: mensagem ja gravada e reconhecida pelo id e
+ * nao se repete, e conversa que ja existe nao e recriada.
  */
-export async function importarHistorico({ conexao, limitePorConversa = 500, aoAndar = null }) {
+export async function importarHistorico({ conexao, responsavel = null, limitePorConversa = 50000, aoAndar = null }) {
   const cfg = conexao?.qrcode || {};
   if (!cfg.servidor || !cfg.chave || !cfg.instancia) {
     throw new Error('Conexao sem endereco, chave ou instancia configurada.');
   }
+  if (!responsavel?.id) throw new Error('Falta a pessoa responsavel pelas conversas importadas.');
 
   const workspaceId = conexao.workspaceId;
   const base = { servidor: String(cfg.servidor).replace(/\/+$/, ''), chave: cfg.chave };
   const instancia = cfg.instancia;
+
+  const agenda = mapaDaAgenda(conexao);
+  const daEvolution = await nomesDaEvolution(base, instancia);
+  const emAtivos = {
+    responsavel: { tipo: 'membro', id: responsavel.id, nome: responsavel.nome || 'Equipe' },
+    aceitoPor: responsavel.id,
+    estado: 'ativo',
+  };
 
   const chats = await chamar(base, `/chat/findChats/${instancia}`, {});
   const daPessoa = (Array.isArray(chats) ? chats : []).filter((c) => ehConversaDePessoa(c?.remoteJid));
@@ -148,6 +216,9 @@ export async function importarHistorico({ conexao, limitePorConversa = 500, aoAn
     conversasEncontradas: daPessoa.length,
     conversasImportadas: 0,
     conversasJaExistentes: 0,
+    conversasRenomeadas: 0,
+    comNomeDaAgenda: 0,
+    semNome: 0,
     mensagensGravadas: 0,
     mensagensJaExistentes: 0,
     puladas: [],
@@ -167,7 +238,10 @@ export async function importarHistorico({ conexao, limitePorConversa = 500, aoAn
         offset: limitePorConversa,
       });
     } catch (erro) {
-      relato.puladas.push(`${telefone}: ${erro.message}`);
+      /* Uma conversa que falhou nao derruba as outras. (Aqui ainda nao ha
+         telefone: citar a variavel antes de ela existir derrubava a
+         importacao INTEIRA na primeira conversa que falhasse.) */
+      relato.puladas.push(`${jid}: ${erro.message}`);
       continue;
     }
 
@@ -194,6 +268,8 @@ export async function importarHistorico({ conexao, limitePorConversa = 500, aoAn
        do contato tem de sobrar a ultima. */
     registros.sort((a, b) => Number(a?.messageTimestamp || 0) - Number(b?.messageTimestamp || 0));
 
+    const escolhido = escolherNome({ jid, telefone, chat, registros, agenda, daEvolution });
+
     let contato = listar('contatos', { workspaceId }).find((c) =>
       telefone ? c.telefone === telefone : c.lid === chaveLid,
     ) || null;
@@ -205,11 +281,11 @@ export async function importarHistorico({ conexao, limitePorConversa = 500, aoAn
         workspaceId,
         conexaoId: conexao.id,
         telefone: telefone || '',
-        lid: chaveLid,
-        nome: nomeDoContato(registros) || telefone || 'Conversa sem identificacao',
-        /* Sem responsavel e arquivada, de proposito: ver o cabecalho. */
-        responsavel: null,
-        estado: 'arquivado',
+        lid: ehLid ? jid : null,
+        nome: escolhido.nome,
+        nomeOrigem: escolhido.origem,
+        /* Em Ativos, com a pessoa que conectou: ver o cabecalho, escolha 2. */
+        ...emAtivos,
         statusId: null,
         departamentoId: null,
         etiquetas: [],
@@ -222,6 +298,26 @@ export async function importarHistorico({ conexao, limitePorConversa = 500, aoAn
       relato.conversasImportadas += 1;
     } else {
       relato.conversasJaExistentes += 1;
+      const mudancas = {};
+      /* Nome melhor que o atual, pela regra de nomes.js: agenda por cima de
+         perfil, perfil so por cima de numero, e nada por cima do manual. */
+      if (escolhido.origem && escolhido.nome !== contato.nome && podeTrocarNome(contato, escolhido.origem)) {
+        Object.assign(mudancas, { nome: escolhido.nome, nomeOrigem: escolhido.origem });
+        relato.conversasRenomeadas += 1;
+      }
+      /* A importacao antiga deixava tudo arquivado e sem dono. Essas voltam
+         para Ativos; conversa que alguem ja mexeu fica onde esta. */
+      if (contato.importado && contato.estado === 'arquivado' && !contato.responsavel) {
+        Object.assign(mudancas, emAtivos);
+      }
+      if (Object.keys(mudancas).length) {
+        atualizar('contatos', contato.id, mudancas);
+        Object.assign(contato, mudancas);
+      }
+    }
+    if (contato.nomeOrigem === 'agenda') relato.comNomeDaAgenda += 1;
+    if (!contato.nomeOrigem && (contato.nome === contato.telefone || contato.nome === SEM_IDENTIFICACAO)) {
+      relato.semNome += 1;
     }
 
     const idsQueJaTenho = new Set(mensagensDe(contato.id).map((m) => m.idExterno).filter(Boolean));

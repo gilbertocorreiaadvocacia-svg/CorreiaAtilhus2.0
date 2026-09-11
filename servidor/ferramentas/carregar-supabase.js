@@ -33,7 +33,7 @@ const COLECOES = [
   'workspaces', 'usuarios', 'membros', 'conexoes', 'status', 'departamentos',
   'etiquetas', 'origens', 'variaveis', 'agentes', 'conhecimento', 'templates',
   'contatos', 'tarefas', 'agendamentos', 'contratos', 'compromissos', 'logs',
-  'notificacoes', 'creditos', 'integracoes', 'vozes', 'chavesApi', 'configuracoes',
+  'notificacoes', 'creditos', 'integracoes', 'vozes', 'chavesApi', 'configuracoes', 'agenda',
 ];
 
 /* O nome da colecao no codigo nem sempre e o nome da tabela no Postgres. Mesma

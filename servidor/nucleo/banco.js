@@ -39,6 +39,8 @@ const COLECOES = [
   'vozes',
   'chavesApi',
   'configuracoes',
+  /* Os nomes salvos no celular de cada numero conectado (ver whatsapp/agenda.js). */
+  'agenda',
 ];
 
 const memoria = new Map();

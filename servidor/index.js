@@ -18,6 +18,7 @@ import { registrarPainel } from './rotas/painel.js';
 import { registrarTarefas } from './rotas/tarefas.js';
 import { registrarIntegracoes } from './rotas/integracoes.js';
 import { autenticarChave, dentroDoLimite, registrarPublica } from './rotas/publica.js';
+import { retomarSincronizacoes } from './whatsapp/sincronizar-historico.js';
 
 iniciarBanco();
 /* Quando ESTA copia subiu. Vai na saude, para dar para distinguir duas. */
@@ -28,6 +29,8 @@ const semeado = semearSePrecisar();
 const coresTrocadas = migrarCoresParaTokens({ listar, atualizar });
 if (coresTrocadas) console.log(`Paleta: ${coresTrocadas} cores da semeadura antiga viraram token de tema.`);
 limparSessoesOrfas();
+/* Rodadas de importacao do celular que o reinicio interrompeu. */
+retomarSincronizacoes();
 
 const MIMES = {
   '.jpg': 'image/jpeg',

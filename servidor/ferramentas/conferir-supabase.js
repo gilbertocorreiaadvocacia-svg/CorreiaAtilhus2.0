@@ -24,7 +24,7 @@ const COLECOES = [
   'workspaces', 'usuarios', 'membros', 'conexoes', 'status', 'departamentos',
   'etiquetas', 'origens', 'variaveis', 'agentes', 'conhecimento', 'templates',
   'contatos', 'tarefas', 'agendamentos', 'contratos', 'compromissos', 'logs',
-  'notificacoes', 'creditos', 'integracoes', 'vozes', 'chavesApi', 'configuracoes',
+  'notificacoes', 'creditos', 'integracoes', 'vozes', 'chavesApi', 'configuracoes', 'agenda',
 ];
 const TABELA_DA_COLECAO = { chavesApi: 'chaves_api' };
 

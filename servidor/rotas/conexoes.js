@@ -7,6 +7,8 @@ import { acharOuCriarContato, atualizarSituacaoExterna, receberMensagem } from '
 import { driverDa, listarDrivers } from '../whatsapp/drivers/index.js';
 import { notificar } from '../ia/mencoes.js';
 import { agendarResposta } from '../ia/motor.js';
+import { guardarNaAgenda } from '../whatsapp/agenda.js';
+import { agendarSincronizacao, cancelarSincronizacao, rodar } from '../whatsapp/sincronizar-historico.js';
 import { comCodigo, exigirConfiguracao } from './sessao.js';
 
 /**
@@ -183,26 +185,18 @@ export function registrarConexoes(rotas) {
       throw comCodigo('So a conexao por QR Code tem historico para trazer.', 400);
     }
 
-    const { importarHistorico } = await import('../whatsapp/importar-historico.js');
+    /* Quem clicou fica com as conversas em Ativos. A rodada e a mesma das
+       automaticas (whatsapp/sincronizar-historico.js), entao a tela le o
+       andamento do mesmo lugar, seja qual for a origem. */
+    const quemClicou = ctx.membro
+      ? { tipo: 'membro', id: ctx.membro.id, nome: ctx.usuario?.nome || 'Equipe' }
+      : null;
     try {
-      const relato = await importarHistorico({
-        conexao,
-                /* O teto era 2000 e cortava conversa de verdade: a maior deste
-           escritorio tem 10.487 mensagens. Medido depois de importar 15 mil,
-           a pasta de dados ficou em 7,9 MB e o maior arquivo em 896 KB — o
-           custo de guardar tudo e pequeno perto de perder metade de uma
-           conversa sem avisar. */
-        limitePorConversa: Math.min(Number(corpo?.limitePorConversa) || 500, 50000),
-      });
-      registrarEvento(
-        conexao,
-        'importacao',
-        `Historico importado: ${relato.conversasImportadas} conversas novas, ${relato.mensagensGravadas} mensagens`,
-      );
-      emitir(ctx.workspaceId, 'contatos', {});
+      const relato = await rodar(conexao.id, null, quemClicou);
+      if (!relato) throw comCodigo('Ja ha uma importacao em andamento para este numero.', 409);
       return relato;
     } catch (erro) {
-      registrarEvento(conexao, 'erro', `Importacao do historico falhou: ${erro.message}`);
+      if (erro.codigo) throw erro;
       throw comCodigo(erro.message, 502);
     }
   });
@@ -213,6 +207,10 @@ export function registrarConexoes(rotas) {
     if (!conexao || conexao.workspaceId !== ctx.workspaceId) throw comCodigo('Conexao nao encontrada.', 404);
     const emUso = listar('contatos', { workspaceId: ctx.workspaceId }).some((c) => c.conexaoId === params.id);
     if (emUso) throw comCodigo('Ha conversas nesta conexao. Migre-as para outro numero antes de excluir.', 409);
+    cancelarSincronizacao(params.id);
+    /* A agenda e a lista de contatos do celular daquele numero: sem o numero,
+       guardar nome e telefone de centenas de pessoas nao serve a ninguem. */
+    for (const registro of listar('agenda', { conexaoId: params.id })) remover('agenda', registro.id);
     remover('conexoes', params.id);
     return { ok: true };
   });
@@ -287,6 +285,14 @@ export function registrarConexoes(rotas) {
           : `Teste falhou: ${resultado.erro}`,
       );
       emitir(ctx.workspaceId, 'conexao', { conexaoId: params.id });
+
+      /* A tela do QR Code descobre que a sessao abriu por aqui, a cada tres
+         segundos. Se o aviso de sessao aberta da Evolution nao chegar (webhook
+         mal apontado), as conversas do celular vem assim mesmo. */
+      const atual = achar('conexoes', params.id);
+      if (resultado.ok && atual?.tipo === 'qrcode' && atual.historico?.situacao !== 'concluido') {
+        agendarSincronizacao(atual);
+      }
     }
 
     return resultado;
@@ -305,6 +311,10 @@ export function registrarConexoes(rotas) {
     if (!driver.conectar) {
       throw comCodigo(`O caminho "${driver.nome}" nao abre sessao. Use Testar conexao.`, 400);
     }
+
+    /* Quem pede o QR Code e quem fica com as conversas que o celular trouxer
+       (ver whatsapp/sincronizar-historico.js). */
+    if (ctx.membro?.id) atualizar('conexoes', params.id, { conectadaPor: ctx.membro.id });
 
     const resultado = await driver.conectar({ conexao, urlWebhook: urlDoWebhook(conexao) });
 
@@ -536,6 +546,11 @@ export function registrarConexoes(rotas) {
       atualizarSituacaoExterna(conexao.workspaceId, situacao.idExterno, situacao.situacao, situacao.erro || null);
     }
 
+    /* A agenda do celular: guarda e ja renomeia as conversas que existem. */
+    if (eventos.agenda?.length && guardarNaAgenda(conexao, eventos.agenda)) {
+      emitir(conexao.workspaceId, 'contatos', {});
+    }
+
     for (const aprovacao of eventos.templates || []) {
       const template = listar('templates', { workspaceId: conexao.workspaceId }).find(
         (t) => t.metaNome === aprovacao.metaNome,
@@ -578,8 +593,17 @@ function aplicarEventoDeConexao(conexao, evento) {
     mudancas.ultimoErro = null;
   }
 
+  /* Outro celular no mesmo lugar: o historico do anterior nao conta mais. */
+  if (evento.numero && conexao.numero && evento.numero !== conexao.numero) mudancas.historico = null;
+
   if (Object.keys(mudancas).length) atualizar('conexoes', conexao.id, mudancas);
   if (evento.evento) registrarEvento(conexao, 'sessao', evento.evento);
+
+  /* Sessao aberta pela primeira vez: armar a vinda das conversas do celular. */
+  const atual = achar('conexoes', conexao.id);
+  if (evento.estado === 'conectado' && atual?.tipo === 'qrcode' && atual.historico?.situacao !== 'concluido') {
+    agendarSincronizacao(atual);
+  }
 
   const precisaAvisar = evento.estado === 'desconectado' || evento.qualidade;
   if (precisaAvisar) {

@@ -141,6 +141,21 @@ dizendo o que fazer. O último teste é o que ninguém consegue fazer de cabeça
 ele sobe um contêiner descartável que chama **o mesmo endereço que a Evolution
 vai chamar**, e assim prova o caminho de volta antes de você depender dele.
 
+**Depois de ler o QR, as conversas do celular vêm sozinhas.** O sistema traz
+tudo o que o WhatsApp sincronizar, em três rodadas — 1, 5 e 15 minutos depois
+de conectar, porque o celular manda o histórico aos poucos. Elas entram em
+**Ativos**, com quem leu o QR como responsável, e com o **nome salvo na agenda
+do celular** (sem nome salvo, o nome do perfil; sem nenhum, o número). O
+andamento aparece na aba **Geral** do número, onde há também o botão *Trazer de
+novo*. Duas consequências que valem saber:
+
+- quem já conversava com o escritório, ao escrever de novo, fala com a equipe,
+  e não com o agente — a Recepção fica para número que o escritório nunca viu;
+- nome escrito à mão no sistema nunca é trocado pela agenda.
+
+Cadastre a chave da IA **antes** de conectar o número de verdade: número novo
+que escrever cai na Recepção, e sem a chave ela responde pelo roteiro fixo.
+
 **Se a sessão abrir e nada chegar**, é o passo 2 ou o endereço de retorno — não
 o QR. Olhe a janela do sistema: desde a versão de hoje a guarda de rede escreve
 uma linha por endereço recusado, dizendo qual foi.

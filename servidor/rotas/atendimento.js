@@ -318,7 +318,14 @@ export function registrarAtendimento(rotas) {
     const autor = { tipo: 'membro', id: ctx.membro?.id, nome: ctx.usuario.nome };
     const mudancas = {};
 
-    if (corpo.nome !== undefined) mudancas.nome = corpo.nome;
+    /* Nome escrito por alguem do escritorio: a agenda do celular nao passa
+       mais por cima dele (ver whatsapp/nomes.js). */
+    if (corpo.nome !== undefined) {
+      mudancas.nome = corpo.nome;
+      /* So o nome que MUDOU: a tela que salva o formulario inteiro reenvia o
+         nome de sempre, e isso nao e alguem escolhendo um nome. */
+      if (corpo.nome !== contato.nome) mudancas.nomeOrigem = 'manual';
+    }
     if (corpo.foto !== undefined) mudancas.foto = corpo.foto;
     if (corpo.etiquetas !== undefined) mudancas.etiquetas = corpo.etiquetas;
     if (corpo.origemId !== undefined) mudancas.origemId = corpo.origemId || null;
@@ -499,6 +506,7 @@ export function registrarAtendimento(rotas) {
       conexao,
       telefone: corpo.telefone,
       nome: corpo.nome,
+      nomeOrigem: 'manual',
     });
     if (!novo) return enriquecer(contato);
     if (corpo.statusId) {
@@ -791,6 +799,7 @@ export function registrarAtendimento(rotas) {
         conexao,
         telefone,
         nome,
+        nomeOrigem: 'manual',
       });
 
       const mudancas = {};

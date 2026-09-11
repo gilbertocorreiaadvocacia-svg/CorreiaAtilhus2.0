@@ -16,6 +16,7 @@ import { testarAgentes } from './agentes.js';
 import { testarChatDeTeste } from './chat-teste.js';
 import { testarRede } from './rede.js';
 import { testarIa } from './ia.js';
+import { testarHistorico } from './historico.js';
 
 /**
  * A suite do CorreiaAtilhus2.0. Rode com `npm test`.
@@ -110,6 +111,9 @@ async function principal() {
       CORREIA_ANTHROPIC_URL: anthropic,
       /* 800ms para o teste de tempo limite caber na vida de alguem. */
       CORREIA_IA_TEMPO_LIMITE: '800',
+      /* As rodadas de importacao do celular sao de 1, 5 e 15 minutos; aqui,
+         duas rodadas em menos de um segundo. */
+      CORREIA_SINCRONIA_ESPERAS: '150,600',
       /* Uma chave de ambiente vazando da maquina de quem roda o teste faria a
          suite passar por motivo errado — ou gastar credito de verdade. */
       ANTHROPIC_API_KEY: '',
@@ -148,6 +152,9 @@ async function principal() {
     suites.push(await testarAgentes({ base }));
     suites.push(await testarChatDeTeste({ base }));
     suites.push(await testarIa(base, anthropic));
+    /* Depois de todas as outras: acrescenta conversas em Ativos, e as suites
+       de cima contam fila. */
+    suites.push(await testarHistorico({ base, evolucao, chaveEvolucao: CHAVE_EVOLUCAO }));
     /* Sobe processos proprios, em porta propria: nao encosta no servidor acima. */
     suites.push(await testarPortaOcupada({ raiz: RAIZ, portaLivre }));
   } catch (erro) {

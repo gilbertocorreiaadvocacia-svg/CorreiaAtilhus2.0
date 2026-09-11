@@ -14,6 +14,8 @@ import { membrosQuePodemVer } from '../nucleo/auth.js';
 import { notificar } from '../ia/mencoes.js';
 import { agora, normalizar, normalizarTelefone, normalizarTelefoneDoWhatsApp, novoId } from '../nucleo/util.js';
 import { agendarResposta, agentePorPalavraChave, cancelarResposta } from '../ia/motor.js';
+import { nomeNaAgenda } from './agenda.js';
+import { SEM_IDENTIFICACAO, nomeEhProvisorio, podeTrocarNome } from './nomes.js';
 import { agendarFollowupsDoStatus, cancelarFollowups, limparAgendamentosDoContato, reagendarFollowups } from '../automacao/followup.js';
 import { marcarComoLida } from './envio.js';
 import { driverDa } from './drivers/index.js';
@@ -33,7 +35,18 @@ function costurarLid(contato, lid) {
   contato.lid = lid;
 }
 
-export function acharOuCriarContato({ workspaceId, conexao, telefone, nome = '', foto = null, doWhatsApp = false, lid = null }) {
+export function acharOuCriarContato({
+  workspaceId,
+  conexao,
+  telefone,
+  nome = '',
+  foto = null,
+  doWhatsApp = false,
+  lid = null,
+  /* 'manual' quando alguem do escritorio digitou o nome (cadastro, CSV): ai
+     ele vale mais do que a agenda do celular. Do WhatsApp, e nome de perfil. */
+  nomeOrigem = null,
+}) {
   /*
    * De onde veio o numero muda como ele se normaliza.
    *
@@ -44,13 +57,18 @@ export function acharOuCriarContato({ workspaceId, conexao, telefone, nome = '',
    * nenhum na tela.
    */
   const numero = doWhatsApp ? normalizarTelefoneDoWhatsApp(telefone) : normalizarTelefone(telefone);
-  let contato = listar('contatos', { workspaceId }).find(
-    (c) => c.telefone === numero && c.conexaoId === conexao.id,
-  );
+  /* Mensagem @lid sem o telefone junto chega com o PROPRIO codigo no lugar do
+     numero. Esse "numero" nao existe, e nao pode virar telefone de ninguem. */
+  const soCodigo = Boolean(lid) && numero === String(lid).split('@')[0];
+  let contato = soCodigo
+    ? null
+    : listar('contatos', { workspaceId }).find((c) => c.telefone === numero && c.conexaoId === conexao.id);
   if (contato) {
     costurarLid(contato, lid);
     return { contato, novo: false };
   }
+
+  const daAgenda = nomeNaAgenda(conexao, { telefone: soCodigo ? '' : numero, lid });
 
   /*
    * A COSTURA: a conversa importada sem telefone reencontra o dono.
@@ -66,13 +84,24 @@ export function acharOuCriarContato({ workspaceId, conexao, telefone, nome = '',
    * uma com o historico e sem nome, outra com o nome e sem historico.
    */
   if (lid) {
-    const antiga = listar('contatos', { workspaceId }).find((c) => c.lid === lid && !c.telefone);
+    const antiga = listar('contatos', { workspaceId }).find((c) => c.lid === lid);
     if (antiga) {
-      atualizar('contatos', antiga.id, {
-        telefone: numero,
-        nome: nome || (antiga.nome === 'Conversa sem identificacao' ? numero : antiga.nome),
-      });
-      Object.assign(antiga, { telefone: numero, nome: nome || antiga.nome });
+      /* Ja identificada, ou mensagem de novo sem telefone: e a mesma pessoa,
+         e nada ha para costurar. */
+      if (antiga.telefone || soCodigo) return { contato: antiga, novo: false };
+
+      /* O nome segue a mesma regra de sempre (ver nomes.js): o da agenda
+         passa por cima do de perfil, e o perfil so preenche o que e numero. */
+      const mudancas = { telefone: numero };
+      if (daAgenda && antiga.nome !== daAgenda && podeTrocarNome(antiga, 'agenda')) {
+        Object.assign(mudancas, { nome: daAgenda, nomeOrigem: 'agenda' });
+      } else if (nome && podeTrocarNome(antiga, 'perfil')) {
+        Object.assign(mudancas, { nome, nomeOrigem: 'perfil' });
+      } else if (antiga.nome === SEM_IDENTIFICACAO) {
+        mudancas.nome = numero;
+      }
+      atualizar('contatos', antiga.id, mudancas);
+      Object.assign(antiga, mudancas);
       registrarLog(
         workspaceId,
         antiga.id,
@@ -89,7 +118,9 @@ export function acharOuCriarContato({ workspaceId, conexao, telefone, nome = '',
     conexaoId: conexao.id,
     telefone: numero,
     lid,
-    nome: nome || numero,
+    ...(nome && nomeOrigem === 'manual'
+      ? { nome, nomeOrigem: 'manual' }
+      : { nome: daAgenda || nome || numero, nomeOrigem: daAgenda ? 'agenda' : nome ? 'perfil' : null }),
     foto,
     statusId: conexao.statusPadraoId || null,
     departamentoId: conexao.departamentoPadraoId || null,
@@ -362,10 +393,19 @@ export async function receberMensagem({
    * escreve, fica. Se o escritorio preferir o contrario, o que muda e a
    * condicao desta linha.
    */
+  /* A agenda do celular vem antes do perfil, pela mesma regra de nomes.js. */
+  const nomeDaAgenda = nomeNaAgenda(conexao, { telefone: contato.telefone, lid: contato.lid });
   const nomeDoPerfil = String(nome || '').trim();
-  const semNome = !contato.nome || contato.nome === contato.telefone;
-  if (nomeDoPerfil && nomeDoPerfil !== contato.telefone && semNome) {
+  if (nomeDaAgenda && nomeDaAgenda !== contato.nome && podeTrocarNome(contato, 'agenda')) {
+    mudancas.nome = nomeDaAgenda;
+    mudancas.nomeOrigem = 'agenda';
+    registrarLog(workspaceId, contato.id, 'nome', `Nome trazido da agenda do celular: ${nomeDaAgenda}`, {
+      tipo: 'sistema',
+      nome: 'WhatsApp',
+    });
+  } else if (nomeDoPerfil && nomeDoPerfil !== contato.telefone && nomeEhProvisorio(contato)) {
     mudancas.nome = nomeDoPerfil;
+    mudancas.nomeOrigem = 'perfil';
     registrarLog(
       workspaceId,
       contato.id,

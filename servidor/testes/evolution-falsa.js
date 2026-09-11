@@ -18,6 +18,9 @@ import zlib from 'node:zlib';
  *   GET  /__escanear   simula o celular lendo o codigo (a sessao abre)
  *   GET  /__enviadas   devolve o que o driver mandou, para conferir
  *   POST /__reiniciar  volta ao estado inicial
+ *   POST /__celular    poe conversas, mensagens e contatos "no celular"
+ *   GET  /__configuracoes  o que o driver pediu ao criar a instancia e ao
+ *                          reapontar o webhook
  */
 
 const PORTA = Number(process.env.PORTA_EVOLUCAO || 8099);
@@ -25,6 +28,17 @@ const CHAVE = process.env.CHAVE_EVOLUCAO || 'chave-de-teste';
 
 let estado = 'close';
 const enviadas = [];
+const configuracoes = [];
+/* Como na Evolution de verdade: instancia que nao foi criada responde 404 no
+   connectionState. E isso que faz o driver criar em vez de reaproveitar. */
+const instancias = new Set();
+
+/**
+ * O que o celular sincronizou, no formato das rotas /chat/* da Evolution:
+ * chats { remoteJid, name? }, mensagens (registros com key/pushName/message/
+ * messageTimestamp) e contatos { remoteJid, pushName }.
+ */
+let celular = { chats: [], mensagens: [], contatos: [] };
 
 /**
  * Um PNG com cara de QR Code, desenhado aqui.
@@ -145,15 +159,40 @@ export function subirEvolucaoFalsa(porta = PORTA, chave = CHAVE) {
       return responder(200, { ok: true });
     }
     if (caminho === '/__enviadas') return responder(200, enviadas);
+    if (caminho === '/__configuracoes') return responder(200, configuracoes);
     if (caminho === '/__reiniciar') {
       estado = 'close';
       enviadas.length = 0;
+      configuracoes.length = 0;
+      instancias.clear();
+      celular = { chats: [], mensagens: [], contatos: [] };
+      return responder(200, { ok: true });
+    }
+    if (caminho === '/__celular') {
+      const carga = corpo ? JSON.parse(corpo) : {};
+      celular = { chats: carga.chats || [], mensagens: carga.mensagens || [], contatos: carga.contatos || [] };
       return responder(200, { ok: true });
     }
 
     /* O protocolo de verdade. */
     if (caminho === '/instance/create') {
-      return responder(201, { instance: { instanceName: 'teste', status: 'created' } });
+      const pedido = corpo ? JSON.parse(corpo) : {};
+      instancias.add(pedido.instanceName);
+      configuracoes.push({ rota: caminho, ...pedido });
+      return responder(201, { instance: { instanceName: pedido.instanceName, status: 'created' } });
+    }
+    if (caminho.startsWith('/webhook/set/')) {
+      configuracoes.push({ rota: caminho, ...(corpo ? JSON.parse(corpo) : {}) });
+      return responder(201, { webhook: { enabled: true } });
+    }
+    if (caminho.startsWith('/chat/findChats/')) return responder(200, celular.chats);
+    if (caminho.startsWith('/chat/findContacts/')) return responder(200, celular.contatos);
+    if (caminho.startsWith('/chat/findMessages/')) {
+      const pedido = corpo ? JSON.parse(corpo) : {};
+      const jid = pedido?.where?.key?.remoteJid;
+      const records = celular.mensagens.filter((m) => m.key?.remoteJid === jid);
+      /* O formato da v2: a lista vem dentro de messages.records. */
+      return responder(200, { messages: { total: records.length, pages: 1, currentPage: 1, records } });
     }
     if (caminho.startsWith('/instance/connect/')) {
       /* Como no servico real: devolve o codigo e a sessao fica em 'connecting'
@@ -162,7 +201,11 @@ export function subirEvolucaoFalsa(porta = PORTA, chave = CHAVE) {
       return responder(200, { base64: QR, code: '2@codigo-de-teste', pairingCode: null });
     }
     if (caminho.startsWith('/instance/connectionState/')) {
-      return responder(200, { instance: { instanceName: 'teste', state: estado } });
+      const nome = decodeURIComponent(caminho.split('/').pop());
+      if (!instancias.has(nome)) {
+        return responder(404, { status: 404, error: 'Not Found', response: { message: [`The "${nome}" instance does not exist`] } });
+      }
+      return responder(200, { instance: { instanceName: nome, state: estado } });
     }
     if (caminho.startsWith('/instance/logout/')) {
       estado = 'close';

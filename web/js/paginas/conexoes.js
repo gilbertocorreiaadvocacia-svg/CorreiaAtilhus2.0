@@ -474,6 +474,8 @@ function abaGeral(conexao, irParaLogs, aoMudar) {
         ])
       : null,
 
+    conexao.tipo === 'qrcode' ? blocoDoHistorico(conexao, aoMudar) : null,
+
     subtitulo(
       'Classes padrao',
       'Aplicadas no instante em que alguem escreve pela primeira vez para este numero.',
@@ -509,6 +511,67 @@ function abaGeral(conexao, irParaLogs, aoMudar) {
           ? 'Toda conversa nova neste numero ja nasce com este responsavel. Sem responsavel padrao, a conversa fica em Pendentes ate alguem assumir, ou ate uma palavra-chave de agente ativar sozinha.'
           : 'Sem responsavel padrao, a conversa nova fica em Pendentes ate alguem assumir. A palavra-chave de agente continua valendo, mas so na primeira mensagem da conversa.',
       }),
+    ]),
+  ]);
+}
+
+/**
+ * As conversas que vieram do celular.
+ *
+ * O servidor traz sozinho, em tres rodadas depois de conectar (ver
+ * whatsapp/sincronizar-historico.js), e grava o andamento em
+ * `conexao.historico`. Esta tela so le. Sem isto, os minutos entre ler o QR
+ * Code e as conversas aparecerem em Ativos pareceriam defeito.
+ */
+function blocoDoHistorico(conexao, aoMudar) {
+  const h = conexao.historico || null;
+  const conectada = conexao.estado === 'conectado';
+
+  let texto;
+  if (!h) {
+    texto = conectada
+      ? 'As conversas que já estavam no celular ainda não foram trazidas.'
+      : 'Ao conectar, as conversas que já estão no celular vêm para Ativos, com o nome salvo na agenda.';
+  } else if (h.situacao === 'aguardando') {
+    texto = 'O celular está mandando o histórico. As conversas chegam em Ativos nos próximos minutos.';
+  } else if (h.situacao === 'importando') {
+    texto = `Trazendo as conversas do celular${h.rodada ? ` (rodada ${h.rodada} de ${h.rodadas})` : ''}. ${h.conversas || 0} até agora.`;
+  } else if (h.situacao === 'erro') {
+    texto = `A última tentativa falhou: ${h.erro || 'erro sem descrição'}.`;
+  } else {
+    texto = `${h.conversas || 0} conversas e ${h.mensagens || 0} mensagens trazidas do celular${h.concluidoEm ? `, ${dataHora(h.concluidoEm)}` : ''}.`;
+  }
+
+  const trazer = async (botaoClicado) => {
+    botaoClicado.disabled = true;
+    try {
+      const r = await api.post(`/api/conexoes/${conexao.id}/importar-historico`, {});
+      aviso(
+        `${r.conversasImportadas} conversas novas, ${r.mensagensGravadas} mensagens, ${r.conversasRenomeadas} renomeadas.`,
+        'sucesso',
+      );
+      await aoMudar();
+    } catch (erro) {
+      aviso(erro.message, 'erro');
+      botaoClicado.disabled = false;
+    }
+  };
+
+  return el('div', {}, [
+    subtitulo(
+      'Conversas do celular',
+      'Entram em Ativos, com você como responsável, e com o nome salvo na agenda do celular. Quem já é cliente, ao escrever de novo, fala com a equipe e não com o agente.',
+    ),
+    el('div', { class: 'conexao-bloco' }, [
+      el('p', { class: 'ajuda', texto }),
+      conectada && podeConfigurar() && h?.situacao !== 'importando'
+        ? el('div', { class: 'linha-botoes' }, [
+            botao(h ? 'Trazer de novo' : 'Trazer agora', {
+              pequeno: true,
+              aoClicar: (evento) => trazer(evento.currentTarget),
+            }),
+          ])
+        : null,
     ]),
   ]);
 }
