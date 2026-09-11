@@ -1,4 +1,4 @@
-import { VOZES } from '../config.js';
+import { PROMPT, VOZES } from '../config.js';
 import { achar, atualizar, inserir, listar, remover } from '../nucleo/banco.js';
 import { novoId, slug } from '../nucleo/util.js';
 import { sintetizar, vozDisponivel } from '../ia/audio.js';
@@ -217,10 +217,22 @@ export function registrarAutomacoes(rotas) {
    */
   const CAMINHO_DE_MIDIA = /^\/midia\/[\w.-]+$/;
 
+  /** A trava de tamanho do prompt. O porque do numero esta em PROMPT, config.js. */
+  function conferirTamanhoDoPrompt(prompt) {
+    const tamanho = String(prompt ?? '').length;
+    if (tamanho > PROMPT.maximo) {
+      throw comCodigo(
+        `O prompt tem ${tamanho.toLocaleString('pt-BR')} caracteres; o limite e ${PROMPT.maximo.toLocaleString('pt-BR')}. Leve regras, leis e documentos para a Base de conhecimento: o agente consulta la so quando precisa.`,
+        400,
+      );
+    }
+  }
+
   function apenasCamposDoAgente(corpo) {
     const limpo = {};
     for (const [chave, valor] of Object.entries(corpo || {})) {
       if (!CAMPOS_DO_AGENTE.has(chave)) continue;
+      if (chave === 'prompt') conferirTamanhoDoPrompt(valor);
       if (chave === 'foto') {
         if (valor === null || valor === '') { limpo.foto = null; continue; }
         if (!CAMINHO_DE_MIDIA.test(String(valor))) {
@@ -298,6 +310,7 @@ export function registrarAutomacoes(rotas) {
 
   rotas.post('/api/agentes', async ({ ctx, corpo }) => {
     exigirConfiguracao(ctx);
+    conferirTamanhoDoPrompt(corpo?.prompt);
     return inserir('agentes', novoAgente(ctx, corpo));
   });
 
@@ -456,6 +469,7 @@ export function registrarAutomacoes(rotas) {
         '- Amarrar cada pergunta condicional a resposta anterior.',
         '- Terminar com as REGRAS: o que nunca fazer, quando transferir e o que dizer ao transferir.',
         '- Usar @ para acionar acoes reais, apenas com os itens que existem no workspace.',
+        `- Ter entre 3.000 e ${PROMPT.recomendadoAte.toLocaleString('pt-BR')} caracteres. Regra longa, lei e tabela de valores nao entram: o agente consulta a base de conhecimento.`,
         '',
         'Itens disponiveis para mencao:',
         `- Status: ${porTipo('status')}`,

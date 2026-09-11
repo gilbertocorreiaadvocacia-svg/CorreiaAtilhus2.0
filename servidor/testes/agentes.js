@@ -177,6 +177,26 @@ export async function testarAgentes({ base }) {
     await api.patch('/api/agentes-pasta', { de: 'Pasta Renomeada', para: 'Meus Agentes' });
     s.ok('renomear para uma pasta existente junta as duas', (await buscar())?.pasta === 'Meus Agentes');
 
+    /* ---------------- Tamanho do prompt ---------------- */
+
+    /* O numero vem do servidor, e a tela le o mesmo numero: a suite confere
+       os dois lados da trava, e nao um valor copiado aqui. */
+    const faixas = (await api.get('/api/sessao/eu')).dados?.prompt;
+    s.ok('a sessao entrega as faixas de tamanho do prompt', faixas?.maximo > faixas?.recomendadoAte, JSON.stringify(faixas));
+    if (faixas?.maximo) {
+      const noLimite = await api.patch(`/api/agentes/${cobaia.id}`, { prompt: 'a'.repeat(faixas.maximo) });
+      s.ok('prompt exatamente no limite e aceito', noLimite.status === 200, String(noLimite.status));
+      s.ok('e guardado inteiro, sem corte', (await buscar())?.caracteres === faixas.maximo, String((await buscar())?.caracteres));
+
+      const passou = await api.patch(`/api/agentes/${cobaia.id}`, { prompt: 'a'.repeat(faixas.maximo + 1) });
+      s.ok('um caractere acima do limite e recusado', passou.status === 400, String(passou.status));
+      s.ok('e a recusa aponta a base de conhecimento', /base de conhecimento/i.test(passou.dados?.erro || ''), passou.dados?.erro);
+      s.ok('o prompt anterior fica como estava', (await buscar())?.caracteres === faixas.maximo);
+
+      const novoGrande = await api.post('/api/agentes', { nome: 'Grande Demais', prompt: 'a'.repeat(faixas.maximo + 1) });
+      s.ok('criar agente ja passando do limite tambem e recusado', novoGrande.status === 400, String(novoGrande.status));
+    }
+
     await api.delete(`/api/agentes/${cobaia.id}`);
     const sumiu = await buscar();
     s.ok('a cobaia foi removida e a base ficou como estava', !sumiu);

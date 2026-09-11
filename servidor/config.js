@@ -141,13 +141,21 @@ export const CUSTO = {
   mencaoPersonalizada: 12,
 };
 
-/** Catalogo de modelos disponiveis para os agentes. */
+/**
+ * Catalogo de modelos disponiveis para os agentes.
+ *
+ * `precoEntrada` e o preco de tabela, em dolares, de um milhao de tokens
+ * LIDOS pelo modelo. E o que a tela de Agentes usa para dizer quanto o prompt
+ * custa a cada resposta: o prompt inteiro vai junto em toda resposta, entao
+ * ele e lido de novo a cada mensagem que o agente manda.
+ */
 export const MODELOS = [
   {
     id: 'claude-opus-5',
     nome: 'Claude Opus 5',
     provedor: 'anthropic',
     creditos: 7,
+    precoEntrada: 5,
     uso: 'Atendimentos complexos, negociacao, varias ferramentas na mesma conversa',
   },
   {
@@ -155,6 +163,7 @@ export const MODELOS = [
     nome: 'Claude Sonnet 5',
     provedor: 'anthropic',
     creditos: 4,
+    precoEntrada: 2,
     uso: 'Triagem, qualificacao e alto volume',
   },
   {
@@ -162,6 +171,7 @@ export const MODELOS = [
     nome: 'Claude Haiku 4.5',
     provedor: 'anthropic',
     creditos: 1,
+    precoEntrada: 1,
     uso: 'Categorizacao, primeira resposta e tarefas simples',
   },
   {
@@ -169,6 +179,7 @@ export const MODELOS = [
     nome: 'GPT-4.1 (OpenAI)',
     provedor: 'openai',
     creditos: 8,
+    precoEntrada: 2,
     uso: 'Alternativa caso o escritorio prefira OpenAI',
   },
   {
@@ -176,9 +187,35 @@ export const MODELOS = [
     nome: 'Roteiro por regras (sem IA)',
     provedor: 'regras',
     creditos: 0,
+    precoEntrada: 0,
     uso: 'Roda sem chave de API. Segue o roteiro do prompt em sequencia.',
   },
 ];
+
+/**
+ * O tamanho do prompt de um agente.
+ *
+ * `maximo` e a unica trava de verdade: o servidor recusa acima dele. O modelo
+ * aguentaria muito mais (o Sonnet 5 le um milhao de tokens), e e justamente
+ * por isso que a trava existe — sem ela, colar a lei inteira no prompt
+ * funcionaria, e cada resposta do agente passaria a custar dezenas de vezes
+ * mais, sem aviso. Material longo tem lugar proprio: a base de conhecimento,
+ * que o agente consulta so quando a pergunta pede.
+ *
+ * As faixas sao as da auditoria da LiderHub, que a tela ja usava: abaixo de
+ * `minimo` o agente improvisa; ate `recomendadoAte` e o ponto bom; ate
+ * `longoAte` funciona, mas custa mais e comeca a misturar regras.
+ *
+ * `caracteresPorToken` e uma estimativa para portugues com o tokenizador dos
+ * modelos atuais — conservadora, para a conta de custo errar para cima.
+ */
+export const PROMPT = {
+  minimo: 1500,
+  recomendadoAte: 7400,
+  longoAte: 12000,
+  maximo: 20000,
+  caracteresPorToken: 3,
+};
 
 /** Tipos de status usados pelo Dashboard, o funil padrao. */
 /*

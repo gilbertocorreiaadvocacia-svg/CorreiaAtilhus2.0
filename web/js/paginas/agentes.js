@@ -1,5 +1,5 @@
 import { api, enviarArquivo } from '../api.js';
-import { dica, previaDaMidia } from '../componentes.js';
+import { previaDaMidia } from '../componentes.js';
 import { estado, podeConfigurar, recarregar } from '../estado.js';
 import {
   areaTexto,
@@ -10,6 +10,8 @@ import {
   confirmar,
   el,
   entradaTexto,
+  icone,
+  interruptor,
   limpar,
   modal,
   plural,
@@ -19,182 +21,292 @@ import {
 } from '../ui.js';
 
 /**
- * Agentes de IA em tres colunas: a lista, o prompt e o painel de configuracao.
+ * Agentes de IA: a lista a esquerda, o agente aberto a direita, em quatro abas.
  *
- * O prompt fica grande e sempre visivel porque e nele que o trabalho acontece -
- * um roteiro bom tem entre 4 e 7 mil caracteres, e isso nao se edita dentro de
- * uma janelinha. A direita ficam os nove campos que definem o comportamento do
- * agente, com as mencoes reconhecidas logo abaixo do texto.
+ * A tela antiga tinha tres colunas — lista, prompt e onze blocos de
+ * configuracao empilhados sem ordem. Dois defeitos saiam desse desenho: abaixo
+ * de 1230px a terceira coluna sumia inteira, levando TODA a configuracao junto;
+ * e qualquer ajuste na coluna da direita redesenhava a tela e apagava o que
+ * estava sendo escrito no prompt e ainda nao tinha sido salvo.
+ *
+ * Agora a configuracao e agrupada pela pergunta que ela responde:
+ *
+ *   Instrucoes    o que o agente faz (o prompt)
+ *   Atendimento   quando ele entra na conversa, e quanto espera para responder
+ *   Inteligencia  com que modelo pensa, e o que consulta
+ *   Perfil        como a equipe o reconhece
+ *
+ * O texto do prompt vive num rascunho por agente, fora do desenho: trocar de
+ * aba, mudar o modelo ou ligar o agente redesenha a tela e o rascunho continua.
  */
+
 /**
- * A pasta padrao.
- *
- * Tem que ser a MESMA string do servidor (PASTA_PADRAO em
- * servidor/rotas/automacoes.js): agente sem pasta e agente na pasta "Meus
- * Agentes" precisam cair no mesmo grupo, senao a tela mostra duas pastas onde
- * o escritorio ve uma so.
+ * A pasta padrao. Tem que ser a MESMA string do servidor (PASTA_PADRAO em
+ * servidor/rotas/automacoes.js), senao a tela mostra duas pastas onde o
+ * escritorio ve uma so.
  */
 const PASTA_PADRAO = 'Meus Agentes';
 
-export async function paginaAgentes({ parametros }) {
-  // As tres colunas desta tela sao mais estreitas na lista e mais largas na
-  // configuracao que as do atendimento. A medida mora no tema, em
-  // .atendimento.colunas-agentes, e nao numa atribuicao a cada desenho.
-  const container = el('div', { class: 'atendimento colunas-agentes' });
+/* O valor sentinela do <select> de pasta. Nunca um caractere de controle: um
+   NUL gravado neste arquivo ja fez o ripgrep trata-lo como binario e pula-lo
+   em toda busca. */
+const NOVA_PASTA = '::nova-pasta::';
+
+const ABAS = [
+  { id: 'instrucoes', rotulo: 'Instruções', icone: 'contrato' },
+  { id: 'atendimento', rotulo: 'Atendimento', icone: 'conversas' },
+  { id: 'inteligencia', rotulo: 'Inteligência', icone: 'raio' },
+  { id: 'perfil', rotulo: 'Perfil', icone: 'pessoa' },
+];
+
+/* Os grupos do menu de mencoes, na ordem em que se usa mais. */
+const GRUPOS_DE_MENCAO = [
+  ['sistema', 'Ações do sistema'],
+  ['status', 'Status'],
+  ['tag', 'Etiquetas'],
+  ['variavel', 'Dados do cliente'],
+  ['departamento', 'Departamentos'],
+  ['agente', 'Agentes'],
+  ['membro', 'Pessoas da equipe'],
+  ['origem', 'Origens'],
+  ['template', 'Templates'],
+  ['personalizado', 'Ferramentas próprias'],
+];
+
+/* As faixas vem do servidor (PROMPT em config.js). Estas so valem se a sessao
+   for de uma versao antiga, sem o campo. */
+const FAIXAS_DE_RESERVA = { minimo: 1500, recomendadoAte: 7400, longoAte: 12000, maximo: 20000, caracteresPorToken: 3 };
+
+const CHAVE_PASTAS_FECHADAS = 'correia.agentes.pastasFechadas';
+
+function lerPastasFechadas() {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(CHAVE_PASTAS_FECHADAS) || '[]'));
+  } catch {
+    return new Set();
+  }
+}
+
+function gravarPastasFechadas(conjunto) {
+  try {
+    localStorage.setItem(CHAVE_PASTAS_FECHADAS, JSON.stringify([...conjunto]));
+  } catch {
+    /* navegador sem armazenamento: a pasta so nao fica lembrada */
+  }
+}
+
+const numeroBr = (n) => Number(n || 0).toLocaleString('pt-BR');
+const dolar = (v) =>
+  `US$ ${Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+/**
+ * O que o tamanho do prompt quer dizer, em numeros que a pessoa usa para
+ * decidir: quantos tokens o modelo le, e quanto isso custa a cada mil
+ * respostas — o prompt inteiro vai junto em TODA resposta do agente.
+ */
+function medir(tamanho, modeloId) {
+  const faixas = estado.sessao?.prompt || FAIXAS_DE_RESERVA;
+  const modelo = (estado.sessao?.modelos || []).find((m) => m.id === modeloId);
+  const tokens = Math.ceil(tamanho / (faixas.caracteresPorToken || 3));
+  const porMil = ((tokens * (modelo?.precoEntrada || 0)) / 1_000_000) * 1000;
+
+  let faixa;
+  if (tamanho < faixas.minimo) faixa = { texto: 'Curto demais: o agente improvisa', tipo: 'alerta' };
+  else if (tamanho <= faixas.recomendadoAte) faixa = { texto: 'Na faixa recomendada', tipo: 'sucesso' };
+  else if (tamanho <= faixas.longoAte) faixa = { texto: 'Longo: custa mais e mistura regras', tipo: 'alerta' };
+  else faixa = { texto: 'Muito longo: leve o excesso para a base', tipo: 'erro' };
+
+  return { faixas, tokens, porMil, faixa, cobra: Boolean(modelo?.precoEntrada) };
+}
+
+/** Como as conversas chegam a este agente, numa linha. */
+function gatilhoDe(agente) {
+  if (!agente.ativo) return { texto: 'Desligado', tipo: 'fraco' };
+  if (agente.primarioEm?.length) return { texto: `Atende sozinho: ${agente.primarioEm.map((c) => c.nome).join(', ')}`, tipo: '' };
+  if (agente.palavrasChave?.length) return { texto: `Palavra-chave: ${agente.palavrasChave.slice(0, 3).join(', ')}`, tipo: '' };
+  if (agente.referenciadoPor?.length) return { texto: `Recebe de ${agente.referenciadoPor.map((r) => r.nome).join(', ')}`, tipo: '' };
+  return { texto: 'Nenhuma conversa chega a ele', tipo: 'alerta' };
+}
+
+export async function paginaAgentes({ parametros, definirAcoes }) {
+  const container = el('div', { class: 'agentes' });
   let selecionadoId = parametros[0] || null;
+  let aba = ABAS.some((a) => a.id === parametros[1]) ? parametros[1] : 'instrucoes';
+  let busca = '';
+  let agentes = [];
   let vozes = { vozes: [], base: [], disponivel: false };
-  let sujo = false;
-
-  /**
-   * Catalogo de mencoes, buscado uma vez por carga da tela.
-   *
-   * Antes ele era pedido de novo a cada pausa na digitacao do prompt, dentro do
-   * debounce, e sem try. Numa sessao expirada no meio de um prompt longo a
-   * rejeicao caia no unhandledrejection do app.js, que troca o aplicativo
-   * inteiro pela tela de login e leva junto o texto nao salvo.
-   */
   let catalogoDeMencoes = [];
+  const pastasFechadas = lerPastasFechadas();
 
-  async function desenhar() {
-    const [agentes, listaVozes] = await Promise.all([recarregar('agentes'), api.get('/api/vozes')]);
+  /* id -> { nome, prompt } do que foi escrito e ainda nao salvo. */
+  const rascunhos = new Map();
+  const temRascunho = (id) => {
+    const r = rascunhos.get(id);
+    const agente = agentes.find((a) => a.id === id);
+    return Boolean(r && agente && (r.nome !== agente.nome || r.prompt !== (agente.prompt || '')));
+  };
+
+  definirAcoes?.(
+    podeConfigurar() ? botao('Criar com IA', { icone: 'raio', aoClicar: () => abrirGeracao(recarregarTudo) }) : null,
+    podeConfigurar() ? botao('Novo agente', { tipo: 'principal', icone: 'mais', aoClicar: criarVazio }) : null,
+  );
+
+  const lista = el('aside', { class: 'agentes-lista', 'aria-label': 'Agentes' });
+  const area = el('section', { class: 'agentes-area' });
+  container.append(lista, area);
+
+  async function recarregarTudo() {
+    const [lidos, listaVozes] = await Promise.all([recarregar('agentes'), api.get('/api/vozes').catch(() => vozes)]);
+    agentes = lidos;
     vozes = listaVozes;
-
     try {
       catalogoDeMencoes = await api.get('/api/mencoes');
     } catch {
-      // Sem catalogo os chips ficam como estao. Nao vale derrubar a tela por
-      // causa da lista de sugestoes.
-      catalogoDeMencoes = [];
+      /* sem catalogo o menu de mencoes fica vazio; a tela segue */
     }
-
     if (!agentes.some((a) => a.id === selecionadoId)) selecionadoId = agentes[0]?.id || null;
-    const agente = agentes.find((a) => a.id === selecionadoId) || null;
-
-    limpar(container);
-    container.append(colunaLista(agentes), colunaPrompt(agente), colunaConfiguracao(agente, agentes));
+    desenharLista();
+    desenharArea();
   }
 
-  /* ---------------- Coluna 1: lista ---------------- */
+  function irPara(id, novaAba = aba) {
+    selecionadoId = id;
+    aba = novaAba;
+    history.replaceState(null, '', `#/agentes/${id}${aba !== 'instrucoes' ? `/${aba}` : ''}`);
+    desenharLista();
+    desenharArea();
+  }
 
-  function colunaLista(agentes) {
-    const corpo = el('div', { class: 'coluna-corpo' });
+  /* ================= Lista ================= */
 
-    const pastas = new Map();
-    for (const agente of agentes) {
-      const pasta = agente.pasta || PASTA_PADRAO;
-      if (!pastas.has(pasta)) pastas.set(pasta, []);
-      pastas.get(pasta).push(agente);
-    }
+  function desenharLista() {
+    limpar(lista);
 
-    /*
-     * A padrao primeiro, o resto em ordem alfabetica.
-     *
-     * Antes a ordem era a de criacao dos agentes, que ninguem escolheu e
-     * ninguem lembra. Isso passou a incomodar quando a pasta virou editavel:
-     * mover um agente para uma pasta nova fazia essa pasta aparecer no meio da
-     * coluna, na altura em que aquele agente por acaso estava, e parecia que a
-     * lista tinha se embaralhado sozinha.
-     */
-    const nomesDePasta = [...pastas.keys()].sort((a, b) => {
-      if (a === PASTA_PADRAO) return -1;
-      if (b === PASTA_PADRAO) return 1;
-      return a.localeCompare(b, 'pt-BR');
+    const campoBusca = entradaTexto(busca, {
+      type: 'search',
+      placeholder: 'Buscar agente',
+      'aria-label': 'Buscar agente',
+      class: 'agentes-busca-campo',
+    });
+    campoBusca.addEventListener('input', () => {
+      busca = campoBusca.value;
+      desenharItens();
     });
 
-    for (const pasta of nomesDePasta) {
-      corpo.append(cabecalhoDePasta(pasta, pastas.get(pasta).length));
-      for (const agente of pastas.get(pasta)) {
-        // Botao, e nao div com aoClick: a lista de agentes e a navegacao desta
-        // tela, e o clique ainda e o unico caminho para a pergunta de prompt
-        // nao salvo. No teclado, o div nem chegava ao foco.
-        const ativo = agente.id === selecionadoId;
-        corpo.append(
-          el('button', {
-            type: 'button',
-            class: `item-conversa ${ativo ? 'ativo' : ''}`.trim(),
-            'aria-current': ativo ? 'true' : null,
-            aoClick: async () => {
-              if (sujo && !window.confirm('Ha alteracoes nao salvas no prompt. Descartar?')) return;
-              sujo = false;
-              selecionadoId = agente.id;
-              history.replaceState(null, '', `#/agentes/${agente.id}`);
-              await desenhar();
-            },
-          }, [
-            /*
-             * A foto do agente, ou as iniciais dele.
-             *
-             * E o mesmo avatar() do resto do sistema, entao o que a equipe ve
-             * aqui e exatamente o que aparece na conversa. Sem marca de canto:
-             * nesta coluna TODO item e um agente de IA, e um selinho "IA" em
-             * cada linha marcaria o que nao distingue nada.
-             */
-            avatar(agente, 32),
-            el('div', { class: 'dados' }, [
-              el('div', { class: 'topo-item' }, [
-                el('div', { class: 'nome', texto: agente.nome }),
-                agente.ativo ? null : el('span', { class: 'selo erro', texto: 'off' }),
-              ]),
-              el('div', { class: 'previa', texto: `${plural(agente.caracteres, 'caractere', 'caracteres')} · ${plural(agente.mencoes.length, 'mencao', 'mencoes')}` }),
-              // Tres selos e o teto da linha, o mesmo do Atendimento: no quarto a
-              // faixa quebra em duas linhas. Com o agente desligado, o "off" la em
-              // cima ja e o quarto, entao sai o de palavra-chave, que e o menos
-              // urgente dos tres: agente off nao captura por palavra-chave mesmo.
-              el('div', { class: 'marcas' }, [
-                agente.primarioEm.length ? selo('primario', 'ouro') : null,
-                agente.ativo && agente.palavrasChave?.length
-                  ? selo(plural(agente.palavrasChave.length, 'palavra-chave', 'palavras-chave'), '')
-                  : null,
-                agente.mencoesInvalidas.length
-                  ? selo(plural(agente.mencoesInvalidas.length, 'invalida', 'invalidas'), 'erro')
-                  : null,
-              ]),
+    const ligados = agentes.filter((a) => a.ativo).length;
+    lista.append(
+      el('div', { class: 'agentes-lista-topo' }, [
+        el('label', { class: 'agentes-busca' }, [icone('lupa', 14), campoBusca]),
+        el('div', {
+          class: 'agentes-lista-resumo',
+          texto: `${plural(agentes.length, 'agente', 'agentes')} · ${plural(ligados, 'ligado', 'ligados')}`,
+        }),
+      ]),
+    );
+
+    const itens = el('div', { class: 'agentes-itens' });
+    lista.append(itens);
+
+    function desenharItens() {
+      limpar(itens);
+      const termo = busca.trim().toLowerCase();
+      const visiveis = agentes.filter((a) => !termo || a.nome.toLowerCase().includes(termo));
+
+      if (!agentes.length) {
+        itens.append(vazio('Nenhum agente', 'Crie o primeiro no botão Novo agente, lá em cima.', null, 'agentes'));
+        return;
+      }
+      if (!visiveis.length) {
+        itens.append(el('p', { class: 'agentes-nada', texto: `Nenhum agente com "${busca.trim()}".` }));
+        return;
+      }
+
+      const pastas = new Map();
+      for (const agente of visiveis) {
+        const pasta = agente.pasta || PASTA_PADRAO;
+        if (!pastas.has(pasta)) pastas.set(pasta, []);
+        pastas.get(pasta).push(agente);
+      }
+      /* A padrao primeiro, o resto em ordem alfabetica: a ordem de criacao
+         ninguem escolheu e ninguem lembra. */
+      const nomes = [...pastas.keys()].sort((a, b) => {
+        if (a === PASTA_PADRAO) return -1;
+        if (b === PASTA_PADRAO) return 1;
+        return a.localeCompare(b, 'pt-BR');
+      });
+
+      for (const pasta of nomes) {
+        /* Buscando, toda pasta abre: esconder o resultado dentro de uma pasta
+           fechada e o mesmo que nao ter achado. */
+        const fechada = !termo && pastasFechadas.has(pasta);
+        const grupo = el('div', { class: `agentes-pasta ${fechada ? 'fechada' : ''}`.trim() });
+        grupo.append(
+          el('div', { class: 'agentes-pasta-cabecalho' }, [
+            el('button', {
+              type: 'button',
+              class: 'agentes-pasta-alternar',
+              'aria-expanded': fechada ? 'false' : 'true',
+              aoClick: () => {
+                if (pastasFechadas.has(pasta)) pastasFechadas.delete(pasta);
+                else pastasFechadas.add(pasta);
+                gravarPastasFechadas(pastasFechadas);
+                desenharItens();
+              },
+            }, [
+              icone('voltar', 12),
+              el('span', { class: 'agentes-pasta-nome', texto: pasta }),
+              el('span', { class: 'agentes-pasta-conta', texto: String(pastas.get(pasta).length) }),
             ]),
+            podeConfigurar()
+              ? el('button', {
+                  type: 'button',
+                  class: 'pasta-renomear',
+                  texto: 'renomear',
+                  title: `Renomear a pasta ${pasta}`,
+                  'aria-label': `Renomear a pasta ${pasta}`,
+                  aoClick: () => renomearPasta(pasta, pastas.get(pasta).length),
+                })
+              : null,
           ]),
         );
+        if (!fechada) for (const agente of pastas.get(pasta)) grupo.append(itemDaLista(agente));
+        itens.append(grupo);
       }
     }
 
-    if (!agentes.length) corpo.append(vazio('Nenhum agente', 'Crie o primeiro para o WhatsApp atender sozinho.'));
-
-    return el('div', { class: 'coluna' }, [
-      el('div', { class: 'coluna-cabecalho' }, [
-        el('div', { class: 'linha-botoes' }, [
-          podeConfigurar() ? botao('Novo', { pequeno: true, icone: 'mais', aoClicar: criarVazio }) : null,
-          podeConfigurar() ? botao('Com IA', { pequeno: true, icone: 'raio', aoClicar: () => abrirGeracao(desenhar) }) : null,
-          botao('Base', { pequeno: true, icone: 'pasta', titulo: 'Abrir a base de conhecimento', aoClicar: () => (location.hash = '#/conhecimento') }),
-        ]),
-      ]),
-      corpo,
-    ]);
+    desenharItens();
   }
 
-  /**
-   * O cabecalho de uma pasta, com o renomear escondido ate a pessoa chegar
-   * perto.
-   *
-   * Botao sempre visivel em cada pasta seria uma coluna de lapis competindo
-   * com os agentes, que sao o assunto da tela. So no hover deixaria o recurso
-   * invisivel para quem anda de Tab, por isso o :focus-within tambem revela —
-   * a regra esta em .pasta-renomear, em web/css/tema.css.
-   *
-   * Nao ha botao de apagar pasta porque nao ha pasta para apagar: ela e um
-   * texto no registro do agente e existe enquanto alguem apontar para ela.
-   * Esvaziar a pasta e o jeito de apaga-la, e isso se faz movendo os agentes.
-   */
-  function cabecalhoDePasta(pasta, quantos) {
-    return el('div', { class: 'menu-grupo menu-grupo-pasta' }, [
-      el('span', { class: 'flexivel', texto: pasta }),
-      podeConfigurar()
-        ? el('button', {
-            type: 'button',
-            class: 'pasta-renomear',
-            texto: 'renomear',
-            title: `Renomear a pasta ${pasta}`,
-            'aria-label': `Renomear a pasta ${pasta}`,
-            aoClick: () => renomearPasta(pasta, quantos),
-          })
-        : null,
+  function itemDaLista(agente) {
+    const ativo = agente.id === selecionadoId;
+    const gatilho = gatilhoDe(agente);
+    const invalidas = agente.mencoesInvalidas?.length || 0;
+
+    return el('button', {
+      type: 'button',
+      class: `agente-item ${ativo ? 'ativo' : ''} ${agente.ativo ? '' : 'desligado'}`.replace(/\s+/g, ' ').trim(),
+      'aria-current': ativo ? 'true' : null,
+      aoClick: () => {
+        if (agente.id === selecionadoId) return;
+        if (temRascunho(selecionadoId) && !window.confirm('Há alterações não salvas nas instruções. Sair mesmo assim?')) return;
+        rascunhos.delete(selecionadoId);
+        irPara(agente.id);
+      },
+    }, [
+      el('span', { class: 'agente-item-rosto' }, [
+        avatar(agente, 36),
+        el('span', { class: `agente-ponto ${agente.ativo ? 'ligado' : ''}`.trim(), title: agente.ativo ? 'Ligado' : 'Desligado' }),
+      ]),
+      el('span', { class: 'agente-item-dados' }, [
+        el('span', { class: 'agente-item-nome' }, [
+          el('span', { class: 'agente-item-nome-texto', texto: agente.nome }),
+          temRascunho(agente.id) ? el('span', { class: 'agente-item-rascunho', title: 'Alterações não salvas', texto: '•' }) : null,
+        ]),
+        el('span', { class: `agente-item-sub ${gatilho.tipo}`.trim(), texto: gatilho.texto }),
+        invalidas
+          ? el('span', { class: 'agente-item-alerta' }, [icone('alerta', 12), plural(invalidas, 'menção inválida', 'menções inválidas')])
+          : null,
+      ]),
     ]);
   }
 
@@ -206,7 +318,7 @@ export async function paginaAgentes({ parametros }) {
         campo('Nome', nome),
         el('p', {
           class: 'dica sem-margem',
-          texto: `${plural(quantos, 'agente', 'agentes')} ${quantos === 1 ? 'muda' : 'mudam'} de pasta. Se voce usar o nome de uma pasta que ja existe, as duas viram uma so.`,
+          texto: `${plural(quantos, 'agente', 'agentes')} ${quantos === 1 ? 'muda' : 'mudam'} de pasta. Com o nome de uma pasta que já existe, as duas viram uma só.`,
         }),
       ]),
       confirmar: 'Renomear',
@@ -216,462 +328,654 @@ export async function paginaAgentes({ parametros }) {
         if (novo === pasta) return;
         const resposta = await api.patch('/api/agentes-pasta', { de: pasta, para: novo });
         aviso(`${plural(resposta.movidos, 'agente movido', 'agentes movidos')}.`, 'sucesso');
-        await desenhar();
+        await recarregarTudo();
       },
     });
   }
 
   async function criarVazio() {
+    if (temRascunho(selecionadoId) && !window.confirm('Há alterações não salvas nas instruções. Sair mesmo assim?')) return;
+    rascunhos.delete(selecionadoId);
     const criado = await api.post('/api/agentes', {
       nome: 'Novo agente',
       prompt: [
-        'Voce e a assistente virtual do escritorio Correia Advogados Associados. Fala em portugues do Brasil, com educacao e objetividade, frases curtas.',
+        'QUEM VOCÊ É',
+        'Você é a assistente virtual do escritório Correia Advogados Associados. Fala em português do Brasil, com educação e objetividade, em frases curtas.',
         '',
-        'ROTEIRO OBRIGATORIO (siga na ordem, uma pergunta por vez):',
+        'ROTEIRO (uma pergunta por vez, na ordem):',
         '1. Cumprimente pelo nome e pergunte "…"',
         '2. …',
         '',
-        'REGRAS:',
+        'REGRAS',
         '- Nunca prometa resultado, valor ou prazo.',
-        '- Se o lead pedir atendimento humano, transfira com @responsavel.',
+        '- Se a pessoa pedir atendimento humano, transfira com @responsavel.',
       ].join('\n'),
     });
     selecionadoId = criado.id;
-    await desenhar();
+    aba = 'instrucoes';
+    await recarregarTudo();
   }
 
-  /* ---------------- Coluna 2: prompt ---------------- */
+  /* ================= Area do agente ================= */
 
-  function colunaPrompt(agente) {
+  function desenharArea() {
+    limpar(area);
+    const agente = agentes.find((a) => a.id === selecionadoId) || null;
     if (!agente) {
-      return el('div', { class: 'conversa' }, [vazio('Escolha um agente', 'Ou crie um novo pela coluna da esquerda.')]);
+      area.append(el('div', { class: 'agentes-vazio' }, [vazio('Escolha um agente', 'Ou crie um novo no botão Novo agente.', null, 'agentes')]));
+      return;
     }
 
-    const nome = entradaTexto(agente.nome, { class: 't-lg peso-600' });
-    const prompt = areaTexto(agente.prompt || '', { class: 'prompt' });
+    if (!rascunhos.has(agente.id)) rascunhos.set(agente.id, { nome: agente.nome, prompt: agente.prompt || '' });
+    const rascunho = rascunhos.get(agente.id);
 
-    const contador = el('span', { class: 'selo', texto: plural((agente.prompt || '').length, 'caractere', 'caracteres') });
-    const faixa = el('span', { class: 'selo' });
-    const chips = el('div', { class: 'faixa-chips' });
+    /* Configuracao salva na hora e redesenha; o rascunho do prompt sobrevive
+       porque mora em `rascunhos`, e nao no campo. */
+    const salvarConfig = async (mudancas, mensagem) => {
+      try {
+        await api.patch(`/api/agentes/${agente.id}`, mudancas);
+        if (mensagem) aviso(mensagem, 'sucesso');
+        await recarregarTudo();
+      } catch (erro) {
+        aviso(erro.message, 'erro');
+      }
+    };
 
-    function avaliarFaixa(tamanho) {
-      if (tamanho < 1500) return ['curto demais (tende a alucinar)', 'alerta'];
-      if (tamanho <= 7400) return ['faixa recomendada', 'sucesso'];
-      if (tamanho <= 12000) return ['longo (custa mais por mensagem)', 'alerta'];
-      return ['muito longo (o agente perde o fio)', 'erro'];
+    const botaoSalvar = botao('Salvar', { tipo: 'principal', titulo: 'Salvar nome e instruções (Ctrl+S)' });
+    const estadoSalvo = el('span', { class: 'agentes-salvo', 'aria-live': 'polite' });
+    const atualizarSalvo = () => {
+      const sujo = temRascunho(agente.id);
+      botaoSalvar.disabled = !sujo;
+      estadoSalvo.textContent = sujo ? 'Alterações não salvas' : 'Tudo salvo';
+      estadoSalvo.classList.toggle('pendente', sujo);
+    };
+
+    const salvarTexto = async () => {
+      if (!temRascunho(agente.id)) return;
+      const nome = rascunho.nome.trim();
+      if (!nome) {
+        aviso('Dê um nome ao agente antes de salvar.', 'erro');
+        return;
+      }
+      try {
+        await api.patch(`/api/agentes/${agente.id}`, { nome, prompt: rascunho.prompt });
+        rascunhos.delete(agente.id);
+        aviso('Agente salvo.', 'sucesso');
+        await recarregarTudo();
+      } catch (erro) {
+        aviso(erro.message, 'erro');
+      }
+    };
+    botaoSalvar.addEventListener('click', salvarTexto);
+
+    const nome = entradaTexto(rascunho.nome, { class: 'agentes-nome', 'aria-label': 'Nome do agente', maxlength: '80' });
+    nome.addEventListener('input', () => {
+      rascunho.nome = nome.value;
+      atualizarSalvo();
+    });
+
+    const modelo = (estado.sessao?.modelos || []).find((m) => m.id === agente.modelo);
+
+    const testar = botao('Testar no chat', {
+      icone: 'simulador',
+      titulo: agente.ativo ? 'Abre o Chat de teste já conversando com este agente' : 'Ligue o agente para testar',
+      desabilitado: !agente.ativo,
+      aoClicar: () => {
+        try {
+          localStorage.setItem('correiatendimentos:chat-teste-agente', agente.id);
+        } catch {
+          /* sem armazenamento, o chat abre no automatico */
+        }
+        location.hash = '#/simulador';
+      },
+    });
+
+    const cabecalho = el('header', { class: 'agentes-cabecalho' }, [
+      avatar(agente, 44),
+      el('div', { class: 'agentes-identidade' }, [
+        nome,
+        el('div', { class: 'agentes-identidade-sub' }, [
+          el('span', { class: `agente-ponto ${agente.ativo ? 'ligado' : ''}`.trim() }),
+          el('span', { texto: agente.ativo ? 'Ligado' : 'Desligado' }),
+          el('span', { class: 'agentes-sep', texto: '·' }),
+          el('span', { texto: modelo?.nome || 'Sem modelo' }),
+          agente.modeloDisponivel ? null : selo('sem chave: roteiro fixo', 'alerta'),
+        ]),
+      ]),
+      el('div', { class: 'agentes-cabecalho-acoes' }, [estadoSalvo, testar, botaoSalvar]),
+    ]);
+
+    const abas = el('div', { class: 'agentes-abas', role: 'tablist' });
+    for (const item of ABAS) {
+      const atual = item.id === aba;
+      abas.append(
+        el('button', {
+          type: 'button',
+          role: 'tab',
+          'aria-selected': atual ? 'true' : 'false',
+          class: `agentes-aba ${atual ? 'ativo' : ''}`.trim(),
+          aoClick: () => irPara(agente.id, item.id),
+        }, [icone(item.icone, 16), item.rotulo]),
+      );
     }
 
-    let temporizador = null;
-    function analisar() {
-      const tamanho = prompt.value.length;
-      contador.textContent = plural(tamanho, 'caractere', 'caracteres');
-      const [texto, tipo] = avaliarFaixa(tamanho);
-      faixa.textContent = texto;
-      faixa.className = `selo ${tipo}`;
+    const conteudo =
+      aba === 'atendimento'
+        ? abaAtendimento(agente, salvarConfig)
+        : aba === 'inteligencia'
+          ? abaInteligencia(agente, salvarConfig)
+          : aba === 'perfil'
+            ? abaPerfil(agente, salvarConfig)
+            : abaInstrucoes(agente, rascunho, atualizarSalvo, salvarTexto);
 
-      const alvo = prompt.value.toLowerCase();
+    area.append(cabecalho, abas, el('div', { class: 'agentes-painel', role: 'tabpanel' }, [conteudo]));
+    atualizarSalvo();
+
+    /* Ctrl+S salva de qualquer aba: e o texto do prompt que se protege. */
+    area.onkeydown = (evento) => {
+      if ((evento.ctrlKey || evento.metaKey) && evento.key.toLowerCase() === 's') {
+        evento.preventDefault();
+        salvarTexto();
+      }
+    };
+  }
+
+  /* ---------------- Instrucoes ---------------- */
+
+  function abaInstrucoes(agente, rascunho, atualizarSalvo, salvarTexto) {
+    const faixas = estado.sessao?.prompt || FAIXAS_DE_RESERVA;
+    const texto = areaTexto(rascunho.prompt, {
+      class: 'agentes-prompt',
+      maxlength: String(faixas.maximo),
+      spellcheck: 'true',
+      'aria-label': `Instruções de ${agente.nome}`,
+    });
+
+    const numeros = el('div', { class: 'agentes-medidor-numeros' });
+    const regua = el('div', { class: 'agentes-regua', 'aria-hidden': 'true' });
+    const marca = el('span', { class: 'agentes-regua-marca' });
+    const chips = el('div', { class: 'agentes-mencoes' });
+
+    /* A regua mostra as quatro faixas na proporcao real do limite. */
+    const zonas = [
+      [0, faixas.minimo, 'curto'],
+      [faixas.minimo, faixas.recomendadoAte, 'bom'],
+      [faixas.recomendadoAte, faixas.longoAte, 'longo'],
+      [faixas.longoAte, faixas.maximo, 'demais'],
+    ];
+    for (const [de, ate, classe] of zonas) {
+      regua.append(el('span', { class: `agentes-regua-zona ${classe}`, estilo: { flexGrow: String(ate - de) } }));
+    }
+    regua.append(marca);
+
+    function medirAgora() {
+      const tamanho = texto.value.length;
+      const m = medir(tamanho, agente.modelo);
+      limpar(numeros);
+      numeros.append(
+        el('span', { class: 'agentes-medidor-principal' }, [
+          el('strong', { texto: numeroBr(tamanho) }),
+          ` de ${numeroBr(faixas.maximo)} caracteres`,
+        ]),
+        el('span', { class: 'agentes-sep', texto: '·' }),
+        el('span', { texto: `≈ ${numeroBr(m.tokens)} tokens` }),
+        m.cobra ? el('span', { class: 'agentes-sep', texto: '·' }) : null,
+        m.cobra
+          ? el('span', {
+              title: 'Custo só da leitura das instruções. O prompt inteiro vai junto em cada resposta do agente.',
+              texto: `≈ ${dolar(m.porMil)} a cada mil respostas`,
+            })
+          : null,
+        selo(m.faixa.texto, m.faixa.tipo),
+      );
+      marca.style.left = `${Math.min(100, (tamanho / faixas.maximo) * 100)}%`;
+      desenharMencoes();
+    }
+
+    function desenharMencoes() {
       limpar(chips);
+      const alvo = texto.value.toLowerCase();
       const usadas = catalogoDeMencoes.filter((item) => alvo.includes(`@${String(item.rotulo).toLowerCase()}`));
+      const invalidas = (agente.mencoesInvalidas || []).filter((m) => alvo.includes(`@${m.toLowerCase()}`));
+
+      if (!usadas.length && !invalidas.length) {
+        chips.append(el('span', { class: 'agentes-apoio', texto: 'Nenhuma menção. Use Inserir menção para o agente mudar status, etiquetar ou transferir.' }));
+        return;
+      }
       for (const item of usadas) {
         chips.append(el('span', { class: 'mencao-chip', texto: `@${item.rotulo}`, title: item.descricao || item.tipo }));
       }
-      for (const invalida of agente.mencoesInvalidas) {
-        if (alvo.includes(`@${invalida.toLowerCase()}`)) {
-          chips.append(el('span', { class: 'mencao-chip invalida', texto: `@${invalida}`, title: 'Não existe no workspace' }));
-        }
+      for (const m of invalidas) {
+        chips.append(el('span', { class: 'mencao-chip invalida', texto: `@${m}`, title: 'Não existe mais neste escritório' }));
       }
-      if (!chips.children.length) {
-        chips.append(el('span', { class: 't-xs c-fraco', texto: 'Nenhuma menção no prompt.' }));
+      if (invalidas.length) {
+        chips.append(
+          el('div', { class: 'agentes-invalidas' }, [
+            icone('alerta', 14),
+            el('span', {
+              texto: `${plural(invalidas.length, 'menção aponta', 'menções apontam')} para algo que não existe mais (template, status ou etiqueta apagados). O agente não consegue executar essa parte.`,
+            }),
+            botao('Tirar do texto', {
+              pequeno: true,
+              aoClicar: () => {
+                let novo = texto.value;
+                for (const m of invalidas) {
+                  const escapado = m.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                  novo = novo.replace(new RegExp(`\\s?@${escapado}(?![\\wÀ-ÿ-])`, 'gi'), '');
+                }
+                texto.value = novo;
+                texto.dispatchEvent(new Event('input'));
+              },
+            }),
+          ]),
+        );
       }
     }
 
-    prompt.addEventListener('input', () => {
-      sujo = true;
+    let temporizador = null;
+    texto.addEventListener('input', () => {
+      rascunho.prompt = texto.value;
+      atualizarSalvo();
       clearTimeout(temporizador);
-      temporizador = setTimeout(analisar, 400);
-    });
-    nome.addEventListener('input', () => {
-      sujo = true;
+      temporizador = setTimeout(medirAgora, 250);
     });
 
-    const salvar = async () => {
-      await api.patch(`/api/agentes/${agente.id}`, { nome: nome.value.trim(), prompt: prompt.value });
-      sujo = false;
-      aviso('Agente salvo.', 'sucesso');
-      await desenhar();
+    /* ---------- Inserir mencao ---------- */
+
+    const menu = el('div', { class: 'agentes-menu-mencoes', hidden: true, role: 'dialog', 'aria-label': 'Inserir menção' });
+    const filtroMenu = entradaTexto('', { type: 'search', placeholder: 'Procurar', 'aria-label': 'Procurar menção' });
+    const listaMenu = el('div', { class: 'agentes-menu-lista' });
+    menu.append(filtroMenu, listaMenu);
+
+    function inserir(rotulo) {
+      const antes = texto.value.slice(0, texto.selectionStart);
+      const espaco = antes && !/\s$/.test(antes) ? ' ' : '';
+      texto.setRangeText(`${espaco}@${rotulo} `, texto.selectionStart, texto.selectionEnd, 'end');
+      texto.dispatchEvent(new Event('input'));
+      fecharMenu();
+      texto.focus();
+    }
+
+    function desenharMenu() {
+      limpar(listaMenu);
+      const termo = filtroMenu.value.trim().toLowerCase();
+      let achou = 0;
+      for (const [tipo, titulo] of GRUPOS_DE_MENCAO) {
+        const itens = catalogoDeMencoes.filter(
+          (i) => i.tipo === tipo && (!termo || `${i.rotulo} ${i.descricao || ''}`.toLowerCase().includes(termo)),
+        );
+        if (!itens.length) continue;
+        listaMenu.append(el('div', { class: 'agentes-menu-grupo', texto: titulo }));
+        for (const item of itens) {
+          achou += 1;
+          listaMenu.append(
+            el('button', { type: 'button', class: 'agentes-menu-item', aoClick: () => inserir(item.rotulo) }, [
+              el('span', { class: 'agentes-menu-rotulo', texto: `@${item.rotulo}` }),
+              item.descricao ? el('span', { class: 'agentes-menu-desc', texto: item.descricao }) : null,
+            ]),
+          );
+        }
+      }
+      if (!achou) listaMenu.append(el('p', { class: 'agentes-apoio', texto: 'Nada com esse nome.' }));
+    }
+    filtroMenu.addEventListener('input', desenharMenu);
+
+    const fecharNoClique = (evento) => {
+      if (!menu.contains(evento.target) && !botaoMenu.contains(evento.target)) fecharMenu();
     };
-
-    prompt.addEventListener('keydown', (evento) => {
-      if ((evento.ctrlKey || evento.metaKey) && evento.key === 's') {
-        evento.preventDefault();
-        salvar();
+    function fecharMenu() {
+      menu.hidden = true;
+      botaoMenu.setAttribute('aria-expanded', 'false');
+      document.removeEventListener('mousedown', fecharNoClique);
+    }
+    const botaoMenu = botao('Inserir menção', {
+      pequeno: true,
+      icone: 'mais',
+      aoClicar: () => {
+        if (!menu.hidden) return fecharMenu();
+        menu.hidden = false;
+        botaoMenu.setAttribute('aria-expanded', 'true');
+        filtroMenu.value = '';
+        desenharMenu();
+        filtroMenu.focus();
+        document.addEventListener('mousedown', fecharNoClique);
+      },
+    });
+    botaoMenu.setAttribute('aria-expanded', 'false');
+    menu.addEventListener('keydown', (evento) => {
+      if (evento.key === 'Escape') {
+        fecharMenu();
+        botaoMenu.focus();
       }
     });
 
-    analisar();
+    medirAgora();
 
-    return el('div', { class: 'conversa' }, [
-      el('div', { class: 'conversa-cabecalho' }, [
-        el('div', { class: 'flexivel' }, [nome]),
-        // O atalho mora no titulo do proprio botao que ele aciona. Escrito
-        // como legenda fixa no rodape do prompt, era uma instrucao de uso lida
-        // uma vez e relida todo dia sem querer.
-        botao('Salvar', { tipo: 'principal', pequeno: true, titulo: 'Salvar (Ctrl+S)', aoClicar: salvar }),
+    return el('div', { class: 'agentes-instrucoes' }, [
+      el('div', { class: 'agentes-barra-prompt' }, [
+        el('div', { class: 'agentes-barra-titulo' }, [
+          el('strong', { texto: 'Instruções do agente' }),
+          el('span', { class: 'agentes-apoio', texto: 'Quem ele é, como fala, o roteiro e o que nunca fazer.' }),
+        ]),
+        el('div', { class: 'agentes-barra-acoes' }, [botaoMenu, menu]),
       ]),
-      el('div', { class: 'painel-prompt' }, [prompt]),
-      el('div', { class: 'compositor' }, [
-        el('div', { class: 'linha-botoes mb-2' }, [contador, faixa]),
-        chips,
-      ]),
+      texto,
+      el('div', { class: 'agentes-medidor' }, [numeros, regua, chips]),
     ]);
   }
 
-  /* ---------------- Coluna 3: configuracao ---------------- */
+  /* ---------------- Atendimento ---------------- */
 
-  function colunaConfiguracao(agente, agentes) {
-    if (!agente) return el('div', { class: 'coluna' });
+  function secao(titulo, ajuda, ...filhos) {
+    return el('section', { class: 'agentes-secao' }, [
+      el('h3', { class: 'agentes-secao-titulo', texto: titulo }),
+      ajuda ? el('p', { class: 'agentes-secao-ajuda', texto: ajuda }) : null,
+      ...filhos,
+    ]);
+  }
 
-    const salvar = async (mudancas) => {
-      await api.patch(`/api/agentes/${agente.id}`, mudancas);
-      await desenhar();
+  function abaAtendimento(agente, salvarConfig) {
+    /* Palavras-chave como etiquetas: escrever e Enter (ou virgula) acrescenta,
+       o x tira. Salva na hora, como o resto desta aba. */
+    const palavras = [...(agente.palavrasChave || [])];
+    const caixaPalavras = el('div', { class: 'agentes-tags' });
+    const novaPalavra = entradaTexto('', { placeholder: palavras.length ? 'Mais uma…' : 'bpc, loas, auxílio…', 'aria-label': 'Nova palavra-chave' });
+    const gravarPalavras = () => salvarConfig({ palavrasChave: palavras });
+    const acrescentar = () => {
+      const novas = novaPalavra.value.split(',').map((p) => p.trim().toLowerCase()).filter(Boolean);
+      const antes = palavras.length;
+      for (const p of novas) if (!palavras.includes(p)) palavras.push(p);
+      novaPalavra.value = '';
+      if (palavras.length !== antes) gravarPalavras();
     };
-
-    const modelo = estado.sessao.modelos.find((m) => m.id === agente.modelo);
-
-    /**
-     * Uma propriedade do agente: rotulo em cima, controle embaixo.
-     *
-     * `explicacao` e o conceito por tras do campo e vira balao no rotulo, nunca
-     * uma linha de texto fixa embaixo do controle. Sao onze campos nesta
-     * coluna: com a explicacao de cada um sempre na tela, a configuracao virava
-     * um manual e o agente aberto ficava mais escondido que os textos que
-     * falavam dele.
-     */
-    const bloco = (titulo, explicacao, ...filhos) =>
-      el('div', { class: 'propriedade' }, [
-        el('span', { class: explicacao ? 'linha' : null }, [
-          titulo,
-          explicacao ? dica(explicacao, { assunto: titulo.toLowerCase() }) : null,
+    novaPalavra.addEventListener('keydown', (evento) => {
+      if (evento.key === 'Enter' || evento.key === ',') {
+        evento.preventDefault();
+        acrescentar();
+      }
+    });
+    novaPalavra.addEventListener('blur', () => {
+      if (novaPalavra.value.trim()) acrescentar();
+    });
+    for (const p of palavras) {
+      caixaPalavras.append(
+        el('span', { class: 'agentes-tag' }, [
+          p,
+          el('button', {
+            type: 'button',
+            class: 'agentes-tag-tirar',
+            'aria-label': `Tirar a palavra-chave ${p}`,
+            aoClick: () => {
+              palavras.splice(palavras.indexOf(p), 1);
+              gravarPalavras();
+            },
+          }, [icone('fechar', 10)]),
         ]),
-        ...filhos,
-      ]);
-
-    const conhecimento = el('div', { class: 'linha-botoes' });
-    for (const base of estado.conhecimento) {
-      const marcada = (agente.conhecimentoIds || []).includes(base.id);
-      conhecimento.append(
-        el('button', {
-          class: `selo selo-clicavel ${marcada ? 'ouro' : ''}`.trim(),
-          texto: base.nome,
-          aoClick: async () => {
-            const atuais = new Set(agente.conhecimentoIds || []);
-            if (marcada) atuais.delete(base.id);
-            else atuais.add(base.id);
-            await salvar({ conhecimentoIds: [...atuais] });
-          },
-        }),
       );
     }
-    if (!estado.conhecimento.length) {
-      conhecimento.append(el('span', { class: 't-sm c-fraco', texto: 'Nenhuma base cadastrada.' }));
+    caixaPalavras.append(novaPalavra);
+
+    const esperas = [
+      { valor: 5, rotulo: '5 s', ajuda: 'quase imediato' },
+      { valor: 15, rotulo: '15 s', ajuda: 'padrão' },
+      { valor: 30, rotulo: '30 s', ajuda: 'áudio e mensagem picada' },
+      { valor: 60, rotulo: '60 s', ajuda: 'casos específicos' },
+    ];
+    const atualEspera = agente.delaySegundos ?? 15;
+    const segmentado = el(
+      'div',
+      { class: 'agentes-segmentado', role: 'radiogroup', 'aria-label': 'Tempo de espera' },
+      esperas.map((e) =>
+        el('button', {
+          type: 'button',
+          role: 'radio',
+          'aria-checked': e.valor === atualEspera ? 'true' : 'false',
+          class: e.valor === atualEspera ? 'ativo' : '',
+          title: e.ajuda,
+          aoClick: () => e.valor !== atualEspera && salvarConfig({ delaySegundos: e.valor }),
+        }, [el('strong', { texto: e.rotulo }), el('span', { texto: e.ajuda })]),
+      ),
+    );
+
+    return el('div', { class: 'agentes-config' }, [
+      secao(
+        'Situação',
+        null,
+        interruptor(
+          agente.ativo ? 'Agente ligado' : 'Agente desligado',
+          agente.ativo,
+          (ligado) => salvarConfig({ ativo: ligado }, ligado ? 'Agente ligado.' : 'Agente desligado.'),
+          { ajuda: 'Desligado, ele não responde a ninguém e some do Chat de teste.' },
+        ),
+      ),
+      secao(
+        'Atende sozinho em',
+        'Toda conversa nova destes números já começa com ele. Quem escolhe é a tela de Conexões, no Responsável padrão.',
+        agente.primarioEm?.length
+          ? el('div', { class: 'linha-p quebra' }, agente.primarioEm.map((c) => selo(c.nome, 'ouro')))
+          : el('p', { class: 'agentes-apoio', texto: 'Nenhum número. Ele só entra por palavra-chave ou transferência.' }),
+        botao('Abrir Conexões', { pequeno: true, icone: 'abrir', aoClicar: () => (location.hash = '#/conexoes') }),
+      ),
+      secao(
+        'Palavras-chave',
+        'Se a PRIMEIRA mensagem de alguém trouxer uma delas, a conversa vem para este agente. No meio da conversa, não valem.',
+        caixaPalavras,
+      ),
+      secao(
+        'Tempo de espera antes de responder',
+        'Cada mensagem nova da pessoa reinicia a contagem, para o agente responder a tudo de uma vez. Resposta duplicada costuma ser espera curta demais.',
+        segmentado,
+      ),
+      secao(
+        'Recebe transferência de',
+        null,
+        agente.referenciadoPor?.length
+          ? el('div', { class: 'linha-p quebra' }, agente.referenciadoPor.map((r) => selo(r.nome, '')))
+          : el('p', { class: 'agentes-apoio', texto: 'Nenhum outro agente transfere para este.' }),
+      ),
+    ]);
+  }
+
+  /* ---------------- Inteligencia ---------------- */
+
+  function abaInteligencia(agente, salvarConfig) {
+    const tamanho = (rascunhos.get(agente.id)?.prompt ?? agente.prompt ?? '').length;
+
+    const modelos = el(
+      'div',
+      { class: 'agentes-modelos', role: 'radiogroup', 'aria-label': 'Modelo de IA' },
+      (estado.sessao?.modelos || []).map((m) => {
+        const escolhido = m.id === agente.modelo;
+        const custo = medir(tamanho, m.id);
+        return el('button', {
+          type: 'button',
+          role: 'radio',
+          'aria-checked': escolhido ? 'true' : 'false',
+          class: `agentes-modelo ${escolhido ? 'ativo' : ''}`.trim(),
+          aoClick: () => !escolhido && salvarConfig({ modelo: m.id }, `${agente.nome} agora usa ${m.nome}.`),
+        }, [
+          el('span', { class: 'agentes-modelo-topo' }, [
+            el('strong', { texto: m.nome }),
+            escolhido ? icone('ok', 14) : null,
+          ]),
+          el('span', { class: 'agentes-modelo-uso', texto: m.uso || '' }),
+          el('span', {
+            class: 'agentes-modelo-custo',
+            texto: custo.cobra ? `Instruções: ≈ ${dolar(custo.porMil)} a cada mil respostas` : 'Sem custo de IA',
+          }),
+        ]);
+      }),
+    );
+
+    const bases = el('div', { class: 'agentes-bases' });
+    for (const base of estado.conhecimento) {
+      const marcada = (agente.conhecimentoIds || []).includes(base.id);
+      const caixa = el('input', { type: 'checkbox', checked: marcada || null });
+      caixa.addEventListener('change', () => {
+        const atuais = new Set(agente.conhecimentoIds || []);
+        if (caixa.checked) atuais.add(base.id);
+        else atuais.delete(base.id);
+        salvarConfig({ conhecimentoIds: [...atuais] });
+      });
+      bases.append(
+        el('label', { class: `agentes-base ${marcada ? 'ativo' : ''}`.trim() }, [
+          caixa,
+          el('span', { class: 'agentes-base-dados' }, [
+            el('strong', { texto: base.nome }),
+            base.descricao ? el('span', { texto: base.descricao }) : null,
+          ]),
+        ]),
+      );
     }
+    if (!estado.conhecimento.length) bases.append(el('p', { class: 'agentes-apoio', texto: 'Nenhuma base cadastrada ainda.' }));
 
-    /* Foto -------------------------------------------------------------- */
+    return el('div', { class: 'agentes-config' }, [
+      secao(
+        'Modelo de IA',
+        agente.modeloDisponivel
+          ? 'O cérebro do agente. O custo abaixo é só o da leitura das instruções, que vão junto em toda resposta.'
+          : 'Sem a chave deste provedor em Integrações, o agente responde pelo roteiro fixo: segue as falas numeradas do prompt, uma por resposta.',
+        modelos,
+      ),
+      secao(
+        'Base de conhecimento',
+        'Marcar já basta: o agente consulta o que estiver marcado quando a pergunta for de regra, requisito, prazo ou valor. É aqui que mora o material longo, e não nas instruções.',
+        bases,
+        botao('Abrir a base de conhecimento', { pequeno: true, icone: 'pasta', aoClicar: () => (location.hash = '#/conhecimento') }),
+      ),
+      secao(
+        'O que ele pode fazer',
+        'Sai das menções escritas nas instruções. Quanto menos ferramenta, menos chance de ele fazer o que não devia.',
+        agente.ferramentas?.length
+          ? el('div', { class: 'linha-p quebra' }, agente.ferramentas.map((f) => el('span', { class: 'selo', texto: f })))
+          : el('p', { class: 'agentes-apoio', texto: 'Só conversar: nenhuma ação.' }),
+      ),
+    ]);
+  }
 
-    /*
-     * Mesmo desenho da foto de perfil em Configuracoes > Minha conta: previa
-     * com o avatar() do sistema, seletor de arquivo, e o "tirar a foto" que so
-     * aparece quando ha foto. Repetir o desenho e proposital — e o mesmo gesto,
-     * e a pessoa nao precisa aprender duas vezes.
-     *
-     * A diferenca e que aqui salva na hora, sem botao: esta coluna inteira
-     * funciona assim, e um Salvar so para a foto seria a excecao que ninguem
-     * lembraria de apertar.
-     */
-    const previaFoto = el('div', { class: 'fixo' });
-    const desenharPrevia = () => {
-      limpar(previaFoto);
-      previaFoto.append(avatar(agente, 44));
-    };
-    desenharPrevia();
+  /* ---------------- Perfil ---------------- */
 
-    const seletorFoto = el('input', {
-      type: 'file',
-      accept: 'image/*',
-      'aria-label': `Escolher a foto de ${agente.nome}`,
-    });
-    /*
-     * Formatos que o navegador realmente desenha.
-     *
-     * O accept do campo e so sugestao: o seletor do Windows tem "Todos os
-     * arquivos" e o upload aceita qualquer coisa ate 16 MB. O caso que ia doer
-     * e o mais provavel num escritorio: foto tirada de iPhone e HEIC, sobe sem
-     * erro, e guardada, e o <img> simplesmente nao desenha — a pessoa ve o
-     * agente voltar as iniciais e nao tem como saber por que. Melhor recusar
-     * na hora, dizendo o que fazer.
-     */
+  function abaPerfil(agente, salvarConfig) {
+    /* Formatos que o navegador desenha. Foto de iPhone vem em HEIC: sobe sem
+       erro e o <img> nao desenha — melhor recusar dizendo o que fazer. */
     const FORMATOS = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-
-    seletorFoto.addEventListener('change', async () => {
-      const arquivo = seletorFoto.files[0];
+    const seletor = el('input', { type: 'file', accept: FORMATOS.join(','), class: 'agentes-arquivo', 'aria-label': `Escolher a foto de ${agente.nome}` });
+    seletor.addEventListener('change', async () => {
+      const arquivo = seletor.files[0];
       if (!arquivo) return;
       if (!FORMATOS.includes(arquivo.type)) {
-        aviso('Use uma foto em JPG, PNG ou WEBP. Foto de iPhone costuma vir em HEIC: abra e exporte como JPG antes.', 'erro');
-        seletorFoto.value = '';
+        aviso('Use uma foto em JPG, PNG ou WEBP. Foto de iPhone costuma vir em HEIC: exporte como JPG antes.', 'erro');
+        seletor.value = '';
         return;
       }
       try {
         const midia = await enviarArquivo(arquivo);
-        await salvar({ foto: midia.url });
-        aviso('Foto do agente atualizada.', 'sucesso');
+        await salvarConfig({ foto: midia.url }, 'Foto do agente atualizada.');
       } catch (erro) {
         aviso(erro.message, 'erro');
-        seletorFoto.value = '';
+        seletor.value = '';
       }
     });
 
-    /* Pasta ------------------------------------------------------------- */
-
-    /*
-     * Nao ha cadastro de pastas: a pasta e um texto no registro do agente e
-     * existe enquanto alguem apontar para ela. Por isso a lista aqui e montada
-     * a partir dos agentes que existem, e criar pasta e simplesmente escrever
-     * um nome que ainda nao esta na lista.
-     */
-    const pastasExistentes = [...new Set((agentes || []).map((a) => a.pasta || PASTA_PADRAO))].sort((a, b) => {
+    const pastas = [...new Set(agentes.map((a) => a.pasta || PASTA_PADRAO))].sort((a, b) => {
       if (a === PASTA_PADRAO) return -1;
       if (b === PASTA_PADRAO) return 1;
       return a.localeCompare(b, 'pt-BR');
     });
-    /*
-     * O valor sentinela do <select> de pasta.
-     *
-     * Precisa ser algo que ninguem escreveria como nome de pasta, porque a
-     * lista mistura pastas de verdade com esta opcao. A primeira versao usava
-     * um caractere NUL, e foi um erro caro de um jeito inesperado: o byte 0
-     * ficou gravado no arquivo, e a partir dali o ripgrep passou a classificar
-     * agentes.js como binario e a PULAR o arquivo inteiro, em silencio, em toda
-     * busca. Uma tela de 500 linhas invisivel para quem procura.
-     */
-    const NOVA_PASTA = '::nova-pasta::';
-
     const escolhaDePasta = selecao(
-      [
-        ...pastasExistentes.map((p) => ({ valor: p, rotulo: p })),
-        { valor: NOVA_PASTA, rotulo: 'Nova pasta…' },
-      ],
+      [...pastas.map((p) => ({ valor: p, rotulo: p })), { valor: NOVA_PASTA, rotulo: 'Nova pasta…' }],
       agente.pasta || PASTA_PADRAO,
       {
-        aoChange: async (evento) => {
-          if (evento.target.value !== NOVA_PASTA) {
-            await salvar({ pasta: evento.target.value });
-            return;
-          }
-          /* Volta o <select> para a pasta atual ANTES de abrir a janela: se a
-             pessoa desistir, o controle nao pode ficar mostrando "Nova pasta…"
-             como se fosse onde o agente esta. */
+        'aria-label': 'Pasta',
+        aoChange: (evento) => {
+          if (evento.target.value !== NOVA_PASTA) return salvarConfig({ pasta: evento.target.value });
+          /* Volta o <select> ANTES da janela: se a pessoa desistir, ele nao
+             pode ficar mostrando "Nova pasta…" como se fosse onde o agente esta. */
           evento.target.value = agente.pasta || PASTA_PADRAO;
           const nome = entradaTexto('', { placeholder: 'Comercial' });
           modal({
             titulo: 'Nova pasta',
-            corpo: el('div', {}, [
-              campo('Nome', nome),
-              el('p', { class: 'dica sem-margem', texto: `"${agente.nome}" vai para ela. A pasta aparece na coluna da esquerda assim que tiver o primeiro agente.` }),
-            ]),
+            corpo: el('div', {}, [campo('Nome', nome)]),
             confirmar: 'Mover para a pasta',
             aoConfirmar: async () => {
               const escolhido = nome.value.trim();
               if (!escolhido) throw new Error('Escreva o nome da pasta.');
-              if (escolhido.length > 40) throw new Error('Nome muito longo (maximo 40 caracteres).');
-              await salvar({ pasta: escolhido });
+              if (escolhido.length > 40) throw new Error('Nome muito longo (máximo 40 caracteres).');
+              await salvarConfig({ pasta: escolhido });
             },
           });
         },
       },
     );
 
-    const palavras = entradaTexto((agente.palavrasChave || []).join(', '), { placeholder: 'bpc, loas' });
-    palavras.addEventListener('change', () =>
-      salvar({ palavrasChave: palavras.value.split(',').map((p) => p.trim()).filter(Boolean) }),
+    const escolhaDeVoz = selecao(
+      [
+        { valor: '', rotulo: 'Sem voz (responde por texto)' },
+        ...vozes.vozes.map((v) => ({ valor: v.id, rotulo: `${v.nome} (do escritório)` })),
+        ...vozes.base.map((v) => ({ valor: v.id, rotulo: v.nome })),
+      ],
+      agente.vozId || '',
+      { 'aria-label': 'Voz do agente', aoChange: (e) => salvarConfig({ vozId: e.target.value || null }) },
     );
 
-    return el('div', { class: 'coluna' }, [
-      el('div', { class: 'coluna-cabecalho' }, [
-        el('div', { class: 't-md peso-600 linha' }, [
-          'Configuracoes do agente',
-          dica('Cada campo desta coluna salva sozinho. O Salvar do meio e do nome e do prompt.', {
-            assunto: 'as configurações do agente',
-          }),
-        ]),
-      ]),
-      el('div', { class: 'coluna-corpo' }, [
-        bloco(
-          'Foto do agente',
-          'Aparece na lista ao lado e na conversa, no lugar das iniciais. Serve para a equipe distinguir de relance qual agente esta conduzindo.',
-          el('div', { class: 'linha quebra' }, [
-            previaFoto,
-            el('div', { class: 'pilha encolhe' }, [
-              seletorFoto,
-              agente.foto
-                ? botao('Tirar a foto', {
-                    pequeno: true,
-                    tipo: 'perigo',
-                    aoClicar: async () => {
-                      await salvar({ foto: null });
-                      aviso('Foto removida. O agente volta as iniciais.', 'sucesso');
-                    },
-                  })
-                : null,
-            ]),
-          ]),
-        ),
-
-        bloco(
-          'Pasta',
-          'Serve so para organizar a coluna da esquerda. Nao muda nada no atendimento: agente em pasta nenhuma atende igual.',
-          escolhaDePasta,
-        ),
-
-        /* 1 e 2, mencoes e contagem ficam na coluna do prompt */
-        bloco(
-          'Mencoes reconhecidas',
-          null,
-          el('div', {}, [
-            ...agente.mencoes.map((m) => el('span', { class: 'mencao-chip', texto: `@${m.rotulo}`, title: m.descricao || m.tipo })),
-            ...agente.mencoesInvalidas.map((m) => el('span', { class: 'mencao-chip invalida', texto: `@${m}` })),
-          ]),
-          agente.mencoesInvalidas.length
-            ? el('div', { class: 'alerta-caixa mt-2', texto: 'Menção em vermelho não existe no workspace. O agente se comporta de forma imprevisível até você corrigir ou criar o item.' })
-            : null,
-        ),
-
-        bloco(
-          'Ferramentas ativas',
-          'Montadas a partir das mencoes do prompt. Quanto menos ferramenta, menos chance de o agente fazer o que nao devia.',
-          // O respiro entre os selos sai do gap do container, nao de uma
-          // margem em cada selo.
-          el('div', { class: 'linha-p quebra' }, (agente.ferramentas || []).map((f) => el('span', { class: 'selo', texto: f }))),
-        ),
-
-        /* A explicacao vale a linha: ate pouco tempo atras vincular a base
-           aqui nao bastava — era preciso tambem escrever @biblioteca no
-           prompt, e quem esquecia ficava com a base ligada e muda. Dizer que
-           basta vincular e o que impede alguem de reintroduzir a duvida. */
-        bloco(
-          'Base de conhecimento',
-          'Marcar aqui ja basta: o agente consulta o que estiver vinculado quando a pergunta for de regra, requisito, prazo ou valor. Nao precisa citar no prompt.',
-          conhecimento,
-        ),
-
-        bloco(
-          'Delay de agrupamento',
-          'Tempo que o agente espera antes de responder. Cada nova mensagem do lead reinicia a contagem; resposta duplicada costuma ser delay curto.',
-          selecao(
-            [
-              { valor: 5, rotulo: '5 s (quase imediato)' },
-              { valor: 15, rotulo: '15 s (padrão)' },
-              { valor: 30, rotulo: '30 s (áudio e mensagem picada)' },
-              { valor: 60, rotulo: '60 s (casos especificos)' },
-            ],
-            agente.delaySegundos ?? 15,
-            { aoChange: (e) => salvar({ delaySegundos: Number(e.target.value) }) },
-          ),
-        ),
-
-        bloco(
-          'Agente primario',
-          null,
-          agente.primarioEm.length
-            ? el('div', { class: 'linha-p quebra' }, agente.primarioEm.map((c) => selo(c.nome, 'ouro')))
-            : el('div', { class: 't-sm c-fraco', texto: 'Não atende automaticamente em nenhuma conexão.' }),
-          botao('Definir na conexao', { pequeno: true, aoClicar: () => (location.hash = '#/conexoes') }),
-        ),
-
-        bloco(
-          'Palavra-chave',
-          'Vale apenas na primeira mensagem da conversa.',
-          palavras,
-        ),
-
-        bloco(
-          'Referencias',
-          null,
-          agente.referenciadoPor?.length
-            ? el('div', { class: 'linha-p quebra' }, agente.referenciadoPor.map((r) => selo(r.nome, '')))
-            : el('div', { class: 't-sm c-fraco', texto: 'Nenhum outro agente transfere para este.' }),
-        ),
-
-        bloco(
-          'Voz do agente',
-          null,
-          selecao(
-            [
-              { valor: '', rotulo: 'Sem voz (responde por texto)' },
-              ...vozes.vozes.map((v) => ({ valor: v.id, rotulo: `${v.nome} (do escritorio)` })),
-              ...vozes.base.map((v) => ({ valor: v.id, rotulo: v.nome })),
-            ],
-            agente.vozId || '',
-            { aoChange: (e) => salvar({ vozId: e.target.value || null }) },
-          ),
-          el('div', { class: 'linha-botoes mt-2' }, [
-            botao('Ouvir', {
-              pequeno: true,
-              desabilitado: !vozes.disponivel || !agente.vozId,
-              aoClicar: async () => {
-                try {
-                  const midia = await api.post('/api/vozes/testar', { vozId: agente.vozId });
-                  modal({ titulo: 'Prévia da voz', corpo: el('div', {}, [previaDaMidia(midia)]) });
-                } catch (erro) {
-                  aviso(erro.message, 'erro');
-                }
-              },
-            }),
-          ]),
-        ),
-
-        bloco(
-          'Modelo de IA',
-          // A frase de uso do modelo escolhido vem do servidor e muda a cada
-          // troca. A coluna inteira e redesenhada no salvar, entao o balao
-          // sempre fala do modelo que esta selecionado agora.
-          modelo?.uso || null,
-          selecao(
-            estado.sessao.modelos.map((m) => ({ valor: m.id, rotulo: `${m.nome} · ${m.creditos} creditos` })),
-            agente.modelo,
-            { aoChange: (e) => salvar({ modelo: e.target.value }) },
-          ),
-          !agente.modeloDisponivel
-            ? el('div', { class: 'alerta-caixa mt-2', texto: 'Sem chave para este provedor. O agente responde pelo roteiro por regras: segue o prompt numerado, uma etapa por resposta.' })
-            : null,
-        ),
-
-        bloco(
-          'Situacao',
-          null,
-          el('div', { class: 'linha-botoes' }, [
-            botao(agente.ativo ? 'Desligar agente' : 'Ligar agente', {
-              pequeno: true,
-              aoClicar: () => salvar({ ativo: !agente.ativo }),
-            }),
-            podeConfigurar()
-              ? botao('Excluir', {
-                  pequeno: true,
-                  tipo: 'perigo',
-                  aoClicar: () =>
-                    confirmar('Excluir agente?', `"${agente.nome}" sera removido. Conversas com ele como responsavel precisam de outro antes.`, async () => {
-                      await api.delete(`/api/agentes/${agente.id}`);
-                      selecionadoId = null;
-                      await desenhar();
-                    }, 'Excluir'),
-                })
+    return el('div', { class: 'agentes-config' }, [
+      secao(
+        'Foto',
+        'Aparece na lista e na conversa, no lugar das iniciais. Ajuda a equipe a ver de relance quem está conduzindo.',
+        el('div', { class: 'agentes-foto' }, [
+          avatar(agente, 64),
+          el('div', { class: 'linha-p quebra' }, [
+            botao(agente.foto ? 'Trocar foto' : 'Escolher foto', { pequeno: true, aoClicar: () => seletor.click() }),
+            agente.foto
+              ? botao('Tirar a foto', { pequeno: true, aoClicar: () => salvarConfig({ foto: null }, 'Foto removida.') })
               : null,
+            seletor,
           ]),
-        ),
-      ]),
+        ]),
+      ),
+      secao('Pasta', 'Só organiza a lista ao lado. Não muda nada no atendimento.', escolhaDePasta),
+      secao(
+        'Voz',
+        vozes.disponivel ? 'Com voz, o agente pode responder em áudio quando a pessoa pede.' : 'A voz precisa da chave da OpenAI em Integrações.',
+        escolhaDeVoz,
+        botao('Ouvir', {
+          pequeno: true,
+          desabilitado: !vozes.disponivel || !agente.vozId,
+          aoClicar: async () => {
+            try {
+              const midia = await api.post('/api/vozes/testar', { vozId: agente.vozId });
+              modal({ titulo: 'Prévia da voz', corpo: el('div', {}, [previaDaMidia(midia)]) });
+            } catch (erro) {
+              aviso(erro.message, 'erro');
+            }
+          },
+        }),
+      ),
+      podeConfigurar()
+        ? el('section', { class: 'agentes-secao agentes-perigo' }, [
+            el('h3', { class: 'agentes-secao-titulo', texto: 'Excluir agente' }),
+            el('p', {
+              class: 'agentes-secao-ajuda',
+              texto: 'Conversas que estão com ele precisam de outro responsável antes. Não dá para desfazer.',
+            }),
+            botao('Excluir agente', {
+              pequeno: true,
+              tipo: 'perigo',
+              icone: 'lixo',
+              aoClicar: () =>
+                confirmar('Excluir agente?', `"${agente.nome}" será removido.`, async () => {
+                  await api.delete(`/api/agentes/${agente.id}`);
+                  rascunhos.delete(agente.id);
+                  selecionadoId = null;
+                  await recarregarTudo();
+                }, 'Excluir'),
+            }),
+          ])
+        : null,
     ]);
   }
 
-  await desenhar();
+  await recarregarTudo();
   return container;
 }
 
@@ -682,10 +986,10 @@ function abrirGeracao(recarregarTela) {
   const objetivo = selecao(
     [
       { valor: 'fechar', rotulo: 'Fechar contrato' },
-      { valor: 'agendar', rotulo: 'Agendar reuniao' },
+      { valor: 'agendar', rotulo: 'Agendar reunião' },
       { valor: 'qualificar', rotulo: 'Qualificar e transferir para humano' },
       { valor: 'recepcionar', rotulo: 'Recepcionar e rotear' },
-      { valor: 'atender', rotulo: 'Atender pos-venda' },
+      { valor: 'atender', rotulo: 'Atender pós-venda' },
     ],
     'qualificar',
   );
@@ -701,12 +1005,10 @@ function abrirGeracao(recarregarTela) {
     titulo: 'Criar agente com IA',
     largo: true,
     corpo: el('div', {}, [
-      // Fica so o que impede a acao de funcionar. O resto era descricao do que
-      // a propria janela ja faz.
-      el('div', { class: 'dica mb-3', texto: 'Precisa de chave de API cadastrada.' }),
+      el('div', { class: 'dica mb-3', texto: 'Precisa da chave da Anthropic em Integrações. O prompt sai na faixa recomendada de tamanho.' }),
       el('div', { class: 'grade g2' }, [campo('Nome', nome), campo('Objetivo', objetivo)]),
       campo('Como esse atendimento funciona', descricao),
-      campo('Material de referencia', referencia),
+      campo('Material de referência', referencia),
     ]),
     confirmar: 'Gerar agente',
     aoConfirmar: async () => {
@@ -717,7 +1019,7 @@ function abrirGeracao(recarregarTela) {
         descricao: descricao.value,
         referencia: referencia.value || null,
       });
-      aviso('Agente criado. Revise o prompt antes de colocar no ar.', 'sucesso');
+      aviso('Agente criado. Revise as instruções antes de colocar no ar.', 'sucesso');
       await recarregarTela();
     },
   });

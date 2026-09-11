@@ -595,19 +595,6 @@ a {
 }
 
 /*
- * Cabecalho de pasta na tela de Agentes: o nome, e o renomear a direita.
- *
- * A pasta aqui nao e um cadastro, e um texto no registro do agente. Ela existe
- * enquanto alguem apontar para ela, e por isso nao ha botao de apagar: esvaziar
- * a pasta ja e apaga-la.
- */
-.menu-grupo-pasta {
-  display: flex;
-  align-items: baseline;
-  gap: var(--e2);
-}
-
-/*
  * O renomear so aparece quando alguem chega perto.
  *
  * Visivel o tempo todo, ele viraria uma coluna de repeticoes ao lado dos nomes
@@ -645,7 +632,7 @@ a {
   pointer-events: none;
 }
 
-.menu-grupo-pasta:hover .pasta-renomear,
+.agentes-pasta-cabecalho:hover .pasta-renomear,
 .pasta-renomear:focus {
   opacity: 1;
   pointer-events: auto;
@@ -2143,14 +2130,6 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
   grid-template-columns: 1fr;
 }
 
-/* A tela de Agentes tambem tem tres colunas, mas com outras medidas: a lista
-   de agentes e mais estreita que a de conversas e a coluna de configuracao e
-   mais larga, porque ela carrega nove campos e nao um resumo de contato.
-   Sem esta regra a tela caia nas medidas de .atendimento. */
-.atendimento.colunas-agentes {
-  grid-template-columns: 260px 1fr 360px;
-}
-
 /* Moldura rolavel da visualizacao de contatos. Sem overflow e min-height 0 a
    tabela empurra a grade de .atendimento, que tem height 100%, em vez de rolar
    dentro da propria area. */
@@ -2160,19 +2139,873 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
   min-height: 0;
 }
 
-/* Area do prompt do agente: ela ocupa o que sobra entre o cabecalho e a faixa
-   de contagem, e o texto rola dentro dela. */
-.painel-prompt {
-  flex: 1;
+/* ------------------------------------------------------------------
+   Agentes de IA
+   Lista a esquerda; o agente aberto a direita, em quatro abas. A
+   configuracao deixou de ser uma terceira coluna: abaixo de 1230px
+   ela sumia inteira, com todos os campos do agente dentro.
+   ------------------------------------------------------------------ */
+
+.agentes {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  height: 100%;
   min-height: 0;
-  padding: var(--e4);
-  display: flex;
 }
 
-.painel-prompt > textarea {
+.agentes-lista {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--borda);
+  background: var(--superficie);
+}
+
+.agentes-lista-topo {
+  flex: none;
+  padding: var(--e3);
+  border-bottom: 1px solid var(--borda);
+}
+
+.agentes-busca {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  height: var(--controle);
+  padding: 0 var(--e3);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  background: var(--superficie-2);
+  color: var(--texto-fraco);
+}
+
+.agentes-busca:focus-within {
+  border-color: var(--ouro-linha);
+}
+
+.agentes-busca-campo {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  outline: none;
+}
+
+.agentes-lista-resumo {
+  margin-top: var(--e2);
+  font-size: var(--t-nota);
+  color: var(--texto-fraco);
+}
+
+.agentes-itens {
   flex: 1;
   min-height: 0;
+  overflow-y: auto;
+  padding: var(--e2);
+}
+
+.agentes-nada {
+  margin: var(--e3);
+  color: var(--texto-suave);
+}
+
+.agentes-pasta + .agentes-pasta {
+  margin-top: var(--e2);
+}
+
+.agentes-pasta-cabecalho {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e2);
+  padding: 0 var(--e2);
+}
+
+.agentes-pasta-alternar {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  min-width: 0;
+  padding: var(--e2) 0;
+  border: none;
+  background: none;
+  color: var(--texto-fraco);
+  font-size: var(--t-nota);
+  letter-spacing: var(--tr-alta);
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.agentes-pasta-alternar:hover {
+  color: var(--texto-suave);
+}
+
+.agentes-pasta-alternar:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: 2px;
+  border-radius: var(--raio-p);
+}
+
+/* A seta e o "voltar" do conjunto de icones: aberta aponta para baixo,
+   fechada aponta para a direita. */
+.agentes-pasta-alternar > svg {
+  flex: none;
+  transform: rotate(-90deg);
+  transition: transform var(--transicao);
+}
+
+.agentes-pasta.fechada .agentes-pasta-alternar > svg {
+  transform: rotate(180deg);
+}
+
+.agentes-pasta-nome {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agentes-pasta-conta {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: normal;
+}
+
+.agente-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--e3);
+  width: 100%;
+  padding: var(--e2);
+  border: none;
+  border-radius: var(--raio);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.agente-item:hover {
+  background: var(--superficie-2);
+}
+
+.agente-item:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: -2px;
+}
+
+.agente-item.ativo {
+  background: var(--ouro-fraco);
+  box-shadow: inset 2px 0 0 var(--ouro);
+}
+
+.agente-item-rosto {
+  position: relative;
+  flex: none;
+}
+
+/* O ponto de ligado/desligado senta no canto do rosto. A borda da cor da
+   coluna separa o ponto da foto, sem ela o verde se perdia numa foto escura. */
+.agente-ponto {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--texto-fraco);
+}
+
+.agente-ponto.ligado {
+  background: var(--sucesso);
+}
+
+.agente-item-rosto .agente-ponto {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  border: 2px solid var(--superficie);
+  box-sizing: content-box;
+}
+
+.agente-item-dados {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.agente-item-nome {
+  display: flex;
+  align-items: center;
+  gap: var(--e1);
+  font-weight: 600;
+  color: var(--texto);
+}
+
+.agente-item-nome-texto {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agente-item-rascunho {
+  color: var(--alerta);
+}
+
+.agente-item-sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--t-nota);
+  color: var(--texto-suave);
+}
+
+.agente-item-sub.fraco {
+  color: var(--texto-fraco);
+}
+
+.agente-item-sub.alerta {
+  color: var(--alerta);
+}
+
+.agente-item.desligado .agente-item-nome {
+  color: var(--texto-suave);
+}
+
+.agente-item-alerta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e1);
+  font-size: var(--t-nota);
+  color: var(--erro);
+}
+
+/* Area do agente aberto */
+
+.agentes-area {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.agentes-vazio {
+  flex: 1;
+  display: grid;
+  place-items: center;
+}
+
+.agentes-cabecalho {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--e3);
+  padding: var(--e3) var(--e4);
+  border-bottom: 1px solid var(--borda);
+  background: var(--superficie);
+}
+
+.agentes-identidade {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* O nome e editavel no lugar: sem moldura ate a pessoa chegar perto, para o
+   cabecalho ler como titulo e nao como formulario. */
+.agentes-nome {
+  width: 100%;
+  max-width: 480px;
+  height: auto;
+  margin-left: calc(var(--e1) * -1);
+  padding: 2px var(--e1);
+  border: 1px solid transparent;
+  border-radius: var(--raio-p);
+  background: none;
+  font-size: var(--t-leitura);
+  font-weight: 600;
+  color: var(--texto);
+}
+
+.agentes-nome:hover {
+  border-color: var(--borda);
+}
+
+.agentes-nome:focus {
+  border-color: var(--ouro-linha);
+  background: var(--superficie-2);
+}
+
+.agentes-identidade-sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--e2);
+  font-size: var(--t-nota);
+  color: var(--texto-suave);
+}
+
+.agentes-identidade-sub .agente-ponto {
+  width: 8px;
+  height: 8px;
+}
+
+.agentes-sep {
+  color: var(--texto-fraco);
+}
+
+.agentes-cabecalho-acoes {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+}
+
+.agentes-salvo {
+  font-size: var(--t-nota);
+  color: var(--texto-fraco);
+}
+
+.agentes-salvo.pendente {
+  color: var(--alerta);
+}
+
+.agentes-abas {
+  flex: none;
+  display: flex;
+  gap: var(--e1);
+  padding: 0 var(--e4);
+  border-bottom: 1px solid var(--borda);
+  background: var(--superficie);
+  overflow-x: auto;
+}
+
+.agentes-aba {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e2);
+  padding: var(--e3) var(--e2);
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--texto-suave);
+  font: inherit;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.agentes-aba:hover {
+  color: var(--texto);
+}
+
+.agentes-aba:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: -2px;
+}
+
+.agentes-aba.ativo {
+  color: var(--ouro-claro);
+  border-bottom-color: var(--ouro);
+}
+
+.agentes-painel {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Instrucoes */
+
+.agentes-instrucoes {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--e3);
+  padding: var(--e4);
+}
+
+.agentes-barra-prompt {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--e3);
+}
+
+.agentes-barra-titulo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.agentes-apoio {
+  margin: 0;
+  color: var(--texto-suave);
+}
+
+.agentes-barra-acoes {
+  position: relative;
+  flex: none;
+}
+
+/* O texto do prompt e prosa lida e relida: fonte de leitura, e nao
+   monoespacada. A altura minima garante uns quinze paragrafos a vista mesmo
+   numa tela baixa; o campo cresce com a area. */
+.agentes-prompt {
+  flex: 1;
+  min-height: 320px;
+  padding: var(--e4);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio-g);
+  background: var(--superficie);
+  font-family: var(--fonte);
+  font-size: var(--t-leitura);
+  line-height: var(--lh-solta);
   resize: none;
+}
+
+.agentes-prompt:focus {
+  border-color: var(--ouro-linha);
+}
+
+.agentes-menu-mencoes {
+  position: absolute;
+  top: calc(100% + var(--e1));
+  right: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: var(--e2);
+  width: 320px;
+  max-height: 380px;
+  padding: var(--e2);
+  border: 1px solid var(--borda-forte);
+  border-radius: var(--raio-g);
+  background: var(--superficie);
+  box-shadow: var(--sombra);
+}
+
+.agentes-menu-lista {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.agentes-menu-grupo {
+  padding: var(--e2) var(--e2) var(--e1);
+  font-size: var(--t-nota);
+  letter-spacing: var(--tr-alta);
+  text-transform: uppercase;
+  color: var(--texto-fraco);
+}
+
+.agentes-menu-item {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  width: 100%;
+  padding: var(--e1) var(--e2);
+  border: none;
+  border-radius: var(--raio-p);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.agentes-menu-item:hover,
+.agentes-menu-item:focus-visible {
+  background: var(--superficie-2);
+  outline: none;
+}
+
+.agentes-menu-rotulo {
+  font-family: var(--fonte-mono);
+  color: var(--ouro-claro);
+}
+
+.agentes-menu-desc {
+  font-size: var(--t-nota);
+  color: var(--texto-suave);
+}
+
+.agentes-medidor {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--e2);
+}
+
+.agentes-medidor-numeros {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--e2);
+  color: var(--texto-suave);
+}
+
+.agentes-medidor-principal strong {
+  color: var(--texto);
+}
+
+.agentes-medidor-numeros > .selo {
+  margin-left: auto;
+}
+
+/* A regua do tamanho: as quatro faixas na proporcao real do limite, e a
+   marca de onde o prompt esta. A cor de cada faixa repete a do selo ao lado. */
+.agentes-regua {
+  position: relative;
+  display: flex;
+  gap: 2px;
+  height: 6px;
+}
+
+.agentes-regua-zona {
+  flex-basis: 0;
+  border-radius: 2px;
+}
+
+.agentes-regua-zona.curto,
+.agentes-regua-zona.longo {
+  background: var(--alerta-linha);
+}
+
+.agentes-regua-zona.bom {
+  background: color-mix(in srgb, var(--sucesso) 45%, transparent);
+}
+
+.agentes-regua-zona.demais {
+  background: var(--erro-linha);
+}
+
+.agentes-regua-marca {
+  position: absolute;
+  top: -4px;
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--texto);
+  transform: translateX(-50%);
+  transition: left var(--transicao);
+}
+
+.agentes-mencoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--e1);
+}
+
+.agentes-mencoes .mencao-chip {
+  margin: 0;
+}
+
+.agentes-invalidas {
+  flex-basis: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  margin-top: var(--e1);
+  padding: var(--e2) var(--e3);
+  border: 1px solid var(--erro-linha);
+  border-radius: var(--raio);
+  background: var(--erro-fraco);
+  color: var(--texto);
+}
+
+.agentes-invalidas > svg {
+  flex: none;
+  color: var(--erro);
+}
+
+.agentes-invalidas > span {
+  flex: 1;
+}
+
+/* Abas de configuracao */
+
+.agentes-config {
+  width: 100%;
+  max-width: 760px;
+  padding: 0 var(--e5) var(--e5);
+}
+
+.agentes-secao {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--e2);
+  padding: var(--e4) 0;
+  border-bottom: 1px solid var(--borda);
+}
+
+.agentes-secao:last-child {
+  border-bottom: none;
+}
+
+.agentes-secao-titulo {
+  margin: 0;
+  font-size: var(--t-base);
+  font-weight: 600;
+  color: var(--texto);
+}
+
+.agentes-secao-ajuda {
+  margin: 0;
+  max-width: 62ch;
+  line-height: var(--lh-normal);
+  color: var(--texto-suave);
+}
+
+.agentes-secao > select {
+  width: 100%;
+  max-width: 360px;
+}
+
+.agentes-perigo .agentes-secao-titulo {
+  color: var(--erro);
+}
+
+.agentes-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--e1);
+  width: 100%;
+  max-width: 560px;
+  min-height: var(--controle);
+  padding: var(--e1);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  background: var(--superficie-2);
+}
+
+.agentes-tags:focus-within {
+  border-color: var(--ouro-linha);
+}
+
+.agentes-tags > input {
+  flex: 1;
+  min-width: 140px;
+  height: var(--controle-p);
+  padding: 0 var(--e1);
+  border: none;
+  background: none;
+  outline: none;
+}
+
+.agentes-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e1);
+  padding: 2px var(--e1) 2px var(--e2);
+  border: 1px solid var(--ouro-linha);
+  border-radius: var(--raio-p);
+  background: var(--ouro-fraco);
+  color: var(--ouro-claro);
+}
+
+.agentes-tag-tirar {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.agentes-tag-tirar:hover {
+  background: var(--ouro-linha);
+}
+
+.agentes-tag-tirar:focus-visible {
+  outline: 2px solid var(--ouro);
+}
+
+.agentes-segmentado {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--e1);
+  width: 100%;
+  max-width: 560px;
+}
+
+.agentes-segmentado > button,
+.agentes-modelo {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: var(--e2) var(--e3);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  background: var(--superficie);
+  color: var(--texto-suave);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.agentes-segmentado > button:hover,
+.agentes-modelo:hover {
+  border-color: var(--borda-forte);
+}
+
+.agentes-segmentado > button:focus-visible,
+.agentes-modelo:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: 2px;
+}
+
+.agentes-segmentado > button strong {
+  color: var(--texto);
+}
+
+.agentes-segmentado > button span {
+  font-size: var(--t-nota);
+}
+
+.agentes-segmentado > button.ativo,
+.agentes-modelo.ativo {
+  border-color: var(--ouro);
+  background: var(--ouro-fraco);
+}
+
+.agentes-segmentado > button.ativo strong {
+  color: var(--ouro-claro);
+}
+
+.agentes-modelos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--e2);
+  width: 100%;
+}
+
+.agentes-modelo {
+  gap: var(--e1);
+  padding: var(--e3);
+  border-radius: var(--raio-g);
+}
+
+.agentes-modelo-topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  color: var(--texto);
+}
+
+.agentes-modelo-topo > svg {
+  color: var(--ouro);
+}
+
+.agentes-modelo-uso {
+  line-height: var(--lh-normal);
+}
+
+.agentes-modelo-custo {
+  margin-top: auto;
+  padding-top: var(--e1);
+  font-size: var(--t-nota);
+  color: var(--texto-fraco);
+}
+
+.agentes-bases {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e1);
+  width: 100%;
+  max-width: 560px;
+}
+
+.agentes-base {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--e3);
+  padding: var(--e2) var(--e3);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  cursor: pointer;
+}
+
+.agentes-base.ativo {
+  border-color: var(--ouro-linha);
+  background: var(--ouro-fraco);
+}
+
+.agentes-base > input {
+  margin-top: 2px;
+  accent-color: var(--ouro);
+}
+
+.agentes-base-dados {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.agentes-base-dados strong {
+  color: var(--texto);
+}
+
+.agentes-base-dados span {
+  font-size: var(--t-nota);
+  color: var(--texto-suave);
+}
+
+.agentes-foto {
+  display: flex;
+  align-items: center;
+  gap: var(--e3);
+}
+
+.agentes-arquivo {
+  display: none;
+}
+
+@media (max-width: 1100px) {
+  .agentes {
+    grid-template-columns: 250px minmax(0, 1fr);
+  }
+  .agentes-salvo {
+    display: none;
+  }
+}
+
+/* Celular e janela estreita: a lista vai para cima, com altura propria, e o
+   agente aberto ocupa o resto. Nada some — so muda de lugar. */
+@media (max-width: 820px) {
+  .agentes {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 38vh) minmax(0, 1fr);
+  }
+  .agentes-lista {
+    border-right: none;
+    border-bottom: 1px solid var(--borda);
+  }
+  .agentes-cabecalho {
+    flex-wrap: wrap;
+  }
+  .agentes-config {
+    padding: 0 var(--e4) var(--e4);
+  }
+  .agentes-segmentado {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 /* Caixa de conversa fora do painel de atendimento. No simulador ela nao tem
@@ -3749,7 +4582,6 @@ button.mencao-chip:focus-visible {
      na regra acima sozinhas. A de coluna unica fica de fora de proposito: ela
      ja e 1fr em qualquer largura. A terceira coluna some logo abaixo, entao as
      duas que ficam repartem a largura como no atendimento. */
-  .atendimento.colunas-agentes,
   .atendimento.sem-painel {
     grid-template-columns: 240px 1fr;
   }
@@ -5156,13 +5988,6 @@ tbody .linha-clicavel:focus-visible {
   color: var(--ouro);
 }
 
-
-/* Faixa de chips de mencao abaixo do prompt. */
-.faixa-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--e1);
-}
 
 /* Coluna de acoes de uma tabela: os botoes ficam ancorados a direita e nao
    quebram para a linha de baixo. */
