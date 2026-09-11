@@ -6,6 +6,7 @@ import { analisarPrompt, catalogoCompleto, ferramentasDoAgente } from '../ia/men
 import { forcarResposta } from '../ia/motor.js';
 import { modeloDe, provedorDisponivel, conversar } from '../ia/provedores.js';
 import { comCodigo, exigirConfiguracao } from './sessao.js';
+import { removerTemplate } from '../automacao/remover-template.js';
 
 /**
  * Tudo o que configura o comportamento do sistema: as classes da conversa,
@@ -128,6 +129,9 @@ export function registrarAutomacoes(rotas) {
 
   crud(rotas, 'templates', 'templates', {
     prefixo: 'tpl',
+    /* Limpa follow-up, agendamento e ZapSign que apontavam para ele; o
+       remover do crud, logo depois, nao acha mais nada e segue. */
+    aoRemover: (id) => removerTemplate(id),
     aoCriar: (registro) => {
       if (!registro.atalho) atualizar('templates', registro.id, { atalho: slug(registro.nome) });
       if (!registro.aprovacaoMeta) {

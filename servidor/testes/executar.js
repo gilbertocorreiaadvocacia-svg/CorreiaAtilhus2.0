@@ -99,6 +99,9 @@ async function principal() {
   const evolucao = `http://127.0.0.1:${portaEvolucao}`;
   const anthropic = `http://127.0.0.1:${portaAnthropic}`;
 
+  const envDaEvolution = path.join(pastaDados, 'evolution.env');
+  fs.writeFileSync(envDaEvolution, 'SERVER_URL=http://localhost:8080\nAUTHENTICATION_API_KEY=chave-local-de-teste\n');
+
   const servicoFalso = await subirEvolucaoFalsa(portaEvolucao, CHAVE_EVOLUCAO);
   const anthropicFalsa = await subirAnthropicFalsa(portaAnthropic);
   const sistema = spawn(process.execPath, [path.join(RAIZ, 'servidor/index.js')], {
@@ -114,6 +117,10 @@ async function principal() {
       /* As rodadas de importacao do celular sao de 1, 5 e 15 minutos; aqui,
          duas rodadas em menos de um segundo. */
       CORREIA_SINCRONIA_ESPERAS: '150,600',
+      /* A Evolution desta maquina nao entra no teste: a conexao nova leria a
+         chave real de windows/evolution/.env. O teste le um .env proprio,
+         com chave de mentira, escrito logo abaixo. */
+      CORREIA_EVOLUTION_ENV: envDaEvolution,
       /* Uma chave de ambiente vazando da maquina de quem roda o teste faria a
          suite passar por motivo errado — ou gastar credito de verdade. */
       ANTHROPIC_API_KEY: '',

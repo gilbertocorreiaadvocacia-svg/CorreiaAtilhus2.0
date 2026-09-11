@@ -25,6 +25,15 @@ export async function testarQrCode({ base, evolucao, chaveEvolucao }) {
   const id = criada.dados?.id;
   s.ok('conexao nasce com o bloco de configuracao do QR Code', criada.status === 200 && Boolean(id));
   s.ok('a instancia ja vem nomeada com o id da conexao', criada.dados?.qrcode?.instancia === id);
+  /* A Evolution desta maquina (aqui, o .env de mentira da suite) ja preenche
+     a conexao: ninguem digita endereco nem copia chave a mao. */
+  s.ok('o endereco da Evolution local ja vem preenchido', criada.dados?.qrcode?.servidor === 'http://localhost:8080');
+  s.ok('a chave tambem, e volta mascarada', criada.dados?.qrcode?.chave === '***');
+  s.ok(
+    'o retorno aponta para fora do Docker',
+    String(criada.dados?.qrcode?.urlWebhook || '').startsWith('http://host.docker.internal:'),
+    criada.dados?.qrcode?.urlWebhook,
+  );
   if (!id) return s;
 
   /* 2. Configurar */

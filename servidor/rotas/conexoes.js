@@ -8,6 +8,7 @@ import { driverDa, listarDrivers } from '../whatsapp/drivers/index.js';
 import { notificar } from '../ia/mencoes.js';
 import { agendarResposta } from '../ia/motor.js';
 import { guardarNaAgenda } from '../whatsapp/agenda.js';
+import { completarComEvolutionLocal, garantirEvolutionLocal } from '../whatsapp/evolution-local.js';
 import { agendarSincronizacao, cancelarSincronizacao, rodar } from '../whatsapp/sincronizar-historico.js';
 import { comCodigo, exigirConfiguracao } from './sessao.js';
 
@@ -125,7 +126,9 @@ export function registrarConexoes(rotas) {
         verifyToken: crypto.randomBytes(16).toString('hex'),
         appSecret: '',
       },
-      qrcode: {
+      /* Endereco, chave e retorno ja vem da Evolution desta maquina (ver
+         whatsapp/evolution-local.js); sem ela instalada, ficam em branco. */
+      qrcode: completarComEvolutionLocal({
         servidor: '',
         chave: '',
         /* Uma instancia por numero, com o nome ja preenchido: o id da conexao
@@ -133,7 +136,7 @@ export function registrarConexoes(rotas) {
            chance de duas conexoes apontarem para a mesma sessao. */
         instancia: id,
         urlWebhook: '',
-      },
+      }),
     });
     registrarEvento(conexao, 'criada', `Conexao criada em modo ${conexao.tipo}.`, {
       tipo: 'membro',
@@ -261,8 +264,9 @@ export function registrarConexoes(rotas) {
 
   /** Confere se o caminho daquela conexao esta de pe, seja ele qual for. */
   rotas.post('/api/conexoes/:id/testar', async ({ ctx, params }) => {
-    const conexao = achar('conexoes', params.id);
-    if (!conexao || conexao.workspaceId !== ctx.workspaceId) throw comCodigo('Conexao nao encontrada.', 404);
+    const encontrada = achar('conexoes', params.id);
+    if (!encontrada || encontrada.workspaceId !== ctx.workspaceId) throw comCodigo('Conexao nao encontrada.', 404);
+    const conexao = garantirEvolutionLocal(encontrada);
 
     const resultado = await driverDa(conexao).testar({ conexao });
 
@@ -304,8 +308,11 @@ export function registrarConexoes(rotas) {
    */
   rotas.post('/api/conexoes/:id/conectar', async ({ ctx, params }) => {
     exigirConfiguracao(ctx);
-    const conexao = achar('conexoes', params.id);
-    if (!conexao || conexao.workspaceId !== ctx.workspaceId) throw comCodigo('Conexao nao encontrada.', 404);
+    const encontrada = achar('conexoes', params.id);
+    if (!encontrada || encontrada.workspaceId !== ctx.workspaceId) throw comCodigo('Conexao nao encontrada.', 404);
+    /* Conexao criada antes de o sistema saber ler a Evolution local, ou
+       trocada de tipo depois de criada: completa aqui, no clique. */
+    const conexao = garantirEvolutionLocal(encontrada);
 
     const driver = driverDa(conexao);
     if (!driver.conectar) {
