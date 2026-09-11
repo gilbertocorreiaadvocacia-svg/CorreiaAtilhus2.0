@@ -263,6 +263,28 @@ export const driverQrCode = {
           metodo: 'POST',
           corpo: { webhook: { enabled: true, ...webhook } },
         }).catch(() => null);
+
+        /* E o pedido de historico completo. Instancia criada antes de o
+           sistema pedir isso traria so os ultimos meses. A Evolution exige as
+           seis configuracoes juntas no /settings/set, entao le as atuais e
+           devolve iguais, trocando so esta — e nao mexe se ja estiver ligada.
+           Vale para a proxima leitura do QR: o celular manda o historico uma
+           vez, na hora do pareamento. */
+        const atuais = await chamar(cfg, `/settings/find/${cfg.instancia}`).catch(() => null);
+        if (atuais && atuais.syncFullHistory !== true) {
+          await chamar(cfg, `/settings/set/${cfg.instancia}`, {
+            metodo: 'POST',
+            corpo: {
+              rejectCall: Boolean(atuais.rejectCall),
+              msgCall: atuais.msgCall || '',
+              groupsIgnore: Boolean(atuais.groupsIgnore),
+              alwaysOnline: Boolean(atuais.alwaysOnline),
+              readMessages: Boolean(atuais.readMessages),
+              readStatus: Boolean(atuais.readStatus),
+              syncFullHistory: true,
+            },
+          }).catch(() => null);
+        }
       }
 
       const dados = await chamar(cfg, `/instance/connect/${cfg.instancia}`, { prazoMs: 40000 });

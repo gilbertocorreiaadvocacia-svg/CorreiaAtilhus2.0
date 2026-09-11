@@ -141,13 +141,16 @@ dizendo o que fazer. O último teste é o que ninguém consegue fazer de cabeça
 ele sobe um contêiner descartável que chama **o mesmo endereço que a Evolution
 vai chamar**, e assim prova o caminho de volta antes de você depender dele.
 
-**Depois de ler o QR, as conversas do celular vêm sozinhas.** O sistema traz
-tudo o que o WhatsApp sincronizar, em três rodadas — 1, 5 e 15 minutos depois
-de conectar, porque o celular manda o histórico aos poucos. Elas entram em
-**Ativos**, com quem leu o QR como responsável, e com o **nome salvo na agenda
-do celular** (sem nome salvo, o nome do perfil; sem nenhum, o número). O
-andamento aparece na aba **Geral** do número, onde há também o botão *Trazer de
-novo*. Duas consequências que valem saber:
+**Depois de ler o QR, as conversas do celular vêm sozinhas.** O sistema pede
+ao WhatsApp o histórico **completo** e vai trazendo em rodadas — 1, 3, 6, 10 e
+15 minutos depois de conectar, e dali de dez em dez —, até o celular parar de
+mandar (duas rodadas seguidas sem nada novo), por até uma hora. Elas entram em
+**Ativos**, com quem leu o QR como responsável, com o **nome salvo na agenda do
+celular** (sem nome salvo, o nome do perfil; sem nenhum, o número) e com a
+**foto de perfil**, que chega aos poucos. O andamento aparece na aba **Geral**
+do número. Para trazer tudo de novo a qualquer hora, use **Sincronizar tudo**
+(na aba Geral, em Ações, ou no menu da linha do número): não duplica nada.
+Duas consequências que valem saber:
 
 - quem já conversava com o escritório, ao escrever de novo, fala com a equipe,
   e não com o agente — a Recepção fica para número que o escritório nunca viu;

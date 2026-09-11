@@ -116,7 +116,9 @@ async function principal() {
       CORREIA_IA_TEMPO_LIMITE: '800',
       /* As rodadas de importacao do celular sao de 1, 5 e 15 minutos; aqui,
          duas rodadas em menos de um segundo. */
-      CORREIA_SINCRONIA_ESPERAS: '150,600',
+      /* Cinco rodadas curtas: da para ver a sincronizacao PARAR sozinha na
+         terceira, quando o celular deixa de mandar coisa nova. */
+      CORREIA_SINCRONIA_ESPERAS: '150,300,450,600,750',
       /* A fila de fotos anda de 1,5 em 1,5 s no escritorio; aqui, de 30 ms. */
       CORREIA_FOTO_INTERVALO: '30',
       /* A Evolution desta maquina nao entra no teste: a conexao nova leria a

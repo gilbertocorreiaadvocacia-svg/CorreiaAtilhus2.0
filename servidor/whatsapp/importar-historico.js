@@ -188,7 +188,15 @@ function quandoDe(item) {
  * Pode rodar quantas vezes quiser: mensagem ja gravada e reconhecida pelo id e
  * nao se repete, e conversa que ja existe nao e recriada.
  */
-export async function importarHistorico({ conexao, responsavel = null, limitePorConversa = 50000, aoAndar = null }) {
+export async function importarHistorico({
+  conexao,
+  responsavel = null,
+  limitePorConversa = 50000,
+  aoAndar = null,
+  /* Pedido explicito de trazer tudo de novo: confere a foto de todo mundo,
+     mesmo de quem foi conferido ha pouco (ver fotos.js). */
+  forcarFotos = false,
+}) {
   const cfg = conexao?.qrcode || {};
   if (!cfg.servidor || !cfg.chave || !cfg.instancia) {
     throw new Error('Conexao sem endereco, chave ou instancia configurada.');
@@ -379,7 +387,7 @@ export async function importarHistorico({ conexao, responsavel = null, limitePor
 
   /* As fotos de perfil entram na fila devagar (ver fotos.js), depois de tudo
      gravado: a importacao nao espera por elas. */
-  for (const contato of tocadas) agendarFoto(contato);
+  for (const contato of tocadas) agendarFoto(contato, { forcar: forcarFotos });
 
   return relato;
 }

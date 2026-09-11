@@ -203,6 +203,25 @@ export function subirEvolucaoFalsa(porta = PORTA, chave = CHAVE) {
       configuracoes.push({ rota: caminho, ...pedido });
       return responder(201, { instance: { instanceName: pedido.instanceName, status: 'created' } });
     }
+    /* Configuracoes da instancia: nascem como na Evolution, com o historico
+       completo DESLIGADO — e o caso da instancia criada antes do sistema
+       pedir o historico inteiro. */
+    if (caminho.startsWith('/settings/find/')) {
+      return responder(200, {
+        rejectCall: false, msgCall: '', groupsIgnore: true, alwaysOnline: false,
+        readMessages: false, readStatus: false, syncFullHistory: false,
+        ...(configuracoes.filter((c) => String(c.rota).startsWith('/settings/set/')).pop() || {}),
+      });
+    }
+    if (caminho.startsWith('/settings/set/')) {
+      const pedido = corpo ? JSON.parse(corpo) : {};
+      const faltam = ['rejectCall', 'groupsIgnore', 'alwaysOnline', 'readMessages', 'readStatus', 'syncFullHistory']
+        .filter((campo) => typeof pedido[campo] !== 'boolean');
+      /* Como a Evolution: sem as seis juntas, recusa. */
+      if (faltam.length) return responder(400, { message: `faltam: ${faltam.join(', ')}` });
+      configuracoes.push({ rota: caminho, ...pedido });
+      return responder(201, { settings: pedido });
+    }
     if (caminho.startsWith('/webhook/set/')) {
       configuracoes.push({ rota: caminho, ...(corpo ? JSON.parse(corpo) : {}) });
       return responder(201, { webhook: { enabled: true } });

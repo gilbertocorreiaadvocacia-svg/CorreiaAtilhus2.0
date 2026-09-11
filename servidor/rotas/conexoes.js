@@ -195,7 +195,7 @@ export function registrarConexoes(rotas) {
       ? { tipo: 'membro', id: ctx.membro.id, nome: ctx.usuario?.nome || 'Equipe' }
       : null;
     try {
-      const relato = await rodar(conexao.id, null, quemClicou);
+      const relato = await rodar(conexao.id, null, quemClicou, { forcarFotos: true });
       if (!relato) throw comCodigo('Ja ha uma importacao em andamento para este numero.', 409);
       return relato;
     } catch (erro) {

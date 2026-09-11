@@ -81,6 +81,13 @@ export async function testarHistorico({ base, evolucao, chaveEvolucao }) {
     (reapontado?.webhook?.events || []).includes('CONTACTS_UPSERT') && reapontado?.webhook?.enabled === true,
     JSON.stringify(reapontado),
   );
+  const ajustes = (await evo('/__configuracoes')).find((p) => String(p.rota).startsWith('/settings/set/'));
+  s.ok('e passa a pedir o historico completo', ajustes?.syncFullHistory === true, JSON.stringify(ajustes));
+  s.ok(
+    'sem mexer nas outras configuracoes dela',
+    ajustes?.groupsIgnore === true && ajustes?.readMessages === false,
+    JSON.stringify(ajustes),
+  );
 
   /* ---------------- O celular ---------------- */
 
@@ -163,6 +170,13 @@ export async function testarHistorico({ base, evolucao, chaveEvolucao }) {
     if (historico?.situacao === 'concluido' || historico?.situacao === 'erro') break;
   }
   s.ok('as conversas vieram sozinhas depois de conectar', historico?.situacao === 'concluido', JSON.stringify(historico));
+  /* Rodada 1 traz tudo; 2 e 3 nao trazem nada; na terceira, com duas calmas
+     seguidas, para — sem esperar as rodadas 4 e 5. */
+  s.ok(
+    'e a sincronizacao para sozinha quando o celular para de mandar',
+    historico?.rodada === 3,
+    `parou na rodada ${historico?.rodada}`,
+  );
   s.ok('a tela sabe quantas conversas vieram', historico?.conversas === 5, JSON.stringify(historico));
 
   const todas = (await api.get(`/api/contatos?conexao=${id}&limite=500`)).dados?.contatos || [];

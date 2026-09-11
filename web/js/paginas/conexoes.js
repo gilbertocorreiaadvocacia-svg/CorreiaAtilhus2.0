@@ -281,6 +281,9 @@ export async function paginaConexoes({ definirAcoes } = {}) {
       el('td', { class: 'conexoes-acoes' }, [
         menuAcoes([
           { rotulo: 'Ver conversas', icone: 'conversas', aoClicar: () => abrirConversasDe(conexao) },
+          conexao.tipo === 'qrcode' && conexao.estado === 'conectado' && podeConfigurar()
+            ? { rotulo: 'Sincronizar tudo', icone: 'atualizar', aoClicar: () => sincronizarTudo(conexao, desenhar) }
+            : null,
           { rotulo: 'Ver detalhes', icone: 'abrir', aoClicar: () => abrirDetalhes(conexao, desenhar) },
           podeConfigurar() ? { rotulo: 'Configurar', icone: 'ajustes', aoClicar: () => editar(conexao, desenhar) } : null,
           { rotulo: 'Testar conexão', icone: 'atualizar', aoClicar: () => testar(conexao, desenhar) },
@@ -537,27 +540,14 @@ function blocoDoHistorico(conexao, aoMudar) {
   } else if (h.situacao === 'aguardando') {
     texto = 'O celular está mandando o histórico. As conversas chegam em Ativos nos próximos minutos.';
   } else if (h.situacao === 'importando') {
-    texto = `Trazendo as conversas do celular${h.rodada ? ` (rodada ${h.rodada} de ${h.rodadas})` : ''}. ${h.conversas || 0} até agora.`;
+    texto = `Trazendo as conversas do celular${h.rodada ? ` (rodada ${h.rodada})` : ''}: ${h.conversas || 0} conversas até agora. O sistema continua buscando até o celular parar de mandar, por até uma hora.`;
   } else if (h.situacao === 'erro') {
     texto = `A última tentativa falhou: ${h.erro || 'erro sem descrição'}.`;
   } else {
     texto = `${h.conversas || 0} conversas e ${h.mensagens || 0} mensagens trazidas do celular${h.concluidoEm ? `, ${dataHora(h.concluidoEm)}` : ''}.`;
   }
 
-  const trazer = async (botaoClicado) => {
-    botaoClicado.disabled = true;
-    try {
-      const r = await api.post(`/api/conexoes/${conexao.id}/importar-historico`, {});
-      aviso(
-        `${r.conversasImportadas} conversas novas, ${r.mensagensGravadas} mensagens, ${r.conversasRenomeadas} renomeadas.`,
-        'sucesso',
-      );
-      await aoMudar();
-    } catch (erro) {
-      aviso(erro.message, 'erro');
-      botaoClicado.disabled = false;
-    }
-  };
+  const trazer = (botaoClicado) => sincronizarTudo(conexao, aoMudar, botaoClicado);
 
   return el('div', {}, [
     subtitulo(
@@ -568,8 +558,10 @@ function blocoDoHistorico(conexao, aoMudar) {
       el('p', { class: 'ajuda', texto }),
       conectada && podeConfigurar() && h?.situacao !== 'importando'
         ? el('div', { class: 'linha-botoes' }, [
-            botao(h ? 'Trazer de novo' : 'Trazer agora', {
+            botao('Sincronizar tudo', {
               pequeno: true,
+              icone: 'atualizar',
+              titulo: 'Traz de novo todas as conversas, nomes e fotos do celular. Não duplica nada.',
               aoClicar: (evento) => trazer(evento.currentTarget),
             }),
           ])
@@ -753,6 +745,16 @@ function abaAcoes(conexao, painel, recarregarTela) {
           }),
         )
       : null,
+    temSessao && conexao.estado === 'conectado' && podeConfigurar()
+      ? acao(
+          'Sincronizar tudo',
+          'Traz de novo todas as conversas e mensagens do celular, os nomes salvos na agenda e as fotos de perfil. Não duplica nada: pode apertar quantas vezes quiser. Ao conectar um número novo, isso já acontece sozinho.',
+          botao('Sincronizar tudo', {
+            icone: 'atualizar',
+            aoClicar: (evento) => sincronizarTudo(conexao, recarregarTela, evento.currentTarget),
+          }),
+        )
+      : null,
     temSessao && conexao.estado === 'conectado'
       ? acao(
           'Encerrar a sessao',
@@ -904,6 +906,28 @@ function abrirQrCode(conexao, recarregarTela) {
 
   gerar();
   return painel;
+}
+
+/**
+ * Traz de novo tudo o que o celular tem: conversas, mensagens, nomes da
+ * agenda e fotos de perfil. Pode apertar quantas vezes quiser — mensagem que
+ * ja esta no sistema nao se repete, e conversa que existe nao e recriada.
+ */
+async function sincronizarTudo(conexao, depois, botaoClicado = null) {
+  if (botaoClicado) botaoClicado.disabled = true;
+  aviso('Sincronizando as conversas do celular. Num número grande isso leva alguns minutos.', '');
+  try {
+    const r = await api.post(`/api/conexoes/${conexao.id}/importar-historico`, {});
+    aviso(
+      `${conexao.nome}: ${r.conversasImportadas} conversas novas, ${r.mensagensGravadas} mensagens novas, ${r.conversasRenomeadas} nomes atualizados. As fotos chegam aos poucos.`,
+      'sucesso',
+    );
+    await depois?.();
+  } catch (erro) {
+    aviso(erro.message, 'erro');
+  } finally {
+    if (botaoClicado) botaoClicado.disabled = false;
+  }
 }
 
 /**
