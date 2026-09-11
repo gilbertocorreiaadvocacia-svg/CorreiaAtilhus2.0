@@ -6,6 +6,7 @@ import { agora, normalizarTelefone, novoId, ordenarPor } from '../nucleo/util.js
 import { acharOuCriarContato, atualizarSituacaoExterna, receberMensagem } from '../whatsapp/recebimento.js';
 import { driverDa, listarDrivers } from '../whatsapp/drivers/index.js';
 import { notificar } from '../ia/mencoes.js';
+import { agendarResposta } from '../ia/motor.js';
 import { comCodigo, exigirConfiguracao } from './sessao.js';
 
 /**
@@ -408,14 +409,16 @@ export function registrarConexoes(rotas) {
       }
     }
 
+    /** Devolve true quando precisou trocar alguma coisa. */
     const passarParaOAgente = (contato) => {
-      if (!agente || !contato) return;
+      if (!agente || !contato) return false;
       const jaEle = contato.responsavel?.tipo === 'agente' && contato.responsavel.id === agente.id;
-      if (jaEle && contato.estado === 'ia') return;
+      if (jaEle && contato.estado === 'ia') return false;
       const mudancas = { responsavel: { tipo: 'agente', id: agente.id, nome: agente.nome }, estado: 'ia' };
       atualizar('contatos', contato.id, mudancas);
       Object.assign(contato, mudancas);
       registrarLog(ctx.workspaceId, contato.id, 'responsavel', `Chat de teste: conversa entregue a ${agente.nome}`);
+      return true;
     };
 
     /* ANTES da mensagem: o agente precisa ja estar na conversa quando ela
@@ -437,10 +440,17 @@ export function registrarConexoes(rotas) {
     });
 
     /* DEPOIS tambem: a palavra-chave da primeira mensagem e o /restart trocam
-       o responsavel por conta propria. A resposta so e gerada quando o prazo
-       do agente vence, e le o responsavel naquela hora — recolocar aqui basta
-       para quem responde ser o escolhido. */
-    passarParaOAgente(resultado.contato);
+       o responsavel por conta propria. A resposta le o responsavel na hora em
+       que sai, entao recolocar aqui garante QUEM responde.
+
+       Mas nao QUANDO. O relogio ja foi armado pelo agente da palavra-chave,
+       com o delay DELE: escolher um agente de 1s e escrever "BPC" fazia a
+       resposta esperar os 15s da Triagem BPC, enquanto a tela contava 1s.
+       Rearmar com o agente escolhido corrige o prazo. No /restart nao: ali o
+       sistema limpa a conversa e ninguem deve responder ao comando. */
+    if (passarParaOAgente(resultado.contato) && !resultado.reiniciado) {
+      agendarResposta(resultado.contato);
+    }
 
     return {
       ok: true,

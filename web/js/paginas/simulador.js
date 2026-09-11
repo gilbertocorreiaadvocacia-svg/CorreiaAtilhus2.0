@@ -371,6 +371,8 @@ export async function paginaSimulador() {
       esconderDigitando();
       await carregar();
     } catch (erro) {
+      // A resposta nao vem mais: deixar "digitando" na tela prometeria uma.
+      esconderDigitando();
       aviso(erro.message, 'erro');
     }
   }

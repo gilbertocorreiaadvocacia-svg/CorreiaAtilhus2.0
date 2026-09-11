@@ -60,13 +60,25 @@ function responderJson(res, status, dados, cabecalhos = {}) {
   res.end(corpo);
 }
 
-/** Resposta de sucesso no formato da Anthropic, com o texto pedido. */
-function sucesso(texto) {
+/**
+ * Resposta de sucesso no formato da Anthropic, com o texto pedido.
+ *
+ * `pensamento` poe um bloco de raciocinio antes do texto, como o Sonnet 5 e o
+ * Opus 5 devolvem sem ninguem pedir — com o texto vazio, que e o padrao deles.
+ * `parada` escolhe o stop_reason: "max_tokens" e a resposta cortada pelo teto,
+ * "refusal" e a recusa. As duas chegam com HTTP 200, e e exatamente por isso
+ * que precisam de teste: pelo codigo de status parecem sucesso.
+ */
+function sucesso(texto, { pensamento = false, parada = 'end_turn' } = {}) {
+  const content = [];
+  if (pensamento) content.push({ type: 'thinking', thinking: '', signature: 'assinatura-falsa' });
+  if (texto) content.push({ type: 'text', text: texto });
   return {
     id: 'msg_falso',
     type: 'message',
     role: 'assistant',
-    content: [{ type: 'text', text: texto }],
+    content,
+    stop_reason: parada,
     usage: { input_tokens: 10, output_tokens: 3 },
   };
 }
@@ -103,6 +115,7 @@ export function subirAnthropicFalsa(porta) {
       const registro = {
         chave: req.headers['x-api-key'] || '',
         modelo: corpo?.model || null,
+        maxTokens: corpo?.max_tokens ?? null,
         sistema: String(corpo?.system || '').slice(0, 70),
         quando: Date.now(),
       };
@@ -128,7 +141,8 @@ export function subirAnthropicFalsa(porta) {
       }
 
       if (item.status === 200) {
-        return responderJson(res, 200, sucesso(item.texto || 'funcionando'));
+        const texto = item.texto === undefined ? 'funcionando' : item.texto;
+        return responderJson(res, 200, sucesso(texto, { pensamento: item.pensamento, parada: item.parada }));
       }
       return responderJson(
         res,

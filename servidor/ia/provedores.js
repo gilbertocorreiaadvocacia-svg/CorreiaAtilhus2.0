@@ -14,13 +14,31 @@ import { normalizar } from '../nucleo/util.js';
  * Sem isso, um `fetch` que nunca responde prende a resposta do agente para
  * sempre: o cronometro do motor ja disparou, a conversa fica com "digitando"
  * na tela e o cliente espera sem que nenhum erro apareca em lugar nenhum.
- * Sessenta segundos e folgado para 2000 tokens com ferramentas, e curto o
- * bastante para o problema virar aviso no mesmo minuto.
  *
- * A variavel de ambiente e so para o teste: um teste que espera sessenta
- * segundos de verdade para provar um timeout ninguem roda duas vezes.
+ * Dois minutos, e nao um: o teto de tamanho subiu para caber o raciocinio do
+ * modelo (ver MAX_TOKENS_ANTHROPIC), e uma resposta que usa o teto inteiro nao
+ * termina em sessenta segundos. A resposta comum de WhatsApp continua levando
+ * segundos — o limite so pesa na chamada que travou de verdade.
+ *
+ * A variavel de ambiente e so para o teste: um teste que espera dois minutos
+ * de verdade para provar um timeout ninguem roda duas vezes.
  */
-const TEMPO_LIMITE = Number(process.env.CORREIA_IA_TEMPO_LIMITE) || 60 * 1000;
+const TEMPO_LIMITE = Number(process.env.CORREIA_IA_TEMPO_LIMITE) || 120 * 1000;
+
+/**
+ * Teto de tamanho de UMA resposta da Anthropic, contando o raciocinio.
+ *
+ * O Claude Sonnet 5 e o Opus 5 pensam antes de responder mesmo sem ninguem
+ * pedir, e o `max_tokens` e um teto do TOTAL: raciocinio mais texto mais
+ * chamada de ferramenta. O valor antigo, 2000, foi escolhido para modelo que
+ * nao pensava. Numa pergunta mais enrolada o raciocinio comia o teto inteiro,
+ * e a resposta voltava vazia ou cortada no meio da frase.
+ *
+ * Teto nao e gasto: o modelo so usa o que precisa, e a resposta curta de
+ * WhatsApp continua custando o mesmo. Oito mil deixa folga para pensar e ainda
+ * chamar ferramenta na mesma volta.
+ */
+const MAX_TOKENS_ANTHROPIC = 8000;
 
 /**
  * Onde cada provedor mora.
@@ -125,13 +143,38 @@ export async function conversar({ modeloId, workspaceId, sistema, mensagens, fer
   const modelo = modeloDe(modeloId);
   const chaves = chavesDoWorkspace(workspaceId);
 
+  let resposta;
   if (modelo.provedor === 'anthropic' && chaves.anthropic) {
-    return conversarAnthropic({ modelo, chave: chaves.anthropic, sistema, mensagens, ferramentas });
+    resposta = await conversarAnthropic({ modelo, chave: chaves.anthropic, sistema, mensagens, ferramentas });
+  } else if (modelo.provedor === 'openai' && chaves.openai) {
+    resposta = await conversarOpenai({ modelo, chave: chaves.openai, sistema, mensagens, ferramentas });
+  } else {
+    return { texto: null, chamadas: [], semProvedor: true };
   }
-  if (modelo.provedor === 'openai' && chaves.openai) {
-    return conversarOpenai({ modelo, chave: chaves.openai, sistema, mensagens, ferramentas });
+
+  conferirSeTerminou(resposta);
+  return resposta;
+}
+
+/**
+ * Resposta cortada ou recusada NAO segue para o cliente.
+ *
+ * As duas chegam como sucesso (HTTP 200), e por isso passavam: a cortada ia
+ * para o WhatsApp parada no meio da frase, ou nem ia, quando o corte caia
+ * antes do texto — e em nenhum dos dois casos alguem ficava sabendo. Virar
+ * erro aqui leva as duas pelo caminho que ja existe para falha da IA: linha
+ * no historico e aviso no sino de quem atende a conversa.
+ *
+ * Nao ha segunda tentativa, de proposito. O mesmo pedido corta de novo no mesmo
+ * lugar e custa o dobro; recusa repetida continua recusa.
+ */
+function conferirSeTerminou(resposta) {
+  if (resposta.parada === 'max_tokens') {
+    throw new Error('A resposta da IA passou do tamanho maximo e veio cortada; nada foi enviado ao cliente');
   }
-  return { texto: null, chamadas: [], semProvedor: true };
+  if (resposta.parada === 'refusal') {
+    throw new Error('A IA se recusou a responder esta conversa; nada foi enviado ao cliente');
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -139,7 +182,7 @@ export async function conversar({ modeloId, workspaceId, sistema, mensagens, fer
 async function conversarAnthropic({ modelo, chave, sistema, mensagens, ferramentas }) {
   const corpo = {
     model: modelo.id,
-    max_tokens: 2000,
+    max_tokens: MAX_TOKENS_ANTHROPIC,
     system: sistema,
     messages: mensagens.map(paraAnthropic),
   };
@@ -167,6 +210,9 @@ async function conversarAnthropic({ modelo, chave, sistema, mensagens, ferrament
 
   const dados = await resposta.json().catch(() => ({}));
 
+  // Os blocos de raciocinio ("thinking") ficam de fora do texto, mas seguem no
+  // `bruto`: numa volta de ferramenta a Anthropic exige recebe-los de volta
+  // exatamente como vieram.
   const texto = (dados.content || [])
     .filter((b) => b.type === 'text')
     .map((b) => b.text)
@@ -177,7 +223,7 @@ async function conversarAnthropic({ modelo, chave, sistema, mensagens, ferrament
     .filter((b) => b.type === 'tool_use')
     .map((b) => ({ id: b.id, nome: b.name, argumentos: b.input || {} }));
 
-  return { texto: texto || null, chamadas, bruto: dados.content, uso: dados.usage };
+  return { texto: texto || null, chamadas, bruto: dados.content, uso: dados.usage, parada: dados.stop_reason };
 }
 
 function paraAnthropic(mensagem) {
@@ -273,7 +319,12 @@ async function conversarOpenai({ modelo, chave, sistema, mensagens, ferramentas 
     argumentos: seguroJson(c.function?.arguments),
   }));
 
-  return { texto: escolha.content || null, chamadas, uso: dados.usage };
+  // A OpenAI chama o corte de "length" e a recusa de "content_filter"; aqui
+  // viram os nomes da Anthropic, para conferirSeTerminou ler um idioma so.
+  const motivo = dados.choices?.[0]?.finish_reason;
+  const parada = motivo === 'length' ? 'max_tokens' : motivo === 'content_filter' ? 'refusal' : motivo;
+
+  return { texto: escolha.content || null, chamadas, uso: dados.usage, parada };
 }
 
 function seguroJson(texto) {
