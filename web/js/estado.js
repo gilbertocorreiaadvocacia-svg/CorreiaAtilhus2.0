@@ -108,6 +108,34 @@ export async function carregarNotificacoes() {
 export const acharEtiqueta = (id) => estado.etiquetas.find((e) => e.id === id) || null;
 export const acharConexao = (id) => estado.conexoes.find((c) => c.id === id) || null;
 
+/*
+ * O numero de WhatsApp escolhido na tela de Conversas.
+ *
+ * Mora aqui, e nao na tela, porque duas telas mexem nele: Conversas escolhe,
+ * e Conexoes abre "as conversas deste numero" escolhendo por ela. Fica no
+ * navegador de quem escolheu — cada pessoa da equipe trabalha no seu numero,
+ * e reabrir o sistema no numero de ontem e o esperado. Vazio e "todos".
+ */
+const CHAVE_NUMERO = 'correia.conversas.numero';
+
+export function numeroEscolhido() {
+  try {
+    const id = localStorage.getItem(CHAVE_NUMERO) || '';
+    return id && acharConexao(id) ? id : '';
+  } catch {
+    return '';
+  }
+}
+
+export function escolherNumero(conexaoId) {
+  try {
+    if (conexaoId) localStorage.setItem(CHAVE_NUMERO, conexaoId);
+    else localStorage.removeItem(CHAVE_NUMERO);
+  } catch {
+    /* sem armazenamento, a escolha vale so ate recarregar */
+  }
+}
+
 /** Lista de responsaveis possiveis: agentes de IA e pessoas da equipe. */
 export function opcoesResponsavel() {
   return [

@@ -1,6 +1,16 @@
 import { api, enviarArquivo } from '../api.js';
 import { abrirVisualizador, campoComDica, cartaoDeArquivo, dica, paginacao, previaDaMidia } from '../componentes.js';
-import { acharConexao, acharEtiqueta, estado, opcoesResponsavel, ouvir, recarregar } from '../estado.js';
+import {
+  acharConexao,
+  acharEtiqueta,
+  escolherNumero,
+  estado,
+  numeroEscolhido,
+  opcoesResponsavel,
+  ouvir,
+  podeConfigurar,
+  recarregar,
+} from '../estado.js';
 import {
   areaTexto,
   avatar,
@@ -168,11 +178,19 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
     departamento: '',
     responsavel: '',
     etiqueta: '',
-    conexao: '',
+    /* O numero de WhatsApp em que a pessoa esta trabalhando: sai do seletor
+       da barra e fica lembrado entre uma visita e outra (ver estado.js). */
+    conexao: numeroEscolhido(),
   };
 
   let contatos = [];
   let contagens = {};
+  /* Quantas conversas, e quantas por ler, em cada numero — contadas sem
+     filtro nenhum, para o seletor mostrar todos os numeros de uma vez. */
+  let porConexao = {};
+  /* A conversa acabou de ser criada por "Nova conversa": ainda sem mensagem,
+     ela nao vem na fila, e precisa ser posta a mao para abrir. */
+  let recemCriadaId = null;
   /* Quantos existem no filtro, antes do corte do limite. */
   let totalNoServidor = 0;
   /* Quantos existem em cada status, tambem contados antes do corte. */
@@ -234,8 +252,22 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
     });
     contatos = resposta.contatos;
     contagens = resposta.contagens;
+    porConexao = resposta.porConexao || {};
     totalNoServidor = resposta.total ?? resposta.contatos.length;
     totalPorStatus = resposta.porStatus || {};
+
+    /* A fila so traz conversa com mensagem, e a recem-criada ainda nao tem.
+       Sem isto, "Nova conversa" criava o contato e abria OUTRA conversa, a
+       primeira da fila. */
+    if (recemCriadaId && visualizacao === 'conversas' && !contatos.some((c) => c.id === recemCriadaId)) {
+      try {
+        const nova = await api.get(`/api/contatos/${recemCriadaId}`);
+        if (nova && !nova.ultimaMensagemEm) contatos.unshift(nova);
+        else recemCriadaId = null;
+      } catch {
+        recemCriadaId = null;
+      }
+    }
   }
 
   async function desenhar() {
@@ -286,7 +318,8 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
         ],
       ],
       ['etiqueta', 'Etiqueta', estado.etiquetas.map((e) => ({ valor: e.id, rotulo: e.nome }))],
-      ['conexao', 'Conexao', estado.conexoes.map((c) => ({ valor: c.id, rotulo: c.nome }))],
+      /* A conexao saiu daqui: quem escolhe o numero e o seletor da barra, e
+         dois controles para a mesma coisa acabariam discordando. */
       [
         'responsavel',
         'Responsavel',
@@ -328,6 +361,121 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
   function rotuloDeFiltro(chave, padrao, lista) {
     const escolhido = lista.find((i) => i.id === filtro[chave]);
     return escolhido ? escolhido.nome : padrao;
+  }
+
+  /* ---------------- Seletor de numero ---------------- */
+
+  /**
+   * Em qual numero de WhatsApp a pessoa esta trabalhando.
+   *
+   * O escritorio tem mais de um numero de proposito (um comercial, que corre
+   * risco, e um de pos-venda, que nao pode cair), e cada um e uma sessao com
+   * as proprias conversas. Escolher aqui mostra so as daquele numero, e a
+   * "Nova conversa" sai por ele. Cada numero mostra quantas conversas tem
+   * alguem esperando leitura, para quem esta num numero ver que o outro chama.
+   */
+  function seletorDeNumero() {
+    const numeros = estado.conexoes;
+    const escolhida = numeros.find((c) => c.id === filtro.conexao) || null;
+    const esperandoEmOutros = numeros
+      .filter((c) => c.id !== filtro.conexao)
+      .reduce((soma, c) => soma + (porConexao[c.id]?.naoLidas || 0), 0);
+
+    const pontoDe = (conexao) =>
+      el('span', {
+        class: `seletor-numero-ponto ${!conexao ? 'todos' : conexao.estado === 'conectado' ? 'ligado' : 'desligado'}`,
+        title: !conexao ? '' : conexao.estado === 'conectado' ? 'Conectado' : 'Desconectado',
+      });
+    const numeroDe = (conexao) =>
+      conexao.tipo === 'simulador' ? 'número de teste' : conexao.numero ? telefone(conexao.numero) : 'ainda sem número';
+
+    const gatilho = el('button', {
+      type: 'button',
+      class: 'seletor-numero',
+      'aria-haspopup': 'listbox',
+      'aria-expanded': 'false',
+      title: 'Escolher o número de WhatsApp',
+    }, [
+      pontoDe(escolhida),
+      el('span', { class: 'seletor-numero-texto' }, [
+        el('strong', { texto: escolhida ? escolhida.nome : 'Todos os números' }),
+        el('span', { texto: escolhida ? numeroDe(escolhida) : plural(numeros.length, 'número', 'números') }),
+      ]),
+      /* Alguem esperando em OUTRO numero: o selo avisa sem precisar abrir. */
+      esperandoEmOutros ? el('span', { class: 'conta canal', title: 'Conversas por ler em outros números', texto: String(esperandoEmOutros) }) : null,
+      el('span', { class: 'seletor-numero-seta' }, [icone('voltar', 12)]),
+    ]);
+
+    const lista = el('div', { class: 'seletor-numero-lista', role: 'listbox', 'aria-label': 'Números de WhatsApp', hidden: true });
+    const opcao = (conexao) => {
+      const contas = conexao ? porConexao[conexao.id] : null;
+      const total = conexao
+        ? contas?.conversas || 0
+        : Object.values(porConexao).reduce((soma, c) => soma + c.conversas, 0);
+      const ativa = (conexao?.id || '') === (filtro.conexao || '');
+      return el('button', {
+        type: 'button',
+        role: 'option',
+        'aria-selected': ativa ? 'true' : 'false',
+        class: `seletor-numero-opcao ${ativa ? 'ativo' : ''}`.trim(),
+        aoClick: async () => {
+          fechar();
+          if (ativa) return;
+          filtro.conexao = conexao?.id || '';
+          escolherNumero(filtro.conexao);
+          selecionadoId = null;
+          await desenhar();
+        },
+      }, [
+        pontoDe(conexao),
+        el('span', { class: 'seletor-numero-texto' }, [
+          el('strong', { texto: conexao ? conexao.nome : 'Todos os números' }),
+          el('span', { texto: conexao ? numeroDe(conexao) : 'Todas as conversas, de todos os números' }),
+        ]),
+        el('span', { class: 'seletor-numero-contas' }, [
+          contas?.naoLidas ? el('span', { class: 'conta canal', title: 'Conversas por ler', texto: String(contas.naoLidas) }) : null,
+          el('span', { class: 'seletor-numero-total', texto: plural(total, 'conversa', 'conversas') }),
+        ]),
+        ativa ? icone('ok', 14) : null,
+      ]);
+    };
+
+    const fecharNoClique = (evento) => {
+      if (!caixa.contains(evento.target)) fechar();
+    };
+    const teclas = (evento) => {
+      if (evento.key === 'Escape') {
+        fechar();
+        gatilho.focus();
+      }
+    };
+    function fechar() {
+      lista.hidden = true;
+      gatilho.setAttribute('aria-expanded', 'false');
+      document.removeEventListener('mousedown', fecharNoClique);
+      document.removeEventListener('keydown', teclas);
+    }
+    gatilho.addEventListener('click', () => {
+      if (!lista.hidden) return fechar();
+      limpar(lista);
+      lista.append(opcao(null), ...numeros.map(opcao));
+      if (podeConfigurar()) {
+        lista.append(
+          el('button', { type: 'button', class: 'seletor-numero-rodape', aoClick: () => (location.hash = '#/conexoes') }, [
+            icone('mais', 14),
+            'Conectar outro número',
+          ]),
+        );
+      }
+      lista.hidden = false;
+      gatilho.setAttribute('aria-expanded', 'true');
+      lista.querySelector('[aria-selected="true"]')?.focus();
+      document.addEventListener('mousedown', fecharNoClique);
+      document.addEventListener('keydown', teclas);
+    });
+
+    const caixa = el('div', { class: 'seletor-numero-caixa' }, [gatilho, lista]);
+    return caixa;
   }
 
   /* ---------------- Coluna 1: lista ---------------- */
@@ -410,7 +558,7 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
     /* Quantos filtros estao ligados alem dos dois que a barra ja mostra por
        nome. E esse numero que aparece em "Mais filtros". */
     const outrosFiltros = Object.entries(filtro).filter(
-      ([chave, valor]) => valor && !['aba', 'busca', 'status', 'responsavel'].includes(chave),
+      ([chave, valor]) => valor && !['aba', 'busca', 'status', 'responsavel', 'conexao'].includes(chave),
     ).length;
 
     const corpo = el('div', { class: 'coluna-corpo' });
@@ -431,6 +579,7 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
      * mantem o cursor no campo enquanto se digita.
      */
     const barra = el('div', { class: 'barra-fila' }, [
+      seletorDeNumero(),
       el('div', { class: 'barra-fila-busca' }, [busca]),
       el('div', { class: 'flexivel' }),
       botao(rotuloDeFiltro('responsavel', 'Responsável', [
@@ -1576,7 +1725,15 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
   function abrirNovaConversa() {
     const nome = entradaTexto('');
     const numero = entradaTexto('', { placeholder: '32988112233' });
-    const conexao = selecao(estado.conexoes.map((c) => ({ valor: c.id, rotulo: c.nome })), estado.conexoes[0]?.id);
+    /* Sai pelo numero escolhido no seletor da barra: e nele que a pessoa
+       disse que esta trabalhando. Sem escolha, o primeiro da lista. */
+    const conexao = selecao(
+      estado.conexoes.map((c) => ({
+        valor: c.id,
+        rotulo: `${c.nome}${c.numero ? ` · ${telefone(c.numero)}` : ''}${c.estado === 'conectado' ? '' : ' (desconectado)'}`,
+      })),
+      filtro.conexao || estado.conexoes[0]?.id,
+    );
     modal({
       titulo: 'Nova conversa',
       corpo: el('div', {}, [
@@ -1584,9 +1741,9 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
         // O formato ja esta no exemplo dentro do campo. O que o exemplo nao
         // mostra, que o 55 entra sozinho, cabe atras do icone.
         campoComDica('WhatsApp', numero, 'Com DDD. O DDI 55 e colocado sozinho.'),
-        campo('Conexao', conexao),
+        campo('Enviar pelo número', conexao),
       ]),
-      confirmar: 'Criar',
+      confirmar: 'Criar e abrir',
       aoConfirmar: async () => {
         if (!numero.value.trim()) throw new Error('Informe o numero.');
         const contato = await api.post('/api/contatos', {
@@ -1594,7 +1751,16 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
           telefone: numero.value.trim(),
           conexaoId: conexao.value,
         });
+        /* Abre de verdade a conversa criada: na aba em que ela nasceu, no
+           numero por onde ela vai sair, e mesmo sem mensagem nenhuma ainda. */
         selecionadoId = contato.id;
+        recemCriadaId = contato.id;
+        if (contato.aba) filtro.aba = contato.aba;
+        if (filtro.conexao && filtro.conexao !== contato.conexaoId) {
+          filtro.conexao = contato.conexaoId;
+          escolherNumero(filtro.conexao);
+        }
+        history.replaceState(null, '', `#/atendimento/${contato.id}`);
         await desenhar();
       },
     });
@@ -3173,6 +3339,13 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
     if (selecionadoId) {
       try {
         const conversa = await api.get(`/api/contatos/${selecionadoId}`);
+        /* A notificacao de uma conversa de OUTRO numero troca o seletor para
+           o numero dela: escondida pelo filtro, o link abriria uma tela sem a
+           conversa de que ele fala. */
+        if (conversa?.conexaoId && filtro.conexao && filtro.conexao !== conversa.conexaoId) {
+          filtro.conexao = conversa.conexaoId;
+          escolherNumero(filtro.conexao);
+        }
         if (conversa?.aba) {
           filtro.aba = conversa.aba;
           return;

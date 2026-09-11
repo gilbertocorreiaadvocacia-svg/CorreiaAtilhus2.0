@@ -113,6 +113,23 @@ export function registrarAtendimento(rotas) {
     contatos = filtrarConversasVisiveis(ctx, contatos);
     contatos = aplicarModoFoco(ctx, contatos);
 
+    /*
+     * Quanto ha em cada numero, ANTES de qualquer filtro.
+     *
+     * E o que o seletor de numero da tela mostra ao lado de cada conexao: quem
+     * esta olhando o numero do comercial precisa ver que o de pos-venda tem
+     * tres pessoas esperando, e essa conta nao pode depender do numero que
+     * esta escolhido agora — senao os outros mostrariam sempre zero.
+     */
+    const porConexao = {};
+    for (const contato of contatos) {
+      if (!contato.ultimaMensagemEm) continue;
+      const chave = contato.conexaoId || '';
+      porConexao[chave] ??= { conversas: 0, naoLidas: 0 };
+      porConexao[chave].conversas += 1;
+      if (contato.naoLidas) porConexao[chave].naoLidas += 1;
+    }
+
     if (query.comMensagem === 'true') {
       contatos = contatos.filter((c) => c.ultimaMensagemEm);
     }
@@ -187,6 +204,7 @@ export function registrarAtendimento(rotas) {
     return {
       total,
       porStatus,
+      porConexao,
       contatos: ordenados.slice(0, limite).map(enriquecer),
       contagens,
     };

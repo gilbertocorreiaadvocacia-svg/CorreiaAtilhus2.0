@@ -188,6 +188,21 @@ export async function testarHistorico({ base, evolucao, chaveEvolucao }) {
     importadas.every((x) => x?.responsavel?.tipo === 'membro'),
     JSON.stringify(a?.responsavel),
   );
+  /* O seletor de numero da tela mostra todos os numeros ao mesmo tempo, com
+     a propria conta: o recorte por conexao nao pode zerar a conta dos outros. */
+  const soEste = (await api.get(`/api/contatos?conexao=${id}&limite=500`)).dados || {};
+  const outros = Object.keys(soEste.porConexao || {}).filter((chave) => chave !== id);
+  s.ok(
+    'filtrando um numero, a conta dos outros numeros continua vindo',
+    outros.length >= 1 && outros.every((chave) => soEste.porConexao[chave].conversas > 0),
+    JSON.stringify(soEste.porConexao),
+  );
+  s.ok(
+    'e a conta deste numero bate com a fila dele',
+    soEste.porConexao?.[id]?.conversas === (soEste.contatos || []).filter((c) => c.ultimaMensagemEm).length,
+    `${soEste.porConexao?.[id]?.conversas} x ${(soEste.contatos || []).filter((c) => c.ultimaMensagemEm).length}`,
+  );
+
   s.ok('grupo nao vira conversa', !todas.some((x) => String(x.telefone).includes('120363')));
   s.ok('a conversa do numero consigo mesmo nao vira cliente', !todas.some((x) => x.telefone === '5581900000000'));
 

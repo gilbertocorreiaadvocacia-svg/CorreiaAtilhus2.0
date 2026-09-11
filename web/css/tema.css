@@ -2084,6 +2084,163 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
   min-width: 0;
 }
 
+/* Seletor de numero: o primeiro controle da barra, porque ele decide de que
+   sessao e tudo o que vem depois — a fila, a busca e a Nova conversa. */
+.seletor-numero-caixa {
+  position: relative;
+  flex: none;
+}
+
+.seletor-numero {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  min-width: 200px;
+  max-width: 280px;
+  height: var(--controle);
+  padding: 0 var(--e3);
+  border: 1px solid var(--borda-forte);
+  border-radius: var(--raio);
+  background: var(--superficie-2);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.seletor-numero:hover,
+.seletor-numero[aria-expanded='true'] {
+  border-color: var(--ouro-linha);
+}
+
+.seletor-numero:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: 2px;
+}
+
+.seletor-numero-ponto {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--texto-fraco);
+}
+
+.seletor-numero-ponto.ligado {
+  background: var(--sucesso);
+}
+
+.seletor-numero-ponto.desligado {
+  background: var(--erro);
+}
+
+.seletor-numero-ponto.todos {
+  background: var(--ouro);
+}
+
+.seletor-numero-texto {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: var(--lh-apertada);
+}
+
+.seletor-numero-texto > strong,
+.seletor-numero-texto > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.seletor-numero-texto > strong {
+  font-weight: 600;
+  color: var(--texto);
+}
+
+.seletor-numero-texto > span {
+  font-size: var(--t-nota);
+  color: var(--texto-suave);
+}
+
+.seletor-numero-seta {
+  flex: none;
+  display: grid;
+  color: var(--texto-fraco);
+  transform: rotate(-90deg);
+}
+
+.seletor-numero-lista {
+  position: absolute;
+  top: calc(100% + var(--e1));
+  left: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 360px;
+  max-height: 420px;
+  overflow-y: auto;
+  padding: var(--e1);
+  border: 1px solid var(--borda-forte);
+  border-radius: var(--raio-g);
+  background: var(--superficie);
+  box-shadow: var(--sombra);
+}
+
+.seletor-numero-opcao,
+.seletor-numero-rodape {
+  display: flex;
+  align-items: center;
+  gap: var(--e3);
+  width: 100%;
+  padding: var(--e2) var(--e3);
+  border: none;
+  border-radius: var(--raio);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.seletor-numero-opcao:hover,
+.seletor-numero-opcao:focus-visible,
+.seletor-numero-rodape:hover,
+.seletor-numero-rodape:focus-visible {
+  background: var(--superficie-2);
+  outline: none;
+}
+
+.seletor-numero-opcao.ativo {
+  background: var(--ouro-fraco);
+}
+
+.seletor-numero-opcao > svg {
+  flex: none;
+  color: var(--ouro);
+}
+
+.seletor-numero-contas {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+}
+
+.seletor-numero-total {
+  font-size: var(--t-nota);
+  color: var(--texto-fraco);
+  white-space: nowrap;
+}
+
+.seletor-numero-rodape {
+  margin-top: var(--e1);
+  border-top: 1px solid var(--borda);
+  border-radius: 0 0 var(--raio) var(--raio);
+  color: var(--texto-suave);
+}
+
 /* Separa "o que filtra" de "o que cria". Sao gestos de natureza diferente, e
    sem o fio o Nova conversa lia como mais um filtro. */
 .barra-fila-divisor {

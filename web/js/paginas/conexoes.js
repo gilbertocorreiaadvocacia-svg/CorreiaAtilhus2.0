@@ -1,5 +1,5 @@
 import { api } from '../api.js';
-import { estado, opcoesResponsavel, ouvir, podeConfigurar, recarregar } from '../estado.js';
+import { escolherNumero, estado, opcoesResponsavel, ouvir, podeConfigurar, recarregar } from '../estado.js';
 import { campoComDica, dica, gaveta, menuAcoes, paginacao } from '../componentes.js';
 import {
   avatar,
@@ -280,6 +280,7 @@ export async function paginaConexoes({ definirAcoes } = {}) {
       ...COLUNAS.filter((c) => visiveis.has(c.chave)).map((c) => celulas[c.chave]),
       el('td', { class: 'conexoes-acoes' }, [
         menuAcoes([
+          { rotulo: 'Ver conversas', icone: 'conversas', aoClicar: () => abrirConversasDe(conexao) },
           { rotulo: 'Ver detalhes', icone: 'abrir', aoClicar: () => abrirDetalhes(conexao, desenhar) },
           podeConfigurar() ? { rotulo: 'Configurar', icone: 'ajustes', aoClicar: () => editar(conexao, desenhar) } : null,
           { rotulo: 'Testar conexão', icone: 'atualizar', aoClicar: () => testar(conexao, desenhar) },
@@ -463,6 +464,7 @@ function abaGeral(conexao, irParaLogs, aoMudar) {
         !conectada && tipoDe(conexao.tipo).temSessao
           ? botao('Conectar', { pequeno: true, tipo: 'principal', aoClicar: () => abrirQrCode(conexao, aoMudar) })
           : null,
+        botao('Ver conversas', { pequeno: true, icone: 'conversas', aoClicar: () => abrirConversasDe(conexao) }),
         botao('Ver eventos', { pequeno: true, aoClicar: irParaLogs }),
       ]),
     ]),
@@ -902,6 +904,15 @@ function abrirQrCode(conexao, recarregarTela) {
 
   gerar();
   return painel;
+}
+
+/**
+ * Abre Conversas ja no numero desta conexao: o mesmo seletor da barra de
+ * Conversas, escolhido daqui (ver numeroEscolhido em estado.js).
+ */
+function abrirConversasDe(conexao) {
+  escolherNumero(conexao.id);
+  location.hash = '#/atendimento';
 }
 
 function acao(titulo, texto, controle) {
