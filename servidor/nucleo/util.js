@@ -81,11 +81,14 @@ export function normalizarTelefone(entrada = '') {
 /**
  * Numero vindo do WhatsApp, que ja chega completo.
  *
- * O identificador do WhatsApp — 558195401514@s.whatsapp.net — sempre traz o
+ * O identificador do WhatsApp — 5581900000000@s.whatsapp.net — sempre traz o
  * codigo do pais. Passa-lo pelo normalizarTelefone acima quebra todo numero
- * estrangeiro: um suico de 11 digitos, 41786028969, virava 5541786028969, um
+ * estrangeiro: um suico de 11 digitos, 41790000000, virava 5541790000000, um
  * numero que nao existe. Foi assim que a importacao do historico trouxe
  * dezenove contatos com telefone inventado.
+ *
+ * (Os numeros deste comentario sao inventados: exemplo em codigo nunca sai de
+ * conversa de verdade, porque o repositorio e publico.)
  *
  * O estrago maior nao e no cadastro: e na resposta. Um cliente de fora escreve,
  * o sistema guarda o numero errado, e a resposta sai para lugar nenhum — sem
