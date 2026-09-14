@@ -354,7 +354,11 @@ function blocoZapsign(integracoes, recarregarTela) {
     // Esta fica visivel: fala de onde vem o conteudo do proprio controle ao
     // lado, e e o que responde "por que a lista esta vazia".
     linhaAjuste('Modelo de contrato', 'A lista vem do botao de sincronizar.', modelo),
-    linhaAjuste('Procuração', 'Vai no mesmo envelope, como documento extra.', procuracao),
+    linhaAjuste(
+      'Procuração',
+      'Vai no mesmo envelope. Se o modelo de contrato já traz a procuração anexada na ZapSign, ela vai junto e esta escolha não é usada.',
+      procuracao,
+    ),
     linhaAjuste('Modelos por tipo de caso', 'Só para o tipo que tem contrato próprio; o resto usa os de cima.', modelosPorCaso),
     linhaAjuste('Vídeo de como assinar', 'Sai logo depois do link.', controleVideo),
     linhaAjuste('Endereço do webhook', 'Só quando o sistema tiver endereço público. Sem ele, a assinatura é conferida por consulta.', urlWebhook),

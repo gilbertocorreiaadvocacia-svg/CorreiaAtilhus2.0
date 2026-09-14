@@ -85,7 +85,9 @@ export async function sincronizarModelos(workspaceId) {
   const cfg = configuracao(workspaceId);
   if (!cfg.chave) return { ok: false, erro: 'Chave de API da ZapSign nao configurada.' };
 
-  const resposta = await fetch(`${BASE}/models/`, { headers: cabecalhos(cfg) });
+  /* Listar e detalhar modelo e /templates/; so a criacao de documento e que
+     fica em /models/create-doc/. Com /models/ a ZapSign responde 404. */
+  const resposta = await fetch(`${BASE}/templates/`, { headers: cabecalhos(cfg) });
   if (!resposta.ok) return { ok: false, erro: erroDaZapsign(resposta.status, await resposta.json().catch(() => ({}))) };
 
   const dados = await resposta.json().catch(() => []);
@@ -96,7 +98,7 @@ export async function sincronizarModelos(workspaceId) {
     let entradas = m.inputs || m.variables || null;
     /* A lista da ZapSign nem sempre traz as variaveis; o detalhe do modelo traz. */
     if (!entradas) {
-      const detalhe = await fetch(`${BASE}/models/${encodeURIComponent(id)}/`, { headers: cabecalhos(cfg) })
+      const detalhe = await fetch(`${BASE}/templates/${encodeURIComponent(id)}/`, { headers: cabecalhos(cfg) })
         .then((r) => (r.ok ? r.json() : null))
         .catch(() => null);
       entradas = detalhe?.inputs || detalhe?.variables || [];
@@ -105,6 +107,9 @@ export async function sincronizarModelos(workspaceId) {
       id,
       nome: m.name || m.nome || 'Modelo sem nome',
       variaveis: entradas.map((v) => String(v.variable || v.name || v)).filter(Boolean),
+      /* Modelos anexados a este na ZapSign (a procuracao do contrato). Eles
+         nascem junto no create-doc: nao se manda de novo. */
+      extras: (m.extra_templates || []).map((e) => String(e?.name || e?.token || e)).filter(Boolean),
     });
   }
 
@@ -126,6 +131,13 @@ function valorDoCampo(campo, contato, cfg) {
   if (destino === 'nome_completo') return variaveis.nome_completo || contato.nome || '';
   if (destino === 'telefone') return formatarTelefone(contato.telefone);
   if (destino === 'data_hoje') return new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+  if (destino === 'nacionalidade') return String(variaveis.nacionalidade || 'brasileira').trim();
+  /* A cidade do contrato: a variavel, ou o municipio escrito no endereco
+     ("..., Timbauba-PE, 55870-000"). A pessoa confere na conferencia. */
+  if (destino === 'cidade') {
+    const doEndereco = [...String(variaveis.endereco || '').matchAll(/([^,\d][^,]*?)\s*[-/]\s*[A-Z]{2}\b/g)].pop()?.[1];
+    return String(variaveis.cidade || doEndereco || '').trim();
+  }
   return String(variaveis[destino] ?? '').trim();
 }
 
@@ -140,16 +152,29 @@ function modeloDaConversa(cfg, contato) {
   };
 }
 
-/** Os valores que vao preencher os modelos, e o que ainda falta. */
+/** O modelo de contrato ja traz a procuracao anexada na ZapSign? */
+const trazProcuracao = (cfg, contratoId) =>
+  ((cfg.modelos || []).find((m) => m.id === contratoId)?.extras || []).length > 0;
+
+/*
+ * So nome e CPF impedem o pedido: sem eles nao ha contrato. O resto que ficar
+ * em branco (RG, orgao expedidor...) vai para a conferencia, e a pessoa
+ * preenche antes de aprovar — o RG sai do documento, e o agente nao o pede.
+ */
+const ESSENCIAIS = new Set(['nome_completo', 'cpf']);
+
+/** Os valores que vao preencher os modelos, o que impede o pedido e o que fica para a equipe. */
 function montarValores(cfg, modelo, contato) {
   const doModelo = (id) => (cfg.modelos || []).find((m) => m.id === id)?.variaveis || [];
-  const campos = [...new Set([...doModelo(modelo.contratoId), ...doModelo(modelo.procuracaoId)])];
+  const daProcuracao = trazProcuracao(cfg, modelo.contratoId) ? [] : doModelo(modelo.procuracaoId);
+  const campos = [...new Set([...doModelo(modelo.contratoId), ...daProcuracao])];
   const valores = {};
   for (const campo of campos.length ? campos : CAMPOS_PADRAO) valores[campo] = valorDoCampo(campo, contato, cfg);
-  const faltando = Object.entries(valores)
+  const emBranco = Object.entries(valores)
     .filter(([, valor]) => !String(valor).trim())
     .map(([campo]) => chaveDoCampo(campo));
-  return { valores, faltando };
+  const faltando = emBranco.filter((chave) => ESSENCIAIS.has(APELIDOS[chave] || chave));
+  return { valores, faltando, emBranco };
 }
 
 const avisarEquipe = (contato, titulo, texto) => {
@@ -196,7 +221,7 @@ export async function pedirContrato({ contato, agente = null, conexao = null, da
   }
 
   const modelo = modeloDaConversa(cfg, contato);
-  const { valores, faltando } = montarValores(cfg, modelo, contato);
+  const { valores, faltando, emBranco } = montarValores(cfg, modelo, contato);
   if (faltando.length) {
     return { ok: false, faltando, erro: `Antes do contrato, colete com o cliente: ${faltando.join(', ')}.` };
   }
@@ -220,7 +245,11 @@ export async function pedirContrato({ contato, agente = null, conexao = null, da
   if (status && contato.statusId !== status.id) await aplicarStatus(contato, status, quem);
   definirMomento(contato, 'Contrato em conferencia', quem);
 
-  inserirNota(contato, `Contrato pedido${agente ? ` por ${agente.nome}` : ''}. Confira os dados no cartão do contrato antes de enviar o link.`, quem);
+  inserirNota(
+    contato,
+    `Contrato pedido${agente ? ` por ${agente.nome}` : ''}. Confira os dados no cartão do contrato antes de enviar o link.${emBranco.length ? ` Em branco para preencher: ${emBranco.join(', ')}.` : ''}`,
+    quem,
+  );
   avisarEquipe(contato, 'Contrato para conferir', `${contato.nome}: confira os dados do contrato e envie o link.`);
   registrarLog(workspaceId, contato.id, 'contrato', 'Contrato pedido; aguardando conferencia da equipe', quem);
   emitir(workspaceId, 'contrato', { contatoId: contato.id, contratoId: contrato.id });
@@ -320,7 +349,9 @@ export async function aprovarContrato(contratoId, { valores: corrigidos = {}, au
   const link = documento?.signers?.[0]?.sign_url || null;
   let aviso = null;
 
-  if (contrato.modelo.procuracaoId && token) {
+  /* Contrato que ja traz a procuracao anexada gera os dois juntos: mandar a
+     procuracao de novo a duplicaria no envelope. */
+  if (contrato.modelo.procuracaoId && token && !trazProcuracao(cfg, contrato.modelo.contratoId)) {
     const extra = await fetch(`${BASE}/models/${encodeURIComponent(token)}/upload-extra-doc/`, {
       method: 'POST',
       headers: cabecalhos(cfg),

@@ -20,13 +20,18 @@ export function subirZapsignFalsa(porta, chave) {
 
   const MODELOS = [
     { token: 'mdl-contrato', name: 'Contrato de honorarios' },
-    { token: 'mdl-contrato-bpc', name: 'Contrato BPC/LOAS' },
+    /* Como os contratos do escritorio: a procuracao ja vem anexada. */
+    { token: 'mdl-contrato-bpc', name: 'Contrato BPC/LOAS', extra_templates: [{ name: 'Procuracao do titular' }] },
     { token: 'mdl-procuracao', name: 'Procuracao' },
   ];
-  const entradas = (token) =>
-    token.includes('procuracao')
-      ? [{ variable: '{{NOME COMPLETO}}' }, { variable: '{{CPF}}' }]
-      : [{ variable: '{{NOME COMPLETO}}' }, { variable: '{{CPF}}' }, { variable: '{{ENDERECO}}' }, { variable: '{{EMAIL}}' }, { variable: '{{DATA}}' }];
+  const entradas = (token) => {
+    if (token.includes('procuracao')) return [{ variable: '{{NOME COMPLETO}}' }, { variable: '{{CPF}}' }];
+    const comuns = [{ variable: '{{NOME COMPLETO}}' }, { variable: '{{CPF}}' }, { variable: '{{ENDERECO}}' }, { variable: '{{EMAIL}}' }, { variable: '{{DATA}}' }];
+    /* O contrato de BPC pede o que o escritorio pede: RG, nacionalidade, cidade. */
+    return token === 'mdl-contrato-bpc'
+      ? [...comuns, { variable: '{{RG}}' }, { variable: '{{NACIONALIDADE}}' }, { variable: '{{CIDADE}}' }]
+      : comuns;
+  };
 
   const json = (res, status, dados) => {
     res.writeHead(status, { 'content-type': 'application/json' });
@@ -70,9 +75,11 @@ export function subirZapsignFalsa(porta, chave) {
 
     if (req.headers.authorization !== `Bearer ${chave}`) return json(res, 403, { detail: 'chave invalida' });
 
-    if (caminho === '/api/v1/models/' && req.method === 'GET') return json(res, 200, MODELOS);
+    /* Como a de verdade: listar e detalhar modelo e /templates/; /models/ so
+       tem o create-doc e o upload-extra-doc. */
+    if (caminho === '/api/v1/templates/' && req.method === 'GET') return json(res, 200, MODELOS);
 
-    const detalhe = /^\/api\/v1\/models\/([^/]+)\/$/.exec(caminho);
+    const detalhe = /^\/api\/v1\/templates\/([^/]+)\/$/.exec(caminho);
     if (detalhe && req.method === 'GET') {
       const modelo = MODELOS.find((m) => m.token === detalhe[1]);
       return modelo ? json(res, 200, { ...modelo, inputs: entradas(modelo.token) }) : json(res, 404, {});
@@ -88,6 +95,10 @@ export function subirZapsignFalsa(porta, chave) {
         signers: [{ token: `sig-${contador}`, status: 'new', sign_url: `https://app.zapsign.com.br/verificar/sig-${contador}` }],
         extra_docs: [],
       };
+      /* Modelo com procuracao anexada: ela nasce junto, como documento extra. */
+      if (MODELOS.find((m) => m.token === corpo.template_id)?.extra_templates?.length) {
+        doc.extra_docs.push({ token: `extra-${doc.token}-anexada` });
+      }
       documentos.set(doc.token, doc);
       chamadas.push({ rota: 'create-doc', corpo });
       return json(res, 200, comArquivos(doc));

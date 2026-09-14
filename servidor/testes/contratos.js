@@ -95,8 +95,17 @@ export async function testarContratos({ base, zapsign }) {
 
   /* ---------------- Aprovar ---------------- */
 
+  s.ok('RG em branco nao impede o pedido: fica para quem confere', contrato?.valores?.['{{RG}}'] === '');
+  s.ok('nacionalidade padrao e cidade tirada do endereco', contrato?.valores?.['{{NACIONALIDADE}}'] === 'brasileira' && contrato?.valores?.['{{CIDADE}}'] === 'Timbauba', JSON.stringify(contrato?.valores));
+
   const corrigido = 'Rua Corrigida, 20, Centro, Timbauba-PE, 55870-000';
-  const aprovado = await api.post(`/api/contratos/${contrato.id}/aprovar`, { valores: { '{{ENDERECO}}': corrigido } });
+  const semRg = await api.post(`/api/contratos/${contrato.id}/aprovar`, { valores: { '{{ENDERECO}}': corrigido } });
+  s.ok('mas sem RG a conferencia nao deixa enviar', semRg.status === 400 && /rg/i.test(semRg.dados?.erro || ''), JSON.stringify(semRg.dados));
+  s.ok('e nada foi para a ZapSign nessa tentativa', (await chamadasDa('create-doc')).length === 0);
+
+  const aprovado = await api.post(`/api/contratos/${contrato.id}/aprovar`, {
+    valores: { '{{ENDERECO}}': corrigido, '{{RG}}': '1234567 SDS/PE' },
+  });
   s.ok('aprovar da certo', aprovado.status === 200 && aprovado.dados?.ok, JSON.stringify(aprovado.dados));
 
   const criados = await chamadasDa('create-doc');
@@ -109,7 +118,11 @@ export async function testarContratos({ base, zapsign }) {
     JSON.stringify(criados[0]?.corpo?.data),
   );
   const extras = await chamadasDa('upload-extra-doc');
-  s.ok('a procuracao entra como documento extra', extras.length === 1 && extras[0]?.corpo?.template_id === 'mdl-procuracao', JSON.stringify(extras));
+  s.ok(
+    'a procuracao que ja vem anexada ao contrato do caso nao e enviada de novo',
+    extras.length === 0,
+    JSON.stringify(extras),
+  );
 
   const enviado = (await contratosDe(c1.id))[0];
   s.ok('o contrato fica com link enviado', enviado?.situacao === 'link_enviado' && /verificar/.test(enviado.link || ''), JSON.stringify(enviado));
