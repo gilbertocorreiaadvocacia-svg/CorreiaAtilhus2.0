@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { MODELOS } from '../config.js';
 import { achar, atualizar, inserir, listar, remover } from '../nucleo/banco.js';
+import { podeVerConversa } from '../nucleo/auth.js';
 import { agora, novoId } from '../nucleo/util.js';
 import { comCodigo, exigirConfiguracao } from './sessao.js';
 
@@ -43,7 +44,11 @@ function mascarar(registro) {
   return {
     ...registro,
     customTools: mascararFerramentas(registro.customTools),
-    zapsign: { ...registro.zapsign, chave: mascara(registro.zapsign?.chave) },
+    zapsign: {
+      ...registro.zapsign,
+      chave: mascara(registro.zapsign?.chave),
+      segredoWebhook: mascara(registro.zapsign?.segredoWebhook),
+    },
     advbox: { ...registro.advbox, chave: mascara(registro.advbox?.chave) },
     googleCalendar: {
       ...registro.googleCalendar,
@@ -103,6 +108,7 @@ export function registrarIntegracoes(rotas) {
         ...atual.zapsign,
         ...corpo.zapsign,
         chave: preservarSegredo(corpo.zapsign.chave, atual.zapsign?.chave),
+        segredoWebhook: preservarSegredo(corpo.zapsign.segredoWebhook, atual.zapsign?.segredoWebhook),
       };
     }
     if (corpo.advbox) {
@@ -261,8 +267,27 @@ export function registrarIntegracoes(rotas) {
 
   /* ---------------- Contratos ---------------- */
 
-  rotas.get('/api/contratos', async ({ ctx }) =>
+  /* O contrato traz CPF e endereco: so ve quem pode ver a conversa dele. */
+  function contratoOu404(ctx, id) {
+    const contrato = achar('contratos', id);
+    if (!contrato || contrato.workspaceId !== ctx.workspaceId) throw comCodigo('Contrato nao encontrado.', 404);
+    const contato = achar('contatos', contrato.contatoId);
+    if (contato && !podeVerConversa(ctx, contato)) throw comCodigo('Voce nao tem acesso a este contrato.', 403);
+    return contrato;
+  }
+  const autorDe = (ctx) => ({ tipo: 'membro', id: ctx.membro?.id || null, nome: ctx.usuario?.nome || 'Equipe' });
+  const exigirOk = (resultado) => {
+    if (!resultado.ok) throw comCodigo(resultado.erro || 'Nao foi possivel.', 400);
+    return resultado;
+  };
+
+  rotas.get('/api/contratos', async ({ ctx, query }) =>
     listar('contratos', { workspaceId: ctx.workspaceId })
+      .filter((contrato) => !query.contatoId || contrato.contatoId === query.contatoId)
+      .filter((contrato) => {
+        const contato = achar('contatos', contrato.contatoId);
+        return !contato || podeVerConversa(ctx, contato);
+      })
       .sort((a, b) => String(b.criadoEm).localeCompare(String(a.criadoEm)))
       .map((contrato) => ({
         ...contrato,
@@ -270,12 +295,84 @@ export function registrarIntegracoes(rotas) {
       })),
   );
 
+  /* A equipe pede o contrato pela tela, como o agente pede pela mencao. */
+  rotas.post('/api/contatos/:id/contrato', async ({ ctx, params }) => {
+    const contato = achar('contatos', params.id);
+    if (!contato || contato.workspaceId !== ctx.workspaceId) throw comCodigo('Conversa nao encontrada.', 404);
+    if (!podeVerConversa(ctx, contato)) throw comCodigo('Voce nao tem acesso a esta conversa.', 403);
+    const { pedirContrato } = await import('../integracoes/zapsign.js');
+    return pedirContrato({ contato, autor: autorDe(ctx) });
+  });
+
+  rotas.post('/api/contratos/:id/aprovar', async ({ ctx, params, corpo }) => {
+    contratoOu404(ctx, params.id);
+    const { aprovarContrato } = await import('../integracoes/zapsign.js');
+    return exigirOk(await aprovarContrato(params.id, { valores: corpo?.valores, autor: autorDe(ctx) }));
+  });
+
+  rotas.post('/api/contratos/:id/devolver', async ({ ctx, params, corpo }) => {
+    contratoOu404(ctx, params.id);
+    const { devolverContrato } = await import('../integracoes/zapsign.js');
+    return exigirOk(await devolverContrato(params.id, { motivo: corpo?.motivo, autor: autorDe(ctx) }));
+  });
+
+  rotas.post('/api/contratos/:id/consultar', async ({ ctx, params }) => {
+    contratoOu404(ctx, params.id);
+    const { consultarDocumento } = await import('../integracoes/zapsign.js');
+    return exigirOk(await consultarDocumento(params.id));
+  });
+
+  /* Marcar como assinado a mao pula a ZapSign: so quem configura o sistema. */
   rotas.post('/api/contratos/:id/assinado', async ({ ctx, params }) => {
-    const contrato = achar('contratos', params.id);
-    if (!contrato || contrato.workspaceId !== ctx.workspaceId) throw comCodigo('Contrato nao encontrado.', 404);
+    exigirConfiguracao(ctx);
+    contratoOu404(ctx, params.id);
     const { confirmarAssinatura } = await import('../integracoes/zapsign.js');
     return confirmarAssinatura(params.id);
   });
+
+  /**
+   * Webhook da ZapSign, para quando o sistema tiver endereco publico.
+   *
+   * O corpo nao e confiavel: qualquer um que descubra a URL manda um
+   * "doc_signed". Por isso o segredo no cabecalho (comparado em tempo
+   * constante) e, principalmente, a RECONSULTA: o que decide e o que a propria
+   * ZapSign responde sobre o documento, nunca o que chegou aqui.
+   */
+  rotas.post('/v1/zapsign/webhook', async ({ req, res, corpoBruto }) => {
+    const responder = (codigo, dados) => {
+      res.writeHead(codigo, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(dados));
+      return null;
+    };
+
+    const recebido = String(req.headers['x-correia-segredo'] || '');
+    const resumo = (texto) => crypto.createHash('sha256').update(String(texto)).digest();
+    const donos = listar('integracoes').filter(
+      (i) => i.zapsign?.segredoWebhook && crypto.timingSafeEqual(resumo(recebido), resumo(i.zapsign.segredoWebhook)),
+    );
+    if (!recebido || !donos.length) return responder(401, { erro: 'segredo invalido' });
+
+    let carga;
+    try {
+      carga = JSON.parse(corpoBruto.toString('utf8'));
+    } catch {
+      return responder(400, { erro: 'corpo invalido' });
+    }
+
+    const espacos = new Set(donos.map((i) => i.workspaceId));
+    const token = carga?.token || carga?.doc?.token || null;
+    const externo = carga?.external_id || null;
+    const contrato = listar('contratos').find(
+      (c) => espacos.has(c.workspaceId) && ((token && c.tokenExterno === token) || (externo && c.id === externo)),
+    );
+    /* Documento que nao nasceu aqui: a conta da ZapSign e do escritorio todo. */
+    if (!contrato) return responder(200, { ok: true, ignorado: true });
+
+    responder(200, { ok: true });
+    const { consultarDocumento } = await import('../integracoes/zapsign.js');
+    await consultarDocumento(contrato.id).catch(() => {});
+    return null;
+  }, { publica: true, cru: true });
 
   /* ---------------- Compromissos ---------------- */
 

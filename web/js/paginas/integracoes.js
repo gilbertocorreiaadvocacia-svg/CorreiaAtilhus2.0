@@ -1,4 +1,4 @@
-import { api } from '../api.js';
+import { api, enviarArquivo } from '../api.js';
 import { campoComDica, dica, gaveta } from '../componentes.js';
 import { estado, opcoesResponsavel, podeConfigurar } from '../estado.js';
 import {
@@ -265,14 +265,65 @@ function blocoIa(integracoes, recarregarTela) {
 /* ------------------------------------------------------------------ */
 
 function blocoZapsign(integracoes, recarregarTela) {
-  const chave = entradaTexto('', { type: 'password', placeholder: integracoes.zapsign?.chave ? 'ja configurada' : 'token da ZapSign' });
-  const modelo = selecao(
-    [
-      { valor: '', rotulo: 'Escolha o modelo de contrato' },
-      ...(integracoes.zapsign?.modelos || []).map((m) => ({ valor: m.id, rotulo: m.nome })),
-    ],
-    integracoes.zapsign?.modeloPadraoId || '',
+  const zs = integracoes.zapsign || {};
+  const opcoesModelo = (rotuloVazio) => [
+    { valor: '', rotulo: rotuloVazio },
+    ...(zs.modelos || []).map((m) => ({ valor: m.id, rotulo: m.nome })),
+  ];
+  const chave = entradaTexto('', { type: 'password', placeholder: zs.chave ? 'ja configurada' : 'token da ZapSign' });
+  const modelo = selecao(opcoesModelo('Escolha o modelo de contrato'), zs.modeloPadraoId || '');
+  const procuracao = selecao(opcoesModelo('Sem procuração'), zs.procuracaoPadraoId || '');
+
+  /* Um par de modelos por tipo de caso. Vazio usa o padrão de cima: so precisa
+     preencher o tipo que tem contrato proprio. */
+  const porCaso = estado.etiquetas
+    .filter((e) => e.tipo === 'caso')
+    .map((tipo) => ({
+      tipo,
+      contrato: selecao(opcoesModelo('Contrato padrão'), zs.modelosPorCaso?.[tipo.caso]?.contratoId || ''),
+      procuracao: selecao(opcoesModelo('Procuração padrão'), zs.modelosPorCaso?.[tipo.caso]?.procuracaoId || ''),
+    }));
+  const modelosPorCaso = el(
+    'div',
+    { class: 'lista-simples' },
+    porCaso.map((linha) =>
+      el('div', { class: 'grade g2' }, [campo(`${linha.tipo.nome}: contrato`, linha.contrato), campo('Procuração', linha.procuracao)]),
+    ),
   );
+
+  /* O video de como assinar sai logo depois do link. */
+  let video = zs.videoTutorial || null;
+  const nomeVideo = el('span', { class: 't-sm c-fraco', texto: video?.nome || 'Nenhum vídeo' });
+  const arquivoVideo = el('input', { type: 'file', accept: 'video/*', hidden: true });
+  arquivoVideo.addEventListener('change', async () => {
+    const escolhido = arquivoVideo.files?.[0];
+    arquivoVideo.value = '';
+    if (!escolhido) return;
+    try {
+      video = await enviarArquivo(escolhido);
+      nomeVideo.textContent = video.nome;
+      aviso('Vídeo carregado. Salve para passar a usar.', 'sucesso');
+    } catch (erro) {
+      aviso(erro.message, 'erro');
+    }
+  });
+  const controleVideo = el('div', { class: 'linha-p quebra' }, [
+    nomeVideo,
+    arquivoVideo,
+    podeConfigurar() ? botao('Escolher vídeo', { pequeno: true, aoClicar: () => arquivoVideo.click() }) : null,
+    podeConfigurar()
+      ? botao('Tirar', {
+          pequeno: true,
+          aoClicar: () => {
+            video = null;
+            nomeVideo.textContent = 'Nenhum vídeo';
+          },
+        })
+      : null,
+  ]);
+
+  const urlWebhook = entradaTexto(zs.urlWebhook || '', { placeholder: 'https://endereco-publico/v1/zapsign/webhook' });
+  const segredo = entradaTexto('', { type: 'password', placeholder: zs.segredoWebhook ? 'guardado' : 'um texto longo e aleatório' });
   const statusPos = selecao(
     [{ valor: '', rotulo: 'Não alterar' }, ...estado.status.map((s) => ({ valor: s.id, rotulo: s.nome }))],
     integracoes.zapsign?.posAssinatura?.statusId || '',
@@ -289,8 +340,8 @@ function blocoZapsign(integracoes, recarregarTela) {
   );
 
   return cartaoAjustes(
-    'ZapSign (contrato com assinatura eletronica)',
-    'Com a chave configurada, o agente gera o contrato ja preenchido com os dados coletados e manda o link no WhatsApp. Sem ela, o sistema cria um contrato interno para voce testar o fluxo inteiro.',
+    'ZapSign (contrato e procuração com assinatura eletrônica)',
+    'O agente pede o contrato com os dados coletados; uma pessoa confere no cartão da conversa e só então o link sai no WhatsApp, com o vídeo de como assinar. O sistema consulta a ZapSign até a assinatura e guarda os PDFs assinados na conversa.',
     // Os tres ajustes de "depois da assinatura" perderam a explicacao: cada uma
     // era o proprio rotulo dito de novo, e o que o campo faz ja esta na
     // primeira opcao da lista ("Nao alterar", "Nao enviar"). Ficam as duas
@@ -302,6 +353,13 @@ function blocoZapsign(integracoes, recarregarTela) {
     // Esta fica visivel: fala de onde vem o conteudo do proprio controle ao
     // lado, e e o que responde "por que a lista esta vazia".
     linhaAjuste('Modelo de contrato', 'A lista vem do botao de sincronizar.', modelo),
+    linhaAjuste('Procuração', 'Vai no mesmo envelope, como documento extra.', procuracao),
+    linhaAjuste('Modelos por tipo de caso', 'Só para o tipo que tem contrato próprio; o resto usa os de cima.', modelosPorCaso),
+    linhaAjuste('Vídeo de como assinar', 'Sai logo depois do link.', controleVideo),
+    linhaAjuste('Endereço do webhook', 'Só quando o sistema tiver endereço público. Sem ele, a assinatura é conferida por consulta.', urlWebhook),
+    linhaAjuste('Segredo do webhook', null, segredo, {
+      balao: 'A ZapSign manda este texto no cabeçalho x-correia-segredo. Aviso sem ele é recusado.',
+    }),
     linhaAjuste('Status depois da assinatura', null, statusPos),
     linhaAjuste('Responsavel depois da assinatura', null, responsavelPos),
     linhaAjuste('Mensagem depois da assinatura', null, templatePos),
@@ -316,6 +374,18 @@ function blocoZapsign(integracoes, recarregarTela) {
                 zapsign: {
                   chave: chave.value.trim(),
                   modeloPadraoId: modelo.value || null,
+                  procuracaoPadraoId: procuracao.value || null,
+                  modelosPorCaso: Object.fromEntries(
+                    porCaso
+                      .filter((linha) => linha.contrato.value || linha.procuracao.value)
+                      .map((linha) => [
+                        linha.tipo.caso,
+                        { contratoId: linha.contrato.value || null, procuracaoId: linha.procuracao.value || null },
+                      ]),
+                  ),
+                  videoTutorial: video,
+                  urlWebhook: urlWebhook.value.trim() || null,
+                  segredoWebhook: segredo.value.trim(),
                   posAssinatura: {
                     statusId: statusPos.value || null,
                     responsavel: tipoResp ? { tipo: tipoResp, id: idResp } : null,

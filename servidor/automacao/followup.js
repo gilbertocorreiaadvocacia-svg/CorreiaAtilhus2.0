@@ -3,6 +3,7 @@ import { emitir } from '../nucleo/eventos.js';
 import { agora, aplicarVariaveis, novoId } from '../nucleo/util.js';
 import { enviarMensagem } from '../whatsapp/envio.js';
 import { horarioComercialDe, proximoHorarioValido } from './horario.js';
+import { contratoAbertoDe } from '../nucleo/contratos.js';
 
 /**
  * O status e o gatilho de tudo. Trocou de status: cancela a sequencia antiga e
@@ -182,7 +183,18 @@ export async function dispararAgendamento(agendamento) {
   atualizar('agendamentos', agendamento.id, { estado: 'enviado', enviadoEm: agora() });
 
   if (agendamento.desistir?.ativo) {
-    await desistirDoLead(contato, agendamento.desistir);
+    /* Quem esta com o contrato na mao nao desistiu: arquivar agora tiraria da
+       fila justamente o cliente que esta a um toque de assinar. */
+    if (contratoAbertoDe(contato.id)) {
+      registrarLog(
+        contato.workspaceId,
+        contato.id,
+        'desistencia_evitada',
+        'Fim da sequencia de follow-up sem desistencia: ha contrato em andamento',
+      );
+    } else {
+      await desistirDoLead(contato, agendamento.desistir);
+    }
   }
 }
 

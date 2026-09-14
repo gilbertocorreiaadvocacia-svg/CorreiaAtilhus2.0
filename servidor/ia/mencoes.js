@@ -506,7 +506,7 @@ export function ferramentasDoAgente(agente, workspaceId) {
     ferramentas.push({
       nome: 'gerar_contrato',
       descricao:
-        'Gera o contrato de honorarios com os dados ja coletados e envia o link de assinatura. So use depois da confirmacao explicita do lead.',
+        'Pede o contrato e a procuracao com os dados ja coletados. Uma pessoa do escritorio confere antes de o link sair; o link chega depois, por esta conversa. Se faltar dado, a resposta diz quais coletar. So use depois da confirmacao explicita do lead.',
       parametros: {
         type: 'object',
         properties: {
@@ -514,7 +514,7 @@ export function ferramentasDoAgente(agente, workspaceId) {
           cpf: { type: 'string' },
           email: { type: 'string' },
         },
-        required: ['nome_completo', 'cpf'],
+        required: [],
       },
     });
   }
@@ -923,10 +923,10 @@ export async function executarFerramenta({ nome, argumentos, contato, agente, co
     }
 
     case 'gerar_contrato': {
-      const { gerarContrato } = await import('../integracoes/zapsign.js');
+      const { pedirContrato } = await import('../integracoes/zapsign.js');
       lancar(workspaceId, contato.id, 'mencao_gerarcontrato', custoDaMencao('gerarcontrato'));
-      const resultado = await gerarContrato({ contato, agente, conexao, dados: argumentos });
-      registrar(resultado.ok ? 'Contrato gerado e enviado' : `Falha ao gerar contrato: ${resultado.erro}`);
+      const resultado = await pedirContrato({ contato, agente, conexao, dados: argumentos });
+      registrar(resultado.ok ? `Contrato pedido (${resultado.situacao})` : `Contrato nao pedido: ${resultado.erro}`);
       return resultado;
     }
 

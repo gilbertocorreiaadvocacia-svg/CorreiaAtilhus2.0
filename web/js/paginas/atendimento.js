@@ -2005,6 +2005,7 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
             }),
           ]),
         ]),
+        blocoContrato(contato),
         el('div', { class: 'propriedade' }, [
           el('span', { texto: 'Modo áudio' }),
           el('label', { class: 'linha t-md' }, [
@@ -2240,6 +2241,126 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
       opcao.cor ? el('span', { class: 'ponto', estilo: { background: 'currentColor' } }) : null,
       document.createTextNode(opcao.nome),
     ]);
+  }
+
+  /**
+   * O contrato da conversa.
+   *
+   * Em conferencia, a pessoa ve os valores que vao preencher o modelo, corrige
+   * o que precisar e envia — ou devolve ao agente dizendo o que corrigir. Nada
+   * sai para o cliente antes deste clique (servidor/integracoes/zapsign.js).
+   * O bloco nasce vazio e se preenche sozinho: o painel nao espera a consulta.
+   */
+  const SITUACAO_DO_CONTRATO = {
+    em_conferencia: ['Aguardando sua conferência', 'ouro'],
+    link_enviado: ['Link enviado ao cliente', ''],
+    link_aberto: ['Cliente abriu o link', ''],
+    assinado: ['Assinado', 'sucesso'],
+    devolvido: ['Devolvido ao agente', ''],
+    recusado: ['Recusado pelo cliente', 'erro'],
+    expirado: ['Prazo para assinar vencido', 'erro'],
+    cancelado: ['Cancelado na ZapSign', 'erro'],
+  };
+
+  function blocoContrato(contato) {
+    const corpo = el('div', { class: 'lista-simples' }, [el('span', { class: 't-sm c-fraco', texto: 'Carregando…' })]);
+    const bloco = el('div', { class: 'propriedade' }, [el('span', { texto: 'Contrato' }), corpo]);
+
+    const agir = (acao, sucesso) => async () => {
+      try {
+        await acao();
+        if (sucesso) aviso(sucesso, 'sucesso');
+        await desenhar();
+      } catch (erro) {
+        aviso(erro.message, 'erro');
+      }
+    };
+
+    const pedir = agir(async () => {
+      const resposta = await api.post(`/api/contatos/${contato.id}/contrato`, {});
+      if (!resposta.ok) throw new Error(resposta.erro);
+    }, 'Contrato em conferência.');
+
+    (async () => {
+      let contratos = [];
+      try {
+        contratos = await api.get('/api/contratos', { contatoId: contato.id });
+      } catch {
+        contratos = [];
+      }
+      limpar(corpo);
+      const atual = contratos[0];
+      const encerrado = !atual || ['devolvido', 'recusado', 'expirado', 'cancelado'].includes(atual.situacao);
+
+      if (atual) {
+        const [rotulo, tipo] = SITUACAO_DO_CONTRATO[atual.situacao] || [atual.situacao, ''];
+        corpo.append(el('div', { class: 'linha-p' }, [selo(rotulo, tipo)]));
+        if (atual.erro) corpo.append(el('div', { class: 'alerta-caixa', texto: atual.erro }));
+        if (atual.aviso) corpo.append(el('div', { class: 'alerta-caixa', texto: atual.aviso }));
+      }
+      if (encerrado) {
+        if (atual?.motivoDevolucao) corpo.append(el('p', { class: 't-sm c-fraco sem-margem', texto: `Motivo: ${atual.motivoDevolucao}` }));
+        corpo.append(botao('Pedir contrato', { pequeno: true, aoClicar: pedir }));
+        return;
+      }
+
+      if (atual.situacao === 'em_conferencia') {
+        const entradas = Object.entries(atual.valores || {}).map(([chave, valor]) => {
+          const entrada = entradaTexto(valor);
+          corpo.append(campo(chave.replace(/[{}]/g, '').trim(), entrada));
+          return [chave, entrada];
+        });
+        corpo.append(
+          el('div', { class: 'linha-botoes' }, [
+            botao('Aprovar e enviar', {
+              tipo: 'principal',
+              pequeno: true,
+              aoClicar: agir(
+                () =>
+                  api.post(`/api/contratos/${atual.id}/aprovar`, {
+                    valores: Object.fromEntries(entradas.map(([chave, entrada]) => [chave, entrada.value])),
+                  }),
+                'Link enviado ao cliente.',
+              ),
+            }),
+            botao('Devolver', {
+              pequeno: true,
+              aoClicar: () => {
+                const motivo = areaTexto('', { placeholder: 'O que precisa ser corrigido' });
+                modal({
+                  titulo: 'Devolver o contrato ao agente',
+                  corpo: el('div', {}, [campo('Motivo', motivo)]),
+                  confirmar: 'Devolver',
+                  aoConfirmar: async () => {
+                    if (!motivo.value.trim()) throw new Error('Diga o que precisa ser corrigido.');
+                    await api.post(`/api/contratos/${atual.id}/devolver`, { motivo: motivo.value.trim() });
+                    aviso('Contrato devolvido ao agente.', 'sucesso');
+                    await desenhar();
+                  },
+                });
+              },
+            }),
+          ]),
+        );
+        return;
+      }
+
+      if (atual.link) {
+        corpo.append(el('a', { href: atual.link, target: '_blank', rel: 'noopener', class: 't-sm quebra-palavra', texto: atual.link }));
+      }
+      if (atual.situacao === 'assinado') {
+        corpo.append(el('p', { class: 't-sm c-fraco sem-margem', texto: `Assinado em ${dataHora(atual.assinadoEm)}. Os PDFs estão em Arquivos.` }));
+        return;
+      }
+      corpo.append(
+        botao('Consultar agora', {
+          pequeno: true,
+          aoClicar: agir(() => api.post(`/api/contratos/${atual.id}/consultar`, {})),
+        }),
+      );
+    })();
+
+    return bloco;
   }
 
   /** Convite em texto de apoio, para o campo que ainda nao tem valor. */

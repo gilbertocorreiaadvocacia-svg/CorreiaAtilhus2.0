@@ -11,6 +11,7 @@ import { criarRoteador, lerCookies, lerCorpo, responderErro, responderJson, serv
 import { inscrever } from './nucleo/eventos.js';
 import { semearSePrecisar } from './nucleo/seed.js';
 import { iniciarAgendador } from './automacao/followup.js';
+import { iniciarAcompanhamento } from './integracoes/zapsign-acompanhamento.js';
 import { COOKIE_SESSAO, registrarSessao } from './rotas/sessao.js';
 import { registrarAtendimento } from './rotas/atendimento.js';
 import { registrarAutomacoes } from './rotas/automacoes.js';
@@ -378,6 +379,8 @@ servidor.listen(PORTA, HOST, () => {
   }
   console.log(`${linha}\n`);
   iniciarAgendador(INTERVALO_AGENDADOR);
+  /* Os contratos enviados: consulta a ZapSign ate saber que foi assinado. */
+  iniciarAcompanhamento();
 });
 
 function encerrar() {

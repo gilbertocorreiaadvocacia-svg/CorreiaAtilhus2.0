@@ -20,6 +20,8 @@ import { testarHistorico } from './historico.js';
 import { testarCasos } from './casos.js';
 import { testarEncadeamento } from './encadeamento.js';
 import { testarPacotes } from './pacotes.js';
+import { subirZapsignFalsa } from './zapsign-falsa.js';
+import { testarContratos } from './contratos.js';
 
 /**
  * A suite do CorreiaAtilhus2.0. Rode com `npm test`.
@@ -98,7 +100,9 @@ async function principal() {
   const portaSistema = await portaLivre();
   const portaEvolucao = await portaLivre();
   const portaAnthropic = await portaLivre();
+  const portaZapsign = await portaLivre();
   const base = `http://127.0.0.1:${portaSistema}`;
+  const zapsign = `http://127.0.0.1:${portaZapsign}`;
   const evolucao = `http://127.0.0.1:${portaEvolucao}`;
   const anthropic = `http://127.0.0.1:${portaAnthropic}`;
 
@@ -107,6 +111,7 @@ async function principal() {
 
   const servicoFalso = await subirEvolucaoFalsa(portaEvolucao, CHAVE_EVOLUCAO);
   const anthropicFalsa = await subirAnthropicFalsa(portaAnthropic);
+  const zapsignFalsa = await subirZapsignFalsa(portaZapsign, 'zs-de-mentira');
   const sistema = spawn(process.execPath, [path.join(RAIZ, 'servidor/index.js')], {
     env: {
       ...process.env,
@@ -115,6 +120,11 @@ async function principal() {
       /* O sistema fala com a Anthropic de mentira, e nao com a de verdade:
          a suite nao pode depender de internet nem gastar chave do escritorio. */
       CORREIA_ANTHROPIC_URL: anthropic,
+      /* A ZapSign de mentira, e o acompanhamento em milissegundos: consulta a
+         cada 150 ms, com espera de 100 ms entre consultas do mesmo documento. */
+      CORREIA_ZAPSIGN_URL: zapsign,
+      CORREIA_ZAPSIGN_INTERVALO: '150',
+      CORREIA_ZAPSIGN_ESPERAS: '100,100,100',
       /* 800ms para o teste de tempo limite caber na vida de alguem. */
       CORREIA_IA_TEMPO_LIMITE: '800',
       /* As rodadas de importacao do celular sao de 1, 5 e 15 minutos; aqui,
@@ -148,6 +158,7 @@ async function principal() {
     }
     servicoFalso.close();
     anthropicFalsa.close();
+    zapsignFalsa.close();
     fs.rmSync(pastaDados, { recursive: true, force: true });
   }
 
@@ -166,6 +177,7 @@ async function principal() {
     suites.push(await testarAgentes({ base }));
     suites.push(await testarCasos({ base }));
     suites.push(await testarPacotes({ base }));
+    suites.push(await testarContratos({ base, zapsign }));
     suites.push(await testarChatDeTeste({ base }));
     suites.push(await testarIa(base, anthropic));
     /* Depois da IA: poe a chave de mentira de volta e tira no fim. */
