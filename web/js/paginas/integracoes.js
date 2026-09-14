@@ -44,6 +44,7 @@ export async function paginaIntegracoes() {
           : el('div', { class: 'alerta-caixa mb-4', texto: 'Seu perfil ve as integrações, mas quem altera e o administrador ou o gerente do escritório.' }),
         blocoIa(integracoes, desenhar),
         blocoZapsign(integracoes, desenhar),
+        blocoAtilhusJuri(integracoes, desenhar),
         blocoAgenda(integracoes, desenhar),
         blocoAndamento(integracoes, desenhar),
         blocoMetaConversoes(integracoes, desenhar),
@@ -405,6 +406,54 @@ function blocoZapsign(integracoes, recarregarTela) {
               const resultado = await api.post('/api/integracoes/zapsign/sincronizar', {});
               aviso(resultado.ok ? `${resultado.modelos.length} modelos encontrados.` : resultado.erro, resultado.ok ? 'sucesso' : 'erro');
               await recarregarTela();
+            },
+          })
+        : null,
+    ),
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Atilhus Juri                                                        */
+/* ------------------------------------------------------------------ */
+
+function blocoAtilhusJuri(integracoes, recarregarTela) {
+  const juri = integracoes.atilhusJuri || {};
+  const url = entradaTexto(juri.url || '', {
+    placeholder: 'https://<projeto>.supabase.co/functions/v1/receber-contrato-assinado',
+  });
+  const segredo = entradaTexto('', { type: 'password', placeholder: juri.segredo ? 'guardado' : 'o mesmo CHAT_CONTRATO_SEGREDO do Juri' });
+  const ativo = el('input', { type: 'checkbox' });
+  ativo.checked = Boolean(juri.ativo);
+
+  return cartaoAjustes(
+    'Atilhus Juri (contrato assinado vira caso)',
+    'Assinado o contrato, o cliente vai sozinho para o Atilhus Juri: contato com o resumo da conversa, caso na coluna A validar e tarefa para a pós-venda de Timbaúba. Se o Juri estiver fora do ar, o envio fica na fila e é tentado de novo.',
+    linhaAjuste('Endereço da função', null, url, {
+      balao: 'A função receber-contrato-assinado do Supabase do Atilhus Juri.',
+    }),
+    linhaAjuste('Segredo', 'Assina cada envio. Nunca volta para esta tela.', segredo),
+    linhaAjuste('Enviar contratos assinados', null, el('label', { class: 'marcador' }, [ativo, 'Ligado'])),
+    rodapeAjustes(
+      podeConfigurar()
+        ? botao('Salvar', {
+            tipo: 'principal',
+            pequeno: true,
+            aoClicar: async () => {
+              await api.patch('/api/integracoes', {
+                atilhusJuri: { url: url.value.trim(), segredo: segredo.value.trim(), ativo: ativo.checked },
+              });
+              aviso('Integracao salva.', 'sucesso');
+              await recarregarTela();
+            },
+          })
+        : null,
+      podeConfigurar()
+        ? botao('Testar conexão', {
+            pequeno: true,
+            aoClicar: async () => {
+              const resultado = await api.post('/api/integracoes/atilhus-juri/testar', {});
+              aviso(resultado.ok ? 'O Atilhus Juri respondeu e aceitou a assinatura.' : resultado.erro, resultado.ok ? 'sucesso' : 'erro');
             },
           })
         : null,

@@ -50,6 +50,7 @@ function mascarar(registro) {
       segredoWebhook: mascara(registro.zapsign?.segredoWebhook),
     },
     advbox: { ...registro.advbox, chave: mascara(registro.advbox?.chave) },
+    atilhusJuri: { url: '', ativo: false, ...(registro.atilhusJuri || {}), segredo: mascara(registro.atilhusJuri?.segredo) },
     googleCalendar: {
       ...registro.googleCalendar,
       credenciais: registro.googleCalendar?.credenciais
@@ -145,6 +146,16 @@ export function registrarIntegracoes(rotas) {
       // sobre uma chave que nao existe mais e pior que nao dizer nada.
       if (chaveAnthropic !== atual.ia?.chaveAnthropic) mudancas.ia.ultimoTeste = null;
     }
+    if (corpo.atilhusJuri) {
+      const url = String(corpo.atilhusJuri.url ?? atual.atilhusJuri?.url ?? '').trim();
+      if (url && !/^https?:\/\//.test(url)) throw comCodigo('O endereco do Atilhus Juri precisa comecar com https://.', 400);
+      mudancas.atilhusJuri = {
+        ...atual.atilhusJuri,
+        ...corpo.atilhusJuri,
+        url,
+        segredo: preservarSegredo(corpo.atilhusJuri.segredo, atual.atilhusJuri?.segredo),
+      };
+    }
     if (corpo.metaConversoes) {
       mudancas.metaConversoes = {
         ...atual.metaConversoes,
@@ -221,6 +232,12 @@ export function registrarIntegracoes(rotas) {
     } catch (erro) {
       return anotar({ ok: false, erro: erro.message });
     }
+  });
+
+  rotas.post('/api/integracoes/atilhus-juri/testar', async ({ ctx }) => {
+    exigirConfiguracao(ctx);
+    const { testarJuri } = await import('../integracoes/atilhus-juri.js');
+    return testarJuri(ctx.workspaceId);
   });
 
   /* ---------------- Chamadas personalizadas ---------------- */
@@ -320,6 +337,13 @@ export function registrarIntegracoes(rotas) {
     contratoOu404(ctx, params.id);
     const { consultarDocumento } = await import('../integracoes/zapsign.js');
     return exigirOk(await consultarDocumento(params.id));
+  });
+
+  /* Reenviar ao Atilhus Juri: depois de resolver uma recusa, ou para conferir. */
+  rotas.post('/api/contratos/:id/juri', async ({ ctx, params }) => {
+    contratoOu404(ctx, params.id);
+    const { enviarAoJuri } = await import('../integracoes/atilhus-juri.js');
+    return enviarAoJuri(params.id, { manual: true });
   });
 
   /* Marcar como assinado a mao pula a ZapSign: so quem configura o sistema. */

@@ -2350,6 +2350,30 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
       }
       if (atual.situacao === 'assinado') {
         corpo.append(el('p', { class: 't-sm c-fraco sem-margem', texto: `Assinado em ${dataHora(atual.assinadoEm)}. Os PDFs estão em Arquivos.` }));
+        /* O caminho ate o Atilhus Juri: aberto la, na fila, ou recusado. */
+        const juri = atual.juri;
+        const rotuloJuri = {
+          pendente: 'Indo para o Atilhus Juri…',
+          enviado: 'Caso aberto no Atilhus Juri, em A validar',
+          falhou: 'Atilhus Juri fora do ar: o sistema tenta de novo sozinho',
+          recusado: 'O Atilhus Juri recusou abrir o caso',
+          aguardando_configuracao: 'Configure o Atilhus Juri em Integrações para enviar',
+        }[juri?.situacao];
+        if (rotuloJuri) {
+          corpo.append(el('div', { class: 'linha-p' }, [selo(rotuloJuri, juri.situacao === 'enviado' ? 'sucesso' : juri.situacao === 'recusado' ? 'erro' : '')]));
+          if (juri.erro) corpo.append(el('p', { class: 't-sm c-fraco sem-margem', texto: juri.erro }));
+          if (['recusado', 'falhou'].includes(juri.situacao)) {
+            corpo.append(
+              botao(juri.situacao === 'recusado' ? 'Reenviar ao Juri' : 'Tentar agora', {
+                pequeno: true,
+                aoClicar: agir(async () => {
+                  const resposta = await api.post(`/api/contratos/${atual.id}/juri`, {});
+                  if (!resposta.ok) throw new Error(resposta.erro || 'O Atilhus Juri nao aceitou.');
+                }, 'Enviado ao Atilhus Juri.'),
+              }),
+            );
+          }
+        }
         return;
       }
       corpo.append(

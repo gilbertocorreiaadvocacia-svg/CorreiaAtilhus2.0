@@ -12,6 +12,7 @@ import { inscrever } from './nucleo/eventos.js';
 import { semearSePrecisar } from './nucleo/seed.js';
 import { iniciarAgendador } from './automacao/followup.js';
 import { iniciarAcompanhamento } from './integracoes/zapsign-acompanhamento.js';
+import { iniciarIntegracaoJuri } from './integracoes/atilhus-juri.js';
 import { COOKIE_SESSAO, registrarSessao } from './rotas/sessao.js';
 import { registrarAtendimento } from './rotas/atendimento.js';
 import { registrarAutomacoes } from './rotas/automacoes.js';
@@ -381,6 +382,8 @@ servidor.listen(PORTA, HOST, () => {
   iniciarAgendador(INTERVALO_AGENDADOR);
   /* Os contratos enviados: consulta a ZapSign ate saber que foi assinado. */
   iniciarAcompanhamento();
+  /* Assinado, o contrato vai para o Atilhus Juri; o que falhar fica na fila. */
+  iniciarIntegracaoJuri();
 });
 
 function encerrar() {
