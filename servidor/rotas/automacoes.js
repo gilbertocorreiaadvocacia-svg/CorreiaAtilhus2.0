@@ -1,4 +1,4 @@
-import { PROMPT, VOZES } from '../config.js';
+import { PROMPT, VOZES, areaValida } from '../config.js';
 import { achar, atualizar, inserir, listar, remover } from '../nucleo/banco.js';
 import { novoId, slug } from '../nucleo/util.js';
 import { normalizarMomentos } from '../nucleo/casos.js';
@@ -202,6 +202,8 @@ export function registrarAutomacoes(rotas) {
     'pasta',
     'ativo',
     'foto',
+    'area',
+    'requisitos',
   ]);
 
   /**
@@ -236,6 +238,18 @@ export function registrarAutomacoes(rotas) {
     for (const [chave, valor] of Object.entries(corpo || {})) {
       if (!CAMPOS_DO_AGENTE.has(chave)) continue;
       if (chave === 'prompt') conferirTamanhoDoPrompt(valor);
+      if (chave === 'area') {
+        limpo.area = areaValida(valor);
+        continue;
+      }
+      /* Requisito e a chave de uma variavel ("CTPS foto" vira ctps_foto): e
+         pela chave que o motor sabe o que ainda falta coletar. */
+      if (chave === 'requisitos') {
+        limpo.requisitos = [...new Set((Array.isArray(valor) ? valor : [])
+          .map((item) => slug(String(item)).replace(/-/g, '_'))
+          .filter(Boolean))].slice(0, 20);
+        continue;
+      }
       if (chave === 'foto') {
         if (valor === null || valor === '') { limpo.foto = null; continue; }
         if (!CAMINHO_DE_MIDIA.test(String(valor))) {
@@ -278,6 +292,8 @@ export function registrarAutomacoes(rotas) {
       vozId: null,
       modoAudio: false,
       pasta: dados.pasta || PASTA_PADRAO,
+      area: areaValida(dados.area),
+      requisitos: dados.requisitos || [],
       /*
        * A foto e uma URL de /midia, guardada pelo mesmo upload que ja recebe
        * video de proposta e audio. Nasce vazia: sem ela o avatar() do sistema

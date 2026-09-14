@@ -52,7 +52,10 @@ const outras = [];
  * conseguir se reconhecer aqui dentro.
  */
 const MARCA_DO_TESTE = 'exatamente a palavra: funcionando';
-const ehDoTeste = (corpo) => String(corpo?.system || '').includes(MARCA_DO_TESTE);
+/* Uma suite pode trocar a marca ao mandar o roteiro: o teste de agentes em
+   cadeia se reconhece por uma palavra escrita no prompt dos agentes dele. */
+let marca = MARCA_DO_TESTE;
+const ehDoTeste = (corpo) => String(corpo?.system || '').includes(marca);
 
 function responderJson(res, status, dados, cabecalhos = {}) {
   const corpo = JSON.stringify(dados);
@@ -69,16 +72,29 @@ function responderJson(res, status, dados, cabecalhos = {}) {
  * "refusal" e a recusa. As duas chegam com HTTP 200, e e exatamente por isso
  * que precisam de teste: pelo codigo de status parecem sucesso.
  */
-function sucesso(texto, { pensamento = false, parada = 'end_turn' } = {}) {
+let sequenciaDeChamadas = 0;
+
+/* `chamadas` sao pedidos de ferramenta ({ nome, argumentos }), devolvidos como
+   blocos tool_use — e assim que um agente transfere, agenda ou salva dado. */
+function sucesso(texto, { pensamento = false, parada = 'end_turn', chamadas = [] } = {}) {
   const content = [];
   if (pensamento) content.push({ type: 'thinking', thinking: '', signature: 'assinatura-falsa' });
   if (texto) content.push({ type: 'text', text: texto });
+  for (const chamada of chamadas || []) {
+    sequenciaDeChamadas += 1;
+    content.push({
+      type: 'tool_use',
+      id: `toolu_falso_${sequenciaDeChamadas}`,
+      name: chamada.nome,
+      input: chamada.argumentos || {},
+    });
+  }
   return {
     id: 'msg_falso',
     type: 'message',
     role: 'assistant',
     content,
-    stop_reason: parada,
+    stop_reason: chamadas?.length ? 'tool_use' : parada,
     usage: { input_tokens: 10, output_tokens: 3 },
   };
 }
@@ -101,6 +117,7 @@ export function subirAnthropicFalsa(porta) {
     if (url.pathname === '/__roteiro' && req.method === 'POST') {
       const corpo = await lerCorpo(req);
       roteiro = Array.isArray(corpo?.roteiro) ? corpo.roteiro : [];
+      marca = corpo?.marca || MARCA_DO_TESTE;
       chamadas.length = 0;
       outras.length = 0;
       return responderJson(res, 200, { ok: true, itens: roteiro.length });
@@ -118,6 +135,14 @@ export function subirAnthropicFalsa(porta) {
         maxTokens: corpo?.max_tokens ?? null,
         sistema: String(corpo?.system || '').slice(0, 70),
         quando: Date.now(),
+        /* O que o agente enxergou: o contexto inteiro, as ferramentas, para
+           quem ele podia transferir, e a ultima mensagem (onde chega o
+           resultado da ferramenta anterior). */
+        sistemaCompleto: String(corpo?.system || ''),
+        ferramentas: (corpo?.tools || []).map((t) => t.name),
+        destinos:
+          (corpo?.tools || []).find((t) => t.name === 'transferir_conversa')?.input_schema?.properties?.destino?.enum || null,
+        ultimaMensagem: JSON.stringify(corpo?.messages?.[corpo.messages.length - 1] ?? null).slice(0, 4000),
       };
 
       /* Agente que disparou sozinho recebe um sucesso simples e vai embora sem
@@ -142,7 +167,11 @@ export function subirAnthropicFalsa(porta) {
 
       if (item.status === 200) {
         const texto = item.texto === undefined ? 'funcionando' : item.texto;
-        return responderJson(res, 200, sucesso(texto, { pensamento: item.pensamento, parada: item.parada }));
+        return responderJson(
+          res,
+          200,
+          sucesso(texto, { pensamento: item.pensamento, parada: item.parada, chamadas: item.chamadas }),
+        );
       }
       return responderJson(
         res,

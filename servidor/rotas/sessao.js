@@ -16,7 +16,7 @@ import {
 import { definirCookie } from '../nucleo/http.js';
 import { agora, conferirSenha, hashSenha, normalizar, normalizarTelefone, novoId } from '../nucleo/util.js';
 import { semearWorkspace } from '../nucleo/seed.js';
-import { MODELOS, PROMPT, TIPOS_STATUS } from '../config.js';
+import { AREAS, MODELOS, PROMPT, TIPOS_STATUS } from '../config.js';
 
 export const COOKIE_SESSAO = 'correiatendimentos';
 
@@ -105,6 +105,7 @@ export function registrarSessao(rotas) {
     /* As faixas de tamanho do prompt, para a tela de Agentes nao ter a sua
        propria copia dos numeros (ver PROMPT em config.js). */
     prompt: PROMPT,
+    areas: AREAS,
   }));
 
   rotas.post('/api/sessao/workspace', async ({ ctx, corpo }) => {

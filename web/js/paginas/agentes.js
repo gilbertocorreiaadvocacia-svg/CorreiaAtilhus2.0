@@ -721,6 +721,24 @@ export async function paginaAgentes({ parametros, definirAcoes }) {
       { valor: 30, rotulo: '30 s', ajuda: 'áudio e mensagem picada' },
       { valor: 60, rotulo: '60 s', ajuda: 'casos específicos' },
     ];
+    /* Area: com qual numero ele trabalha, e para quem pode passar a conversa. */
+    const area = el('select', { 'aria-label': 'Área do agente' }, [
+      el('option', { value: '', texto: 'Todas as áreas' }),
+      ...(estado.sessao?.areas || []).map((a) => el('option', { value: a.id, texto: a.nome })),
+    ]);
+    area.value = agente.area || '';
+    area.addEventListener('change', () => salvarConfig({ area: area.value || null }));
+
+    /* Requisitos: as variaveis que ele precisa ter antes de avancar. O
+       servidor transforma o texto em chave (CTPS foto -> ctps_foto). */
+    const requisitos = entradaTexto((agente.requisitos || []).join(', '), {
+      placeholder: 'qualidade_segurado, ctps_foto, laudo',
+      'aria-label': 'Requisitos do agente',
+    });
+    requisitos.addEventListener('change', () =>
+      salvarConfig({ requisitos: requisitos.value.split(',').map((r) => r.trim()).filter(Boolean) }),
+    );
+
     const atualEspera = agente.delaySegundos ?? 15;
     const segmentado = el(
       'div',
@@ -747,6 +765,16 @@ export async function paginaAgentes({ parametros, definirAcoes }) {
           (ligado) => salvarConfig({ ativo: ligado }, ligado ? 'Agente ligado.' : 'Agente desligado.'),
           { ajuda: 'Desligado, ele não responde a ninguém e some do Chat de teste.' },
         ),
+      ),
+      secao(
+        'Área',
+        'Palavra-chave só chama este agente em número da mesma área, e ele só passa a conversa para agentes da mesma área.',
+        area,
+      ),
+      secao(
+        'Precisa coletar antes de avançar',
+        'As variáveis que este agente precisa ter. Enquanto faltar alguma, ele lê "FALTA COLETAR" no contexto.',
+        requisitos,
       ),
       secao(
         'Atende sozinho em',

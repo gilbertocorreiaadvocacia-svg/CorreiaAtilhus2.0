@@ -217,6 +217,23 @@ export const PROMPT = {
   caracteresPorToken: 3,
 };
 
+/*
+ * As areas de atendimento, uma por numero de WhatsApp. A area do numero passa
+ * para a conversa quando ela nasce, e decide duas coisas: qual agente a
+ * palavra-chave pode chamar, e para quem um agente pode passar a conversa. Um
+ * agente sem area serve a todas.
+ *
+ * `areaJuri` e o codigo da tabela `areas` do Atilhus Juri, para onde o caso vai
+ * depois do contrato assinado.
+ */
+export const AREAS = [
+  { id: 'previdenciario', nome: 'Previdenciário', areaJuri: 'previdenciario_administrativo' },
+  { id: 'trabalhista', nome: 'Trabalhista', areaJuri: 'trabalhista' },
+  { id: 'civel', nome: 'Cível / Consumidor', areaJuri: 'civel' },
+];
+
+export const areaValida = (valor) => (AREAS.some((a) => a.id === valor) ? valor : null);
+
 /** Tipos de status usados pelo Dashboard, o funil padrao. */
 /*
  * A cor sai como token do tema, nao como hex. Ela e usada so para pintar

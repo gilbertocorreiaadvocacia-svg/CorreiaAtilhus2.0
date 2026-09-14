@@ -1,7 +1,21 @@
 import { achar, atualizar, inserir, listar, registrarLog } from '../nucleo/banco.js';
 import { emitir } from '../nucleo/eventos.js';
-import { agora, novoId } from '../nucleo/util.js';
+import { agora, formatarTelefone, novoId } from '../nucleo/util.js';
 import { inserirNota } from '../ia/mencoes.js';
+import { definirMomento } from '../nucleo/casos.js';
+
+/* Ligacao e curta e nao tem link: alguem da equipe liga para o WhatsApp. */
+const DURACAO_LIGACAO = 15;
+
+/** Compromissos que ainda ocupam a agenda, como intervalos em milissegundos. */
+function ocupacao(workspaceId, duracaoPadrao) {
+  return listar('compromissos', { workspaceId })
+    .filter((c) => c.situacao !== 'cancelado')
+    .map((c) => {
+      const inicio = new Date(c.quando).getTime();
+      return { compromisso: c, inicio, fim: inicio + (c.duracao || duracaoPadrao) * 60000 };
+    });
+}
 
 /**
  * Agenda de reunioes. Funciona sozinha, com a disponibilidade configurada nas
@@ -52,9 +66,10 @@ function minutosDe(texto) {
 
 /** Gera as proximas janelas livres, pulando o que ja esta ocupado. */
 function janelasLivres(workspaceId, regras) {
-  const ocupados = listar('compromissos', { workspaceId })
-    .filter((c) => c.situacao !== 'cancelado')
-    .map((c) => new Date(c.quando).getTime());
+  /* Por sobreposicao, e nao por horario igual: uma ligacao de 15 min as 10h15
+     ocupa a reuniao das 10h, e a comparacao exata deixava marcar as duas. */
+  const ocupados = ocupacao(workspaceId, regras.duracao || 30);
+  const duracao = (regras.duracao || 30) * 60000;
 
   const livres = [];
   const inicio = new Date(Date.now() + (regras.antecedenciaHoras || 2) * 3600000);
@@ -78,7 +93,8 @@ function janelasLivres(workspaceId, regras) {
     ) {
       const candidato = new Date(base.getTime() + minuto * 60000);
       if (candidato.getTime() < inicio.getTime()) continue;
-      if (ocupados.includes(candidato.getTime())) continue;
+      const ini = candidato.getTime();
+      if (ocupados.some((o) => ini < o.fim && ini + duracao > o.inicio)) continue;
       livres.push(candidato);
     }
   }
@@ -113,9 +129,13 @@ async function criarNoGoogle(cfg, evento) {
         description: evento.descricao,
         start: { dateTime: evento.inicio, timeZone: FUSO },
         end: { dateTime: evento.fim, timeZone: FUSO },
-        conferenceData: {
-          createRequest: { requestId: evento.id, conferenceSolutionKey: { type: 'hangoutsMeet' } },
-        },
+        ...(evento.semLink
+          ? {}
+          : {
+              conferenceData: {
+                createRequest: { requestId: evento.id, conferenceSolutionKey: { type: 'hangoutsMeet' } },
+              },
+            }),
       }),
     },
   );
@@ -147,13 +167,27 @@ export async function operarAgenda({ contato, agente, argumentos }) {
     const quando = new Date(argumentos.quando.replace(' ', 'T'));
     if (Number.isNaN(quando.getTime())) return { erro: 'Data invalida. Use 2026-08-20 14:30.' };
 
+    const ligacao = argumentos.tipo === 'ligacao';
+    const duracao = ligacao ? DURACAO_LIGACAO : regras.duracao;
+    const rotulo = ligacao ? 'Ligacao' : 'Reuniao';
+
+    /* A mesma equipe atende ligacao e reuniao: um horario so serve a uma. */
+    const inicio = quando.getTime();
+    const choque = ocupacao(workspaceId, regras.duracao).find((o) => inicio < o.fim && inicio + duracao * 60000 > o.inicio);
+    if (choque) {
+      return {
+        erro: `Esse horario ja esta ocupado (${formatar(new Date(choque.inicio))}). Chame a acao "verificar" e ofereca outro ao lead.`,
+      };
+    }
+
     const compromisso = inserir('compromissos', {
       id: novoId('cmp'),
       workspaceId,
       contatoId: contato.id,
-      assunto: argumentos.assunto || `Reuniao com ${contato.nome}`,
+      tipo: ligacao ? 'ligacao' : 'reuniao',
+      assunto: argumentos.assunto || `${rotulo} com ${contato.nome}`,
       quando: quando.toISOString(),
-      duracao: regras.duracao,
+      duracao,
       situacao: 'confirmado',
       criadoPor: agente ? { tipo: 'agente', id: agente.id, nome: agente.nome } : null,
     });
@@ -161,26 +195,38 @@ export async function operarAgenda({ contato, agente, argumentos }) {
     const noGoogle = await criarNoGoogle(cfg, {
       id: compromisso.id,
       assunto: compromisso.assunto,
-      descricao: `Reuniao agendada pelo CorreiaAtilhus2.0 com ${contato.nome} (${contato.telefone}).`,
+      descricao: ligacao
+        ? `Ligar para ${contato.nome} no WhatsApp ${formatarTelefone(contato.telefone)}. Agendado pelo CorreiaAtilhus2.0.`
+        : `Reuniao agendada pelo CorreiaAtilhus2.0 com ${contato.nome} (${contato.telefone}).`,
       inicio: quando.toISOString(),
-      fim: new Date(quando.getTime() + regras.duracao * 60000).toISOString(),
+      fim: new Date(inicio + duracao * 60000).toISOString(),
+      semLink: ligacao,
     }).catch(() => null);
 
     if (noGoogle) atualizar('compromissos', compromisso.id, { googleId: noGoogle.id, link: noGoogle.link });
 
     inserirNota(
       contato,
-      `Reuniao marcada para ${formatar(quando)}${noGoogle?.link ? `\nLink: ${noGoogle.link}` : ''}`,
+      `${rotulo} marcada para ${formatar(quando)}${ligacao ? `\nLigar para ${formatarTelefone(contato.telefone)}` : ''}${noGoogle?.link && !ligacao ? `\nLink: ${noGoogle.link}` : ''}`,
       { tipo: 'sistema', nome: 'Agenda' },
     );
-    registrarLog(workspaceId, contato.id, 'agenda', `Reuniao marcada para ${formatar(quando)}`);
+    registrarLog(workspaceId, contato.id, 'agenda', `${rotulo} marcada para ${formatar(quando)}`);
+
+    /* O quadro mostra o que vem a seguir. So vale se o status atual tiver esse
+       momento; se nao tiver, a agenda continua valendo do mesmo jeito. */
+    definirMomento(
+      contato,
+      ligacao ? 'Ligacao agendada' : 'Reuniao agendada',
+      agente ? { tipo: 'agente', id: agente.id, nome: agente.nome } : { tipo: 'sistema', nome: 'Agenda' },
+    );
     emitir(workspaceId, 'contato', { contatoId: contato.id });
 
     return {
       ok: true,
+      tipo: ligacao ? 'ligacao' : 'reuniao',
       resumo: formatar(quando),
       quando: formatar(quando),
-      link: noGoogle?.link || null,
+      link: ligacao ? null : noGoogle?.link || null,
     };
   }
 

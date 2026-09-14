@@ -8,7 +8,7 @@ import { agora, formatarTelefone } from '../nucleo/util.js';
 import { enviarMensagem } from '../whatsapp/envio.js';
 import { sintetizar, vozDisponivel } from './audio.js';
 import { membrosQuePodemVer } from '../nucleo/auth.js';
-import { executarFerramenta, ferramentasDoAgente, notificar } from './mencoes.js';
+import { executarFerramenta, ferramentasDoAgente, notificar, sortearResponsavel } from './mencoes.js';
 import { conversar, modeloDe, provedorDisponivel, responderPorRegras } from './provedores.js';
 
 const MAX_VOLTAS = 6;
@@ -18,6 +18,17 @@ const IMAGENS_MAXIMAS = 3;
 /** Um cronometro por conversa: mensagem nova reinicia a contagem do delay. */
 const cronometros = new Map();
 const rodando = new Set();
+/* Conversa em que chegou mensagem enquanto o agente ja estava rodando: roda de
+   novo quando ele terminar, senao a mensagem ficava sem resposta ate a proxima. */
+const pendentes = new Set();
+
+/*
+ * Quantas vezes seguidas os agentes podem passar a conversa um para o outro
+ * sem o cliente escrever. Secretaria -> especialista -> proposta sao dois
+ * saltos; o terceiro e folga. Passou disso, e prompt mandando um devolver para
+ * o outro, e quem resolve e uma pessoa.
+ */
+const MAX_SALTOS = 3;
 
 export function agendarResposta(contato) {
   const agente = contato.responsavel?.tipo === 'agente' ? achar('agentes', contato.responsavel.id) : null;
@@ -108,6 +119,10 @@ function montarSistema({ agente, contato, workspace }) {
   const tipoDeCaso = marcadas.find((e) => e.tipo === 'caso');
   const etiquetas = marcadas.filter((e) => e.tipo !== 'caso').map((e) => e.nome);
   const momentosDoStatus = (status?.momentos || []).map((m) => m.nome);
+  /* O que o agente anterior deixou para este: so a passagem feita PARA ele, a
+     mais recente. As notas comuns continuam fora do modelo. */
+  const passagem = [...(contato.passagens || [])].reverse().find((p) => p.paraId === agente.id);
+  const faltam = (agente.requisitos || []).filter((chave) => !String(contato.variaveis?.[chave] ?? '').trim());
   const variaveis = Object.entries(contato.variaveis || {})
     .map(([chave, valor]) => `- ${chave}: ${valor}`)
     .join('\n');
@@ -138,6 +153,15 @@ function montarSistema({ agente, contato, workspace }) {
     '',
     'DADOS JA COLETADOS:',
     variaveis || '- nenhum ainda',
+    ...(faltam.length ? ['', `FALTA COLETAR antes de avancar: ${faltam.join(', ')}`] : []),
+    ...(passagem
+      ? [
+          '',
+          `PASSAGEM DO AGENTE ANTERIOR (${passagem.deNome}):`,
+          passagem.resumo,
+          'Continue de onde ele parou: nao se apresente como se a conversa comecasse agora e nao repita pergunta ja respondida.',
+        ]
+      : []),
     '',
     `AGORA: ${dataHora} (horario de Brasilia)`,
     '',
@@ -195,6 +219,12 @@ function montarHistorico(contato, { comImagens = false } = {}) {
   if (!historico.length || historico[0].papel !== 'usuario') {
     historico.unshift({ papel: 'usuario', texto: '(o lead iniciou a conversa)' });
   }
+  /* A conversa que acabou de ser passada termina numa fala NOSSA (a transicao
+     do agente anterior). O modelo precisa de uma vez de falar, e nao de
+     continuar a frase de outro. */
+  if (historico[historico.length - 1].papel === 'assistente') {
+    historico.push({ papel: 'usuario', texto: '(a conversa acabou de ser passada para voce; continue o atendimento)' });
+  }
   return historico;
 }
 
@@ -214,11 +244,83 @@ function lerImagem(midia) {
  * Roda o agente responsavel pela conversa: monta contexto, deixa o modelo
  * decidir, executa as ferramentas que ele pedir e manda o texto final.
  */
-export async function executarAgente(contatoId) {
-  if (rodando.has(contatoId)) return null;
+export async function executarAgente(contatoId, { saltos = 0 } = {}) {
+  if (rodando.has(contatoId)) {
+    pendentes.add(contatoId);
+    return null;
+  }
   rodando.add(contatoId);
 
+  const passo = { encadear: false };
+  let texto = null;
   try {
+    texto = await rodarAgente(contatoId, passo);
+  } finally {
+    rodando.delete(contatoId);
+  }
+
+  /*
+   * Depois de soltar a trava, e nao dentro dela: o proximo agente roda nesta
+   * mesma conversa, e com a trava presa ele seria recusado como "ja rodando".
+   */
+  if (passo.encadear) {
+    await seguirCadeia(contatoId, saltos + 1);
+  } else if (pendentes.delete(contatoId)) {
+    const atual = achar('contatos', contatoId);
+    if (atual?.responsavel?.tipo === 'agente' && atual.estado === 'ia') await executarAgente(contatoId);
+  }
+  return texto;
+}
+
+/**
+ * O agente passou a conversa para outro agente: o novo responde na hora, sem o
+ * cliente precisar escrever de novo. Passando do teto de saltos, vai para uma
+ * pessoa, com aviso.
+ */
+async function seguirCadeia(contatoId, saltos) {
+  /* A mensagem que chegou no meio vai junto no historico do proximo agente. */
+  pendentes.delete(contatoId);
+  const contato = achar('contatos', contatoId);
+  if (contato?.responsavel?.tipo !== 'agente') return;
+
+  if (saltos > MAX_SALTOS) {
+    const pessoa = sortearResponsavel(contato.workspaceId, contato, null);
+    atualizar('contatos', contatoId, {
+      responsavel: pessoa,
+      estado: 'pendente',
+      aceitoPor: null,
+      responsavelDesde: agora(),
+    });
+    registrarLog(
+      contato.workspaceId,
+      contatoId,
+      'cadeia',
+      `Os agentes passaram a conversa ${MAX_SALTOS} vezes seguidas; foi para ${pessoa?.nome || 'a fila de pendentes'}`,
+    );
+    if (pessoa) {
+      notificar(
+        contato.workspaceId,
+        pessoa.id,
+        'atribuicao',
+        'Conversa atribuida a voce',
+        `Os agentes passaram ${contato.nome} de um para outro ${MAX_SALTOS} vezes seguidas. Confira o que falta e os prompts envolvidos.`,
+        contatoId,
+      );
+    }
+    emitir(contato.workspaceId, 'contato', { contatoId });
+    return;
+  }
+
+  await executarAgente(contatoId, { saltos });
+}
+
+/**
+ * Roda o agente responsavel pela conversa uma vez: monta contexto, deixa o
+ * modelo decidir, executa as ferramentas que ele pedir e manda o texto final.
+ * `passo.encadear` volta ligado quando ele passou a conversa a outro agente.
+ */
+async function rodarAgente(contatoId, passo) {
+  {
     const contato = achar('contatos', contatoId);
     if (!contato) return null;
     if (contato.responsavel?.tipo !== 'agente') return null;
@@ -298,6 +400,7 @@ export async function executarAgente(contatoId) {
             workspaceId: contato.workspaceId,
           });
           if (resultado?.pare_de_responder) paraDeResponder = true;
+          if (resultado?.encadear) passo.encadear = true;
           resultados.push({ id: chamada.id, resultado });
         }
         mensagens.push({ papel: 'ferramenta', resultados });
@@ -308,7 +411,9 @@ export async function executarAgente(contatoId) {
 
     if (textoFinal && !paraDeResponder) {
       const atualizado = achar('contatos', contatoId) || contato;
-      if (atualizado.responsavel?.tipo === 'agente') {
+      /* So fala quem ainda e o responsavel. Se no meio da rodada a conversa
+         foi passada adiante, o texto deste agente nao sai mais. */
+      if (atualizado.responsavel?.tipo === 'agente' && atualizado.responsavel.id === agente.id) {
         // Com o modo audio ligado, a resposta vai falada, e o texto vai junto,
         // para a equipe conseguir ler o historico sem abrir cada audio.
         let midia = null;
@@ -335,8 +440,6 @@ export async function executarAgente(contatoId) {
     atualizar('contatos', contatoId, { ultimaRespostaIaEm: agora() });
     emitir(contato.workspaceId, 'contato', { contatoId });
     return textoFinal;
-  } finally {
-    rodando.delete(contatoId);
   }
 }
 
@@ -346,11 +449,16 @@ export async function forcarResposta(contatoId) {
   return executarAgente(contatoId);
 }
 
-/** Qual agente uma palavra-chave ativa. Vale so para quem inicia a conversa. */
-export function agentePorPalavraChave(workspaceId, texto) {
+/**
+ * Qual agente uma palavra-chave ativa. Vale so para quem inicia a conversa, e
+ * so dentro da area do numero: "auxilio" no numero trabalhista nao chama o
+ * especialista previdenciario.
+ */
+export function agentePorPalavraChave(workspaceId, texto, area = null) {
   const alvo = String(texto || '').toLowerCase();
   if (!alvo.trim()) return null;
   for (const agente of listar('agentes', { workspaceId, ativo: true })) {
+    if (area && agente.area && agente.area !== area) continue;
     for (const palavra of agente.palavrasChave || []) {
       if (palavra && alvo.includes(String(palavra).toLowerCase())) return agente;
     }

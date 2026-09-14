@@ -1070,6 +1070,10 @@ function formulario(conexao, { aoSalvar }) {
     opcoesResponsavel(),
     conexao?.responsavelPadrao ? `${conexao.responsavelPadrao.tipo}:${conexao.responsavelPadrao.id}` : '',
   );
+  const area = selecao(
+    [{ valor: '', rotulo: 'Todas as áreas' }, ...(estado.sessao?.areas || []).map((a) => ({ valor: a.id, rotulo: a.nome }))],
+    conexao?.area || '',
+  );
 
   const phoneNumberId = entradaTexto(conexao?.oficial?.phoneNumberId || '');
   const wabaId = entradaTexto(conexao?.oficial?.wabaId || '');
@@ -1144,6 +1148,7 @@ function formulario(conexao, { aoSalvar }) {
       statusPadraoId: statusPadrao.value || null,
       departamentoPadraoId: departamentoPadrao.value || null,
       responsavelPadrao: tipoResp ? { tipo: tipoResp, id: idResp } : null,
+      area: area.value || null,
     };
     if (tipo.value === 'oficial') {
       dados.oficial = {
@@ -1174,6 +1179,11 @@ function formulario(conexao, { aoSalvar }) {
     campo('Nome', nome),
     campoComDica('Tipo', tipo, 'Simulador funciona sem chip. Oficial precisa das credenciais da Meta.'),
     campo('Numero', numero),
+    campoComDica(
+      'Área do número',
+      area,
+      'A conversa nova herda esta área. Palavra-chave e passagem entre agentes ficam dentro dela: o número do previdenciário não chama o agente trabalhista.',
+    ),
     subtitulo('Padroes de toda conversa nova', 'Aplicados no momento em que alguem escreve pela primeira vez para este numero.'),
     campo('Status padrao', statusPadrao),
     campo('Departamento padrao', departamentoPadrao),

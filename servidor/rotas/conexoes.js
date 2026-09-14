@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { PORTA } from '../config.js';
+import { PORTA, areaValida } from '../config.js';
 import { achar, atualizar, inserir, listar, registrarLog, remover } from '../nucleo/banco.js';
 import { emitir } from '../nucleo/eventos.js';
 import { agora, normalizarTelefone, novoId, ordenarPor } from '../nucleo/util.js';
@@ -119,6 +119,7 @@ export function registrarConexoes(rotas) {
       statusPadraoId: corpo.statusPadraoId || null,
       departamentoPadraoId: corpo.departamentoPadraoId || null,
       responsavelPadrao: corpo.responsavelPadrao || null,
+      area: areaValida(corpo.area),
       oficial: {
         phoneNumberId: '',
         wabaId: '',
@@ -153,6 +154,7 @@ export function registrarConexoes(rotas) {
 
     if (corpo.oficial) corpo.oficial = juntarSegredo(conexao.oficial, corpo.oficial, 'token');
     if (corpo.qrcode) corpo.qrcode = juntarSegredo(conexao.qrcode, corpo.qrcode, 'chave');
+    if (corpo.area !== undefined) corpo.area = areaValida(corpo.area);
 
     const anterior = conexao.tipo;
     const atualizada = atualizar('conexoes', params.id, corpo);

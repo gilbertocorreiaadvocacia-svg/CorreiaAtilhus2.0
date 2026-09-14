@@ -125,6 +125,8 @@ export function acharOuCriarContato({
     foto,
     statusId: conexao.statusPadraoId || null,
     departamentoId: conexao.departamentoPadraoId || null,
+    /* A area e do numero: e ela que limita palavra-chave e transferencia. */
+    area: conexao.area || null,
     etiquetas: [],
     origemId: null,
     responsavel: conexao.responsavelPadrao ? { ...conexao.responsavelPadrao } : null,
@@ -247,6 +249,8 @@ function reiniciarConversa(contato, conexao) {
   atualizar('contatos', contato.id, {
     statusId: conexao.statusPadraoId || null,
     departamentoId: conexao.departamentoPadraoId || null,
+    /* A area e do numero: e ela que limita palavra-chave e transferencia. */
+    area: conexao.area || null,
     etiquetas: [],
     variaveis: {},
     responsavel,
@@ -436,7 +440,7 @@ export async function receberMensagem({
 
   // Palavra-chave so ativa agente na abertura da conversa, nunca no meio dela.
   if (primeira && mensagem.conteudo) {
-    const agente = agentePorPalavraChave(workspaceId, mensagem.conteudo);
+    const agente = agentePorPalavraChave(workspaceId, mensagem.conteudo, contato.area || conexao.area);
     if (agente && (!contato.responsavel || contato.responsavel.tipo === 'agente')) {
       mudancas.responsavel = { tipo: 'agente', id: agente.id, nome: agente.nome };
       mudancas.estado = 'ia';

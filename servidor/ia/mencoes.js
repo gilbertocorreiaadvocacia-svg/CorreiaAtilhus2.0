@@ -334,20 +334,31 @@ export function ferramentasDoAgente(agente, workspaceId) {
     });
   }
   if (tipos.has('agente') || tipos.has('membro') || tipos.has('responsavel')) {
+    /* So os agentes que atendem a mesma area: a secretaria do previdenciario
+       nao enxerga o especialista trabalhista. Agente sem area serve a todas. */
+    const agentesPossiveis = porTipo('agente').filter((item) => {
+      const outro = achar('agentes', item.id);
+      return outro && outro.id !== agente.id && (!agente.area || !outro.area || outro.area === agente.area);
+    });
     ferramentas.push({
       nome: 'transferir_conversa',
       descricao:
-        'Transfere a conversa para outro agente de IA ou para uma pessoa da equipe. Ao transferir para pessoa, voce para de responder. Use "distribuir" quando o prompt mandar repassar para a equipe sem dizer para quem: cai em quem tem menos conversa aberta.',
+        'Passa a conversa para outro agente de IA ou para uma pessoa da equipe, e voce para de responder. Para agente, ele responde na hora, sem o lead escrever de novo, e le o seu resumo_para_proximo. Use "distribuir" quando o prompt mandar repassar para a equipe sem dizer para quem: cai em quem tem menos conversa aberta.',
       parametros: {
         type: 'object',
         properties: {
-          destino: { type: 'string', enum: ['distribuir', ...opcoes(porTipo('agente')), ...opcoes(porTipo('membro'))] },
+          destino: { type: 'string', enum: ['distribuir', ...opcoes(agentesPossiveis), ...opcoes(porTipo('membro'))] },
+          resumo_para_proximo: {
+            type: 'string',
+            description:
+              'O que o proximo precisa saber para nao repetir nada: necessidade do lead, dados ja coletados, documentos recebidos ou faltando, objecoes e o proximo passo.',
+          },
           mensagem_de_transicao: {
             type: 'string',
-            description: 'Primeira pergunta do proximo atendente, para o lead nao ficar sem resposta.',
+            description: 'Frase curta para o lead antes da passagem (opcional). Quem pergunta a seguir e o proximo atendente.',
           },
         },
-        required: ['destino'],
+        required: ['destino', 'resumo_para_proximo'],
       },
     });
   }
@@ -510,11 +521,17 @@ export function ferramentasDoAgente(agente, workspaceId) {
   if (tipos.has('calendario')) {
     ferramentas.push({
       nome: 'agenda',
-      descricao: 'Verifica horarios livres, cria, altera ou cancela uma reuniao.',
+      descricao:
+        'Verifica horarios livres, cria, altera ou cancela uma reuniao ou uma ligacao. Reuniao e ligacao dividem a mesma agenda: horario ocupado por uma nao aceita a outra.',
       parametros: {
         type: 'object',
         properties: {
           acao: { type: 'string', enum: ['verificar', 'criar', 'editar', 'cancelar'] },
+          tipo: {
+            type: 'string',
+            enum: ['reuniao', 'ligacao'],
+            description: 'Ligacao: 15 minutos, a equipe liga para o WhatsApp do lead. Reuniao: por video, com link.',
+          },
           quando: { type: 'string', description: 'Data e hora desejada, ex: 2026-08-20 14:30' },
           assunto: { type: 'string' },
         },
@@ -665,6 +682,16 @@ export async function executarFerramenta({ nome, argumentos, contato, agente, co
         if (!sorteado) return { erro: 'Nao ha membro disponivel para distribuir a conversa.' };
         responsavel = sorteado;
       } else if (destinoAgente) {
+        if (destinoAgente.id === agente.id) return { erro: 'Voce ja e o responsavel por esta conversa.' };
+        if (!destinoAgente.ativo) return { erro: `${destinoAgente.nome} esta desligado. Escolha outro destino.` };
+        /* A area vale a do numero; conversa antiga, sem area, usa a do agente. */
+        const area = contato.area || agente.area;
+        if (area && destinoAgente.area && destinoAgente.area !== area) {
+          return { erro: `${destinoAgente.nome} atende outra area e nao pode receber esta conversa.` };
+        }
+        if (!String(argumentos.resumo_para_proximo || '').trim()) {
+          return { erro: 'Escreva resumo_para_proximo: o proximo agente so enxerga o que voce resumir.' };
+        }
         responsavel = { tipo: 'agente', id: destinoAgente.id, nome: destinoAgente.nome };
       } else {
         const membros = listar('membros', { workspaceId });
@@ -686,6 +713,27 @@ export async function executarFerramenta({ nome, argumentos, contato, agente, co
         });
       }
 
+      /* A passagem fica guardada para o proximo agente ler (motor.js), e vira
+         nota para a equipe ver o mesmo resumo que o agente viu. */
+      const resumo = String(argumentos.resumo_para_proximo || '').trim();
+      const passagens = resumo
+        ? [
+            ...(contato.passagens || []),
+            {
+              deId: agente.id,
+              deNome: agente.nome,
+              paraId: responsavel.id,
+              paraNome: responsavel.nome,
+              paraTipo: responsavel.tipo,
+              resumo,
+              em: agora(),
+            },
+          ].slice(-10)
+        : contato.passagens || [];
+      if (resumo) {
+        inserirNota(contato, `Passagem para ${responsavel.nome}:\n${resumo}`, { tipo: 'agente', id: agente.id, nome: agente.nome });
+      }
+
       atualizar('contatos', contato.id, {
         responsavel,
         estado: responsavel.tipo === 'agente' ? 'ia' : 'pendente',
@@ -693,8 +741,10 @@ export async function executarFerramenta({ nome, argumentos, contato, agente, co
         /* Carimbo da entrega. Sem ele o rodizio nao tem como desempatar duas
            pessoas com a mesma carga, e a fila para de girar. */
         responsavelDesde: agora(),
+        passagens,
       });
       contato.responsavel = responsavel;
+      contato.passagens = passagens;
       contato.estado = responsavel.tipo === 'agente' ? 'ia' : 'pendente';
       lancar(workspaceId, contato.id, 'mencao_responsavel', custoDaMencao('responsavel'));
       registrar(`Conversa transferida para ${responsavel.nome}`);
@@ -703,7 +753,14 @@ export async function executarFerramenta({ nome, argumentos, contato, agente, co
       if (responsavel.tipo === 'membro') {
         notificar(workspaceId, responsavel.id, 'atribuicao', 'Conversa atribuida a voce', `${contato.nome} foi transferido para voce.`, contato.id);
       }
-      return { ok: true, transferido_para: responsavel.nome, pare_de_responder: responsavel.tipo === 'membro' };
+      /* Passou, parou: quem responde agora e o destino. Para agente, o motor
+         o chama na hora (encadear). */
+      return {
+        ok: true,
+        transferido_para: responsavel.nome,
+        pare_de_responder: true,
+        encadear: responsavel.tipo === 'agente',
+      };
     }
 
     case 'enviar_template': {

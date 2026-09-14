@@ -18,6 +18,7 @@ import { testarRede } from './rede.js';
 import { testarIa } from './ia.js';
 import { testarHistorico } from './historico.js';
 import { testarCasos } from './casos.js';
+import { testarEncadeamento } from './encadeamento.js';
 
 /**
  * A suite do CorreiaAtilhus2.0. Rode com `npm test`.
@@ -165,6 +166,8 @@ async function principal() {
     suites.push(await testarCasos({ base }));
     suites.push(await testarChatDeTeste({ base }));
     suites.push(await testarIa(base, anthropic));
+    /* Depois da IA: poe a chave de mentira de volta e tira no fim. */
+    suites.push(await testarEncadeamento({ base, anthropic }));
     /* Depois de todas as outras: acrescenta conversas em Ativos, e as suites
        de cima contam fila. */
     suites.push(await testarHistorico({ base, evolucao, chaveEvolucao: CHAVE_EVOLUCAO }));
