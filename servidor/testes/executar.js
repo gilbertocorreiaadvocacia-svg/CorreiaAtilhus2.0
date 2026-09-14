@@ -24,6 +24,7 @@ import { subirZapsignFalsa } from './zapsign-falsa.js';
 import { testarContratos } from './contratos.js';
 import { subirJuriFalso } from './juri-falso.js';
 import { testarJuri } from './juri.js';
+import { testarWorkspacesPorArea } from './workspaces.js';
 
 /**
  * A suite do CorreiaAtilhus2.0. Rode com `npm test`.
@@ -192,6 +193,8 @@ async function principal() {
     suites.push(await testarIa(base, anthropic));
     /* Depois da IA: poe a chave de mentira de volta e tira no fim. */
     suites.push(await testarEncadeamento({ base, anthropic }));
+    /* Cria workspaces novos: depois de quem conta agentes e etiquetas da origem. */
+    suites.push(await testarWorkspacesPorArea({ base }));
     /* Depois de todas as outras: acrescenta conversas em Ativos, e as suites
        de cima contam fila. */
     suites.push(await testarHistorico({ base, evolucao, chaveEvolucao: CHAVE_EVOLUCAO }));

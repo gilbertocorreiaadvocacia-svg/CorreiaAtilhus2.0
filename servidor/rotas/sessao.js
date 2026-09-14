@@ -16,6 +16,7 @@ import {
 import { definirCookie } from '../nucleo/http.js';
 import { agora, conferirSenha, hashSenha, normalizar, normalizarTelefone, novoId } from '../nucleo/util.js';
 import { semearWorkspace } from '../nucleo/seed.js';
+import { criarWorkspacesPorArea } from '../nucleo/workspaces-por-area.js';
 import { AREAS, MODELOS, PROMPT, TIPOS_STATUS } from '../config.js';
 
 export const COOKIE_SESSAO = 'correiatendimentos';
@@ -249,6 +250,13 @@ export function registrarSessao(rotas) {
       ia: { provedor: 'anthropic', chaveAnthropic: '', chaveOpenai: '' },
     });
     return workspace;
+  });
+
+  /* Previdenciario e Trabalhista a partir deste workspace, que fica como esta
+     (ver nucleo/workspaces-por-area.js). Rodar de novo nao duplica. */
+  rotas.post('/api/workspaces/por-area', async ({ ctx }) => {
+    exigirAdministrador(ctx);
+    return { ok: true, workspaces: criarWorkspacesPorArea({ baseWorkspaceId: ctx.workspaceId }) };
   });
 
   /**

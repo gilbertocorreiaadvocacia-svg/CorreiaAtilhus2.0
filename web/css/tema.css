@@ -824,6 +824,61 @@ img.avatar {
   overflow: hidden;
 }
 
+/* Modulo de Agentes: Agentes, Base de conhecimento e Chat de teste como abas.
+   Na lista de agentes (tela cheia) as abas ficam presas no alto e a lista
+   ocupa o resto da altura; nas outras duas elas sao o topo da pagina. */
+.modulo-abas {
+  display: flex;
+  gap: var(--e1);
+  border-bottom: 1px solid var(--borda);
+  margin-bottom: var(--e4);
+  overflow-x: auto;
+}
+
+.modulo-aba {
+  padding: var(--e2) var(--e3);
+  font-size: var(--t-md);
+  color: var(--texto-fraco);
+  text-decoration: none;
+  white-space: nowrap;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.modulo-aba:hover {
+  color: inherit;
+}
+
+.modulo-aba.ativa {
+  color: inherit;
+  font-weight: 600;
+  border-bottom-color: var(--ouro);
+}
+
+.modulo-aba:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: 2px;
+}
+
+.modulo-agentes.cheio {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.modulo-agentes.cheio > .modulo-abas {
+  margin-bottom: 0;
+  padding: 0 var(--e5);
+  background: var(--superficie);
+}
+
+.modulo-agentes.cheio > .agentes {
+  flex: 1;
+  height: auto;
+  min-height: 0;
+}
+
 /* ------------------------------------------------------------------
    Componentes
    ------------------------------------------------------------------ */

@@ -379,7 +379,7 @@ export function registrarAutomacoes(rotas) {
       }
       const agente = inserir(
         'agentes',
-        novoAgente(ctx, { ...dados, area: params.area, pasta: pacote.pasta, conhecimentoIds: bases }),
+        novoAgente(ctx, { ...dados, area: params.area, pasta: dados.pasta || pacote.pasta, conhecimentoIds: bases }),
       );
       criados.push({ id: agente.id, nome: agente.nome });
     }

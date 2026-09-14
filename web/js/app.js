@@ -39,7 +39,7 @@ import { paginaAgendamentos } from './paginas/agendamentos.js';
 import { paginaTarefas } from './paginas/tarefas.js';
 import { paginaConexoes } from './paginas/conexoes.js';
 import { paginaConfiguracoes } from './paginas/configuracoes.js';
-import { paginaSimulador } from './paginas/simulador.js';
+import { moduloAgentes } from './paginas/modulo-agentes.js';
 
 const raiz = document.getElementById('raiz');
 
@@ -57,15 +57,17 @@ const PAGINAS = {
   contatos: { titulo: 'Contatos', montar: paginaAtendimento, cheia: true, visualizacao: 'contatos' },
   kanban: { titulo: 'Kanban', montar: paginaAtendimento, cheia: true, visualizacao: 'kanban' },
 
-  agentes: { titulo: 'Agentes de IA', montar: paginaAgentes, cheia: true },
-  conhecimento: { titulo: 'Base de conhecimento', montar: paginaConhecimento },
+  /* Agentes, Base de conhecimento e Chat de teste sao abas do mesmo modulo
+     (paginas/modulo-agentes.js). As tres rotas continuam existindo. */
+  agentes: { titulo: 'Agentes de IA', montar: moduloAgentes('agentes'), cheia: true },
+  conhecimento: { titulo: 'Base de conhecimento', montar: moduloAgentes('conhecimento') },
   templates: { titulo: 'Templates', montar: paginaTemplates },
   vozes: { titulo: 'Vozes', montar: paginaVozes },
   integracoes: { titulo: 'Integrações', montar: paginaIntegracoes },
 
   tarefas: { titulo: 'Tarefas', montar: paginaTarefas },
   agendamentos: { titulo: 'Central de agendamentos', montar: paginaAgendamentos },
-  simulador: { titulo: 'Chat de teste', montar: paginaSimulador },
+  simulador: { titulo: 'Chat de teste', montar: moduloAgentes('simulador') },
   configuracoes: { titulo: 'Configurações', montar: paginaConfiguracoes },
 };
 
@@ -97,7 +99,6 @@ const MENU = [
     icone: 'raio',
     itens: [
       { rota: 'agentes', rotulo: 'Agentes', icone: 'agentes' },
-      { rota: 'conhecimento', rotulo: 'Base de conhecimento', icone: 'pasta' },
       { rota: 'templates', rotulo: 'Templates', icone: 'templates' },
       { rota: 'vozes', rotulo: 'Vozes', icone: 'pessoa' },
       { rota: 'integracoes', rotulo: 'Integrações', icone: 'abrir' },
@@ -105,9 +106,13 @@ const MENU = [
   },
   { rota: 'tarefas', rotulo: 'Tarefas', icone: 'ok' },
   { rota: 'agendamentos', rotulo: 'Agendamentos', icone: 'agenda' },
-  { rota: 'simulador', rotulo: 'Chat de teste', icone: 'simulador' },
   { rota: 'configuracoes', rotulo: 'Configurações', icone: 'ajustes' },
 ];
+
+/* Telas que moram dentro de outra no menu: abrir uma delas acende o item de
+   quem as contem (Base de conhecimento e Chat de teste sao abas de Agentes). */
+const DENTRO_DE = { conhecimento: 'agentes', simulador: 'agentes' };
+const itemDoMenuDa = (rota) => DENTRO_DE[rota] || rota;
 
 const CHAVE_MENU = 'correiatendimentos:menu-aberto';
 
@@ -120,7 +125,8 @@ function chaveDoGrupo(grupo) {
 }
 
 function grupoDaRota(rota) {
-  return MENU.find((item) => item.itens && item.itens.some((filho) => filho.rota === rota)) || null;
+  const doMenu = itemDoMenuDa(rota);
+  return MENU.find((item) => item.itens && item.itens.some((filho) => filho.rota === doMenu)) || null;
 }
 
 function gruposAbertos() {
@@ -300,8 +306,9 @@ function montarGrupo(grupo, abertos, estreita) {
 }
 
 function marcarRotaAtiva(rota) {
+  const doMenu = itemDoMenuDa(rota);
   for (const link of document.querySelectorAll('.menu a')) {
-    link.classList.toggle('ativo', link.dataset.rota === rota);
+    link.classList.toggle('ativo', link.dataset.rota === doMenu);
   }
 }
 

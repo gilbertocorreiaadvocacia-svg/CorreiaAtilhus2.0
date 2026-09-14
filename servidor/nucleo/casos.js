@@ -203,8 +203,11 @@ export function migrarTiposDeCaso() {
   for (const workspace of listar('workspaces')) {
     const workspaceId = workspace.id;
     const etiquetas = listar('etiquetas', { workspaceId });
+    /* Workspace de uma area so ganha os tipos de caso dela: o Trabalhista nao
+       precisa de etiqueta de BPC. Sem area, todos (o escritorio inteiro). */
+    const tipos = workspace.area ? TIPOS_DE_CASO.filter((t) => t.area === workspace.area) : TIPOS_DE_CASO;
 
-    for (const tipo of TIPOS_DE_CASO) {
+    for (const tipo of tipos) {
       const jaMarcada = etiquetas.find((e) => e.tipo === 'caso' && e.caso === tipo.caso);
       if (jaMarcada) continue;
 

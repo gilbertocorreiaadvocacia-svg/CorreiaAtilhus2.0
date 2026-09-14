@@ -79,6 +79,7 @@ export const PACOTES = {
       {
         nome: 'Secretária Previdenciária',
         objetivo: 'recepcionar',
+        pasta: 'Entrada',
         requisitos: [],
         prompt: montar(
           'QUEM VOCE E',
@@ -104,6 +105,7 @@ export const PACOTES = {
       {
         nome: 'Especialista BPC/LOAS',
         objetivo: 'qualificar',
+        pasta: 'BPC/LOAS',
         requisitos: ['idade', 'pessoas_casa', 'renda', 'cadunico'],
         prompt: montar(
           'QUEM VOCE E',
@@ -133,6 +135,7 @@ export const PACOTES = {
       {
         nome: 'Especialista Auxílio-doença',
         objetivo: 'qualificar',
+        pasta: 'Auxílio-doença',
         requisitos: ['doenca', 'ultima_contribuicao', 'qualidade_segurado', 'ctps_foto', 'laudo'],
         prompt: montar(
           'QUEM VOCE E',
@@ -160,6 +163,7 @@ export const PACOTES = {
       {
         nome: 'Especialista Auxílio-acidente',
         objetivo: 'qualificar',
+        pasta: 'Auxílio-acidente',
         requisitos: ['data_acidente', 'doenca', 'qualidade_segurado', 'ctps_foto'],
         prompt: montar(
           'QUEM VOCE E',
@@ -187,6 +191,7 @@ export const PACOTES = {
       {
         nome: 'Especialista Salário-maternidade',
         objetivo: 'qualificar',
+        pasta: 'Salário-maternidade',
         requisitos: ['data_parto', 'qualidade_segurado', 'ctps_foto'],
         prompt: montar(
           'QUEM VOCE E',
@@ -213,6 +218,7 @@ export const PACOTES = {
       {
         nome: 'Proposta Previdenciária',
         objetivo: 'fechar',
+        pasta: 'Fechamento',
         requisitos: ['cpf', 'nascimento', 'estado_civil', 'endereco', 'email'],
         prompt: proposta(
           'Explique em poucas frases como o escritorio trabalha: analise do caso por advogado, pedido no INSS e, se preciso, na Justica; honorarios conforme a tabela do escritorio, cobrados sobre o que o cliente receber.',
