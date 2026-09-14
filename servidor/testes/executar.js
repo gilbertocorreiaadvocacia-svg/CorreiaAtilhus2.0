@@ -19,6 +19,7 @@ import { testarIa } from './ia.js';
 import { testarHistorico } from './historico.js';
 import { testarCasos } from './casos.js';
 import { testarEncadeamento } from './encadeamento.js';
+import { testarPacotes } from './pacotes.js';
 
 /**
  * A suite do CorreiaAtilhus2.0. Rode com `npm test`.
@@ -164,6 +165,7 @@ async function principal() {
     suites.push(await testarConversas({ base }));
     suites.push(await testarAgentes({ base }));
     suites.push(await testarCasos({ base }));
+    suites.push(await testarPacotes({ base }));
     suites.push(await testarChatDeTeste({ base }));
     suites.push(await testarIa(base, anthropic));
     /* Depois da IA: poe a chave de mentira de volta e tira no fim. */

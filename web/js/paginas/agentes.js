@@ -147,6 +147,7 @@ export async function paginaAgentes({ parametros, definirAcoes }) {
   };
 
   definirAcoes?.(
+    podeConfigurar() ? botao('Agentes por área', { aoClicar: () => abrirPacotes() }) : null,
     podeConfigurar() ? botao('Criar com IA', { icone: 'raio', aoClicar: () => abrirGeracao(recarregarTudo) }) : null,
     podeConfigurar() ? botao('Novo agente', { tipo: 'principal', icone: 'mais', aoClicar: criarVazio }) : null,
   );
@@ -308,6 +309,71 @@ export async function paginaAgentes({ parametros, definirAcoes }) {
           : null,
       ]),
     ]);
+  }
+
+  /**
+   * Instala a secretaria, os especialistas e a proposta de uma area. O
+   * servidor nunca sobrescreve agente que ja existe com o mesmo nome; a lista
+   * mostra quais sao novos antes de confirmar.
+   */
+  async function abrirPacotes() {
+    const pacotes = await api.get('/api/agentes-pacotes');
+    if (!pacotes?.length) return aviso('Nenhum pacote disponível.', 'erro');
+
+    const lista = el('ul', { class: 'lista-simples sem-margem' });
+    const escolhaArea = selecao(pacotes.map((p) => ({ valor: p.area, rotulo: p.nome })), pacotes[0].area, {
+      aoChange: () => desenharLista(),
+    });
+    const escolhaNumero = selecao(
+      [
+        { valor: '', rotulo: 'Não mexer em nenhum número' },
+        ...(estado.conexoes || []).map((c) => ({ valor: c.id, rotulo: c.nome })),
+      ],
+      '',
+    );
+
+    function desenharLista() {
+      limpar(lista);
+      const pacote = pacotes.find((p) => p.area === escolhaArea.value);
+      for (const agente of pacote?.agentes || []) {
+        lista.append(
+          el('li', { class: 'linha-p' }, [
+            el('span', { class: 'flexivel', texto: agente.nome }),
+            selo(agente.instalado ? 'já existe, fica como está' : 'novo', agente.instalado ? '' : 'ouro'),
+          ]),
+        );
+      }
+    }
+    desenharLista();
+
+    modal({
+      titulo: 'Agentes por área',
+      corpo: el('div', {}, [
+        el('p', {
+          class: 'cartao-ajuda',
+          texto: 'Uma secretária entende a demanda e passa para o especialista; o especialista qualifica e passa para a proposta. Cada um responde na hora em que recebe a conversa.',
+        }),
+        campo('Área', escolhaArea),
+        lista,
+        campo(
+          'Usar num número',
+          escolhaNumero,
+          'Opcional. O número passa a ser desta área, e a secretária responde toda conversa nova dele.',
+        ),
+      ]),
+      confirmar: 'Instalar',
+      aoConfirmar: async () => {
+        const resposta = await api.post(`/api/agentes-pacotes/${escolhaArea.value}`, {
+          conexaoId: escolhaNumero.value || undefined,
+        });
+        aviso(
+          `${plural(resposta.criados.length, 'agente criado', 'agentes criados')}${resposta.mantidos.length ? `, ${plural(resposta.mantidos.length, 'já existia', 'já existiam')}` : ''}${resposta.conexao ? `. ${resposta.conexao.nome} agora é desta área` : ''}.`,
+          'sucesso',
+        );
+        if (resposta.conexao) await recarregar('conexoes').catch(() => {});
+        await recarregarTudo();
+      },
+    });
   }
 
   function renomearPasta(pasta, quantos) {

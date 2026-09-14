@@ -1,6 +1,7 @@
 import { PROMPT, VOZES, areaValida } from '../config.js';
 import { achar, atualizar, inserir, listar, remover } from '../nucleo/banco.js';
-import { novoId, slug } from '../nucleo/util.js';
+import { normalizar, novoId, slug } from '../nucleo/util.js';
+import { PACOTES } from '../ia/pacotes.js';
 import { normalizarMomentos } from '../nucleo/casos.js';
 import { sintetizar, vozDisponivel } from '../ia/audio.js';
 import { analisarPrompt, catalogoCompleto, ferramentasDoAgente } from '../ia/mencoes.js';
@@ -326,6 +327,75 @@ export function registrarAutomacoes(rotas) {
       };
     }),
   );
+
+  /* ---------------- Pacotes de agentes por area (ia/pacotes.js) ---------------- */
+
+  rotas.get('/api/agentes-pacotes', async ({ ctx }) => {
+    const nomes = new Set(listar('agentes', { workspaceId: ctx.workspaceId }).map((a) => normalizar(a.nome)));
+    return Object.entries(PACOTES).map(([area, pacote]) => ({
+      area,
+      nome: pacote.nome,
+      agentes: pacote.agentes.map((a) => ({ nome: a.nome, instalado: nomes.has(normalizar(a.nome)) })),
+    }));
+  });
+
+  /**
+   * Instala o pacote de uma area. Nunca sobrescreve: agente com o mesmo nome
+   * fica como esta (o escritorio pode ter afinado o prompt), e so as variaveis
+   * que faltam sao criadas. Com `conexaoId`, o numero passa a ser da area e a
+   * secretaria vira o responsavel padrao dele.
+   */
+  rotas.post('/api/agentes-pacotes/:area', async ({ ctx, params, corpo }) => {
+    exigirConfiguracao(ctx);
+    const pacote = PACOTES[params.area];
+    if (!pacote) throw comCodigo('Nao ha pacote de agentes para esta area.', 404);
+    const workspaceId = ctx.workspaceId;
+
+    const conexao = corpo?.conexaoId ? achar('conexoes', corpo.conexaoId) : null;
+    if (corpo?.conexaoId && (!conexao || conexao.workspaceId !== workspaceId)) {
+      throw comCodigo('Conexao nao encontrada.', 404);
+    }
+
+    const chaves = new Set(listar('variaveis', { workspaceId }).map((v) => v.chave));
+    let variaveisCriadas = 0;
+    for (const [chave, nome, descricao] of pacote.variaveis) {
+      if (chaves.has(chave)) continue;
+      inserir('variaveis', { id: novoId('var'), workspaceId, nome, chave, descricao, tipo: 'texto' });
+      chaves.add(chave);
+      variaveisCriadas += 1;
+    }
+
+    const bases = listar('conhecimento', { workspaceId })
+      .filter((base) => pacote.bases.some((pedaco) => normalizar(base.nome).includes(pedaco)))
+      .map((base) => base.id);
+
+    const criados = [];
+    const mantidos = [];
+    for (const dados of pacote.agentes) {
+      const existente = listar('agentes', { workspaceId }).find((a) => normalizar(a.nome) === normalizar(dados.nome));
+      if (existente) {
+        mantidos.push({ id: existente.id, nome: existente.nome });
+        continue;
+      }
+      const agente = inserir(
+        'agentes',
+        novoAgente(ctx, { ...dados, area: params.area, pasta: pacote.pasta, conhecimentoIds: bases }),
+      );
+      criados.push({ id: agente.id, nome: agente.nome });
+    }
+
+    if (conexao) {
+      const secretaria = listar('agentes', { workspaceId }).find(
+        (a) => normalizar(a.nome) === normalizar(pacote.agentes[0].nome),
+      );
+      atualizar('conexoes', conexao.id, {
+        area: params.area,
+        responsavelPadrao: { tipo: 'agente', id: secretaria.id, nome: secretaria.nome },
+      });
+    }
+
+    return { ok: true, criados, mantidos, variaveisCriadas, conexao: conexao ? { id: conexao.id, nome: conexao.nome } : null };
+  });
 
   rotas.post('/api/agentes', async ({ ctx, corpo }) => {
     exigirConfiguracao(ctx);
