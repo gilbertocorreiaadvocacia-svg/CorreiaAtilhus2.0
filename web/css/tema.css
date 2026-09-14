@@ -4273,6 +4273,46 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
   opacity: 0.4;
 }
 
+/* Tipo de caso: a cor vai na borda esquerda, e o texto fica na cor de sempre.
+   O padding compensa os 2px a mais da borda, para o nome nao pular de lugar
+   entre um cartao com caso e outro sem. */
+.kanban-cartao[data-caso] {
+  border-left: 3px solid var(--cor-caso, var(--borda));
+  padding-left: calc(var(--e3) - 2px);
+}
+
+.kanban-momento {
+  margin-top: var(--e1);
+  font-size: var(--t-xs);
+  color: var(--texto-fraco);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* O rotulo do grupo de momento dentro da coluna: texto de apoio, sem moldura,
+   para nao competir com os cartoes. */
+.kanban-grupo {
+  padding: var(--e2) var(--e1) 0;
+  font-size: var(--t-xs);
+  font-weight: 600;
+  color: var(--texto-fraco);
+}
+
+.kanban-grupo:first-child {
+  padding-top: 0;
+}
+
+.selo-caso {
+  font-weight: 600;
+}
+
+.conversa-caso {
+  flex: none;
+  min-width: 0;
+  max-width: 40%;
+}
+
 .kanban-coluna.alvo {
   border-color: var(--ouro);
   box-shadow: 0 0 0 3px var(--ouro-fraco);

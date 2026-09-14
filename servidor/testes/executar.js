@@ -17,6 +17,7 @@ import { testarChatDeTeste } from './chat-teste.js';
 import { testarRede } from './rede.js';
 import { testarIa } from './ia.js';
 import { testarHistorico } from './historico.js';
+import { testarCasos } from './casos.js';
 
 /**
  * A suite do CorreiaAtilhus2.0. Rode com `npm test`.
@@ -161,6 +162,7 @@ async function principal() {
     suites.push(await testarQrCode({ base, evolucao, chaveEvolucao: CHAVE_EVOLUCAO }));
     suites.push(await testarConversas({ base }));
     suites.push(await testarAgentes({ base }));
+    suites.push(await testarCasos({ base }));
     suites.push(await testarChatDeTeste({ base }));
     suites.push(await testarIa(base, anthropic));
     /* Depois de todas as outras: acrescenta conversas em Ativos, e as suites

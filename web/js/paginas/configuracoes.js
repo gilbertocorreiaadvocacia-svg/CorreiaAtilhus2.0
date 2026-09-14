@@ -723,6 +723,11 @@ function editarStatus(status, recarregarTela) {
     status?.departamentoId || '',
   );
 
+  /* Momentos do lead dentro deste status, um por linha. O id sai do nome no
+     servidor, entao corrigir so a ordem nao desmarca ninguem. */
+  const momentos = el('textarea', { rows: '5', placeholder: 'Coletando dados\nAguardando CTPS/laudo' });
+  momentos.value = (status?.momentos || []).map((m) => m.nome).join('\n');
+
   /* Editor da sequencia de follow-up --------------------------------- */
   const passos = [...(status?.followups || [])];
   const listaPassos = el('div', { class: 'lista-simples' });
@@ -799,6 +804,11 @@ function editarStatus(status, recarregarTela) {
         campo('Departamento', departamento, 'Ao aplicar o status, a conversa vai para este departamento.'),
       ]),
       campo('Descricao', descricao),
+      campo(
+        'Momentos do lead',
+        momentos,
+        'Um por linha. Aparecem no quadro, agrupando os cartões desta coluna. Mudar de status zera o momento.',
+      ),
       // Como a sequencia comeca, reagenda e cancela, e o conselho de manter a
       // fila curta, sao a mesma explicacao: cabem na dica do titulo do bloco.
       el('h3', { class: 'cartao-titulo mt-4' }, [
@@ -831,6 +841,7 @@ function editarStatus(status, recarregarTela) {
         tipo: tipo.value,
         departamentoId: departamento.value || null,
         followups: passos.filter((p) => p.templateId),
+        momentos: momentos.value.split('\n'),
       };
       if (novo) await api.post('/api/status', dados);
       else await api.patch(`/api/status/${status.id}`, dados);

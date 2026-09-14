@@ -4,6 +4,7 @@ import { agora, aplicarVariaveis, normalizar, novoId } from '../nucleo/util.js';
 import { custoDaMencao, lancar } from '../nucleo/creditos.js';
 import { enviarMensagem } from '../whatsapp/envio.js';
 import { aplicarStatus, reagendarFollowups } from '../automacao/followup.js';
+import { definirMomento, umTipoDeCaso } from '../nucleo/casos.js';
 
 /**
  * As mencoes sao o que separa um chatbot de um agente: cada @ do prompt vira
@@ -84,6 +85,7 @@ const CATALOGO_FIXO = [
   { chave: 'calculadora', nome: 'calculadora', descricao: 'Calculos matematicos.' },
   { chave: 'dataehora', nome: 'dataehora', descricao: 'Data e hora atuais no fuso de Brasilia.' },
   { chave: 'resumo', nome: 'resumo', descricao: 'Gera resumo da conversa como nota interna.' },
+  { chave: 'momento', nome: 'momento', descricao: 'Marca em que momento da etapa o lead esta.' },
   { chave: 'biblioteca', nome: 'biblioteca', descricao: 'Consulta a base de conhecimento.' },
   { chave: 'salvarnome', nome: 'salvarnome', descricao: 'Corrige o nome do contato.' },
   { chave: 'ativaraudio', nome: 'ativaraudio', descricao: 'Liga as respostas em audio.' },
@@ -269,6 +271,26 @@ export function ferramentasDoAgente(agente, workspaceId) {
         required: ['etiqueta'],
       },
     });
+  }
+  if (tipos.has('momento')) {
+    /* A lista vai inteira, de todos os status: as ferramentas sao montadas por
+       agente, nao por conversa. Quem confere se o momento cabe no status
+       atual e definirMomento(), e a recusa diz ao modelo quais cabem. */
+    const momentos = [
+      ...new Set(listar('status', { workspaceId }).flatMap((s) => (s.momentos || []).map((m) => m.nome))),
+    ];
+    if (momentos.length) {
+      ferramentas.push({
+        nome: 'definir_momento',
+        descricao:
+          'Marca o momento do lead dentro do status atual (por exemplo "Aguardando CTPS/laudo"). Aparece para a equipe no quadro. Troque sempre que o lead avancar; mudar o status zera o momento.',
+        parametros: {
+          type: 'object',
+          properties: { momento: { type: 'string', enum: momentos } },
+          required: ['momento'],
+        },
+      });
+    }
   }
   if (tipos.has('removertag')) {
     ferramentas.push({
@@ -570,14 +592,20 @@ export async function executarFerramenta({ nome, argumentos, contato, agente, co
     case 'adicionar_etiqueta': {
       const etiqueta = porRotulo(workspaceId, 'etiquetas', argumentos.etiqueta);
       if (!etiqueta) return { erro: `Etiqueta "${argumentos.etiqueta}" nao existe.` };
-      const atuais = new Set(contato.etiquetas || []);
-      atuais.add(etiqueta.id);
-      atualizar('contatos', contato.id, { etiquetas: [...atuais] });
-      contato.etiquetas = [...atuais];
+      /* Tipo de caso substitui o anterior em vez de somar (nucleo/casos.js). */
+      const atuais = umTipoDeCaso([...(contato.etiquetas || []), etiqueta.id], contato.etiquetas);
+      atualizar('contatos', contato.id, { etiquetas: atuais });
+      contato.etiquetas = atuais;
       lancar(workspaceId, contato.id, 'mencao_tag', custoDaMencao('tag'));
       registrar(`Etiqueta adicionada: ${etiqueta.nome}`);
       emitir(workspaceId, 'contato', { contatoId: contato.id });
       return { ok: true };
+    }
+
+    case 'definir_momento': {
+      const resultado = definirMomento(contato, argumentos.momento, { tipo: 'agente', id: agente.id, nome: agente.nome });
+      if (resultado.erro) return { erro: resultado.erro };
+      return { ok: true, momento: resultado.momento?.nome || null };
     }
 
     case 'remover_etiqueta': {

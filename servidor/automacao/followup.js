@@ -63,14 +63,18 @@ export function agendarFollowupsDoStatus(contato, status) {
  */
 export async function aplicarStatus(contato, status, autor, { dispararFollowups = true } = {}) {
   const anterior = contato.statusId ? achar('status', contato.statusId) : null;
+  /* O momento e o passo DENTRO do status: o de uma etapa nao vale na outra. */
+  const trocouDeStatus = anterior?.id !== status.id;
 
   atualizar('contatos', contato.id, {
     statusId: status.id,
     departamentoId: status.departamentoId || null,
     statusAlteradoEm: agora(),
+    ...(trocouDeStatus ? { momento: null } : {}),
   });
   contato.statusId = status.id;
   contato.departamentoId = status.departamentoId || null;
+  if (trocouDeStatus) contato.momento = null;
 
   registrarLog(
     contato.workspaceId,

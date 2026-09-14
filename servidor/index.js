@@ -5,6 +5,7 @@ import { HOST, INTERVALO_AGENDADOR, PORTA, RAIZ, enderecoPermitido } from './con
 import { caminhoDaMidia } from './nucleo/midia.js';
 import { atualizar, encerrarBanco, iniciarBanco, listar } from './nucleo/banco.js';
 import { migrarCoresParaTokens } from './nucleo/paleta.js';
+import { migrarTiposDeCaso } from './nucleo/casos.js';
 import { contextoDaSessao, limparSessoesOrfas } from './nucleo/auth.js';
 import { criarRoteador, lerCookies, lerCorpo, responderErro, responderJson, servirEstatico } from './nucleo/http.js';
 import { inscrever } from './nucleo/eventos.js';
@@ -28,6 +29,9 @@ const semeado = semearSePrecisar();
 /* Depois de semear, para pegar tambem a base que acabou de nascer. */
 const coresTrocadas = migrarCoresParaTokens({ listar, atualizar });
 if (coresTrocadas) console.log(`Paleta: ${coresTrocadas} cores da semeadura antiga viraram token de tema.`);
+/* Depois das cores: a migracao dos tipos compara com a cor ja em token. */
+const casosAcertados = migrarTiposDeCaso();
+if (casosAcertados) console.log(`Tipos de caso e momentos: ${casosAcertados} acertos.`);
 limparSessoesOrfas();
 /* Rodadas de importacao do celular que o reinicio interrompeu. */
 retomarSincronizacoes();

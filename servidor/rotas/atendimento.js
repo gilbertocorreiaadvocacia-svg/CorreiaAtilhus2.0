@@ -29,6 +29,7 @@ import { apagarMidia, guardarBase64 } from '../nucleo/midia.js';
 import { cancelarResposta } from '../ia/motor.js';
 import { inserirNota, notificar } from '../ia/mencoes.js';
 import { removerTarefasDoContato } from './tarefas.js';
+import { definirMomento, umTipoDeCaso } from '../nucleo/casos.js';
 import { comCodigo } from './sessao.js';
 
 /* O tipo de cada arquivo guardado, pela extensao, para o navegador saber
@@ -437,7 +438,9 @@ export function registrarAtendimento(rotas) {
       mudancas.fotoOrigem = corpo.foto ? 'manual' : null;
       if (!corpo.foto) mudancas.fotoVerificadaEm = null;
     }
-    if (corpo.etiquetas !== undefined) mudancas.etiquetas = corpo.etiquetas;
+    /* Um tipo de caso por conversa: marcar Trabalhista numa conversa de BPC
+       troca o tipo em vez de somar (ver nucleo/casos.js). */
+    if (corpo.etiquetas !== undefined) mudancas.etiquetas = umTipoDeCaso(corpo.etiquetas, contato.etiquetas);
     if (corpo.origemId !== undefined) mudancas.origemId = corpo.origemId || null;
     if (corpo.variaveis !== undefined) mudancas.variaveis = corpo.variaveis;
     if (corpo.modoAudio !== undefined) mudancas.modoAudio = Boolean(corpo.modoAudio);
@@ -482,6 +485,13 @@ export function registrarAtendimento(rotas) {
       const status = achar('status', corpo.statusId);
       if (!status) throw comCodigo('Status nao encontrado.', 404);
       await aplicarStatus(contato, status, autor);
+    }
+
+    /* Momento depois do status: ele so vale entre os momentos do status que
+       ficou, e trocar de status acabou de zera-lo. */
+    if (corpo.momentoId !== undefined) {
+      const resultado = definirMomento(contato, corpo.momentoId, autor);
+      if (resultado.erro) throw comCodigo(resultado.erro, 400);
     }
 
     emitir(ctx.workspaceId, 'contato', { contatoId: contato.id });
@@ -669,7 +679,7 @@ export function registrarAtendimento(rotas) {
         case 'etiquetas-adicionar': {
           const etiquetas = new Set(contato.etiquetas || []);
           for (const etiqueta of corpo.valor || []) etiquetas.add(etiqueta);
-          atualizar('contatos', contato.id, { etiquetas: [...etiquetas] });
+          atualizar('contatos', contato.id, { etiquetas: umTipoDeCaso([...etiquetas], contato.etiquetas) });
           afetados += 1;
           break;
         }
@@ -682,7 +692,7 @@ export function registrarAtendimento(rotas) {
           break;
         }
         case 'etiquetas-definir':
-          atualizar('contatos', contato.id, { etiquetas: corpo.valor || [] });
+          atualizar('contatos', contato.id, { etiquetas: umTipoDeCaso(corpo.valor || [], contato.etiquetas) });
           afetados += 1;
           break;
         case 'arquivar':

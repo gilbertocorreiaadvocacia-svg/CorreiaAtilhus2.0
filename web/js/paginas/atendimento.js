@@ -728,7 +728,12 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
   }
 
   function etiquetasDa(contato) {
-    const etiquetas = (contato.etiquetas || []).map(acharEtiqueta).filter(Boolean);
+    /* O tipo de caso vem primeiro: e ele que diz de que se trata a conversa,
+       e e o que nao pode sumir atras do "+N". */
+    const etiquetas = (contato.etiquetas || [])
+      .map(acharEtiqueta)
+      .filter(Boolean)
+      .sort((a, b) => Number(b.tipo === 'caso') - Number(a.tipo === 'caso'));
     if (!etiquetas.length) return null;
 
     const mostradas = etiquetas.slice(0, ETIQUETAS_NA_LINHA);
@@ -747,7 +752,7 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
 
     for (const etiqueta of mostradas) {
       marcas.append(
-        el('span', { class: 'selo' }, [
+        el('span', { class: etiqueta.tipo === 'caso' ? 'selo selo-caso' : 'selo' }, [
           el('span', { class: 'ponto', estilo: { background: etiqueta.cor } }),
           document.createTextNode(etiqueta.nome),
         ]),
@@ -875,6 +880,23 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
         el('div', { class: 't-md peso-600 cortar', texto: contato.nome }),
         el('div', { class: 't-xs c-fraco cortar', texto: telefone(contato.telefone) }),
       ]),
+      /* Tipo de caso e momento a vista enquanto se conversa: sao as duas
+         coisas que mudam o que se responde. */
+      (() => {
+        const caso = (contato.etiquetas || []).map(acharEtiqueta).find((e) => e?.tipo === 'caso');
+        if (!caso && !contato.momento) return null;
+        return el('div', { class: 'linha-p conversa-caso' }, [
+          caso
+            ? el('span', { class: 'selo selo-caso', title: 'Tipo de caso' }, [
+                el('span', { class: 'ponto', estilo: { background: caso.cor } }),
+                document.createTextNode(caso.nome),
+              ])
+            : null,
+          contato.momento
+            ? el('span', { class: 't-xs c-fraco cortar', title: 'Momento do lead', texto: contato.momento.nome })
+            : null,
+        ]);
+      })(),
       contato.estado === 'pendente'
         ? botao('Aceitar atendimento', {
             tipo: 'principal',
@@ -1798,8 +1820,15 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
         if (ligando) marcadas.add(id);
         else marcadas.delete(id);
         try {
-          await api.patch(`/api/contatos/${contato.id}`, { etiquetas: [...marcadas] });
-          contato.etiquetas = [...marcadas];
+          const resposta = await api.patch(`/api/contatos/${contato.id}`, { etiquetas: [...marcadas] });
+          const finais = resposta?.etiquetas || [...marcadas];
+          contato.etiquetas = finais;
+          /* Marcar um tipo de caso tira o outro no servidor. Ai a lista de
+             caixas esta mentindo, e o jeito honesto e redesenhar. */
+          if (finais.length !== marcadas.size || finais.some((e) => !marcadas.has(e))) {
+            await desenhar();
+            return;
+          }
           atualizarMarcasNaLista(contato);
         } catch (erro) {
           /* Desfaz no conjunto tambem: sem isso a proxima marcacao mandaria
@@ -1905,6 +1934,28 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
                 },
               }),
             }),
+            /* O momento so existe dentro de um status que tenha momentos. */
+            (() => {
+              const statusAtual = estado.status.find((s) => s.id === contato.statusId);
+              if (!statusAtual?.momentos?.length) return null;
+              return campoRecolhivel({
+                chave: 'momento',
+                iconeDoCampo: 'relogio',
+                rotulo: 'Momento do lead dentro do status',
+                resumo: contato.momento ? pilula({ nome: contato.momento.nome }) : convite('Marcar momento'),
+                conteudo: listaDeEscolha({
+                  opcoes: statusAtual.momentos.map((m) => ({ id: m.id, nome: m.nome })),
+                  atual: contato.momento?.id,
+                  rotuloVazio: 'Sem momento',
+                  chaveDoTermo: 'momento',
+                  nomeDoGrupo: 'escolha-momento',
+                  aoEscolher: (id) => {
+                    fechar('momento');
+                    return salvar({ momentoId: id });
+                  },
+                }),
+              });
+            })(),
             campoRecolhivel({
               chave: 'etiqueta',
               iconeDoCampo: 'etiqueta',
@@ -3073,7 +3124,32 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
       const naoLidas = daColuna.reduce((soma, c) => soma + (c.naoLidas || 0), 0);
       const lista = el('div', { class: 'kanban-lista' });
 
-      for (const contato of daColuna.slice(0, CARTOES_POR_COLUNA)) {
+      /*
+       * Dentro da coluna, os cartoes se agrupam pelo momento, na ordem em que
+       * o status lista os momentos. O corte do lote vem ANTES: agrupar nao
+       * pode trocar quais conversas aparecem, so a ordem delas.
+       */
+      const momentosDaColuna = estado.status.find((s) => s.id === coluna.id)?.momentos || [];
+      const posicao = new Map(momentosDaColuna.map((m, indice) => [m.id, indice]));
+      const noFim = momentosDaColuna.length;
+      const desenhados = daColuna
+        .slice(0, CARTOES_POR_COLUNA)
+        .sort((a, b) => (posicao.get(a.momento?.id) ?? noFim) - (posicao.get(b.momento?.id) ?? noFim));
+      const agrupar = desenhados.some((c) => posicao.has(c.momento?.id));
+      let grupoAtual;
+
+      for (const contato of desenhados) {
+        const grupo = posicao.has(contato.momento?.id) ? contato.momento.id : '';
+        if (agrupar && grupo !== grupoAtual) {
+          grupoAtual = grupo;
+          lista.append(
+            el('div', {
+              class: 'kanban-grupo',
+              texto: grupo ? momentosDaColuna[posicao.get(grupo)].nome : 'Sem momento',
+            }),
+          );
+        }
+        const caso = (contato.etiquetas || []).map(acharEtiqueta).find((e) => e?.tipo === 'caso');
         // Botao, e nao div: o draggable continua valendo em button, e a
         // abertura da conversa passa a funcionar pelo Tab e pelo Enter. Mover
         // de coluna sem mouse continua sendo pelo seletor de Status no painel
@@ -3094,14 +3170,30 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
         }, [
           el('div', { class: 't-md peso-600', texto: contato.nome }),
           el('div', { class: 't-xs c-fraco mt-1', texto: telefone(contato.telefone) }),
+          contato.momento
+            ? el('div', {
+                class: 'kanban-momento',
+                title: `Momento desde ${new Date(contato.momento.desde).toLocaleString('pt-BR')}`,
+                texto: contato.momento.nome,
+              })
+            : null,
           el('div', { class: 'marcas linha-p quebra mt-2' }, [
+            caso ? selo(caso.nome, 'selo-caso', caso.cor) : null,
             contato.responsavel ? selo(contato.responsavel.nome, 'ouro') : null,
-            ...(contato.etiquetas || []).slice(0, 2).map((id) => {
-              const etiqueta = acharEtiqueta(id);
-              return etiqueta ? selo(etiqueta.nome, '', etiqueta.cor) : null;
-            }),
+            ...(contato.etiquetas || [])
+              .map(acharEtiqueta)
+              .filter((e) => e && e.tipo !== 'caso')
+              .slice(0, caso ? 1 : 2)
+              .map((etiqueta) => selo(etiqueta.nome, '', etiqueta.cor)),
           ]),
         ]);
+        /* A cor do caso vai na borda esquerda, nunca no texto: e a mesma
+           cor nos dois temas, e texto colorido perde contraste num deles. */
+        if (caso) {
+          cartaoContato.dataset.caso = caso.caso || 'outro';
+          cartaoContato.style.setProperty('--cor-caso', caso.cor);
+          cartaoContato.title = `${caso.nome} · abrir a conversa de ${contato.nome}`;
+        }
         lista.append(cartaoContato);
       }
 

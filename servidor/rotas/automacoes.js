@@ -1,6 +1,7 @@
 import { PROMPT, VOZES } from '../config.js';
 import { achar, atualizar, inserir, listar, remover } from '../nucleo/banco.js';
 import { novoId, slug } from '../nucleo/util.js';
+import { normalizarMomentos } from '../nucleo/casos.js';
 import { sintetizar, vozDisponivel } from '../ia/audio.js';
 import { analisarPrompt, catalogoCompleto, ferramentasDoAgente } from '../ia/mencoes.js';
 import { forcarResposta } from '../ia/motor.js';
@@ -92,6 +93,7 @@ export function registrarAutomacoes(rotas) {
       tipo: corpo.tipo || 'nenhum',
       departamentoId: corpo.departamentoId || null,
       followups: corpo.followups || [],
+      momentos: normalizarMomentos(corpo.momentos),
     });
   });
 
@@ -112,6 +114,7 @@ export function registrarAutomacoes(rotas) {
       }
       corpo.followups = sequencia;
     }
+    if (corpo.momentos !== undefined) corpo.momentos = normalizarMomentos(corpo.momentos);
 
     return atualizar('status', params.id, corpo);
   });

@@ -104,9 +104,10 @@ function montarSistema({ agente, contato, workspace }) {
 
   const status = contato.statusId ? achar('status', contato.statusId) : null;
   const departamento = contato.departamentoId ? achar('departamentos', contato.departamentoId) : null;
-  const etiquetas = (contato.etiquetas || [])
-    .map((id) => achar('etiquetas', id)?.nome)
-    .filter(Boolean);
+  const marcadas = (contato.etiquetas || []).map((id) => achar('etiquetas', id)).filter(Boolean);
+  const tipoDeCaso = marcadas.find((e) => e.tipo === 'caso');
+  const etiquetas = marcadas.filter((e) => e.tipo !== 'caso').map((e) => e.nome);
+  const momentosDoStatus = (status?.momentos || []).map((m) => m.nome);
   const variaveis = Object.entries(contato.variaveis || {})
     .map(([chave, valor]) => `- ${chave}: ${valor}`)
     .join('\n');
@@ -129,6 +130,8 @@ function montarSistema({ agente, contato, workspace }) {
     `- Nome do contato: ${contato.nome || 'ainda nao informado'}`,
     `- WhatsApp: ${formatarTelefone(contato.telefone)}`,
     `- Status: ${status?.nome || 'sem status'}`,
+    `- Momento: ${contato.momento?.nome || 'nao marcado'}${momentosDoStatus.length ? ` (possiveis neste status: ${momentosDoStatus.join(', ')})` : ''}`,
+    `- Tipo de caso: ${tipoDeCaso?.nome || 'ainda nao identificado'}`,
     `- Departamento: ${departamento?.nome || 'sem departamento'}`,
     `- Etiquetas: ${etiquetas.length ? etiquetas.join(', ') : 'nenhuma'}`,
     `- Modo audio: ${contato.modoAudio ? 'ligado' : 'desligado'}`,
