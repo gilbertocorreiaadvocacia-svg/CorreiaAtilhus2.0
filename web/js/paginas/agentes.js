@@ -21,23 +21,23 @@ import {
 } from '../ui.js';
 
 /**
- * Agentes de IA: a lista a esquerda, o agente aberto a direita, em quatro abas.
+ * Agentes de IA em tres colunas: a lista por pasta, as instrucoes do agente
+ * aberto sempre a vista no meio, e a configuracao num painel a direita.
  *
- * A tela antiga tinha tres colunas — lista, prompt e onze blocos de
- * configuracao empilhados sem ordem. Dois defeitos saiam desse desenho: abaixo
- * de 1230px a terceira coluna sumia inteira, levando TODA a configuracao junto;
- * e qualquer ajuste na coluna da direita redesenhava a tela e apagava o que
- * estava sendo escrito no prompt e ainda nao tinha sido salvo.
+ * As instrucoes sao o que mais se le e se reescreve, entao nao ficam mais atras
+ * de uma aba: o painel da direita muda de assunto sem tirar o texto da frente.
+ * O painel e agrupado pela pergunta que responde:
  *
- * Agora a configuracao e agrupada pela pergunta que ela responde:
- *
- *   Instrucoes    o que o agente faz (o prompt)
- *   Atendimento   quando ele entra na conversa, e quanto espera para responder
+ *   Atendimento   quando ele entra na conversa, de quem recebe, para quem passa
  *   Inteligencia  com que modelo pensa, e o que consulta
  *   Perfil        como a equipe o reconhece
  *
- * O texto do prompt vive num rascunho por agente, fora do desenho: trocar de
- * aba, mudar o modelo ou ligar o agente redesenha a tela e o rascunho continua.
+ * Duas licoes da tela antiga de tres colunas continuam valendo. Abaixo de
+ * 1230px a terceira coluna sumia inteira, levando a configuracao junto: agora
+ * ela desce para baixo das instrucoes, e nada some. E qualquer ajuste na coluna
+ * da direita redesenhava a tela e apagava o prompt ainda nao salvo: agora o
+ * texto vive num rascunho por agente, e o centro so e redesenhado quando muda o
+ * agente aberto.
  */
 
 /**
@@ -52,8 +52,9 @@ const PASTA_PADRAO = 'Meus Agentes';
    em toda busca. */
 const NOVA_PASTA = '::nova-pasta::';
 
+/* As abas do painel da direita. Sao so icones, como no painel da conversa: o
+   nome vai no title e no aria-label. */
 const ABAS = [
-  { id: 'instrucoes', rotulo: 'Instruções', icone: 'contrato' },
   { id: 'atendimento', rotulo: 'Atendimento', icone: 'conversas' },
   { id: 'inteligencia', rotulo: 'Inteligência', icone: 'raio' },
   { id: 'perfil', rotulo: 'Perfil', icone: 'pessoa' },
@@ -128,10 +129,12 @@ function gatilhoDe(agente) {
   return { texto: 'Nenhuma conversa chega a ele', tipo: 'alerta' };
 }
 
-export async function paginaAgentes({ parametros, definirAcoes }) {
+export async function paginaAgentes({ parametros, definirAcoes, definirPrincipal }) {
   const container = el('div', { class: 'agentes' });
   let selecionadoId = parametros[0] || null;
-  let aba = ABAS.some((a) => a.id === parametros[1]) ? parametros[1] : 'instrucoes';
+  /* Link antigo da aba Instrucoes (#/agentes/id/instrucoes) abre no
+     Atendimento: as instrucoes agora ficam sempre a vista. */
+  let aba = ABAS.some((a) => a.id === parametros[1]) ? parametros[1] : 'atendimento';
   let busca = '';
   let agentes = [];
   let vozes = { vozes: [], base: [], disponivel: false };
@@ -146,15 +149,33 @@ export async function paginaAgentes({ parametros, definirAcoes }) {
     return Boolean(r && agente && (r.nome !== agente.nome || r.prompt !== (agente.prompt || '')));
   };
 
+  /* O agente desenhado no centro: { id, pintar(), salvar() }. */
+  let centro = null;
+
   definirAcoes?.(
-    podeConfigurar() ? botao('Agentes por área', { aoClicar: () => abrirPacotes() }) : null,
-    podeConfigurar() ? botao('Criar com IA', { icone: 'raio', aoClicar: () => abrirGeracao(recarregarTudo) }) : null,
+    podeConfigurar()
+      ? botao('Agentes por área', { pequeno: true, icone: 'usuarios', aoClicar: () => abrirPacotes() })
+      : null,
+    podeConfigurar()
+      ? botao('Criar com IA', { pequeno: true, icone: 'raio', aoClicar: () => abrirGeracao(recarregarTudo) })
+      : null,
+  );
+  definirPrincipal?.(
     podeConfigurar() ? botao('Novo agente', { tipo: 'principal', icone: 'mais', aoClicar: criarVazio }) : null,
   );
 
   const lista = el('aside', { class: 'agentes-lista', 'aria-label': 'Agentes' });
-  const area = el('section', { class: 'agentes-area' });
-  container.append(lista, area);
+  const area = el('section', { class: 'agentes-area', 'aria-label': 'Instruções do agente' });
+  const lado = el('aside', { class: 'agentes-lado', 'aria-label': 'Configuração do agente' });
+  container.append(lista, area, lado);
+
+  /* Ctrl+S salva de qualquer lugar da tela: e o texto das instrucoes que se protege. */
+  container.addEventListener('keydown', (evento) => {
+    if ((evento.ctrlKey || evento.metaKey) && evento.key.toLowerCase() === 's') {
+      evento.preventDefault();
+      centro?.salvar();
+    }
+  });
 
   async function recarregarTudo() {
     const [lidos, listaVozes] = await Promise.all([recarregar('agentes'), api.get('/api/vozes').catch(() => vozes)]);
@@ -173,9 +194,18 @@ export async function paginaAgentes({ parametros, definirAcoes }) {
   function irPara(id, novaAba = aba) {
     selecionadoId = id;
     aba = novaAba;
-    history.replaceState(null, '', `#/agentes/${id}${aba !== 'instrucoes' ? `/${aba}` : ''}`);
+    history.replaceState(null, '', `#/agentes/${id}${aba !== 'atendimento' ? `/${aba}` : ''}`);
     desenharLista();
     desenharArea();
+  }
+
+  /* Abre outro agente, pela lista ou pelo Caminho da conversa. Texto ainda nao
+     salvo pede confirmacao antes de sair. */
+  function abrirAgente(id) {
+    if (id === selecionadoId) return;
+    if (temRascunho(selecionadoId) && !window.confirm('Há alterações não salvas nas instruções. Sair mesmo assim?')) return;
+    rascunhos.delete(selecionadoId);
+    irPara(id);
   }
 
   /* ================= Lista ================= */
@@ -287,12 +317,7 @@ export async function paginaAgentes({ parametros, definirAcoes }) {
       type: 'button',
       class: `agente-item ${ativo ? 'ativo' : ''} ${agente.ativo ? '' : 'desligado'}`.replace(/\s+/g, ' ').trim(),
       'aria-current': ativo ? 'true' : null,
-      aoClick: () => {
-        if (agente.id === selecionadoId) return;
-        if (temRascunho(selecionadoId) && !window.confirm('Há alterações não salvas nas instruções. Sair mesmo assim?')) return;
-        rascunhos.delete(selecionadoId);
-        irPara(agente.id);
-      },
+      aoClick: () => abrirAgente(agente.id),
     }, [
       el('span', { class: 'agente-item-rosto' }, [
         avatar(agente, 36),
@@ -418,25 +443,165 @@ export async function paginaAgentes({ parametros, definirAcoes }) {
       ].join('\n'),
     });
     selecionadoId = criado.id;
-    aba = 'instrucoes';
     await recarregarTudo();
   }
 
   /* ================= Area do agente ================= */
 
   function desenharArea() {
-    limpar(area);
     const agente = agentes.find((a) => a.id === selecionadoId) || null;
+    container.classList.toggle('sem-agente', !agente);
     if (!agente) {
+      centro = null;
+      limpar(area);
+      limpar(lado);
       area.append(el('div', { class: 'agentes-vazio' }, [vazio('Escolha um agente', 'Ou crie um novo no botão Novo agente.', null, 'agentes')]));
       return;
     }
 
-    if (!rascunhos.has(agente.id)) rascunhos.set(agente.id, { nome: agente.nome, prompt: agente.prompt || '' });
-    const rascunho = rascunhos.get(agente.id);
+    /* O centro so e redesenhado quando muda o agente. Ligar, trocar o modelo
+       ou mexer numa palavra-chave salva na hora e recarrega a lista e o painel;
+       redesenhar o centro junto levaria o cursor e a rolagem de quem esta no
+       meio do texto de volta para o comeco. */
+    if (centro?.id === agente.id) centro.pintar();
+    else desenharCentro(agente);
+    desenharLado(agente);
+  }
 
-    /* Configuracao salva na hora e redesenha; o rascunho do prompt sobrevive
-       porque mora em `rascunhos`, e nao no campo. */
+  function desenharCentro(agente) {
+    limpar(area);
+    const id = agente.id;
+    /* O agente como esta na lista agora: cada ajuste salvo recarrega a lista, e
+       o objeto de quando o centro foi desenhado fica velho. */
+    const atual = () => agentes.find((a) => a.id === id) || agente;
+
+    if (!rascunhos.has(id)) rascunhos.set(id, { nome: agente.nome, prompt: agente.prompt || '' });
+    const rascunho = rascunhos.get(id);
+
+    const botaoSalvar = botao('Salvar', { tipo: 'principal', titulo: 'Salvar nome e instruções (Ctrl+S)' });
+    const estadoSalvo = el('span', { class: 'agentes-salvo', 'aria-live': 'polite' });
+    const atualizarSalvo = () => {
+      const sujo = temRascunho(id);
+      botaoSalvar.disabled = !sujo;
+      estadoSalvo.textContent = sujo ? 'Alterações não salvas' : 'Tudo salvo';
+      estadoSalvo.classList.toggle('pendente', sujo);
+    };
+
+    const nome = entradaTexto(rascunho.nome, { class: 'agentes-nome', 'aria-label': 'Nome do agente', maxlength: '80' });
+    nome.addEventListener('input', () => {
+      rascunho.nome = nome.value;
+      atualizarSalvo();
+    });
+
+    const salvarTexto = async () => {
+      if (!temRascunho(id)) return;
+      const enviado = { nome: rascunho.nome.trim(), prompt: rascunho.prompt };
+      if (!enviado.nome) {
+        aviso('Dê um nome ao agente antes de salvar.', 'erro');
+        return;
+      }
+      try {
+        await api.patch(`/api/agentes/${id}`, enviado);
+        aviso('Agente salvo.', 'sucesso');
+        await recarregarTudo();
+        /* O rascunho continua sendo o dos campos, que seguem escrevendo nele. Se
+           ninguem escreveu enquanto salvava, ele passa a ser o que ficou gravado
+           (o nome, por exemplo, vai sem o espaco sobrando no fim). */
+        if (rascunho.nome.trim() === enviado.nome && rascunho.prompt === enviado.prompt) {
+          const salvo = atual();
+          rascunho.nome = salvo.nome;
+          rascunho.prompt = salvo.prompt || '';
+          if (nome.value !== rascunho.nome) nome.value = rascunho.nome;
+          if (instrucoes.texto.value !== rascunho.prompt) instrucoes.texto.value = rascunho.prompt;
+        }
+        atualizarSalvo();
+      } catch (erro) {
+        aviso(erro.message, 'erro');
+      }
+    };
+    botaoSalvar.addEventListener('click', salvarTexto);
+
+    const testar = botao('Testar no chat', {
+      icone: 'simulador',
+      aoClicar: () => {
+        try {
+          localStorage.setItem('correiatendimentos:chat-teste-agente', id);
+        } catch {
+          /* sem armazenamento, o chat abre no automatico */
+        }
+        location.hash = '#/simulador';
+      },
+    });
+
+    const rosto = el('span', { class: 'agentes-rosto' });
+    const sub = el('div', { class: 'agentes-identidade-sub' });
+
+    /* As instrucoes leem o agente pela lista de agora: o modelo (que muda o
+       custo) e as mencoes invalidas mudam depois de salvar, e o texto nao pode
+       ser desenhado de novo por causa disso. */
+    const instrucoes = abaInstrucoes(
+      {
+        get nome() {
+          return atual().nome;
+        },
+        get modelo() {
+          return atual().modelo;
+        },
+        get mencoesInvalidas() {
+          return atual().mencoesInvalidas;
+        },
+      },
+      rascunho,
+      atualizarSalvo,
+    );
+
+    /* O que muda sem redesenhar o centro: o rosto (foto nova no Perfil), ligado
+       ou desligado, o modelo e a medida do texto, que depende do modelo. */
+    function pintar() {
+      const a = atual();
+      const modelo = (estado.sessao?.modelos || []).find((m) => m.id === a.modelo);
+      limpar(rosto);
+      rosto.append(avatar(a, 44));
+      limpar(sub);
+      sub.append(
+        ...[
+          el('span', { class: `agente-ponto ${a.ativo ? 'ligado' : ''}`.trim() }),
+          el('span', { texto: a.ativo ? 'Ligado' : 'Desligado' }),
+          el('span', { class: 'agentes-sep', texto: '·' }),
+          el('span', { texto: modelo?.nome || 'Sem modelo' }),
+          a.modeloDisponivel ? null : selo('sem chave: roteiro fixo', 'alerta'),
+        ].filter(Boolean),
+      );
+      testar.disabled = !a.ativo;
+      testar.title = a.ativo ? 'Abre o Chat de teste já conversando com este agente' : 'Ligue o agente para testar';
+      instrucoes.medirAgora();
+      atualizarSalvo();
+    }
+
+    area.append(
+      el('header', { class: 'agentes-cabecalho' }, [
+        rosto,
+        el('div', { class: 'agentes-identidade' }, [nome, sub]),
+        el('div', { class: 'agentes-cabecalho-acoes' }, [estadoSalvo, testar, botaoSalvar]),
+      ]),
+      instrucoes,
+    );
+
+    centro = { id, pintar, salvar: salvarTexto };
+    pintar();
+  }
+
+  function desenharLado(agente) {
+    /* Salvar um ajuste redesenha o painel. A rolagem volta para onde estava:
+       sem isso, quem mexe no tempo de espera, la embaixo, seria jogado de volta
+       para o topo a cada clique. */
+    const mesmoPainel = lado.dataset.agente === agente.id && lado.dataset.aba === aba;
+    const rolagem = mesmoPainel ? lado.querySelector('.agentes-lado-corpo')?.scrollTop || 0 : 0;
+    limpar(lado);
+    lado.dataset.agente = agente.id;
+    lado.dataset.aba = aba;
+
+    /* Configuracao salva na hora e recarrega a lista e o painel. */
     const salvarConfig = async (mudancas, mensagem) => {
       try {
         await api.patch(`/api/agentes/${agente.id}`, mudancas);
@@ -447,108 +612,41 @@ export async function paginaAgentes({ parametros, definirAcoes }) {
       }
     };
 
-    const botaoSalvar = botao('Salvar', { tipo: 'principal', titulo: 'Salvar nome e instruções (Ctrl+S)' });
-    const estadoSalvo = el('span', { class: 'agentes-salvo', 'aria-live': 'polite' });
-    const atualizarSalvo = () => {
-      const sujo = temRascunho(agente.id);
-      botaoSalvar.disabled = !sujo;
-      estadoSalvo.textContent = sujo ? 'Alterações não salvas' : 'Tudo salvo';
-      estadoSalvo.classList.toggle('pendente', sujo);
-    };
-
-    const salvarTexto = async () => {
-      if (!temRascunho(agente.id)) return;
-      const nome = rascunho.nome.trim();
-      if (!nome) {
-        aviso('Dê um nome ao agente antes de salvar.', 'erro');
-        return;
-      }
-      try {
-        await api.patch(`/api/agentes/${agente.id}`, { nome, prompt: rascunho.prompt });
-        rascunhos.delete(agente.id);
-        aviso('Agente salvo.', 'sucesso');
-        await recarregarTudo();
-      } catch (erro) {
-        aviso(erro.message, 'erro');
-      }
-    };
-    botaoSalvar.addEventListener('click', salvarTexto);
-
-    const nome = entradaTexto(rascunho.nome, { class: 'agentes-nome', 'aria-label': 'Nome do agente', maxlength: '80' });
-    nome.addEventListener('input', () => {
-      rascunho.nome = nome.value;
-      atualizarSalvo();
-    });
-
-    const modelo = (estado.sessao?.modelos || []).find((m) => m.id === agente.modelo);
-
-    const testar = botao('Testar no chat', {
-      icone: 'simulador',
-      titulo: agente.ativo ? 'Abre o Chat de teste já conversando com este agente' : 'Ligue o agente para testar',
-      desabilitado: !agente.ativo,
-      aoClicar: () => {
-        try {
-          localStorage.setItem('correiatendimentos:chat-teste-agente', agente.id);
-        } catch {
-          /* sem armazenamento, o chat abre no automatico */
-        }
-        location.hash = '#/simulador';
-      },
-    });
-
-    const cabecalho = el('header', { class: 'agentes-cabecalho' }, [
-      avatar(agente, 44),
-      el('div', { class: 'agentes-identidade' }, [
-        nome,
-        el('div', { class: 'agentes-identidade-sub' }, [
-          el('span', { class: `agente-ponto ${agente.ativo ? 'ligado' : ''}`.trim() }),
-          el('span', { texto: agente.ativo ? 'Ligado' : 'Desligado' }),
-          el('span', { class: 'agentes-sep', texto: '·' }),
-          el('span', { texto: modelo?.nome || 'Sem modelo' }),
-          agente.modeloDisponivel ? null : selo('sem chave: roteiro fixo', 'alerta'),
-        ]),
-      ]),
-      el('div', { class: 'agentes-cabecalho-acoes' }, [estadoSalvo, testar, botaoSalvar]),
-    ]);
-
-    const abas = el('div', { class: 'agentes-abas', role: 'tablist' });
+    const abas = el('div', { class: 'abas-icone', role: 'tablist', 'aria-label': 'Configuração do agente' });
     for (const item of ABAS) {
-      const atual = item.id === aba;
+      const aberta = item.id === aba;
       abas.append(
         el('button', {
           type: 'button',
           role: 'tab',
-          'aria-selected': atual ? 'true' : 'false',
-          class: `agentes-aba ${atual ? 'ativo' : ''}`.trim(),
+          class: aberta ? 'aba-icone ativo' : 'aba-icone',
+          title: item.rotulo,
+          'aria-label': item.rotulo,
+          'aria-selected': aberta ? 'true' : 'false',
           aoClick: () => irPara(agente.id, item.id),
-        }, [icone(item.icone, 16), item.rotulo]),
+        }, [icone(item.icone, 20)]),
       );
     }
 
     const conteudo =
-      aba === 'atendimento'
-        ? abaAtendimento(agente, salvarConfig)
-        : aba === 'inteligencia'
-          ? abaInteligencia(agente, salvarConfig)
-          : aba === 'perfil'
-            ? abaPerfil(agente, salvarConfig)
-            : abaInstrucoes(agente, rascunho, atualizarSalvo, salvarTexto);
+      aba === 'inteligencia'
+        ? abaInteligencia(agente, salvarConfig)
+        : aba === 'perfil'
+          ? abaPerfil(agente, salvarConfig)
+          : abaAtendimento(agente, salvarConfig);
 
-    area.append(cabecalho, abas, el('div', { class: 'agentes-painel', role: 'tabpanel' }, [conteudo]));
-    atualizarSalvo();
-
-    /* Ctrl+S salva de qualquer aba: e o texto do prompt que se protege. */
-    area.onkeydown = (evento) => {
-      if ((evento.ctrlKey || evento.metaKey) && evento.key.toLowerCase() === 's') {
-        evento.preventDefault();
-        salvarTexto();
-      }
-    };
+    const corpo = el('div', {
+      class: 'agentes-lado-corpo',
+      role: 'tabpanel',
+      'aria-label': ABAS.find((a) => a.id === aba)?.rotulo || '',
+    }, [conteudo]);
+    lado.append(abas, corpo);
+    corpo.scrollTop = rolagem;
   }
 
   /* ---------------- Instrucoes ---------------- */
 
-  function abaInstrucoes(agente, rascunho, atualizarSalvo, salvarTexto) {
+  function abaInstrucoes(agente, rascunho, atualizarSalvo) {
     const faixas = estado.sessao?.prompt || FAIXAS_DE_RESERVA;
     const texto = areaTexto(rascunho.prompt, {
       class: 'agentes-prompt',
@@ -717,76 +815,134 @@ export async function paginaAgentes({ parametros, definirAcoes }) {
 
     medirAgora();
 
-    return el('div', { class: 'agentes-instrucoes' }, [
-      el('div', { class: 'agentes-barra-prompt' }, [
-        el('div', { class: 'agentes-barra-titulo' }, [
-          el('strong', { texto: 'Instruções do agente' }),
-          el('span', { class: 'agentes-apoio', texto: 'Quem ele é, como fala, o roteiro e o que nunca fazer.' }),
+    /* O centro guarda o campo e a medida: a troca de modelo mede de novo, e o
+       texto gravado volta ao campo, sem desenhar as instrucoes outra vez. */
+    return Object.assign(
+      el('div', { class: 'agentes-instrucoes' }, [
+        el('div', { class: 'agentes-barra-prompt' }, [
+          el('div', { class: 'agentes-barra-titulo' }, [
+            el('strong', { texto: 'Instruções do agente' }),
+            el('span', { class: 'agentes-apoio', texto: 'Quem ele é, como fala, o roteiro e o que nunca fazer.' }),
+          ]),
+          el('div', { class: 'agentes-barra-acoes' }, [botaoMenu, menu]),
         ]),
-        el('div', { class: 'agentes-barra-acoes' }, [botaoMenu, menu]),
+        texto,
+        el('div', { class: 'agentes-medidor' }, [numeros, regua, chips]),
       ]),
-      texto,
-      el('div', { class: 'agentes-medidor' }, [numeros, regua, chips]),
-    ]);
+      { texto, medirAgora },
+    );
   }
 
-  /* ---------------- Atendimento ---------------- */
+  /* ---------------- Painel: Atendimento ---------------- */
 
+  /* Um bloco do painel: o rotulo, o controle e, embaixo, a ajuda curta. */
   function secao(titulo, ajuda, ...filhos) {
     return el('section', { class: 'agentes-secao' }, [
       el('h3', { class: 'agentes-secao-titulo', texto: titulo }),
-      ajuda ? el('p', { class: 'agentes-secao-ajuda', texto: ajuda }) : null,
       ...filhos,
+      ajuda ? el('p', { class: 'agentes-secao-ajuda', texto: ajuda }) : null,
     ]);
   }
 
-  function abaAtendimento(agente, salvarConfig) {
-    /* Palavras-chave como etiquetas: escrever e Enter (ou virgula) acrescenta,
-       o x tira. Salva na hora, como o resto desta aba. */
-    const palavras = [...(agente.palavrasChave || [])];
-    const caixaPalavras = el('div', { class: 'agentes-tags' });
-    const novaPalavra = entradaTexto('', { placeholder: palavras.length ? 'Mais uma…' : 'bpc, loas, auxílio…', 'aria-label': 'Nova palavra-chave' });
-    const gravarPalavras = () => salvarConfig({ palavrasChave: palavras });
+  /* Lista editavel como etiquetas: escrever e Enter (ou virgula) acrescenta, o
+     x tira. Salva na hora, como o resto do painel. */
+  function etiquetasEditaveis(valores, { rotulo, nomeDoItem, exemplo, gravar, ajustar = (valor) => valor }) {
+    const itens = [...valores];
+    const caixa = el('div', { class: 'agentes-tags' });
+    const nova = entradaTexto('', { placeholder: itens.length ? 'Mais uma…' : exemplo, 'aria-label': rotulo });
     const acrescentar = () => {
-      const novas = novaPalavra.value.split(',').map((p) => p.trim().toLowerCase()).filter(Boolean);
-      const antes = palavras.length;
-      for (const p of novas) if (!palavras.includes(p)) palavras.push(p);
-      novaPalavra.value = '';
-      if (palavras.length !== antes) gravarPalavras();
+      const novas = nova.value.split(',').map((valor) => ajustar(valor.trim())).filter(Boolean);
+      const antes = itens.length;
+      for (const valor of novas) if (!itens.includes(valor)) itens.push(valor);
+      nova.value = '';
+      if (itens.length !== antes) gravar(itens);
     };
-    novaPalavra.addEventListener('keydown', (evento) => {
+    nova.addEventListener('keydown', (evento) => {
       if (evento.key === 'Enter' || evento.key === ',') {
         evento.preventDefault();
         acrescentar();
       }
     });
-    novaPalavra.addEventListener('blur', () => {
-      if (novaPalavra.value.trim()) acrescentar();
+    nova.addEventListener('blur', () => {
+      if (nova.value.trim()) acrescentar();
     });
-    for (const p of palavras) {
-      caixaPalavras.append(
+    for (const valor of itens) {
+      caixa.append(
         el('span', { class: 'agentes-tag' }, [
-          p,
+          valor,
           el('button', {
             type: 'button',
             class: 'agentes-tag-tirar',
-            'aria-label': `Tirar a palavra-chave ${p}`,
+            'aria-label': `Tirar ${nomeDoItem} ${valor}`,
             aoClick: () => {
-              palavras.splice(palavras.indexOf(p), 1);
-              gravarPalavras();
+              itens.splice(itens.indexOf(valor), 1);
+              gravar(itens);
             },
           }, [icone('fechar', 10)]),
         ]),
       );
     }
-    caixaPalavras.append(novaPalavra);
+    caixa.append(nova);
+    return caixa;
+  }
 
-    const esperas = [
-      { valor: 5, rotulo: '5 s', ajuda: 'quase imediato' },
-      { valor: 15, rotulo: '15 s', ajuda: 'padrão' },
-      { valor: 30, rotulo: '30 s', ajuda: 'áudio e mensagem picada' },
-      { valor: 60, rotulo: '60 s', ajuda: 'casos específicos' },
+  /*
+   * Caminho da conversa: por onde ela chega a este agente e para quem ele a
+   * passa. Chega por um numero em que ele atende sozinho, por palavra-chave ou
+   * por outro agente que o menciona nas instrucoes; segue para os agentes que
+   * ele menciona. Agente do caminho abre com um clique.
+   */
+  function caminhoDa(agente) {
+    const passo = (rosto, nome, apoio, opcoes = {}) => {
+      const classe = ['agentes-passo', opcoes.atual ? 'atual' : '', opcoes.alerta ? 'alerta' : ''].filter(Boolean).join(' ');
+      const filhos = [
+        rosto,
+        el('span', { class: 'agentes-passo-dados' }, [
+          el('span', { class: 'agentes-passo-nome', texto: nome }),
+          el('span', { class: 'agentes-passo-apoio', texto: apoio }),
+        ]),
+      ];
+      if (!opcoes.abrir) return el('div', { class: classe }, filhos);
+      return el('button', { type: 'button', class: classe, title: `Abrir ${nome}`, aoClick: opcoes.abrir }, filhos);
+    };
+    const simbolo = (nome) => el('span', { class: 'agentes-passo-simbolo' }, [icone(nome, 14)]);
+    const ligacao = () => el('span', { class: 'agentes-ligacao', 'aria-hidden': 'true' });
+
+    const chegadas = [
+      ...(agente.primarioEm || []).map((conexao) =>
+        passo(simbolo('conexoes'), conexao.nome, 'toda conversa nova deste número começa aqui'),
+      ),
+      ...(agente.palavrasChave?.length
+        ? [passo(simbolo('etiqueta'), 'Palavra-chave', `primeira mensagem com ${agente.palavrasChave.slice(0, 2).join(' ou ')}`)]
+        : []),
+      ...(agente.referenciadoPor || []).map((origem) =>
+        passo(avatar(agentes.find((a) => a.id === origem.id) || origem, 28), origem.nome, 'passa a conversa para este agente', {
+          abrir: () => abrirAgente(origem.id),
+        }),
+      ),
     ];
+    const saidas = agentes
+      .filter((outro) => outro.id !== agente.id && (outro.referenciadoPor || []).some((r) => r.id === agente.id))
+      .map((destino) =>
+        passo(avatar(destino, 28), destino.nome, destino.ativo ? 'recebe a conversa deste agente' : 'recebe daqui, mas está desligado', {
+          abrir: () => abrirAgente(destino.id),
+        }),
+      );
+
+    return el('div', { class: 'agentes-caminho' }, [
+      el('div', { class: 'agentes-caminho-grupo' }, chegadas.length
+        ? chegadas
+        : [passo(simbolo('alerta'), 'Nenhuma conversa chega a ele', 'escolha um número em Conexões ou escreva palavras-chave', { alerta: true })]),
+      ligacao(),
+      passo(avatar(agente, 28), agente.nome, 'este agente', { atual: true }),
+      ligacao(),
+      saidas.length
+        ? el('div', { class: 'agentes-caminho-grupo' }, saidas)
+        : passo(simbolo('ok'), 'Termina aqui', 'para passar adiante, mencione outro agente nas instruções'),
+    ]);
+  }
+
+  function abaAtendimento(agente, salvarConfig) {
     /* Area: com qual numero ele trabalha, e para quem pode passar a conversa. */
     const area = el('select', { 'aria-label': 'Área do agente' }, [
       el('option', { value: '', texto: 'Todas as áreas' }),
@@ -795,17 +951,14 @@ export async function paginaAgentes({ parametros, definirAcoes }) {
     area.value = agente.area || '';
     area.addEventListener('change', () => salvarConfig({ area: area.value || null }));
 
-    /* Requisitos: as variaveis que ele precisa ter antes de avancar. O
-       servidor transforma o texto em chave (CTPS foto -> ctps_foto). */
-    const requisitos = entradaTexto((agente.requisitos || []).join(', '), {
-      placeholder: 'qualidade_segurado, ctps_foto, laudo',
-      'aria-label': 'Requisitos do agente',
-    });
-    requisitos.addEventListener('change', () =>
-      salvarConfig({ requisitos: requisitos.value.split(',').map((r) => r.trim()).filter(Boolean) }),
-    );
-
+    const esperas = [
+      { valor: 5, rotulo: '5 s', ajuda: 'quase imediato' },
+      { valor: 15, rotulo: '15 s', ajuda: 'padrão' },
+      { valor: 30, rotulo: '30 s', ajuda: 'áudio e mensagem picada' },
+      { valor: 60, rotulo: '60 s', ajuda: 'casos específicos' },
+    ];
     const atualEspera = agente.delaySegundos ?? 15;
+    const escolhida = esperas.find((e) => e.valor === atualEspera);
     const segmentado = el(
       'div',
       { class: 'agentes-segmentado', role: 'radiogroup', 'aria-label': 'Tempo de espera' },
@@ -817,55 +970,51 @@ export async function paginaAgentes({ parametros, definirAcoes }) {
           class: e.valor === atualEspera ? 'ativo' : '',
           title: e.ajuda,
           aoClick: () => e.valor !== atualEspera && salvarConfig({ delaySegundos: e.valor }),
-        }, [el('strong', { texto: e.rotulo }), el('span', { texto: e.ajuda })]),
+        }, [e.rotulo]),
       ),
     );
 
     return el('div', { class: 'agentes-config' }, [
       secao(
         'Situação',
-        null,
-        interruptor(
-          agente.ativo ? 'Agente ligado' : 'Agente desligado',
-          agente.ativo,
-          (ligado) => salvarConfig({ ativo: ligado }, ligado ? 'Agente ligado.' : 'Agente desligado.'),
-          { ajuda: 'Desligado, ele não responde a ninguém e some do Chat de teste.' },
+        'Desligado, ele não responde a ninguém e some do Chat de teste.',
+        interruptor(agente.ativo ? 'Agente ligado' : 'Agente desligado', agente.ativo, (ligado) =>
+          salvarConfig({ ativo: ligado }, ligado ? 'Agente ligado.' : 'Agente desligado.'),
         ),
       ),
+      secao('Área', 'Palavra-chave e passagem de conversa só valem dentro da mesma área.', area),
       secao(
-        'Área',
-        'Palavra-chave só chama este agente em número da mesma área, e ele só passa a conversa para agentes da mesma área.',
-        area,
-      ),
-      secao(
-        'Precisa coletar antes de avançar',
-        'As variáveis que este agente precisa ter. Enquanto faltar alguma, ele lê "FALTA COLETAR" no contexto.',
-        requisitos,
-      ),
-      secao(
-        'Atende sozinho em',
-        'Toda conversa nova destes números já começa com ele. Quem escolhe é a tela de Conexões, no Responsável padrão.',
-        agente.primarioEm?.length
-          ? el('div', { class: 'linha-p quebra' }, agente.primarioEm.map((c) => selo(c.nome, 'ouro')))
-          : el('p', { class: 'agentes-apoio', texto: 'Nenhum número. Ele só entra por palavra-chave ou transferência.' }),
+        'Caminho da conversa',
+        null,
+        caminhoDa(agente),
         botao('Abrir Conexões', { pequeno: true, icone: 'abrir', aoClicar: () => (location.hash = '#/conexoes') }),
       ),
       secao(
+        'Precisa coletar antes de avançar',
+        'Enquanto faltar algum, ele lê "FALTA COLETAR" no contexto.',
+        /* O servidor transforma o texto em chave (CTPS foto -> ctps_foto). */
+        etiquetasEditaveis(agente.requisitos || [], {
+          rotulo: 'Novo requisito',
+          nomeDoItem: 'o requisito',
+          exemplo: 'qualidade_segurado, ctps_foto',
+          gravar: (requisitos) => salvarConfig({ requisitos }),
+        }),
+      ),
+      secao(
         'Palavras-chave',
-        'Se a PRIMEIRA mensagem de alguém trouxer uma delas, a conversa vem para este agente. No meio da conversa, não valem.',
-        caixaPalavras,
+        'Só valem na primeira mensagem de quem escreve.',
+        etiquetasEditaveis(agente.palavrasChave || [], {
+          rotulo: 'Nova palavra-chave',
+          nomeDoItem: 'a palavra-chave',
+          exemplo: 'bpc, loas, auxílio…',
+          ajustar: (palavra) => palavra.toLowerCase(),
+          gravar: (palavrasChave) => salvarConfig({ palavrasChave }),
+        }),
       ),
       secao(
         'Tempo de espera antes de responder',
-        'Cada mensagem nova da pessoa reinicia a contagem, para o agente responder a tudo de uma vez. Resposta duplicada costuma ser espera curta demais.',
+        `${escolhida ? `${escolhida.rotulo}: ${escolhida.ajuda}. ` : ''}Cada mensagem nova reinicia a contagem, para ele responder a tudo de uma vez.`,
         segmentado,
-      ),
-      secao(
-        'Recebe transferência de',
-        null,
-        agente.referenciadoPor?.length
-          ? el('div', { class: 'linha-p quebra' }, agente.referenciadoPor.map((r) => selo(r.nome, '')))
-          : el('p', { class: 'agentes-apoio', texto: 'Nenhum outro agente transfere para este.' }),
       ),
     ]);
   }

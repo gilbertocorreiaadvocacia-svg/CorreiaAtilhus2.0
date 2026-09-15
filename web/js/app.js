@@ -65,16 +65,18 @@ const PAGINAS = {
   contratos: { titulo: 'Contratos', montar: paginaContratos, cheia: true },
 
   /* Agentes, Base de conhecimento e Chat de teste sao abas do mesmo modulo
-     (paginas/modulo-agentes.js). As tres rotas continuam existindo. */
-  agentes: { titulo: 'Agentes de IA', montar: moduloAgentes('agentes'), cheia: true },
-  conhecimento: { titulo: 'Base de conhecimento', montar: moduloAgentes('conhecimento') },
+     (paginas/modulo-agentes.js). As tres rotas continuam existindo. A fileira
+     de abas faz as vezes de cabeca: um titulo em cima dela so repetia o nome
+     da aba aberta. */
+  agentes: { titulo: 'Agentes de IA', montar: moduloAgentes('agentes'), cheia: true, semCabeca: true },
+  conhecimento: { titulo: 'Base de conhecimento', montar: moduloAgentes('conhecimento'), semCabeca: true },
   templates: { titulo: 'Templates', montar: paginaTemplates },
   vozes: { titulo: 'Vozes', montar: paginaVozes },
   integracoes: { titulo: 'Integrações', montar: paginaIntegracoes },
 
   tarefas: { titulo: 'Tarefas', montar: paginaTarefas },
   agendamentos: { titulo: 'Central de agendamentos', montar: paginaAgendamentos },
-  simulador: { titulo: 'Chat de teste', montar: moduloAgentes('simulador') },
+  simulador: { titulo: 'Chat de teste', montar: moduloAgentes('simulador'), semCabeca: true },
   configuracoes: { titulo: 'Configurações', montar: paginaConfiguracoes },
 };
 

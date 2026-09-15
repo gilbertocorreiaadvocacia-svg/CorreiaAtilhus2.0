@@ -1,4 +1,4 @@
-import { el } from '../ui.js';
+import { el, limpar } from '../ui.js';
 import { paginaAgentes } from './agentes.js';
 import { paginaConhecimento } from './conhecimento.js';
 import { paginaSimulador } from './simulador.js';
@@ -10,6 +10,11 @@ import { paginaSimulador } from './simulador.js';
  * afinava um agente pulava entre tres telas sem perceber que eram a mesma
  * tarefa: escrever o prompt, dar o que ele consulta, conversar com ele para
  * ver se ficou bom. Agora sao tres abas do mesmo modulo.
+ *
+ * A fileira de abas e a cabeca do modulo: as abas a esquerda e as acoes da
+ * tela aberta a direita. O titulo que ficava em cima dela so repetia o nome
+ * da aba. A acao principal (Novo agente) vai para o canto da barra de cima,
+ * como a Nova conversa.
  *
  * As rotas antigas (#/conhecimento, #/simulador) continuam valendo: link salvo,
  * botao de outra tela e notificacao abrem a aba certa.
@@ -23,7 +28,16 @@ export const VISOES_DE_AGENTES = [
 export function moduloAgentes(rota) {
   return async (opcoes) => {
     const visao = VISOES_DE_AGENTES.find((v) => v.rota === rota) || VISOES_DE_AGENTES[0];
-    const conteudo = await visao.montar(opcoes);
+
+    /* As acoes da tela moram na fileira de abas, e nao na cabeca do sistema,
+       que fica escondida neste modulo. */
+    const acoes = el('div', { class: 'modulo-acoes' });
+    const definirAcoes = (...nos) => {
+      limpar(acoes);
+      for (const no of nos.flat()) if (no) acoes.append(no);
+    };
+
+    const conteudo = await visao.montar({ ...opcoes, definirAcoes });
 
     const abas = el(
       'nav',
@@ -39,6 +53,9 @@ export function moduloAgentes(rota) {
     );
 
     /* A lista de agentes ocupa a altura inteira; as outras duas rolam como pagina. */
-    return el('div', { class: visao.rota === 'agentes' ? 'modulo-agentes cheio' : 'modulo-agentes' }, [abas, conteudo]);
+    return el('div', { class: visao.rota === 'agentes' ? 'modulo-agentes cheio' : 'modulo-agentes' }, [
+      el('div', { class: 'modulo-barra' }, [abas, acoes]),
+      conteudo,
+    ]);
   };
 }
