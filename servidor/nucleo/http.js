@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { LIMITE_CORPO, PASTA_WEB } from '../config.js';
+import { HOSPEDADO, LIMITE_CORPO, PASTA_WEB } from '../config.js';
 
 const TIPOS = {
   '.html': 'text/html; charset=utf-8',
@@ -84,6 +84,8 @@ export function lerCookies(req) {
 
 export function definirCookie(res, nome, valor, opcoes = {}) {
   const partes = [`${nome}=${encodeURIComponent(valor)}`, 'Path=/', 'HttpOnly', 'SameSite=Lax'];
+  /* Hospedado, so por HTTPS: o Caddy faz o certificado (ver config.js). */
+  if (HOSPEDADO) partes.push('Secure');
   if (opcoes.maxIdade) partes.push(`Max-Age=${opcoes.maxIdade}`);
   if (opcoes.expirar) partes.push('Max-Age=0');
   const atuais = res.getHeader('Set-Cookie');

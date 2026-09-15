@@ -18,6 +18,8 @@ dados/
 # nao rastreada e estava a um comando de ir para um repositorio publico.
 dados-backup*/
 dados-*.bak/
+# O pacote que leva os dados para a hospedagem (windows/empacotar-para-hospedagem.cmd).
+*.tar.gz
 
 # Midia enviada e recebida nas conversas (documento, laudo, foto de RG).
 midia/

@@ -85,6 +85,19 @@ export const PORTA = Number(process.env.PORT || process.env.PORTA || 4477);
 export const HOST = process.env.CORREIA_HOST || '127.0.0.1';
 
 /**
+ * Hospedado numa VPS (hospedagem/docker-compose.yml): CORREIA_HOSPEDADO=1.
+ *
+ * La o sistema fica atras do Caddy, que faz o HTTPS e repassa pela rede interna
+ * do Docker. Tres coisas mudam:
+ *   - a guarda de rede abaixo sai: quem chega pela internet e o escritorio e
+ *     os webhooks da ZapSign e da Meta, e o Caddy repassa todos com o endereco
+ *     dele. Quem segura a porta passa a ser o login;
+ *   - o cookie da sessao vai com Secure, so por HTTPS;
+ *   - o sistema nao sobe com a senha padrao (ver nucleo/hospedagem.js).
+ */
+export const HOSPEDADO = process.env.CORREIA_HOSPEDADO === '1';
+
+/**
  * Quem pode falar com o servidor quando ele escuta em todas as interfaces.
  *
  * Esta maquina, e as faixas privadas que o Docker usa para as suas redes

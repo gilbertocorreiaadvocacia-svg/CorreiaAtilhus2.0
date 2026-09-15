@@ -38,8 +38,32 @@ function lerEnv() {
   return { chave: valor('AUTHENTICATION_API_KEY') };
 }
 
+/*
+ * Hospedado (hospedagem/docker-compose.yml) a Evolution nao mora nesta
+ * maquina: e o conteiner "evolution" da mesma rede, e a volta e o conteiner do
+ * sistema. As tres variaveis dizem isso e valem por cima do arquivo.
+ */
+function doAmbiente() {
+  const servidor = process.env.CORREIA_EVOLUTION_URL || '';
+  const chave = process.env.CORREIA_EVOLUTION_CHAVE || '';
+  if (!servidor || !chave) return null;
+  return { servidor, chave, urlWebhook: process.env.CORREIA_EVOLUTION_WEBHOOK || `http://localhost:${PORTA}` };
+}
+
+/* Os enderecos que so existem no notebook, gravados nos dados trazidos de la. */
+const DO_NOTEBOOK = /^https?:\/\/(localhost|127\.0\.0\.1):8080\/?$|host\.docker\.internal/;
+
 /** O que falta na configuracao de QR Code, preenchido com a Evolution local. */
 export function completarComEvolutionLocal(qrcode = {}) {
+  const ambiente = doAmbiente();
+  if (ambiente) {
+    return {
+      ...qrcode,
+      servidor: qrcode.servidor || ambiente.servidor,
+      chave: qrcode.chave || ambiente.chave,
+      urlWebhook: qrcode.urlWebhook || ambiente.urlWebhook,
+    };
+  }
   const env = lerEnv();
   if (!env?.chave) return qrcode;
   return {
@@ -58,6 +82,12 @@ export function completarComEvolutionLocal(qrcode = {}) {
 export function garantirEvolutionLocal(conexao) {
   if (conexao?.tipo !== 'qrcode') return conexao;
   const atual = conexao.qrcode || {};
+  /* Dados trazidos do notebook para a hospedagem: o endereco de la nao existe
+     aqui, e a chave era a da Evolution de la. */
+  const ambiente = doAmbiente();
+  if (ambiente && (DO_NOTEBOOK.test(atual.servidor || '') || DO_NOTEBOOK.test(atual.urlWebhook || ''))) {
+    return atualizar('conexoes', conexao.id, { qrcode: { ...atual, ...ambiente } });
+  }
   if (atual.servidor && atual.chave && atual.urlWebhook) return conexao;
   const completo = completarComEvolutionLocal(atual);
   if (completo === atual) return conexao;

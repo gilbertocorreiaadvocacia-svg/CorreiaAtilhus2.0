@@ -1,0 +1,15 @@
+# O que NUNCA entra na imagem: dado de cliente, segredo e o que e so do notebook.
+.git
+.claude
+.vscode
+node_modules
+dados
+dados-*
+midia
+arquivos
+segredos.bat
+.env
+.env.*
+*.tar.gz
+windows
+hospedagem

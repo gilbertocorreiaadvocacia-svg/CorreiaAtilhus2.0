@@ -1,0 +1,14 @@
+# O HTTPS do CorreiaAtilhus2.0. O Caddy pede o certificado ao Let's Encrypt
+# sozinho, na primeira visita, e renova antes de vencer. Para isso o DNS do
+# DOMINIO ja precisa apontar para esta VPS e as portas 80 e 443 estarem abertas.
+{
+	email {$EMAIL_HTTPS}
+}
+
+{$DOMINIO} {
+	encode gzip
+	reverse_proxy sistema:4477 {
+		# A tela recebe os avisos ao vivo por fluxo de eventos: nada de segurar em buffer.
+		flush_interval -1
+	}
+}

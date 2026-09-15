@@ -206,6 +206,9 @@ export async function importarHistorico({
   const workspaceId = conexao.workspaceId;
   const base = { servidor: String(cfg.servidor).replace(/\/+$/, ''), chave: cfg.chave };
   const instancia = cfg.instancia;
+  /* Conversas apagadas de proposito (ferramentas/apagar-conversas.js) nao
+     voltam do celular: mensagem de antes do corte fica fora. */
+  const corte = Date.parse(conexao.historico?.naoTrazerAntesDe || '') / 1000 || 0;
 
   const agenda = mapaDaAgenda(conexao);
   const daEvolution = await nomesDaEvolution(base, instancia);
@@ -256,7 +259,7 @@ export async function importarHistorico({
       continue;
     }
 
-    const registros = registrosDe(resposta);
+    const registros = registrosDe(resposta).filter((r) => !corte || Number(r?.messageTimestamp || 0) >= corte);
     if (!registros.length) { relato.puladas.push(`${jid}: sem mensagens`); continue; }
 
     /* O telefone so da para saber depois de ler as mensagens: numa conversa

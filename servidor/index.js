@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
-import { HOST, INTERVALO_AGENDADOR, PORTA, RAIZ, enderecoPermitido } from './config.js';
+import { HOSPEDADO, HOST, INTERVALO_AGENDADOR, PORTA, RAIZ, enderecoPermitido } from './config.js';
+import { prepararHospedagem } from './nucleo/hospedagem.js';
 import { caminhoDaMidia } from './nucleo/midia.js';
 import { atualizar, encerrarBanco, iniciarBanco, listar } from './nucleo/banco.js';
 import { migrarCoresParaTokens } from './nucleo/paleta.js';
@@ -28,6 +29,17 @@ iniciarBanco();
 const INICIADO_EM = new Date().toISOString();
 
 const semeado = semearSePrecisar();
+/* Hospedado, a senha padrao nao chega a abrir a porta (nucleo/hospedagem.js). */
+if (HOSPEDADO) {
+  try {
+    const { trocados } = prepararHospedagem();
+    if (trocados.length) console.log(`Hospedagem: senha do administrador definida pelo .env (${trocados.join(', ')}).`);
+  } catch (erro) {
+    console.error(`\n  NAO SUBIU: ${erro.message}\n`);
+    await encerrarBanco();
+    process.exit(1);
+  }
+}
 /* Depois de semear, para pegar tambem a base que acabou de nascer. */
 const coresTrocadas = migrarCoresParaTokens({ listar, atualizar });
 if (coresTrocadas) console.log(`Paleta: ${coresTrocadas} cores da semeadura antiga viraram token de tema.`);
@@ -175,7 +187,7 @@ const servidor = http.createServer(async (req, res) => {
    * sessao e nada de rota. O unico rastro e a linha de anotarRecusa, uma por
    * endereco — ver o comentario dela logo acima.
    */
-  if (!enderecoPermitido(req.socket.remoteAddress)) {
+  if (!HOSPEDADO && !enderecoPermitido(req.socket.remoteAddress)) {
     anotarRecusa(req.socket.remoteAddress);
     res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end('Este sistema so atende a propria maquina.\n');
@@ -371,7 +383,10 @@ servidor.listen(PORTA, HOST, () => {
   console.log('  Correia Advogados Associados');
   console.log(linha);
   console.log(`  Aberto em:  http://localhost:${PORTA}`);
-  if (semeado) {
+  if (semeado && HOSPEDADO) {
+    console.log('');
+    console.log(`  Primeiro acesso: ${process.env.CORREIA_ADMIN_EMAIL || 'admin@correia.adv.br'}, com a senha de CORREIA_ADMIN_SENHA.`);
+  } else if (semeado) {
     console.log('');
     console.log('  Primeiro acesso (entre com:)');
     console.log('    E-mail: admin@correia.adv.br');

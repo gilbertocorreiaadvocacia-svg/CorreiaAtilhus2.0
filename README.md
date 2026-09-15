@@ -32,6 +32,10 @@ escondido, a cada login).
 Abre em `http://localhost:4477`. Primeiro acesso: `admin@correia.adv.br` /
 `correia2026` — **troque a senha em Configurações › Membros assim que entrar.**
 
+**Para hospedar numa VPS** (HTTPS, WhatsApp e cópia diária, tudo em Docker),
+siga o [HOSPEDAGEM.md](HOSPEDAGEM.md). Hospedado, a senha padrão não entra: a do
+administrador vem do `.env` da hospedagem.
+
 ---
 
 ## Como conferir

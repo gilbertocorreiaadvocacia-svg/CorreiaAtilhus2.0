@@ -25,6 +25,7 @@ import { testarContratos } from './contratos.js';
 import { subirJuriFalso } from './juri-falso.js';
 import { testarJuri } from './juri.js';
 import { testarWorkspacesPorArea } from './workspaces.js';
+import { testarHospedagem } from './hospedagem.js';
 
 /**
  * A suite do CorreiaAtilhus2.0. Rode com `npm test`.
@@ -200,6 +201,8 @@ async function principal() {
     suites.push(await testarHistorico({ base, evolucao, chaveEvolucao: CHAVE_EVOLUCAO }));
     /* Sobe processos proprios, em porta propria: nao encosta no servidor acima. */
     suites.push(await testarPortaOcupada({ raiz: RAIZ, portaLivre }));
+    /* Tambem sobe processos proprios: o sistema como fica na VPS. */
+    suites.push(await testarHospedagem({ raiz: RAIZ, portaLivre }));
   } catch (erro) {
     console.error('\nA suite quebrou antes de terminar:', erro.message);
     console.error(erro.stack);
