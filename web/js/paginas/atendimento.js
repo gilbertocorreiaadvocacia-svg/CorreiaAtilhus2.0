@@ -266,6 +266,10 @@ export async function paginaAtendimento({
   /* Qual parte do funil o quadro mostra (ver SEGMENTOS_DO_FUNIL). Vive aqui
      para sobreviver ao redesenho que cada evento do servidor dispara. */
   let segmentoDoFunil = 'venda';
+  /* Cartao do Kanban na mao, ou solto e esperando o servidor: nesse meio tempo
+     evento do servidor nao redesenha o quadro (ver redesenharSemAtrapalhar). */
+  let cartaoEmMovimento = null;
+  let redesenhoAdiado = false;
 
   const filtro = {
     aba: 'ia',
@@ -3490,12 +3494,21 @@ export async function paginaAtendimento({
           type: 'button',
           class: `kanban-cartao${conferir ? ' agir' : ''}`,
           draggable: 'true',
+          'data-contato': contato.id,
           title: `Abrir a conversa de ${contato.nome}`,
           aoDragstart: (evento) => {
             evento.dataTransfer.setData('text/plain', contato.id);
+            evento.dataTransfer.effectAllowed = 'move';
+            cartaoEmMovimento = contato.id;
             cartaoContato.classList.add('arrastando');
           },
-          aoDragend: () => cartaoContato.classList.remove('arrastando'),
+          /* Solto fora de qualquer coluna, ou com Esc, o arrasto acaba sem mudar
+             nada e o quadro volta a aceitar redesenho. Solto numa coluna, quem
+             libera e moverCartao, depois que o servidor responde. */
+          aoDragend: (evento) => {
+            cartaoContato.classList.remove('arrastando');
+            if (evento.dataTransfer.dropEffect === 'none') liberarQuadro();
+          },
           aoClick: () => {
             location.hash = `#/atendimento/${contato.id}`;
           },
@@ -3578,29 +3591,76 @@ export async function paginaAtendimento({
         lista,
       ]);
 
-      colunaNo.addEventListener('dragover', (evento) => {
-        evento.preventDefault();
-        colunaNo.classList.add('alvo');
-      });
-      /* Mesma armadilha do quadro: dragleave sobe dos cartoes, entao a coluna
-         perdia o destaque a cada pixel que o cartao andava por dentro dela e
-         a marca de "solta aqui" piscava. So apaga ao sair da coluna mesmo. */
-      colunaNo.addEventListener('dragleave', (evento) => {
-        if (evento.relatedTarget && colunaNo.contains(evento.relatedTarget)) return;
-        colunaNo.classList.remove('alvo');
-      });
-      colunaNo.addEventListener('drop', async (evento) => {
-        evento.preventDefault();
-        colunaNo.classList.remove('alvo');
-        const contatoId = evento.dataTransfer.getData('text/plain');
-        if (!contatoId || !coluna.id) return;
-        await api.patch(`/api/contatos/${contatoId}`, { statusId: coluna.id });
-        aviso('Status alterado. A sequencia de follow-up deste status comecou.', 'sucesso');
-        await desenhar();
-      });
+      /* "Sem status" nao recebe cartao: o servidor nao devolve conversa para
+         status nenhum, e aceitar o solto ali era prometer isso. */
+      if (coluna.id) {
+        colunaNo.dataset.status = coluna.id;
+        colunaNo.addEventListener('dragover', (evento) => {
+          evento.preventDefault();
+          evento.dataTransfer.dropEffect = 'move';
+          colunaNo.classList.add('alvo');
+        });
+        /* Mesma armadilha do quadro: dragleave sobe dos cartoes, entao a coluna
+           perdia o destaque a cada pixel que o cartao andava por dentro dela e
+           a marca de "solta aqui" piscava. So apaga ao sair da coluna mesmo. */
+        colunaNo.addEventListener('dragleave', (evento) => {
+          if (evento.relatedTarget && colunaNo.contains(evento.relatedTarget)) return;
+          colunaNo.classList.remove('alvo');
+        });
+        colunaNo.addEventListener('drop', (evento) => {
+          evento.preventDefault();
+          evento.stopPropagation();
+          colunaNo.classList.remove('alvo');
+          moverCartao(evento.dataTransfer.getData('text/plain') || cartaoEmMovimento, coluna, lista);
+        });
+      }
 
       quadro.append(colunaNo);
     }
+
+    /*
+     * Solta o cartao na coluna.
+     *
+     * O cartao muda de coluna na hora, antes da resposta do servidor: esperar
+     * a gravacao e a busca do quadro inteiro deixava o cartao parado onde
+     * estava por um ou dois segundos, e parecia que o arrasto nao tinha pegado.
+     * Se o servidor recusar, o aviso diz o motivo e o redesenho devolve o
+     * cartao ao lugar. Antes, a recusa nao aparecia em lugar nenhum.
+     */
+    async function moverCartao(contatoId, coluna, lista) {
+      const contato = contatos.find((c) => c.id === contatoId);
+      if (!contato || (contato.statusId || '') === coluna.id) return liberarQuadro();
+      const cartao = quadro.querySelector(`[data-contato="${contatoId}"]`);
+      if (cartao && lista) lista.prepend(cartao);
+      try {
+        await api.patch(`/api/contatos/${contatoId}`, { statusId: coluna.id });
+        aviso(`${contato.nome} foi para ${coluna.nome}. A sequência de follow-up deste status começou.`, 'sucesso');
+      } catch (erro) {
+        aviso(`Não consegui mover ${contato.nome}: ${erro.message}`, 'erro');
+      } finally {
+        cartaoEmMovimento = null;
+        redesenhoAdiado = false;
+        await desenhar();
+      }
+    }
+
+    /* Soltar no vao entre duas colunas vale para a coluna mais perto do
+       ponteiro. Antes o quadro aceitava o solto ali e nao fazia nada. */
+    quadro.addEventListener('drop', (evento) => {
+      evento.preventDefault();
+      const contatoId = evento.dataTransfer.getData('text/plain') || cartaoEmMovimento;
+      const naColunaSemDestino = evento.target.closest?.('.kanban-coluna');
+      const maisPerto = [...quadro.querySelectorAll('.kanban-coluna[data-status]')]
+        .map((no) => {
+          const caixa = no.getBoundingClientRect();
+          const x = evento.clientX;
+          return { no, distancia: x < caixa.left ? caixa.left - x : x > caixa.right ? x - caixa.right : 0 };
+        })
+        .sort((a, b) => a.distancia - b.distancia)[0];
+      if (naColunaSemDestino || !contatoId || !maisPerto || maisPerto.distancia > 48) return liberarQuadro();
+      const coluna = colunas.find((c) => c.id === maisPerto.no.dataset.status);
+      moverCartao(contatoId, coluna, maisPerto.no.querySelector('.kanban-lista'));
+    });
 
     /*
      * O quadro rola sozinho quando o cartao chega perto da borda.
@@ -3711,9 +3771,33 @@ export async function paginaAtendimento({
     else alvo.querySelector('.balao-rodape')?.append(marcas);
   });
 
+  /*
+   * Evento do servidor com um cartao do Kanban na mao nao redesenha a tela.
+   *
+   * Redesenhar tira do documento o cartao que esta sendo arrastado, e o
+   * navegador cancela o arrasto: o cartao volta para a coluna de origem sem
+   * aviso nenhum. Com agente respondendo e follow-up saindo chega evento a
+   * todo instante, e o arrasto falhava sem motivo aparente. O redesenho fica
+   * guardado e acontece quando o cartao e solto.
+   */
+  function redesenharSemAtrapalhar() {
+    if (cartaoEmMovimento) {
+      redesenhoAdiado = true;
+      return;
+    }
+    return desenhar();
+  }
+
+  function liberarQuadro() {
+    cartaoEmMovimento = null;
+    if (!redesenhoAdiado) return;
+    redesenhoAdiado = false;
+    desenhar();
+  }
+
   ouvir('contato', async () => {
     if (!document.body.contains(container)) return;
-    await desenhar();
+    await redesenharSemAtrapalhar();
   });
 
   /*
@@ -3733,12 +3817,12 @@ export async function paginaAtendimento({
          disparo automatico de follow-up de qualquer cliente do escritorio
          redesenhava a tela de quem esta lendo outra conversa. */
       if (dados?.contatoId && dados.contatoId !== selecionadoId) return;
-      await desenhar();
+      await redesenharSemAtrapalhar();
     });
   }
   ouvir('contatos', async () => {
     if (!document.body.contains(container)) return;
-    await desenhar();
+    await redesenharSemAtrapalhar();
   });
 
   /**

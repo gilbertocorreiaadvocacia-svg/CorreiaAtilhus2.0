@@ -1,25 +1,28 @@
 import { api } from '../api.js';
-import { estado, ouvir, podeConfigurar } from '../estado.js';
-import { areaTexto, avatar, aviso, botao, campo, dataHora, el, entradaTexto, limpar, selecao, vazio } from '../ui.js';
+import { estado, ouvir, podeConfigurar, recarregar } from '../estado.js';
+import { areaTexto, avatar, aviso, botao, dataHora, el, limpar, selecao, vazio } from '../ui.js';
 
 /**
- * Chat de teste: voce faz o papel do cliente e conversa com os agentes.
+ * Chat de teste: voce faz o papel do cliente e conversa com um agente.
  *
  * A mensagem entra pelo MESMO caminho do WhatsApp de verdade — cria o contato,
- * aplica os padroes da conexao, detecta origem e chama o agente — mas por uma
- * conexao de simulador, cujo driver nao envia nada: as respostas ficam so no
- * sistema. E por isso que a tela so oferece conexao de simulador, e o servidor
- * recusa as outras: por um numero real, a resposta do agente iria para o
- * WhatsApp do numero inventado aqui.
+ * aplica os padroes da conexao e chama o agente — mas por uma conexao de
+ * simulador, cujo driver nao envia nada: as respostas ficam so no sistema. O
+ * servidor recusa as outras conexoes: por um numero real, a resposta do agente
+ * iria para o WhatsApp do numero inventado aqui.
  *
- * O que ela tem que a tela antiga nao tinha, e por que:
+ * A tela e so o chat. Escolher o agente em Agentes e clicar em Testar no chat
+ * abre a conversa com ele, sem formulario no caminho: nome e WhatsApp do
+ * "cliente" eram campos que ninguem precisava preencher para testar, e a
+ * conexao de simulador nasce sozinha na primeira vez. Cada agente guarda a sua
+ * conversa de teste, entao trocar de agente nao mistura as duas.
  *
- *   escolher o agente — testar a Triagem BPC nao pode exigir mexer no
- *     responsavel padrao da conexao, que vale para todo mundo.
+ * O que continua, e por que:
+ *
  *   "digitando" com contagem — o agente espera o prazo dele antes de
  *     responder (15 s por padrao). Sem sinal, esse silencio parecia defeito.
  *   "Responder agora" — pula a espera quando o que se quer e ler a resposta.
- *   escrever embaixo da conversa — e um chat, e nao um formulario.
+ *   frases prontas — testar a triagem sem digitar o caso inteiro.
  */
 
 const PREFIXO = 'correiatendimentos:chat-teste-';
@@ -41,7 +44,8 @@ function lembrado(nome, padrao = '') {
 }
 
 /* Frases de cliente de verdade, para testar sem digitar. Cada uma exercita
-   uma parte diferente do funil: origem, palavra-chave, objecao, transferencia. */
+   uma parte diferente do atendimento: origem, palavra-chave, objecao,
+   transferencia. */
 const FRASES = [
   ['Vi o anúncio', 'Oi, vi o anúncio no Facebook'],
   ['BPC/LOAS', 'Quero saber sobre o BPC LOAS'],
@@ -51,114 +55,138 @@ const FRASES = [
   ['Falar com advogado', 'Quero falar com um advogado, por favor'],
 ];
 
-async function criarConexaoDeTeste() {
-  const ativos = estado.agentes.filter((a) => a.ativo);
-  const recepcao = ativos.find((a) => /recep/i.test(a.nome)) || ativos[0];
+/*
+ * O cliente de teste de cada agente.
+ *
+ * Um numero inventado por agente, guardado para a conversa continuar de onde
+ * parou. Fica no DDD 00, que nao existe: um numero sorteado num DDD de verdade
+ * podia cair em cima de um cliente cadastrado, e o teste escreveria na
+ * conversa dele.
+ */
+function telefoneDeTeste(agenteId) {
+  const chave = `telefone:${agenteId}`;
+  let numero = lembrado(chave, '');
+  if (!/^5500\d{9}$/.test(numero)) {
+    numero = `5500${String(Math.floor(Math.random() * 1e9)).padStart(9, '0')}`;
+    lembrar(chave, numero);
+  }
+  return numero;
+}
+
+/* A conexao de simulador nasce sozinha, para quem pode criar conexao. */
+async function garantirConexaoDeTeste() {
+  if (estado.conexoes.some((c) => c.tipo === 'simulador')) return true;
+  if (!podeConfigurar()) return false;
   const status = (estado.status || []).find((s) => /nova/i.test(s.nome));
   const departamento = (estado.departamentos || []).find((d) => /comercial/i.test(d.nome));
-  try {
-    await api.post('/api/conexoes', {
-      nome: 'Chat de teste',
-      tipo: 'simulador',
-      numero: '5500000000000',
-      statusPadraoId: status?.id || null,
-      departamentoPadraoId: departamento?.id || null,
-      responsavelPadrao: recepcao ? { tipo: 'agente', id: recepcao.id } : null,
-    });
-    location.reload();
-  } catch (erro) {
-    aviso(erro.message, 'erro');
-  }
+  await api.post('/api/conexoes', {
+    nome: 'Chat de teste',
+    tipo: 'simulador',
+    numero: '5500000000000',
+    statusPadraoId: status?.id || null,
+    departamentoPadraoId: departamento?.id || null,
+  });
+  await recarregar('conexoes');
+  return true;
 }
 
 export async function paginaSimulador() {
   const container = el('div', { class: 'chat-teste' });
-  const conexoesDeTeste = estado.conexoes.filter((c) => c.tipo === 'simulador');
+  const agentesAtivos = estado.agentes.filter((a) => a.ativo);
 
-  if (!conexoesDeTeste.length) {
+  if (!agentesAtivos.length) {
     container.append(
       el('div', { class: 'chat-teste-sem-conexao' }, [
         vazio(
-          'Falta a conexão de teste',
-          'O chat de teste fala por uma conexão de simulador, que não envia nada para o WhatsApp. Crie uma para começar.',
+          'Nenhum agente ligado',
+          'O chat de teste conversa com um agente ligado. Ligue um em Agentes e volte aqui.',
+          botao('Abrir Agentes', { tipo: 'principal', icone: 'agentes', aoClicar: () => (location.hash = '#/agentes') }),
         ),
-        podeConfigurar()
-          ? botao('Criar conexão de teste', { tipo: 'principal', aoClicar: criarConexaoDeTeste })
-          : el('p', { class: 'chat-teste-apoio', texto: 'Peça ao administrador para criar a conexão de teste.' }),
       ]),
     );
     return container;
   }
 
-  let conexaoId = lembrado('conexao', conexoesDeTeste[0].id);
-  if (!conexoesDeTeste.some((c) => c.id === conexaoId)) conexaoId = conexoesDeTeste[0].id;
+  let temConexao = false;
+  try {
+    temConexao = await garantirConexaoDeTeste();
+  } catch (erro) {
+    aviso(erro.message, 'erro');
+  }
+  if (!temConexao) {
+    container.append(
+      el('div', { class: 'chat-teste-sem-conexao' }, [
+        vazio(
+          'Falta a conexão de teste',
+          'O chat de teste fala por uma conexão de simulador, que não envia nada para o WhatsApp. Ela é criada sozinha quando um administrador abre esta tela.',
+        ),
+      ]),
+    );
+    return container;
+  }
 
-  const agentesAtivos = estado.agentes.filter((a) => a.ativo);
   let agenteId = lembrado('agente', '');
-  if (agenteId && !agentesAtivos.some((a) => a.id === agenteId)) agenteId = '';
+  if (!agentesAtivos.some((a) => a.id === agenteId)) agenteId = agentesAtivos[0].id;
+  lembrar('agente', agenteId);
 
-  let contatoId = lembrado('contato', '') || null;
+  let contatoId = lembrado(`contato:${agenteId}`, '') || null;
   let responsavelAtual = null;
+  const agente = () => agentesAtivos.find((a) => a.id === agenteId);
 
-  const agenteEscolhido = () => agentesAtivos.find((a) => a.id === agenteId) || null;
+  /* ---------------- Cabecalho ---------------- */
 
-  /* ---------------- Ajustes ---------------- */
-
-  const escolhaAgente = selecao(
-    [
-      { valor: '', rotulo: 'Automático — como no WhatsApp de verdade' },
-      ...agentesAtivos.map((a) => ({ valor: a.id, rotulo: a.nome })),
-    ],
-    agenteId,
-    {
-      aoChange: (evento) => {
-        agenteId = evento.target.value;
-        lembrar('agente', agenteId);
-        desenharCabecalho();
-        desenharAviso();
-      },
-    },
-  );
-
-  const escolhaConexao =
-    conexoesDeTeste.length > 1
-      ? selecao(
-          conexoesDeTeste.map((c) => ({ valor: c.id, rotulo: c.nome })),
-          conexaoId,
-          {
-            aoChange: (evento) => {
-              conexaoId = evento.target.value;
-              lembrar('conexao', conexaoId);
-              trocarCliente();
-            },
-          },
-        )
-      : null;
-
-  const nome = entradaTexto(lembrado('nome', 'Maria Aparecida'), { placeholder: 'Maria Aparecida' });
-  const numero = entradaTexto(lembrado('numero', '32988112233'), { placeholder: '32 98811-2233', inputmode: 'tel' });
-  nome.addEventListener('change', () => lembrar('nome', nome.value.trim()));
-  numero.addEventListener('change', trocarCliente);
-
-  const atalhos = el(
-    'div',
-    { class: 'chat-teste-frases' },
-    FRASES.map(([rotulo, frase]) => botao(rotulo, { pequeno: true, titulo: frase, aoClicar: () => enviar(frase) })),
-  );
-
+  const cabecalho = el('header', { class: 'chat-teste-cabecalho' });
   const avisoModelo = el('p', { class: 'chat-teste-aviso' });
+  const escolhaAgente = selecao(
+    agentesAtivos.map((a) => ({ valor: a.id, rotulo: a.nome })),
+    agenteId,
+    { 'aria-label': 'Agente com quem conversar', aoChange: (evento) => trocarAgente(evento.target.value) },
+  );
+  escolhaAgente.classList.add('chat-teste-escolha');
 
-  function desenharAviso() {
-    const agente = agenteEscolhido();
-    const semIa = agente ? agente.modeloDisponivel === false : agentesAtivos.some((a) => a.modeloDisponivel === false);
-    avisoModelo.hidden = !semIa;
-    avisoModelo.textContent =
-      'Sem a chave da Anthropic, o agente responde pelo roteiro numerado do prompt: uma etapa por mensagem, sem entender o que você escreveu. Cadastre a chave em Integrações para conversar com o Claude.';
+  function desenharCabecalho() {
+    limpar(cabecalho);
+    const escolhido = agente();
+    /* O agente pode passar a conversa adiante (Triagem para Proposta). O
+       cabecalho continua com quem foi testado e diz quem responde agora. */
+    const outro =
+      responsavelAtual?.tipo === 'agente' && responsavelAtual.id !== agenteId
+        ? estado.agentes.find((a) => a.id === responsavelAtual.id) || responsavelAtual
+        : null;
+
+    cabecalho.append(
+      avatar(escolhido, 40),
+      el('div', { class: 'chat-teste-identidade' }, [
+        el('div', { class: 'chat-teste-quem', texto: escolhido.nome }),
+        el('div', {
+          class: 'chat-teste-sub',
+          texto: outro ? `Passou a conversa para ${outro.nome}, que responde agora` : 'Chat de teste · nada sai para o WhatsApp',
+        }),
+      ]),
+      escolhaAgente,
+      botao('Recomeçar', {
+        pequeno: true,
+        icone: 'atualizar',
+        titulo: 'Apaga esta conversa e começa do zero',
+        desabilitado: !contatoId,
+        aoClicar: () => enviar('/restart'),
+      }),
+      botao('Abrir no atendimento', {
+        pequeno: true,
+        icone: 'abrir',
+        desabilitado: !contatoId,
+        aoClicar: () => {
+          if (contatoId) location.hash = `#/atendimento/${contatoId}`;
+        },
+      }),
+    );
+
+    avisoModelo.hidden = escolhido.modeloDisponivel !== false;
+    avisoModelo.textContent = `Sem a chave da Anthropic, ${escolhido.nome} responde pelo roteiro numerado do prompt: uma etapa por mensagem, sem entender o que você escreveu. Cadastre a chave em Integrações para conversar com o Claude.`;
   }
 
   /* ---------------- Janela da conversa ---------------- */
 
-  const cabecalho = el('div', { class: 'chat-teste-cabecalho' });
   const mensagens = el('div', { class: 'mensagens chat-teste-mensagens', role: 'log', 'aria-live': 'polite' });
   const espera = el('span', { class: 'chat-teste-espera' });
   const indicador = el('div', { class: 'chat-teste-digitando' }, [
@@ -169,7 +197,8 @@ export async function paginaSimulador() {
   indicador.hidden = true;
 
   const texto = areaTexto('', { placeholder: 'Escreva como se fosse o cliente…', rows: 2, 'aria-label': 'Mensagem do cliente' });
-  const botaoEnviar = botao('Enviar', { tipo: 'principal', icone: 'enviar', aoClicar: () => enviar() });
+  const botaoEnviar = botao('', { tipo: 'principal', icone: 'enviar', titulo: 'Enviar (Enter)', aoClicar: () => enviar() });
+  botaoEnviar.classList.add('botao-enviar');
   texto.addEventListener('keydown', (evento) => {
     if (evento.key === 'Enter' && !evento.shiftKey) {
       evento.preventDefault();
@@ -177,40 +206,11 @@ export async function paginaSimulador() {
     }
   });
 
-  function desenharCabecalho() {
-    limpar(cabecalho);
-    const escolhido = agenteEscolhido();
-    const emConversa =
-      responsavelAtual?.tipo === 'agente' ? estado.agentes.find((a) => a.id === responsavelAtual.id) || null : null;
-    const quem = escolhido || emConversa;
-    cabecalho.append(
-      avatar(quem || { nome: 'Automático' }, 32),
-      el('div', { class: 'flexivel encolhe' }, [
-        el('div', { class: 'chat-teste-quem', texto: quem ? quem.nome : 'Automático' }),
-        el('div', {
-          class: 'chat-teste-sub',
-          texto: escolhido
-            ? 'Você está conversando com este agente'
-            : emConversa
-              ? 'Automático: é quem está respondendo agora'
-              : 'Automático: responde o agente padrão da conexão, ou o da palavra-chave',
-        }),
-      ]),
-      botao('Recomeçar', {
-        pequeno: true,
-        titulo: 'Apaga esta conversa e começa como cliente novo (/restart)',
-        desabilitado: !contatoId,
-        aoClicar: () => enviar('/restart'),
-      }),
-      botao('Abrir no atendimento', {
-        pequeno: true,
-        desabilitado: !contatoId,
-        aoClicar: () => {
-          if (contatoId) location.hash = `#/atendimento/${contatoId}`;
-        },
-      }),
-    );
-  }
+  const atalhos = el(
+    'div',
+    { class: 'chat-teste-frases', role: 'group', 'aria-label': 'Frases prontas' },
+    FRASES.map(([rotulo, frase]) => botao(rotulo, { pequeno: true, titulo: frase, aoClicar: () => enviar(frase) })),
+  );
 
   /* ---------------- "Digitando" ---------------- */
 
@@ -219,10 +219,8 @@ export async function paginaSimulador() {
   let desistir = null;
 
   function quemResponde() {
-    const escolhido = agenteEscolhido();
-    if (escolhido) return escolhido.nome;
-    if (responsavelAtual?.tipo === 'agente') return responsavelAtual.nome || 'O agente';
-    return 'O agente';
+    if (responsavelAtual?.tipo === 'agente') return responsavelAtual.nome || agente().nome;
+    return agente().nome;
   }
 
   function atualizarEspera() {
@@ -262,7 +260,7 @@ export async function paginaSimulador() {
     }
     /* A visao e a do cliente: o que ele manda fica a direita. */
     const doCliente = mensagem.direcao === 'entrada';
-    return el('div', { class: doCliente ? 'balao saida' : 'balao' }, [
+    return el('div', { class: doCliente ? 'balao saida' : 'balao ia' }, [
       doCliente ? null : el('div', { class: 'balao-autor', texto: mensagem.autor?.nome || 'Escritório' }),
       el('div', { texto: mensagem.conteudo || `[${mensagem.tipo}]` }),
       el('div', { class: 'balao-rodape' }, [el('span', { texto: dataHora(mensagem.criadoEm) })]),
@@ -276,8 +274,7 @@ export async function paginaSimulador() {
    * recarrega ao terminar, e o aviso ao vivo do servidor ("chegou mensagem")
    * recarrega tambem. Cada carregamento limpava a lista ANTES de esperar a
    * resposta; as duas limpezas aconteciam primeiro, as duas respostas chegavam
-   * depois, e cada balao aparecia duas vezes. Visto no teste de verdade: 2
-   * mensagens no banco, 4 baloes na tela.
+   * depois, e cada balao aparecia duas vezes.
    *
    * Agora a lista so e limpa quando a resposta chega, e so pela chamada mais
    * recente — as anteriores chegam e sao descartadas.
@@ -290,11 +287,11 @@ export async function paginaSimulador() {
       limpar(mensagens);
       mensagens.append(
         el('div', { class: 'chat-teste-vazio' }, [
-          el('p', { texto: 'Escreva a primeira mensagem como se fosse o cliente.' }),
+          avatar(agente(), 56),
+          el('p', { class: 'chat-teste-vazio-titulo', texto: `Converse com ${agente().nome}` }),
           el('p', {
             class: 'chat-teste-apoio',
-            texto:
-              'Ela entra no sistema pelo mesmo caminho do WhatsApp: cria o contato, aplica os padrões da conexão e chama o agente.',
+            texto: 'Escreva como se fosse o cliente, ou comece por uma das frases prontas. Nada sai desta máquina.',
           }),
         ]),
       );
@@ -307,7 +304,7 @@ export async function paginaSimulador() {
       /* A conversa foi apagada no atendimento: recomeca limpo. */
       if (meuPedido !== pedidoAtual) return;
       contatoId = null;
-      lembrar('contato', '');
+      lembrar(`contato:${agenteId}`, '');
       desenharCabecalho();
       return carregar();
     }
@@ -318,28 +315,29 @@ export async function paginaSimulador() {
     mensagens.scrollTop = mensagens.scrollHeight;
   }
 
+  async function lerResponsavel() {
+    if (!contatoId) return;
+    try {
+      responsavelAtual = (await api.get(`/api/contatos/${contatoId}`))?.responsavel || null;
+    } catch {
+      contatoId = null;
+      lembrar(`contato:${agenteId}`, '');
+    }
+  }
+
   async function enviar(conteudo) {
     const valor = String(conteudo ?? texto.value).trim();
     if (!valor) return;
-    const telefone = numero.value.replace(/\D+/g, '');
-    if (telefone.length < 10) {
-      aviso('Informe o WhatsApp do cliente com DDD, por exemplo 32 98811-2233.', 'alerta');
-      numero.focus();
-      return;
-    }
-    lembrar('nome', nome.value.trim());
-    lembrar('numero', numero.value.trim());
     botaoEnviar.disabled = true;
     try {
       const resposta = await api.post('/api/simulador/mensagem', {
-        conexaoId,
-        agenteId: agenteId || null,
-        telefone,
-        nome: nome.value.trim(),
+        agenteId,
+        telefone: telefoneDeTeste(agenteId),
+        nome: 'Cliente de teste',
         conteudo: valor,
       });
       contatoId = resposta.contatoId;
-      lembrar('contato', contatoId);
+      lembrar(`contato:${agenteId}`, contatoId);
       responsavelAtual = resposta.responsavel || null;
       if (conteudo === undefined) texto.value = '';
       desenharCabecalho();
@@ -352,8 +350,8 @@ export async function paginaSimulador() {
         /* O aviso de "digitando" do servidor sai antes desta resposta chegar,
            quando a conversa ainda nao tinha id aqui — na primeira mensagem ele
            se perderia. O prazo e o do agente, que reinicia a cada mensagem. */
-        const agente = estado.agentes.find((a) => a.id === responsavelAtual.id);
-        mostrarDigitando(Date.now() + Math.max(1, Number(agente?.delaySegundos ?? 15)) * 1000);
+        const quem = estado.agentes.find((a) => a.id === responsavelAtual.id);
+        mostrarDigitando(Date.now() + Math.max(1, Number(quem?.delaySegundos ?? 15)) * 1000);
       }
     } catch (erro) {
       aviso(erro.message, 'erro');
@@ -365,7 +363,7 @@ export async function paginaSimulador() {
 
   async function responderAgora() {
     if (!contatoId) return;
-    const id = responsavelAtual?.id || agenteId || 'automatico';
+    const id = responsavelAtual?.id || agenteId;
     try {
       await api.post(`/api/agentes/${id}/responder-agora`, { contatoId });
       esconderDigitando();
@@ -377,20 +375,15 @@ export async function paginaSimulador() {
     }
   }
 
-  function trocarCliente() {
-    contatoId = null;
+  async function trocarAgente(id) {
+    agenteId = id;
+    lembrar('agente', id);
+    contatoId = lembrado(`contato:${id}`, '') || null;
     responsavelAtual = null;
-    lembrar('contato', '');
-    lembrar('numero', numero.value.trim());
     esconderDigitando();
+    await lerResponsavel();
     desenharCabecalho();
-    carregar();
-  }
-
-  function novoCliente() {
-    const sufixo = String(Math.floor(Math.random() * 1e7)).padStart(7, '0');
-    numero.value = `3298${sufixo}`;
-    trocarCliente();
+    await carregar();
     texto.focus();
   }
 
@@ -410,43 +403,16 @@ export async function paginaSimulador() {
   /* ---------------- Montagem ---------------- */
 
   container.append(
-    el('div', { class: 'chat-teste-ajustes' }, [
-      el('p', {
-        class: 'chat-teste-apoio',
-        texto: 'Você faz o papel do cliente e conversa com os agentes. Tudo fica só no sistema: nada sai desta máquina.',
-      }),
-      campo('Conversar com', escolhaAgente),
-      escolhaConexao ? campo('Conexão de teste', escolhaConexao) : null,
-      campo('Nome do cliente', nome),
-      campo('WhatsApp do cliente', numero),
-      el('div', { class: 'linha-botoes' }, [
-        botao('Novo cliente', {
-          pequeno: true,
-          titulo: 'Troca o número e começa uma conversa do zero',
-          aoClicar: novoCliente,
-        }),
-      ]),
-      el('div', { class: 'campo' }, [el('span', { texto: 'Frases prontas' }), atalhos]),
-      avisoModelo,
-    ]),
     el('section', { class: 'chat-teste-janela', 'aria-label': 'Conversa de teste' }, [
       cabecalho,
+      avisoModelo,
       mensagens,
-      el('div', { class: 'chat-teste-compositor' }, [texto, botaoEnviar]),
+      el('div', { class: 'chat-teste-rodape' }, [atalhos, el('div', { class: 'chat-teste-compositor' }, [texto, botaoEnviar])]),
     ]),
   );
 
-  if (contatoId) {
-    try {
-      responsavelAtual = (await api.get(`/api/contatos/${contatoId}`))?.responsavel || null;
-    } catch {
-      contatoId = null;
-      lembrar('contato', '');
-    }
-  }
-
+  await lerResponsavel();
   desenharCabecalho();
-  desenharAviso();
   await carregar();
   return container;
 }

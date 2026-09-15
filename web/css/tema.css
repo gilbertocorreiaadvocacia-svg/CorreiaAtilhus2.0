@@ -3637,18 +3637,12 @@ button.agentes-passo:focus-visible {
  * se escreve fica embaixo e o que chega rola por cima — com a pagina
  * crescendo, o campo de escrever descia junto e sumia da tela a cada resposta.
  */
+/* So a janela do chat, centrada. O formulario que ficava ao lado (agente, nome
+   e WhatsApp do cliente) saiu: o agente e escolhido no cabecalho, e o cliente
+   de teste e inventado pelo sistema. */
 .chat-teste {
-  display: grid;
-  grid-template-columns: 300px minmax(0, 1fr);
-  gap: var(--e5);
-  align-items: start;
-}
-
-.chat-teste-ajustes {
   display: flex;
-  flex-direction: column;
-  gap: var(--e3);
-  min-width: 0;
+  justify-content: center;
 }
 
 .chat-teste-apoio {
@@ -3657,6 +3651,8 @@ button.agentes-passo:focus-visible {
   font-size: var(--t-base);
 }
 
+/* Frases prontas logo acima do campo de escrever: e ali que se decide o que
+   mandar. */
 .chat-teste-frases {
   display: flex;
   flex-wrap: wrap;
@@ -3678,7 +3674,9 @@ button.agentes-passo:focus-visible {
 .chat-teste-janela {
   display: flex;
   flex-direction: column;
-  height: clamp(440px, calc(100vh - 190px), 780px);
+  width: 100%;
+  max-width: 980px;
+  height: clamp(460px, calc(100vh - 200px), 820px);
   border: 1px solid var(--borda);
   border-radius: var(--raio-g);
   background: var(--superficie);
@@ -3687,15 +3685,36 @@ button.agentes-passo:focus-visible {
 
 .chat-teste-cabecalho {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--e3);
-  padding: var(--e3);
+  gap: var(--e2) var(--e3);
+  padding: var(--e3) var(--e4);
   border-bottom: 1px solid var(--borda);
 }
 
+/* Quem responde no chat de teste e sempre um agente: o rosto vai na cor da IA. */
+.chat-teste div.avatar {
+  background: var(--ia-fraco);
+  color: var(--ia);
+}
+
+.chat-teste-identidade {
+  flex: 1;
+  min-width: 180px;
+}
+
 .chat-teste-quem {
-  font-weight: 600;
-  font-size: var(--t-base);
+  font-family: var(--fonte-titulo);
+  font-size: 19px;
+  font-weight: 500;
+}
+
+/* O seletor de agente no cabecalho, do tamanho do nome mais comprido. */
+select.chat-teste-escolha {
+  width: auto;
+  max-width: 240px;
+  min-height: var(--controle-p);
+  padding-block: 0;
 }
 
 .chat-teste-sub {
@@ -3716,11 +3735,18 @@ button.agentes-passo:focus-visible {
   text-align: center;
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: var(--e2);
 }
 
 .chat-teste-vazio p {
   margin: 0;
+}
+
+.chat-teste-vazio-titulo {
+  font-family: var(--fonte-titulo);
+  font-size: 20px;
+  color: var(--texto);
 }
 
 /* A nota interna no meio da conversa, discreta e centrada: ela nao e fala de
@@ -3750,12 +3776,19 @@ button.agentes-passo:focus-visible {
   font-variant-numeric: tabular-nums;
 }
 
+/* Frases prontas e campo de escrever na mesma faixa, embaixo da conversa. */
+.chat-teste-rodape {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e2);
+  padding: var(--e3) var(--e4);
+  border-top: 1px solid var(--borda);
+}
+
 .chat-teste-compositor {
   display: flex;
   align-items: flex-end;
   gap: var(--e2);
-  padding: var(--e3);
-  border-top: 1px solid var(--borda);
 }
 
 .chat-teste-compositor textarea {
@@ -3770,14 +3803,7 @@ button.agentes-passo:focus-visible {
   flex-direction: column;
   align-items: center;
   gap: var(--e3);
-  grid-column: 1 / -1;
   padding: var(--e8) 0;
-}
-
-@media (max-width: 900px) {
-  .chat-teste {
-    grid-template-columns: 1fr;
-  }
 }
 
 .coluna {
