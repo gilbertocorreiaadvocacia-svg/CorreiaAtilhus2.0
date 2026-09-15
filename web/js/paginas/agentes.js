@@ -8,6 +8,7 @@ import {
   botao,
   campo,
   confirmar,
+  dataHora,
   el,
   entradaTexto,
   icone,
@@ -152,6 +153,12 @@ export async function paginaAgentes({ parametros, definirAcoes, definirPrincipal
   /* O agente desenhado no centro: { id, pintar(), salvar() }. */
   let centro = null;
 
+  /* Sem agente no endereco (#/agentes), a tela abre na lista por pastas; com
+     agente (#/agentes/id), no editor de tres colunas. */
+  const modoLista = !parametros[0];
+  const pastasDaLista = el('section', { class: 'agentes-pastas', 'aria-label': 'Agentes por pasta' });
+  const squadsAbertos = new Set();
+
   definirAcoes?.(
     podeConfigurar()
       ? botao('Agentes por área', { pequeno: true, icone: 'usuarios', aoClicar: () => abrirPacotes() })
@@ -185,6 +192,10 @@ export async function paginaAgentes({ parametros, definirAcoes, definirPrincipal
       catalogoDeMencoes = await api.get('/api/mencoes');
     } catch {
       /* sem catalogo o menu de mencoes fica vazio; a tela segue */
+    }
+    if (modoLista) {
+      desenharPastas();
+      return;
     }
     if (!agentes.some((a) => a.id === selecionadoId)) selecionadoId = agentes[0]?.id || null;
     desenharLista();
@@ -227,6 +238,7 @@ export async function paginaAgentes({ parametros, definirAcoes, definirPrincipal
     const ligados = agentes.filter((a) => a.ativo).length;
     lista.append(
       el('div', { class: 'agentes-lista-topo' }, [
+        el('a', { class: 'agentes-voltar', href: '#/agentes' }, [icone('voltar', 12), 'Todas as pastas']),
         el('label', { class: 'agentes-busca' }, [icone('lupa', 14), campoBusca]),
         el('div', {
           class: 'agentes-lista-resumo',
@@ -460,6 +472,10 @@ export async function paginaAgentes({ parametros, definirAcoes, definirPrincipal
         '- Se a pessoa pedir atendimento humano, transfira com @responsavel.',
       ].join('\n'),
     });
+    if (modoLista) {
+      location.hash = `#/agentes/${criado.id}`;
+      return;
+    }
     selecionadoId = criado.id;
     await recarregarTudo();
   }
@@ -1253,8 +1269,457 @@ export async function paginaAgentes({ parametros, definirAcoes, definirPrincipal
     ]);
   }
 
+  /* ================= Lista por pastas ================= */
+
+  /*
+   * No molde da LiderHub: cada pasta com o agente que recebe a conversa e, ao
+   * lado dele, os membros do squad. Clicar no agente abre o editor.
+   *
+   * Quem lidera e quem tem o objetivo "recepcionar". O membro vai para o lider
+   * que chega ate ele pelas mencoes (@agente nas instrucoes); sem caminho, para
+   * o primeiro lider da pasta. Pasta sem ninguem que recepcione mostra cada
+   * agente numa linha.
+   */
+  function squadsDaPasta(daPasta) {
+    const lideres = daPasta.filter((a) => a.objetivo === 'recepcionar');
+    if (!lideres.length) return daPasta.map((agente) => ({ agente, membros: [] }));
+
+    /* referenciadoPor diz quem cita o agente; o caminho do lider e o inverso. */
+    const idsDaPasta = new Set(daPasta.map((a) => a.id));
+    const cita = new Map(daPasta.map((a) => [a.id, []]));
+    for (const agente of daPasta) {
+      for (const quem of agente.referenciadoPor || []) if (idsDaPasta.has(quem.id)) cita.get(quem.id).push(agente.id);
+    }
+    const idsDeLider = new Set(lideres.map((l) => l.id));
+    const donoDe = new Map();
+    for (const lider of lideres) {
+      const fila = [lider.id];
+      const visto = new Set(fila);
+      while (fila.length) {
+        for (const proximo of cita.get(fila.shift()) || []) {
+          if (visto.has(proximo)) continue;
+          visto.add(proximo);
+          fila.push(proximo);
+          if (!idsDeLider.has(proximo) && !donoDe.has(proximo)) donoDe.set(proximo, lider.id);
+        }
+      }
+    }
+
+    const squads = lideres.map((agente) => ({ agente, membros: [] }));
+    for (const agente of daPasta) {
+      if (idsDeLider.has(agente.id)) continue;
+      const lider = donoDe.get(agente.id) || lideres[0].id;
+      squads.find((s) => s.agente.id === lider).membros.push(agente);
+    }
+    return squads;
+  }
+
+  const editadoEm = (lista) =>
+    lista
+      .map((a) => a.atualizadoEm || a.criadoEm || '')
+      .sort()
+      .pop() || '';
+
+  function desenharPastas() {
+    limpar(pastasDaLista);
+    const workspace = estado.sessao?.workspace;
+    const ligados = agentes.filter((a) => a.ativo).length;
+    const quantasPastas = new Set(agentes.map((a) => a.pasta || PASTA_PADRAO)).size;
+
+    const campoBusca = entradaTexto(busca, {
+      type: 'search',
+      placeholder: 'Buscar agente ou pasta',
+      'aria-label': 'Buscar agente ou pasta',
+      class: 'agentes-busca-campo',
+    });
+    campoBusca.addEventListener('input', () => {
+      busca = campoBusca.value;
+      desenharCorpo();
+    });
+
+    pastasDaLista.append(
+      el('div', { class: 'agentes-pastas-topo' }, [
+        el('label', { class: 'agentes-busca' }, [icone('lupa', 14), campoBusca]),
+        el('span', {
+          class: 'agentes-pastas-resumo',
+          texto: `${plural(agentes.length, 'agente', 'agentes')} · ${plural(ligados, 'ligado', 'ligados')} · ${plural(quantasPastas, 'pasta', 'pastas')}`,
+        }),
+        workspace ? el('span', { class: 'agentes-escritorio', title: 'O escritório aberto' }, [icone('predio', 14), workspace.nome]) : null,
+      ]),
+    );
+
+    /* No escritorio geral, enquanto houver agente de area aqui ou faltar o
+       escritorio de uma area, o convite para separar. */
+    const AREAS_COM_ESCRITORIO = ['previdenciario', 'trabalhista'];
+    const escritorios = estado.sessao?.workspaces || [];
+    const falta =
+      agentes.some((a) => AREAS_COM_ESCRITORIO.includes(a.area)) ||
+      !AREAS_COM_ESCRITORIO.every((area) => escritorios.some((w) => w.area === area));
+    if (podeConfigurar() && workspace && !workspace.area && falta) {
+      pastasDaLista.append(
+        el('div', { class: 'agentes-separar' }, [
+          icone('predio', 20),
+          el('p', {}, [
+            el('strong', { texto: 'Cada área no seu escritório. ' }),
+            'Os agentes do Previdenciário ficam no escritório Previdenciário e os do Trabalhista no Trabalhista, cada um com o seu número e as suas conversas.',
+          ]),
+          botao('Separar por escritório', { pequeno: true, tipo: 'principal', icone: 'predio', aoClicar: abrirSeparacao }),
+        ]),
+      );
+    }
+
+    const corpo = el('div', { class: 'agentes-tabela' });
+    pastasDaLista.append(corpo);
+
+    function desenharCorpo() {
+      limpar(corpo);
+      if (!agentes.length) {
+        corpo.append(
+          vazio(
+            'Nenhum agente neste escritório',
+            workspace?.area
+              ? 'Instale os agentes da área em Agentes por área, lá em cima.'
+              : 'Crie o primeiro em Novo agente, ou instale os de uma área em Agentes por área.',
+            null,
+            'agentes',
+          ),
+        );
+        return;
+      }
+
+      const termo = busca.trim().toLowerCase();
+      const acha = (texto) => !termo || String(texto || '').toLowerCase().includes(termo);
+
+      const pastas = new Map();
+      for (const agente of agentes) {
+        const pasta = agente.pasta || PASTA_PADRAO;
+        if (!pastas.has(pasta)) pastas.set(pasta, []);
+        pastas.get(pasta).push(agente);
+      }
+      const nomes = [...pastas.keys()].sort((a, b) => {
+        if (a === PASTA_PADRAO) return -1;
+        if (b === PASTA_PADRAO) return 1;
+        return a.localeCompare(b, 'pt-BR');
+      });
+
+      corpo.append(
+        el('div', { class: 'agentes-tabela-cabeca', 'aria-hidden': 'true' }, [
+          el('span', { texto: 'Pastas' }),
+          el('span', { texto: 'Última edição' }),
+          el('span'),
+        ]),
+      );
+
+      let mostrou = 0;
+      for (const pasta of nomes) {
+        const daPasta = pastas.get(pasta);
+        const pastaAcha = acha(pasta);
+        /* Buscando, fica o squad em que o lider, um membro ou a pasta bate. */
+        const squads = squadsDaPasta(daPasta).filter(
+          ({ agente, membros }) => pastaAcha || acha(agente.nome) || membros.some((m) => acha(m.nome)),
+        );
+        if (!squads.length) continue;
+        mostrou += 1;
+
+        const aberta = Boolean(termo) || !pastasFechadas.has(pasta);
+        corpo.append(
+          el('div', { class: 'agentes-linha agentes-linha-pasta' }, [
+            el(
+              'button',
+              {
+                type: 'button',
+                class: 'agentes-linha-principal',
+                'aria-expanded': aberta ? 'true' : 'false',
+                aoClick: () => {
+                  if (pastasFechadas.has(pasta)) pastasFechadas.delete(pasta);
+                  else pastasFechadas.add(pasta);
+                  gravarPastasFechadas(pastasFechadas);
+                  desenharCorpo();
+                },
+              },
+              [
+                el('span', { class: 'agentes-seta' }, [icone('voltar', 12)]),
+                el('span', { class: 'agentes-pasta-icone' }, [icone('pasta', 16)]),
+                el('strong', { class: 'agentes-linha-nome', texto: pasta }),
+                el('span', {
+                  class: 'agentes-linha-conta',
+                  title: plural(daPasta.length, 'agente na pasta, contando os membros', 'agentes na pasta, contando os membros'),
+                  texto: plural(squads.length, 'agente', 'agentes'),
+                }),
+              ],
+            ),
+            el('span', { class: 'agentes-linha-quando', texto: dataHora(editadoEm(daPasta)) || '-' }),
+            botaoMais(
+              podeConfigurar() ? [{ rotulo: 'Renomear pasta', icone: 'pasta', acao: () => renomearPasta(pasta, daPasta.length) }] : [],
+            ),
+          ]),
+        );
+        if (!aberta) continue;
+
+        for (const { agente, membros } of squads) {
+          const membroBate = Boolean(termo) && membros.some((m) => acha(m.nome));
+          const aberto = membroBate || squadsAbertos.has(agente.id);
+          corpo.append(
+            linhaDoAgente(agente, {
+              membros,
+              aberto,
+              aoAlternar: () => {
+                if (squadsAbertos.has(agente.id)) squadsAbertos.delete(agente.id);
+                else squadsAbertos.add(agente.id);
+                desenharCorpo();
+              },
+            }),
+          );
+          if (aberto) for (const membro of membros) corpo.append(linhaDoAgente(membro, { membro: true }));
+        }
+      }
+
+      if (!mostrou) corpo.append(el('p', { class: 'agentes-nada', texto: `Nenhum agente ou pasta com "${busca.trim()}".` }));
+    }
+
+    desenharCorpo();
+  }
+
+  function linhaDoAgente(agente, { membros = [], aberto = false, aoAlternar = null, membro = false } = {}) {
+    const invalidas = agente.mencoesInvalidas?.length || 0;
+    const nomesDosMembros = membros.map((m) => m.nome);
+    return el(
+      'div',
+      { class: `agentes-linha agentes-linha-agente${membro ? ' membro' : ''}${agente.ativo ? '' : ' desligado'}` },
+      [
+        el('div', { class: 'agentes-linha-principal' }, [
+          membros.length
+            ? el(
+                'button',
+                {
+                  type: 'button',
+                  class: 'agentes-seta',
+                  'aria-expanded': aberto ? 'true' : 'false',
+                  'aria-label': `${aberto ? 'Esconder' : 'Mostrar'} os membros de ${agente.nome}`,
+                  aoClick: aoAlternar,
+                },
+                [icone('voltar', 12)],
+              )
+            : el('span', { class: 'agentes-seta vazia' }),
+          el('a', { class: 'agentes-linha-link', href: `#/agentes/${agente.id}`, title: `Abrir ${agente.nome}` }, [
+            el('span', { class: 'agente-item-rosto' }, [
+              avatar(agente, 30),
+              el('span', { class: `agente-ponto ${agente.ativo ? 'ligado' : ''}`.trim(), title: agente.ativo ? 'Ligado' : 'Desligado' }),
+            ]),
+            el('span', { class: 'agentes-linha-nome', texto: agente.nome }),
+          ]),
+          membros.length
+            ? el(
+                'button',
+                {
+                  type: 'button',
+                  class: 'agentes-membros',
+                  title: nomesDosMembros.join('\n'),
+                  'aria-label': `${plural(membros.length, 'membro', 'membros')}: ${nomesDosMembros.join(', ')}`,
+                  aoClick: aoAlternar,
+                },
+                [
+                  ...membros.slice(0, 3).map((m) => avatar(m, 24)),
+                  membros.length > 3 ? el('span', { class: 'agentes-membros-mais', texto: `+${membros.length - 3}` }) : null,
+                ],
+              )
+            : null,
+          agente.ativo ? null : el('span', { class: 'agentes-linha-desligado', texto: 'desligado' }),
+          invalidas
+            ? el('span', { class: 'agente-item-alerta' }, [icone('alerta', 12), plural(invalidas, 'menção inválida', 'menções inválidas')])
+            : null,
+        ]),
+        el('span', { class: 'agentes-linha-quando', texto: dataHora(editadoEm([agente, ...membros])) || '-' }),
+        botaoMais(acoesDoAgente(agente)),
+      ],
+    );
+  }
+
+  function acoesDoAgente(agente) {
+    return [
+      { rotulo: 'Abrir', icone: 'abrir', acao: () => (location.hash = `#/agentes/${agente.id}`) },
+      agente.ativo
+        ? {
+            rotulo: 'Testar no chat',
+            icone: 'simulador',
+            acao: () => {
+              try {
+                localStorage.setItem('correiatendimentos:chat-teste-agente', agente.id);
+              } catch {
+                /* sem armazenamento, o chat abre no automatico */
+              }
+              location.hash = '#/simulador';
+            },
+          }
+        : null,
+      podeConfigurar()
+        ? {
+            rotulo: agente.ativo ? 'Desligar' : 'Ligar',
+            icone: 'raio',
+            acao: async () => {
+              try {
+                await api.patch(`/api/agentes/${agente.id}`, { ativo: !agente.ativo });
+                aviso(`${agente.nome} ${agente.ativo ? 'desligado' : 'ligado'}.`, 'sucesso');
+                await recarregarTudo();
+              } catch (erro) {
+                aviso(erro.message, 'erro');
+              }
+            },
+          }
+        : null,
+      podeConfigurar()
+        ? {
+            rotulo: 'Excluir',
+            icone: 'lixo',
+            perigo: true,
+            acao: () =>
+              confirmar('Excluir agente?', `"${agente.nome}" será removido.`, async () => {
+                await api.delete(`/api/agentes/${agente.id}`);
+                await recarregarTudo();
+              }, 'Excluir'),
+          }
+        : null,
+    ].filter(Boolean);
+  }
+
+  /* O "..." de cada linha: um menu pequeno, que fecha com Esc ou clique fora. */
+  function botaoMais(itens) {
+    if (!itens.length) return el('span');
+    const caixa = el('div', { class: 'agentes-mais' });
+    const menu = el('div', { class: 'agentes-mais-menu', role: 'menu', hidden: true });
+    const gatilho = el(
+      'button',
+      { type: 'button', class: 'agentes-mais-botao', 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'aria-label': 'Mais ações', title: 'Mais ações' },
+      [icone('opcoes', 16)],
+    );
+    const fora = (evento) => {
+      if (!caixa.contains(evento.target)) fechar();
+    };
+    const teclas = (evento) => {
+      if (evento.key !== 'Escape') return;
+      fechar();
+      gatilho.focus();
+    };
+    function fechar() {
+      menu.hidden = true;
+      gatilho.setAttribute('aria-expanded', 'false');
+      document.removeEventListener('mousedown', fora);
+      document.removeEventListener('keydown', teclas);
+    }
+    gatilho.addEventListener('click', () => {
+      if (!menu.hidden) return fechar();
+      menu.hidden = false;
+      gatilho.setAttribute('aria-expanded', 'true');
+      document.addEventListener('mousedown', fora);
+      document.addEventListener('keydown', teclas);
+      menu.querySelector('button')?.focus();
+    });
+    for (const item of itens) {
+      menu.append(
+        el(
+          'button',
+          {
+            type: 'button',
+            role: 'menuitem',
+            class: `agentes-mais-item${item.perigo ? ' perigo' : ''}`,
+            aoClick: () => {
+              fechar();
+              item.acao();
+            },
+          },
+          [icone(item.icone, 14), el('span', { texto: item.rotulo })],
+        ),
+      );
+    }
+    caixa.append(gatilho, menu);
+    return caixa;
+  }
+
+  /* Separar: o servidor cria os escritorios que faltam e leva cada area para o seu. */
+  function abrirSeparacao() {
+    const outros = agentes.filter((a) => !['previdenciario', 'trabalhista'].includes(a.area));
+    let apagarOutros = false;
+    const opcao = outros.length
+      ? interruptor(
+          `Apagar também os outros ${plural(outros.length, 'agente', 'agentes')} deste escritório`,
+          false,
+          (ligado) => {
+            apagarOutros = ligado;
+          },
+          { ajuda: 'Saem com cópia guardada. As conversas e os números que estavam com eles ficam sem agente, esperando uma pessoa.' },
+        )
+      : null;
+
+    modal({
+      titulo: 'Separar os agentes por escritório',
+      corpo: el('div', {}, [
+        el('p', {
+          class: 'cartao-ajuda',
+          texto: 'Cada área passa a trabalhar no seu escritório, com número, conversas e agentes próprios. O escritório que ainda não existe é criado.',
+        }),
+        el('ul', { class: 'lista-simples sem-margem' }, [
+          el('li', { class: 'linha-p' }, [
+            icone('predio', 14),
+            el('span', { class: 'flexivel', texto: 'Previdenciário' }),
+            el('span', { class: 'dica sem-margem', texto: 'Eduarda e os squads de auxílio-acidente, BPC e maternidade' }),
+          ]),
+          el('li', { class: 'linha-p' }, [
+            icone('predio', 14),
+            el('span', { class: 'flexivel', texto: 'Trabalhista' }),
+            el('span', { class: 'dica sem-margem', texto: 'AG01 e os membros AG02 a AG08' }),
+          ]),
+        ]),
+        el('p', {
+          class: 'dica',
+          texto: 'Em cada escritório ficam só os agentes da área, ligados; o que houver de outro sai com cópia guardada. Deste escritório saem os agentes dessas duas áreas.',
+        }),
+        opcao,
+      ]),
+      confirmar: 'Separar',
+      aoConfirmar: async () => {
+        const resposta = await api.post('/api/agentes-por-escritorio', { apagarOutros });
+        aviso(
+          `${resposta.escritorios.map((e) => `${e.nome}: ${plural(e.agentes, 'agente', 'agentes')}`).join(' · ')}${
+            resposta.removidosDaqui.length ? ` · ${plural(resposta.removidosDaqui.length, 'saiu daqui', 'saíram daqui')}` : ''
+          }.`,
+          'sucesso',
+        );
+        /* Depois que este modal fechar: os escritorios novos so entram no
+           seletor de cima quando a sessao for lida de novo. */
+        setTimeout(() => abrirEscritorios(resposta.escritorios), 0);
+      },
+    });
+  }
+
+  function abrirEscritorios(escritorios) {
+    const entrar = async (workspaceId) => {
+      await api.post('/api/sessao/workspace', { workspaceId });
+      location.hash = '#/agentes';
+      location.reload();
+    };
+    modal({
+      titulo: 'Agentes separados',
+      corpo: el('div', {}, [
+        el('p', { class: 'cartao-ajuda', texto: 'Abra um escritório para ver os agentes dele. Dá para trocar a qualquer hora no seletor lá em cima.' }),
+        el(
+          'ul',
+          { class: 'lista-simples sem-margem' },
+          escritorios.map((e) =>
+            el('li', { class: 'linha-p' }, [
+              icone('predio', 14),
+              el('span', { class: 'flexivel', texto: `${e.nome} · ${plural(e.agentes, 'agente', 'agentes')}` }),
+              botao(`Abrir ${e.nome}`, { pequeno: true, aoClicar: () => entrar(e.workspaceId) }),
+            ]),
+          ),
+        ),
+      ]),
+      confirmar: 'Ficar aqui',
+      aoConfirmar: () => location.reload(),
+    });
+  }
+
   await recarregarTudo();
-  return container;
+  return modoLista ? pastasDaLista : container;
 }
 
 /* ------------------------------------------------------------------ */

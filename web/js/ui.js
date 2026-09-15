@@ -417,9 +417,12 @@ export function duracao(minutos) {
 }
 
 export function iniciais(nome = '') {
-  return nome
-    .trim()
-    .split(/\s+/)
+  const palavras = String(nome).trim().split(/\s+/).filter(Boolean);
+  /* So conta palavra com letra, sem o que vem antes dela: "AG01 [trab] Triagem"
+     vira "AT", e nao "A[". Nome so de numero (um telefone) fica com o primeiro
+     algarismo, como antes. */
+  const comLetra = palavras.map((p) => p.replace(/^[^\p{L}]+/u, '')).filter((p) => /^\p{L}/u.test(p));
+  return (comLetra.length ? comLetra : palavras)
     .slice(0, 2)
     .map((p) => p[0])
     .join('')

@@ -99,22 +99,32 @@ export async function testarWorkspacesPorArea({ base }) {
     agentesPrevidenciarios.filter((a) => (a.mencoesInvalidas || []).length).map((a) => `${a.nome}: ${a.mencoesInvalidas.join(',')}`).join(' | '),
   );
 
-  /* Substituir: os agentes de antes saem, com copia, e o que apontava para eles passa para a Eduarda. */
+  s.ok(
+    'Previdenciario: so o pacote da propria area aparece',
+    JSON.stringify(((await api.get('/api/agentes-pacotes')).dados || []).map((p) => p.area)) === JSON.stringify(['previdenciario']),
+  );
+  s.ok('Previdenciario: pacote de outra area e recusado', (await api.post('/api/agentes-pacotes/trabalhista', {})).status === 409);
+
+  /* Substituir: sai so quem nao e do pacote, com copia; o que apontava para ele passa para a Eduarda. */
+  const deFora = (await api.post('/api/agentes', { nome: 'Agente de fora do pacote' })).dados;
   const numeroDaArea = ((await api.get('/api/conexoes')).dados || []).find((c) => c.tipo === 'qrcode');
-  const umAntigo = agentesPrevidenciarios[agentesPrevidenciarios.length - 1];
-  if (numeroDaArea && umAntigo) {
-    await api.patch(`/api/conexoes/${numeroDaArea.id}`, { responsavelPadrao: { tipo: 'agente', id: umAntigo.id, nome: umAntigo.nome } });
+  if (numeroDaArea && deFora) {
+    await api.patch(`/api/conexoes/${numeroDaArea.id}`, { responsavelPadrao: { tipo: 'agente', id: deFora.id, nome: deFora.nome } });
   }
   const troca = (await api.post('/api/agentes-pacotes/previdenciario', { substituir: true })).dados;
   s.ok(
-    'Substituir: tira os agentes de antes e poe os do pacote, com copia guardada',
-    troca?.removidos?.length === 15 && troca?.criados?.length === 15 && /^agentes-.+\.json$/.test(troca?.copia || ''),
-    JSON.stringify({ removidos: troca?.removidos?.length, criados: troca?.criados?.length, copia: troca?.copia }),
+    'Substituir: tira so quem nao e do pacote, com copia guardada',
+    troca?.removidos?.length === 1 &&
+      troca.removidos[0].id === deFora?.id &&
+      troca?.mantidos?.length === 15 &&
+      troca?.criados?.length === 0 &&
+      /^agentes-.+\.json$/.test(troca?.copia || ''),
+    JSON.stringify({ removidos: troca?.removidos, mantidos: troca?.mantidos?.length, criados: troca?.criados?.length, copia: troca?.copia }),
   );
   const depoisDaTroca = (await api.get('/api/agentes')).dados || [];
   s.ok(
-    'Substituir: nenhum agente antigo sobra',
-    depoisDaTroca.length === 15 && !depoisDaTroca.some((a) => agentesPrevidenciarios.some((antigo) => antigo.id === a.id)),
+    'Substituir: os agentes do pacote continuam os mesmos',
+    depoisDaTroca.length === 15 && agentesPrevidenciarios.every((antes) => depoisDaTroca.some((a) => a.id === antes.id)),
     JSON.stringify(depoisDaTroca.map((a) => a.nome)),
   );
   const numeroDepois = ((await api.get('/api/conexoes')).dados || []).find((c) => c.id === numeroDaArea?.id);
@@ -153,6 +163,35 @@ export async function testarWorkspacesPorArea({ base }) {
     'e ele continua com todos os tipos de caso',
     ((await api.get('/api/etiquetas')).dados || []).filter((e) => e.tipo === 'caso').length === 6,
   );
+
+  /* ---------------- Separar por escritorio ---------------- */
+
+  const trabalhistaNoGeral = (await api.post('/api/agentes', { nome: 'AG01 [trab] Triagem' })).dados;
+  const separado = await api.post('/api/agentes-por-escritorio', {});
+  s.ok(
+    'Separar: cada escritorio fica com os agentes da sua area',
+    separado.status === 200 &&
+      (separado.dados?.escritorios || []).length === 2 &&
+      separado.dados.escritorios.every((e) => e.agentes === (e.area === 'trabalhista' ? 8 : 15)),
+    JSON.stringify(separado.dados),
+  );
+  const noGeralDepois = (await api.get('/api/agentes')).dados || [];
+  s.ok(
+    'Separar: o agente trabalhista sai do escritorio geral',
+    (separado.dados?.removidosDaqui || []).some((a) => a.id === trabalhistaNoGeral?.id) && !noGeralDepois.some((a) => a.id === trabalhistaNoGeral?.id),
+    JSON.stringify(separado.dados?.removidosDaqui),
+  );
+  s.ok('Separar: sem pedir, os outros agentes do escritorio geral ficam', noGeralDepois.length > 0);
+
+  await entrar(trabalhista);
+  const trabalhistasDepois = (await api.get('/api/agentes')).dados || [];
+  s.ok(
+    'Separar: no Trabalhista, os oito agentes da area, ligados',
+    trabalhistasDepois.length === 8 && trabalhistasDepois.every((a) => a.ativo && a.area === 'trabalhista'),
+    JSON.stringify(trabalhistasDepois.map((a) => [a.nome, a.ativo])),
+  );
+  s.ok('Separar: de dentro de um escritorio de area, e recusado', (await api.post('/api/agentes-por-escritorio', {})).status === 409);
+  await entrar(origem);
 
   await api.patch('/api/integracoes', { ia: { chaveAnthropic: null }, zapsign: { chave: null, modelosPorCaso: {} } });
   return s;

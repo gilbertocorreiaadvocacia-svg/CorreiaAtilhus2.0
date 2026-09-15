@@ -2771,6 +2771,399 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
   display: none;
 }
 
+/* ------------------------------------------------------------------
+   Lista por pastas (#/agentes), no molde da LiderHub: a pasta, o agente
+   que recebe a conversa e os membros do squad em rostos sobrepostos.
+   ------------------------------------------------------------------ */
+
+.modulo-agentes.cheio > .agentes-pastas {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.agentes-pastas {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e3);
+  padding: var(--e4) var(--e5) var(--e5);
+}
+
+.agentes-pastas-topo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--e3);
+}
+
+.agentes-pastas-topo > .agentes-busca {
+  width: min(360px, 100%);
+}
+
+.agentes-pastas-resumo {
+  font-size: var(--t-nota);
+  color: var(--texto-suave);
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+.agentes-escritorio {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e2);
+  min-height: 28px;
+  margin-left: auto;
+  padding: 0 var(--e3);
+  border-radius: var(--raio-pilula);
+  background: color-mix(in srgb, var(--area-agentes) 14%, transparent);
+  color: var(--texto);
+  font-weight: 500;
+}
+
+.agentes-escritorio > svg {
+  color: var(--area-agentes);
+}
+
+.agentes-separar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--e3);
+  padding: var(--e3) var(--e4);
+  border: 1px solid color-mix(in srgb, var(--area-agentes) 35%, var(--borda));
+  border-radius: var(--raio-g);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--area-agentes) 12%, var(--superficie)), var(--superficie) 70%);
+}
+
+.agentes-separar > svg {
+  flex: none;
+  color: var(--area-agentes);
+}
+
+.agentes-separar > p {
+  flex: 1;
+  min-width: 240px;
+  margin: 0;
+  color: var(--texto-suave);
+}
+
+.agentes-separar > p strong {
+  color: var(--texto);
+}
+
+.agentes-tabela {
+  border: 1px solid var(--borda);
+  border-radius: var(--raio-g);
+  background: var(--superficie);
+}
+
+.agentes-tabela-cabeca,
+.agentes-linha {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 170px 44px;
+  align-items: center;
+  gap: var(--e3);
+  padding: 0 var(--e3) 0 var(--e4);
+}
+
+.agentes-tabela-cabeca {
+  min-height: 40px;
+  border-bottom: 1px solid var(--borda);
+  border-radius: var(--raio-g) var(--raio-g) 0 0;
+  background: var(--superficie-2);
+  font-size: var(--t-nota);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--texto-fraco);
+}
+
+.agentes-linha {
+  min-height: 56px;
+  border-bottom: 1px solid var(--borda);
+}
+
+.agentes-tabela > .agentes-linha:last-child {
+  border-bottom: 0;
+}
+
+.agentes-linha:hover {
+  background: color-mix(in srgb, var(--area-agentes) 6%, transparent);
+}
+
+.agentes-linha-pasta {
+  background: color-mix(in srgb, var(--texto) 3%, transparent);
+}
+
+.agentes-linha-principal {
+  display: flex;
+  align-items: center;
+  gap: var(--e3);
+  min-width: 0;
+}
+
+button.agentes-linha-principal {
+  width: 100%;
+  min-height: 56px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+button.agentes-linha-principal:focus-visible {
+  outline: 2px solid var(--area-agentes);
+  outline-offset: -2px;
+  border-radius: var(--raio-p);
+}
+
+.agentes-seta {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--raio-p);
+  background: none;
+  color: var(--texto-fraco);
+  cursor: pointer;
+}
+
+.agentes-seta.vazia {
+  cursor: default;
+}
+
+/* O icone "voltar" aponta para a esquerda: fechado aponta para a direita,
+   aberto para baixo. */
+.agentes-seta > svg {
+  transform: rotate(180deg);
+  transition: transform 0.15s ease;
+}
+
+.agentes-seta[aria-expanded='true'] > svg,
+[aria-expanded='true'] > .agentes-seta > svg {
+  transform: rotate(-90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agentes-seta > svg {
+    transition: none;
+  }
+}
+
+.agentes-pasta-icone {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border: 1px solid color-mix(in srgb, var(--area-agentes) 30%, var(--borda));
+  border-radius: var(--raio);
+  background: color-mix(in srgb, var(--area-agentes) 10%, transparent);
+  color: var(--area-agentes);
+}
+
+.agentes-linha-nome {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  color: var(--texto);
+}
+
+.agentes-linha-conta {
+  flex: none;
+  font-size: var(--t-nota);
+  color: var(--texto-fraco);
+}
+
+.agentes-linha-agente .agentes-linha-principal {
+  padding-left: var(--e5);
+}
+
+.agentes-linha-agente.membro .agentes-linha-principal {
+  padding-left: calc(var(--e5) * 2 + 24px);
+}
+
+.agentes-linha-agente.membro .agentes-linha-nome {
+  font-weight: 500;
+  color: var(--texto-suave);
+}
+
+.agentes-linha-agente.desligado .agentes-linha-nome {
+  color: var(--texto-fraco);
+}
+
+.agentes-linha-link {
+  display: flex;
+  align-items: center;
+  gap: var(--e3);
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.agentes-linha-link:hover .agentes-linha-nome {
+  color: var(--area-agentes);
+}
+
+.agentes-linha-link:focus-visible {
+  outline: 2px solid var(--area-agentes);
+  outline-offset: 2px;
+  border-radius: var(--raio-p);
+}
+
+.agentes-linha-desligado {
+  flex: none;
+  font-size: var(--t-nota);
+  color: var(--texto-fraco);
+}
+
+.agentes-membros {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  padding: 2px;
+  border: 0;
+  border-radius: var(--raio-pilula);
+  background: none;
+  cursor: pointer;
+}
+
+.agentes-membros > * + * {
+  margin-left: -8px;
+}
+
+.agentes-membros .avatar,
+.agentes-membros-mais {
+  box-shadow: 0 0 0 2px var(--superficie);
+}
+
+.agentes-membros-mais {
+  display: grid;
+  place-items: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  border-radius: var(--raio-pilula);
+  background: var(--superficie-2);
+  font-size: var(--t-nota);
+  font-weight: 600;
+  color: var(--texto-suave);
+}
+
+.agentes-linha-quando {
+  white-space: nowrap;
+  color: var(--texto-suave);
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+.agentes-mais {
+  position: relative;
+  justify-self: end;
+}
+
+.agentes-mais-botao {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: var(--raio);
+  background: none;
+  color: var(--texto-suave);
+  cursor: pointer;
+}
+
+.agentes-mais-botao:hover,
+.agentes-mais-botao[aria-expanded='true'] {
+  background: var(--superficie-2);
+  color: var(--texto);
+}
+
+.agentes-mais-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  min-width: 180px;
+  padding: var(--e1);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  background: var(--superficie);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.35);
+}
+
+.agentes-mais-menu[hidden] {
+  display: none;
+}
+
+.agentes-mais-item {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  min-height: 32px;
+  padding: 0 var(--e3);
+  border: 0;
+  border-radius: var(--raio-p);
+  background: none;
+  color: var(--texto);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.agentes-mais-item:hover,
+.agentes-mais-item:focus-visible {
+  outline: none;
+  background: var(--superficie-2);
+}
+
+.agentes-mais-item.perigo {
+  color: var(--erro, var(--alerta));
+}
+
+.agentes-voltar {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e1);
+  margin-bottom: var(--e2);
+  font-size: var(--t-nota);
+  color: var(--texto-suave);
+  text-decoration: none;
+}
+
+.agentes-voltar:hover {
+  color: var(--area-agentes);
+}
+
+@media (max-width: 700px) {
+  .agentes-tabela-cabeca,
+  .agentes-linha {
+    grid-template-columns: minmax(0, 1fr) 44px;
+  }
+
+  .agentes-linha-quando,
+  .agentes-tabela-cabeca > :nth-child(2) {
+    display: none;
+  }
+
+  .agentes-linha-agente .agentes-linha-principal {
+    padding-left: 0;
+  }
+
+  .agentes-linha-agente.membro .agentes-linha-principal {
+    padding-left: var(--e5);
+  }
+}
+
 .agentes-lado {
   display: flex;
   flex-direction: column;
