@@ -1,15 +1,19 @@
 import { api } from './api.js';
 import {
+  acharConexao,
   carregarBasico,
   carregarNotificacoes,
   carregarSessao,
   conectarEventos,
   definirTema,
+  escolherNumero,
   estado,
+  numeroEscolhido,
   ouvir,
+  podeConfigurar,
   tema,
 } from './estado.js';
-import { avatar, aviso, botao, campo, dataHora, el, entradaTexto, icone, limpar, modal, selecao, selo } from './ui.js';
+import { avatar, aviso, botao, campo, dataHora, el, entradaTexto, icone, limpar, modal, selo, telefone } from './ui.js';
 import {
   definirSistema,
   definirSom,
@@ -49,13 +53,14 @@ const raiz = document.getElementById('raiz');
  * Duplicar a tela seria duplicar filtro, acao em massa e painel da conversa.
  */
 const PAGINAS = {
-  inicio: { titulo: 'Inicio', montar: paginaInicio },
+  inicio: { titulo: 'Início', montar: paginaInicio },
   dashboard: { titulo: 'Dashboard', montar: paginaDashboard },
   conexoes: { titulo: 'Conexões', subtitulo: 'Gerencie suas conexões com canais de comunicação.', montar: paginaConexoes },
 
-  atendimento: { titulo: 'Conversas', montar: paginaAtendimento, cheia: true, visualizacao: 'conversas' },
+  /* Conversas nao tem cabeca de tela: a fila comeca logo abaixo da barra de cima. */
+  atendimento: { titulo: 'Conversas', montar: paginaAtendimento, cheia: true, semCabeca: true, visualizacao: 'conversas' },
   contatos: { titulo: 'Contatos', montar: paginaAtendimento, cheia: true, visualizacao: 'contatos' },
-  kanban: { titulo: 'Kanban', montar: paginaAtendimento, cheia: true, visualizacao: 'kanban' },
+  kanban: { titulo: 'Funil', montar: paginaAtendimento, cheia: true, visualizacao: 'kanban' },
 
   /* Agentes, Base de conhecimento e Chat de teste sao abas do mesmo modulo
      (paginas/modulo-agentes.js). As tres rotas continuam existindo. */
@@ -72,80 +77,53 @@ const PAGINAS = {
 };
 
 /**
- * Barra lateral.
+ * A barra de icones.
  *
- * Item solto tem rota. Item com a lista itens e um grupo que abre e fecha, e o
- * cabecalho dele nao navega para lugar nenhum.
+ * Tres grupos, na ordem em que o dia acontece: o que se abre para comecar
+ * (Inicio, Dashboard), o que se atende (conversas, contatos, funil, tarefas,
+ * agendamentos) e o que se configura para o atendimento andar sozinho
+ * (agentes, templates, vozes, numeros, integracoes). Configuracoes fica no pe,
+ * junto de quem esta logado.
  *
- * O icone do item de dentro so aparece na barra estreita de 64px, onde o rotulo
- * some e sem desenho a linha ficaria em branco. Com a barra larga, o recuo e a
- * linha guia ja mostram a hierarquia, entao o icone ali seria so ruido.
+ * Os grupos nao abrem nem fecham. Na faixa de 64px nao ha rotulo para clicar,
+ * e grupo fechado esconderia rota sem deixar jeito de abrir. O nome de cada
+ * icone aparece ao lado dele, ao passar o mouse ou chegar pelo Tab.
+ *
+ * `contador` liga o icone a um numero contado no servidor (ver
+ * atualizarContadoresDaBarra).
  */
-const MENU = [
-  { rota: 'inicio', rotulo: 'Inicio', icone: 'inicio' },
-  { rota: 'dashboard', rotulo: 'Dashboard', icone: 'painel' },
-  { rota: 'conexoes', rotulo: 'Conexões', icone: 'conexoes' },
-  {
-    rotulo: 'Atendimento',
-    icone: 'conversas',
-    itens: [
-      { rota: 'atendimento', rotulo: 'Conversas', icone: 'atendimento' },
-      { rota: 'contatos', rotulo: 'Contatos', icone: 'usuarios' },
-      { rota: 'kanban', rotulo: 'Kanban', icone: 'filtros' },
-    ],
-  },
-  {
-    rotulo: 'Automações',
-    icone: 'raio',
-    itens: [
-      { rota: 'agentes', rotulo: 'Agentes', icone: 'agentes' },
-      { rota: 'templates', rotulo: 'Templates', icone: 'templates' },
-      { rota: 'vozes', rotulo: 'Vozes', icone: 'pessoa' },
-      { rota: 'integracoes', rotulo: 'Integrações', icone: 'abrir' },
-    ],
-  },
-  { rota: 'tarefas', rotulo: 'Tarefas', icone: 'ok' },
-  { rota: 'agendamentos', rotulo: 'Agendamentos', icone: 'agenda' },
-  { rota: 'configuracoes', rotulo: 'Configurações', icone: 'ajustes' },
+const BARRA = [
+  [
+    { rota: 'inicio', rotulo: 'Início', icone: 'inicio' },
+    { rota: 'dashboard', rotulo: 'Dashboard', icone: 'painel' },
+  ],
+  [
+    {
+      rota: 'atendimento',
+      rotulo: 'Conversas',
+      icone: 'conversas',
+      contador: { chave: 'pendentes', tipo: 'alerta', rotulo: 'esperando alguém' },
+    },
+    { rota: 'contatos', rotulo: 'Contatos', icone: 'usuarios' },
+    { rota: 'kanban', rotulo: 'Funil', icone: 'filtros' },
+    { rota: 'tarefas', rotulo: 'Tarefas', icone: 'ok' },
+    { rota: 'agendamentos', rotulo: 'Agendamentos', icone: 'agenda' },
+  ],
+  [
+    { rota: 'agentes', rotulo: 'Agentes', icone: 'agentes' },
+    { rota: 'templates', rotulo: 'Templates', icone: 'templates' },
+    { rota: 'vozes', rotulo: 'Vozes', icone: 'pessoa' },
+    { rota: 'conexoes', rotulo: 'Conexões', icone: 'conexoes' },
+    { rota: 'integracoes', rotulo: 'Integrações', icone: 'abrir' },
+  ],
 ];
 
-/* Telas que moram dentro de outra no menu: abrir uma delas acende o item de
+const CONFIGURACOES = { rota: 'configuracoes', rotulo: 'Configurações', icone: 'ajustes' };
+
+/* Telas que moram dentro de outra na barra: abrir uma delas acende o icone de
    quem as contem (Base de conhecimento e Chat de teste sao abas de Agentes). */
 const DENTRO_DE = { conhecimento: 'agentes', simulador: 'agentes' };
 const itemDoMenuDa = (rota) => DENTRO_DE[rota] || rota;
-
-const CHAVE_MENU = 'correiatendimentos:menu-aberto';
-
-/* O mesmo ponto de quebra da barra estreita em css/tema.css. Abaixo dele a
-   lateral vira uma faixa de 64px e o rotulo do item some. */
-const BARRA_ESTREITA = window.matchMedia('(max-width: 860px)');
-
-function chaveDoGrupo(grupo) {
-  return grupo.rotulo.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-}
-
-function grupoDaRota(rota) {
-  const doMenu = itemDoMenuDa(rota);
-  return MENU.find((item) => item.itens && item.itens.some((filho) => filho.rota === doMenu)) || null;
-}
-
-function gruposAbertos() {
-  const guardado = localStorage.getItem(CHAVE_MENU);
-  // Nada guardado e primeiro acesso: os grupos comecam abertos, senao metade
-  // das telas nasce escondida atras de um clique que ninguem sabe que existe.
-  // Depois que a pessoa abre ou fecha um grupo, vale so o que ela deixou.
-  if (guardado === null) return new Set(MENU.filter((item) => item.itens).map(chaveDoGrupo));
-  try {
-    const lista = JSON.parse(guardado);
-    return new Set(Array.isArray(lista) ? lista : []);
-  } catch {
-    return new Set();
-  }
-}
-
-function guardarGruposAbertos(conjunto) {
-  localStorage.setItem(CHAVE_MENU, JSON.stringify([...conjunto]));
-}
 
 /* ------------------------------------------------------------------ */
 /* Entrada                                                             */
@@ -209,151 +187,204 @@ function telaEntrada(mensagemInicial) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Barra lateral                                                       */
+/* Barra de icones                                                     */
 /* ------------------------------------------------------------------ */
 
-let menuNo = null;
-
-/** Cabecalho e lista de cada grupo, para abrir sem redesenhar o menu. */
-const controlesDeGrupo = new Map();
+let barraNo = null;
 
 /**
- * Abrir e fechar e so estado: o aria-expanded do cabecalho e o hidden da lista.
- * O desenho (realce, foco, recuo, fio guia e o giro da seta) esta todo em
- * css/tema.css, nas classes menu-grupo-botao, menu-grupo-itens e
- * menu-grupo-seta. Estilo inline aqui deixava aquele CSS morto e ainda fazia o
- * item de dentro do grupo desenhar no tamanho do item solto.
+ * O nome do icone, ao lado dele.
+ *
+ * Um balao so, preso ao documento e posicionado pela caixa do icone. Um
+ * pseudo-elemento dentro da barra seria cortado: a lista de icones rola por
+ * dentro quando a janela e baixa (notebook de 768px), e o que rola corta o que
+ * passa da borda.
  */
-function aplicarGrupo(chave, aberto) {
-  const controle = controlesDeGrupo.get(chave);
-  if (!controle) return;
-  controle.cabecalho.setAttribute('aria-expanded', aberto ? 'true' : 'false');
-  controle.lista.hidden = !aberto;
+let dicaDaBarra = null;
+
+function mostrarDica(alvo) {
+  if (!dicaDaBarra) {
+    dicaDaBarra = el('div', { class: 'dica-barra', 'aria-hidden': 'true', hidden: true });
+    document.body.append(dicaDaBarra);
+  }
+  const caixa = alvo.getBoundingClientRect();
+  dicaDaBarra.textContent = alvo.dataset.rotulo;
+  dicaDaBarra.style.top = `${Math.round(caixa.top + caixa.height / 2)}px`;
+  dicaDaBarra.style.left = `${Math.round(caixa.right + 10)}px`;
+  dicaDaBarra.hidden = false;
 }
 
-function itemDoMenu(item, dentroDeGrupo, estreita) {
-  return el(
+function esconderDica() {
+  if (dicaDaBarra) dicaDaBarra.hidden = true;
+}
+
+function itemDaBarra(item) {
+  const link = el(
     'a',
     {
+      class: 'rail-item',
       href: `#/${item.rota}`,
-      dataset: { rota: item.rota },
-      title: estreita ? item.rotulo : null,
+      dataset: { rota: item.rota, rotulo: item.rotulo },
+      'aria-label': item.rotulo,
     },
-    [!dentroDeGrupo || estreita ? icone(item.icone) : null, el('span', { texto: item.rotulo })],
+    [icone(item.icone, 20)],
   );
+  if (item.contador) {
+    link.append(
+      el('span', {
+        class: `rail-conta ${item.contador.tipo}`,
+        dataset: { contador: item.contador.chave, rotulo: item.contador.rotulo },
+        'aria-hidden': 'true',
+        hidden: true,
+      }),
+    );
+  }
+  link.addEventListener('pointerenter', () => mostrarDica(link));
+  link.addEventListener('pointerleave', esconderDica);
+  link.addEventListener('focus', () => mostrarDica(link));
+  link.addEventListener('blur', esconderDica);
+  link.addEventListener('click', esconderDica);
+  return link;
 }
 
-function montarGrupo(grupo, abertos, estreita) {
-  const chave = chaveDoGrupo(grupo);
+/**
+ * Quem esta logado, no pe da barra, com a saida do sistema.
+ *
+ * Nome e papel moravam na barra de cima. Na faixa de 64px sobra o rosto, e o
+ * resto abre num painel ao lado: sair do sistema e gesto de fim de dia, e nao
+ * precisa de lugar fixo na tela.
+ */
+function menuDaPessoa() {
+  const usuario = estado.sessao.usuario;
+  const papel = estado.sessao.papeis[estado.sessao.papel]?.nome || estado.sessao.papel;
 
-  // Na faixa de 64px nao ha rotulo para clicar nem espaco para a seta, entao o
-  // grupo vira uma secao separada por um fio e os itens ficam sempre a vista.
-  // Um grupo fechado ali esconderia rotas sem deixar nenhum jeito de abrir.
-  if (estreita) {
-    const faixa = el('div', {
-      role: 'group',
-      'aria-label': grupo.rotulo,
-      class: 'menu-faixa',
-    });
-    for (const item of grupo.itens) faixa.append(itemDoMenu(item, true, estreita));
-    return faixa;
-  }
-
-  const aberto = abertos.has(chave);
-  const idCabecalho = `menu-grupo-${chave}`;
-  const idLista = `menu-itens-${chave}`;
-
-  // 16px porque e o tamanho que .menu-grupo-botao svg aplica: passar outro aqui
-  // so criaria diferenca entre o que o codigo diz e o que a tela desenha.
-  const seta = icone('voltar', 16);
-  seta.setAttribute('class', 'menu-grupo-seta');
-
-  const cabecalho = el(
+  const gatilho = el(
     'button',
     {
       type: 'button',
-      class: 'menu-grupo-botao',
-      id: idCabecalho,
-      'aria-expanded': aberto ? 'true' : 'false',
-      'aria-controls': idLista,
+      class: 'rail-eu',
+      'aria-haspopup': 'menu',
+      'aria-expanded': 'false',
+      'aria-label': `${usuario.nome}, ${papel}`,
     },
-    [icone(grupo.icone), el('span', { texto: grupo.rotulo }), seta],
+    [avatar(usuario, 32)],
   );
 
-  // A linha guia sai debaixo do icone do cabecalho e desce por todos os itens:
-  // e ela que diz onde o grupo comeca e onde termina, sem precisar de moldura.
-  const lista = el('div', {
-    class: 'menu-grupo-itens',
-    id: idLista,
-    role: 'group',
-    'aria-labelledby': idCabecalho,
+  const painel = el('div', { class: 'rail-eu-painel', role: 'menu', hidden: true }, [
+    el('div', { class: 'rail-eu-quem' }, [el('strong', { texto: usuario.nome }), el('span', { texto: papel })]),
+    el(
+      'button',
+      {
+        type: 'button',
+        class: 'rail-eu-opcao',
+        role: 'menuitem',
+        aoClick: async () => {
+          fechar();
+          await api.post('/api/sessao/sair');
+          telaEntrada();
+        },
+      },
+      [icone('sair', 15), 'Sair do sistema'],
+    ),
+  ]);
+
+  const fora = (evento) => {
+    if (!painel.contains(evento.target) && !gatilho.contains(evento.target)) fechar();
+  };
+  const teclas = (evento) => {
+    if (evento.key !== 'Escape') return;
+    fechar();
+    gatilho.focus();
+  };
+  function fechar() {
+    painel.hidden = true;
+    gatilho.setAttribute('aria-expanded', 'false');
+    document.removeEventListener('mousedown', fora);
+    document.removeEventListener('keydown', teclas);
+  }
+
+  gatilho.addEventListener('click', () => {
+    if (!painel.hidden) return fechar();
+    /* Fixo na tela, e nao preso a barra: a barra rola por dentro e cortaria o
+       painel. Abre para cima, a partir do pe do avatar. */
+    const caixa = gatilho.getBoundingClientRect();
+    painel.style.left = `${Math.round(caixa.right + 10)}px`;
+    painel.style.bottom = `${Math.round(window.innerHeight - caixa.bottom)}px`;
+    painel.hidden = false;
+    gatilho.setAttribute('aria-expanded', 'true');
+    painel.querySelector('button')?.focus();
+    document.addEventListener('mousedown', fora);
+    document.addEventListener('keydown', teclas);
   });
-  for (const item of grupo.itens) lista.append(itemDoMenu(item, true, estreita));
 
-  cabecalho.addEventListener('click', () => {
-    const abertosAgora = gruposAbertos();
-    const abrindo = !abertosAgora.has(chave);
-    if (abrindo) abertosAgora.add(chave);
-    else abertosAgora.delete(chave);
-    guardarGruposAbertos(abertosAgora);
-    aplicarGrupo(chave, abrindo);
+  return [gatilho, painel];
+}
+
+function montarBarra() {
+  if (!barraNo) return;
+  limpar(barraNo);
+
+  const grupos = el('div', { class: 'rail-grupos' });
+  BARRA.forEach((grupo, indice) => {
+    if (indice) grupos.append(el('span', { class: 'rail-fio', 'aria-hidden': 'true' }));
+    grupos.append(el('div', { class: 'rail-grupo', role: 'group' }, grupo.map(itemDaBarra)));
   });
+  /* Com a lista rolando, o balao ficaria apontando para onde o icone estava. */
+  grupos.addEventListener('scroll', esconderDica, { passive: true });
 
-  controlesDeGrupo.set(chave, { cabecalho, lista });
-  aplicarGrupo(chave, aberto);
+  barraNo.append(
+    el('a', { class: 'rail-marca', href: `#/${ROTA_PADRAO}`, 'aria-label': 'Correia Advogados: abrir as conversas' }, [
+      el('img', { src: 'assets/logo.png', alt: '' }),
+    ]),
+    grupos,
+    el('div', { class: 'rail-fim' }, [itemDaBarra(CONFIGURACOES), ...menuDaPessoa()]),
+  );
 
-  return el('div', {}, [cabecalho, lista]);
+  marcarRotaAtiva(rotaAtual());
+  atualizarContadoresDaBarra();
 }
 
 function marcarRotaAtiva(rota) {
-  const doMenu = itemDoMenuDa(rota);
-  for (const link of document.querySelectorAll('.menu a')) {
-    link.classList.toggle('ativo', link.dataset.rota === doMenu);
+  const daBarra = itemDoMenuDa(rota);
+  for (const link of document.querySelectorAll('.rail-item')) {
+    const ativo = link.dataset.rota === daBarra;
+    link.classList.toggle('ativo', ativo);
+    if (ativo) link.setAttribute('aria-current', 'page');
+    else link.removeAttribute('aria-current');
   }
 }
 
-/** Entrar por link direto ou pelo sino nao pode cair num grupo fechado. */
-function abrirGrupoDaRota(rota) {
-  const grupo = grupoDaRota(rota);
-  if (!grupo) return;
-  const chave = chaveDoGrupo(grupo);
-  const abertos = gruposAbertos();
-  if (abertos.has(chave)) return;
-  abertos.add(chave);
-  guardarGruposAbertos(abertos);
-  aplicarGrupo(chave, true);
-}
+/**
+ * Os numeros da barra.
+ *
+ * Contados no servidor pela mesma listagem da fila: pedindo um item so, o que
+ * interessa e a contagem por aba que vem junto. Refeitos quando chega evento
+ * de conversa, com um intervalo curto no meio: numa rajada de mensagens, uma
+ * consulta so.
+ */
+let relogioDosContadores = null;
 
-function montarMenu() {
-  if (!menuNo) return;
-  limpar(menuNo);
-  controlesDeGrupo.clear();
-
-  const abertos = gruposAbertos();
-  const estreita = BARRA_ESTREITA.matches;
-
-  // Configuracoes fica para todo mundo. Escondendo o item, o papel Suporte
-  // perdia junto Minha conta, Seguranca e Aparencia, que sao secoes de perfil:
-  // quem recebeu senha inicial do administrador nao tinha por onde troca-la. O
-  // que o papel alcanca e filtrado dentro da tela, em paginas/configuracoes.js.
-  for (const item of MENU) {
-    if (item.itens) {
-      menuNo.append(montarGrupo(item, abertos, estreita));
-      continue;
+function atualizarContadoresDaBarra() {
+  clearTimeout(relogioDosContadores);
+  relogioDosContadores = setTimeout(async () => {
+    try {
+      const resposta = await api.get('/api/contatos', { comMensagem: 'true', limite: 1 });
+      pintarContador('pendentes', resposta.contagens?.pendentes || 0);
+    } catch {
+      /* O numero e informacao a mais: sem ele, a barra continua levando para a fila. */
     }
-    menuNo.append(itemDoMenu(item, false, estreita));
-  }
-
-  const rota = rotaAtual();
-  abrirGrupoDaRota(rota);
-  marcarRotaAtiva(rota);
+  }, 400);
 }
 
-/* Funcao com nome, e nao closure nova a cada montagem: addEventListener ignora
-   o mesmo par de evento e funcao, entao trocar de workspace nao empilha
-   ouvintes de midia que redesenham o menu varias vezes. */
-function aoMudarAmbiente() {
-  montarMenu();
+function pintarContador(chave, valor) {
+  for (const conta of document.querySelectorAll(`.rail-conta[data-contador="${chave}"]`)) {
+    conta.textContent = valor > 99 ? '99+' : String(valor);
+    conta.hidden = !valor;
+    /* O numero fica colado no icone; quem usa leitor de tela o ouve no nome do link. */
+    const link = conta.closest('.rail-item');
+    if (!link) continue;
+    link.setAttribute('aria-label', valor ? `${link.dataset.rotulo}, ${valor} ${conta.dataset.rotulo}` : link.dataset.rotulo);
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -361,43 +392,189 @@ function aoMudarAmbiente() {
 /* ------------------------------------------------------------------ */
 
 let areaConteudo = null;
-let tituloTopo = null;
-let subtituloTopo = null;
-let acoesTopo = null;
+let cabecaTela = null;
+let tituloTela = null;
+let subtituloTela = null;
+let acoesTela = null;
+let principalDoTopo = null;
+
+/**
+ * Em que escritorio e em qual numero de WhatsApp a pessoa esta.
+ *
+ * Os dois moravam longe um do outro: o escritorio na barra global, o numero na
+ * barra da fila de Conversas. Juntos no canto da barra de cima, eles dizem de
+ * onde e tudo o que a tela mostra, em qualquer tela.
+ *
+ * Trocar de escritorio recarrega o sistema. Trocar de numero so muda o recorte
+ * das conversas, e estado.escolherNumero avisa quem precisa saber.
+ */
+let contasPorNumero = {};
+let repintarContexto = () => {};
+
+function seletorDeContexto() {
+  const pontoDe = (conexao) =>
+    el('span', {
+      class: `contexto-ponto ${!conexao ? 'todos' : conexao.estado === 'conectado' ? 'ligado' : 'desligado'}`,
+      title: !conexao ? null : conexao.estado === 'conectado' ? 'Conectado' : 'Desconectado',
+    });
+  const numeroDe = (conexao) =>
+    conexao.tipo === 'simulador' ? 'número de teste' : conexao.numero ? telefone(conexao.numero) : 'ainda sem número';
+
+  const gatilho = el('button', {
+    type: 'button',
+    class: 'contexto-gatilho',
+    'aria-haspopup': 'listbox',
+    'aria-expanded': 'false',
+    title: 'Escritório e número de WhatsApp',
+  });
+  const lista = el('div', { class: 'contexto-lista', hidden: true });
+  const caixa = el('div', { class: 'contexto' }, [gatilho, lista]);
+
+  function pintarGatilho() {
+    const escolhida = acharConexao(numeroEscolhido());
+    /* Alguem esperando em OUTRO numero: o selo avisa sem precisar abrir. */
+    const esperandoEmOutros = escolhida
+      ? estado.conexoes
+          .filter((c) => c.id !== escolhida.id)
+          .reduce((soma, c) => soma + (contasPorNumero[c.id]?.naoLidas || 0), 0)
+      : 0;
+    limpar(gatilho).append(
+      ...[
+        pontoDe(escolhida),
+        el('span', { class: 'contexto-texto' }, [
+          el('strong', { texto: estado.sessao.workspace?.nome || 'Escritório' }),
+          el('span', { texto: escolhida ? escolhida.nome : 'Todos os números' }),
+        ]),
+        esperandoEmOutros
+          ? el('span', { class: 'conta canal', title: 'Conversas por ler em outros números', texto: String(esperandoEmOutros) })
+          : null,
+        el('span', { class: 'contexto-seta' }, [icone('voltar', 12)]),
+      ].filter(Boolean),
+    );
+  }
+
+  const opcaoDeNumero = (conexao) => {
+    const contas = conexao ? contasPorNumero[conexao.id] : null;
+    const ativa = (conexao?.id || '') === numeroEscolhido();
+    return el(
+      'button',
+      {
+        type: 'button',
+        role: 'option',
+        'aria-selected': ativa ? 'true' : 'false',
+        class: `contexto-opcao${ativa ? ' ativo' : ''}`,
+        aoClick: () => {
+          fechar();
+          if (!ativa) escolherNumero(conexao?.id || '');
+        },
+      },
+      [
+        pontoDe(conexao),
+        el('span', { class: 'contexto-texto' }, [
+          el('strong', { texto: conexao ? conexao.nome : 'Todos os números' }),
+          el('span', { texto: conexao ? numeroDe(conexao) : 'As conversas de todos os números' }),
+        ]),
+        contas?.naoLidas ? el('span', { class: 'conta canal', title: 'Conversas por ler', texto: String(contas.naoLidas) }) : null,
+        ativa ? icone('ok', 14) : null,
+      ],
+    );
+  };
+
+  const opcaoDeEscritorio = (workspace) => {
+    const atual = workspace.id === estado.sessao.workspace?.id;
+    return el(
+      'button',
+      {
+        type: 'button',
+        role: 'option',
+        'aria-selected': atual ? 'true' : 'false',
+        class: `contexto-opcao${atual ? ' ativo' : ''}`,
+        aoClick: async () => {
+          fechar();
+          if (atual) return;
+          await api.post('/api/sessao/workspace', { workspaceId: workspace.id });
+          await iniciarApp();
+        },
+      },
+      [
+        el('span', { class: 'contexto-icone' }, [icone('predio', 14)]),
+        el('span', { class: 'contexto-texto' }, [el('strong', { texto: workspace.nome })]),
+        atual ? icone('ok', 14) : null,
+      ],
+    );
+  };
+
+  const fora = (evento) => {
+    if (!caixa.contains(evento.target)) fechar();
+  };
+  const teclas = (evento) => {
+    if (evento.key !== 'Escape') return;
+    fechar();
+    gatilho.focus();
+  };
+  function fechar() {
+    lista.hidden = true;
+    gatilho.setAttribute('aria-expanded', 'false');
+    document.removeEventListener('mousedown', fora);
+    document.removeEventListener('keydown', teclas);
+  }
+
+  gatilho.addEventListener('click', () => {
+    if (!lista.hidden) return fechar();
+    limpar(lista);
+    if (estado.sessao.workspaces.length > 1) {
+      lista.append(el('div', { class: 'contexto-grupo', texto: 'Escritório' }), ...estado.sessao.workspaces.map(opcaoDeEscritorio));
+    }
+    lista.append(
+      el('div', { class: 'contexto-grupo', texto: 'Número de WhatsApp' }),
+      opcaoDeNumero(null),
+      ...estado.conexoes.map(opcaoDeNumero),
+    );
+    if (podeConfigurar()) {
+      lista.append(
+        el(
+          'button',
+          {
+            type: 'button',
+            class: 'contexto-rodape',
+            aoClick: () => {
+              fechar();
+              location.hash = '#/conexoes';
+            },
+          },
+          [icone('mais', 14), 'Conectar outro número'],
+        ),
+      );
+    }
+    lista.hidden = false;
+    gatilho.setAttribute('aria-expanded', 'true');
+    lista.querySelector('[aria-selected="true"]')?.focus();
+    document.addEventListener('mousedown', fora);
+    document.addEventListener('keydown', teclas);
+  });
+
+  repintarContexto = pintarGatilho;
+  pintarGatilho();
+  return caixa;
+}
+
+/* Funcoes com nome, e nao closures novas a cada montagem: ouvir() guarda num
+   Set, e registrar a mesma funcao de novo ao trocar de escritorio nao duplica. */
+function aoMudarNumero() {
+  repintarContexto();
+}
+
+function aoContarPorNumero(contas) {
+  contasPorNumero = contas || {};
+  repintarContexto();
+}
 
 function montarEstrutura() {
   limpar(raiz);
   const escolhido = tema();
   if (escolhido) document.documentElement.dataset.tema = escolhido;
 
-  const usuario = estado.sessao.usuario;
-
-  const seletorWorkspace =
-    estado.sessao.workspaces.length > 1
-      ? seletorDeVarios()
-      : el('div', { class: 'seletor-workspace unico' }, [
-          icone('pasta', 15),
-          el('span', { texto: estado.sessao.workspace?.nome || 'Escritorio' }),
-        ]);
-
-  function seletorDeVarios() {
-    return estado.sessao.workspaces.length > 1
-      ? el('div', { class: 'seletor-workspace' }, [
-          selecao(
-            estado.sessao.workspaces.map((w) => ({ valor: w.id, rotulo: w.nome })),
-            estado.sessao.workspace.id,
-            {
-              aoChange: async (evento) => {
-                await api.post('/api/sessao/workspace', { workspaceId: evento.target.value });
-                await iniciarApp();
-              },
-            },
-          ),
-        ])
-      : null;
-  }
-
-  menuNo = el('nav', { class: 'menu', 'aria-label': 'Areas do sistema' });
+  barraNo = el('nav', { class: 'rail', 'aria-label': 'Áreas do sistema' });
 
   const sino = botao('', { icone: 'sino', titulo: 'Notificações', aoClicar: abrirNotificacoes });
   const contadorSino = el('span', { class: 'nao-lidas', estilo: { display: 'none' } });
@@ -410,13 +587,20 @@ function montarEstrutura() {
   };
   ouvir('notificacoes', atualizarSino);
 
-  tituloTopo = el('h1', { texto: '' });
-  subtituloTopo = el('div', { class: 'subtitulo', texto: '' });
+  tituloTela = el('h1', { texto: '' });
+  subtituloTela = el('span', { class: 'subtitulo', texto: '' });
   /* Faixa de controles da propria tela, na mesma linha do titulo. Filtro que
      vale para a tela inteira pertence ao cabeco dela, e nao a um cartao dentro
      do conteudo: dentro do conteudo ele empurra o primeiro dado para baixo e
      rola junto com a pagina, sumindo justo quando se quer trocar o recorte. */
-  acoesTopo = el('div', { class: 'topo-acoes' });
+  acoesTela = el('div', { class: 'topo-acoes' });
+  cabecaTela = el('header', { class: 'cabeca-tela' }, [
+    el('div', { class: 'cabeca-identidade' }, [tituloTela, subtituloTela]),
+    acoesTela,
+  ]);
+  /* A acao principal da tela (Nova conversa, Novo agente) fica no canto da
+     barra de cima, no mesmo lugar em toda tela que tem uma. */
+  principalDoTopo = el('div', { class: 'barra-topo-principal' });
   areaConteudo = el('main', { class: 'conteudo' });
 
   // O icone mostra para onde o clique leva, nao o estado atual: quem esta no
@@ -432,63 +616,30 @@ function montarEstrutura() {
     ajustarBotaoTema();
   });
   ajustarBotaoTema();
+  alternarTema.classList.add('botao-barra');
+  sino.classList.add('botao-barra');
 
   raiz.append(
     el('div', { class: 'app' }, [
-      /* Barra global: identidade, escritorio e as acoes que valem para o
-         sistema inteiro. Ela atravessa a largura toda, por cima da lateral,
-         porque nada dela pertence a uma tela especifica. */
-      el('header', { class: 'barra-global' }, [
-        el('div', { class: 'marca' }, [
-          el('img', { src: 'assets/logo.png', alt: '' }),
-          el('div', { class: 'marca-texto' }, [
-            el('strong', { texto: 'CorreiaAtilhus2.0' }),
-            el('span', { texto: 'Correia Advogados Associados' }),
-          ]),
+      barraNo,
+      el('div', { class: 'area-principal' }, [
+        /* Barra de cima: o que vale para o sistema inteiro, mais a acao
+           principal da tela aberta no canto. */
+        el('header', { class: 'barra-topo' }, [
+          seletorDeContexto(),
+          buscaGlobal(),
+          el('div', { class: 'espaco' }),
+          alternarTema,
+          caixaSino,
+          principalDoTopo,
         ]),
-        seletorWorkspace,
-        el('div', { class: 'espaco' }),
-        buscaGlobal(),
-        alternarTema,
-        caixaSino,
-        el('div', { class: 'quem-topo' }, [
-          avatar(usuario),
-          el('div', { class: 'quem' }, [
-            el('strong', { texto: usuario.nome }),
-            el('span', { texto: estado.sessao.papeis[estado.sessao.papel]?.nome || estado.sessao.papel }),
-          ]),
-          botao('', {
-            icone: 'sair',
-            titulo: 'Sair do sistema',
-            pequeno: true,
-            aoClicar: async () => {
-              await api.post('/api/sessao/sair');
-              telaEntrada();
-            },
-          }),
-        ]),
-      ]),
-      /* corpo-app, e nao corpo: "corpo" tambem e o nome do bloco de texto de
-         todo item de lista e do miolo de todo modal, e a grade de duas colunas
-         desta linha vazava para dentro deles. Ver o comentario em .corpo-app,
-         no tema. */
-      el('div', { class: 'corpo-app' }, [
-        el('aside', { class: 'lateral' }, [menuNo]),
-        el('div', { class: 'principal' }, [
-          el('header', { class: 'topo' }, [
-            el('div', { class: 'topo-identidade' }, [tituloTopo, subtituloTopo]),
-            acoesTopo,
-            el('div', { class: 'espaco' }),
-          ]),
-          areaConteudo,
-        ]),
+        cabecaTela,
+        areaConteudo,
       ]),
     ]),
   );
 
-  montarMenu();
-  BARRA_ESTREITA.addEventListener('change', aoMudarAmbiente);
-
+  montarBarra();
   atualizarSino();
 }
 
@@ -685,10 +836,6 @@ function esqueletoDe(rota) {
   ]);
 }
 
-function definirSubtitulo(texto) {
-  if (subtituloTopo) subtituloTopo.textContent = texto || '';
-}
-
 /**
  * Controles da tela no cabecalho, ao lado do titulo.
  *
@@ -801,9 +948,16 @@ function atalhoDaBusca() {
 }
 
 function definirAcoesDoTopo(...nos) {
-  if (!acoesTopo) return;
-  limpar(acoesTopo);
-  for (const no of nos.flat()) if (no) acoesTopo.append(no);
+  if (!acoesTela) return;
+  limpar(acoesTela);
+  for (const no of nos.flat()) if (no) acoesTela.append(no);
+}
+
+/** A acao principal da tela, no canto da barra de cima. */
+function definirPrincipalDoTopo(...nos) {
+  if (!principalDoTopo) return;
+  limpar(principalDoTopo);
+  for (const no of nos.flat()) if (no) principalDoTopo.append(no);
 }
 
 async function desenharRota() {
@@ -811,20 +965,18 @@ async function desenharRota() {
   const nome = PAGINAS[partes[0]] ? partes[0] : ROTA_PADRAO;
   const pagina = PAGINAS[nome];
 
-  abrirGrupoDaRota(nome);
   marcarRotaAtiva(nome);
+  esconderDica();
 
-  // O topo mostra o caminho: o titulo e a tela, o subtitulo e o grupo em que
-  // ela mora. Quem chegou por link direto ve de onde a tela veio.
-  const grupo = grupoDaRota(nome);
-  tituloTopo.textContent = pagina.titulo;
-  /* Tela solta no menu nao tem grupo para mostrar, e a linha do subtitulo
-     ficava vazia. Quando a tela declara um subtitulo proprio, ele ocupa esse
-     lugar: e onde a pessoa ja procura o que a tela faz. */
-  definirSubtitulo(pagina.subtitulo || (grupo ? grupo.rotulo : ''));
-  /* Cada tela repovoa as proprias acoes. Limpar aqui evita que o filtro de uma
-     fique no cabecalho da seguinte. */
-  limpar(acoesTopo);
+  tituloTela.textContent = pagina.titulo;
+  subtituloTela.textContent = pagina.subtitulo || '';
+  /* Tela de trabalho nao tem cabeca: a barra de cima e a propria tela ja
+     dizem onde se esta, e a altura vai para o conteudo. */
+  cabecaTela.hidden = Boolean(pagina.semCabeca);
+  /* Cada tela repovoa as proprias acoes. Limpar aqui evita que o filtro ou o
+     botao de uma fique no cabecalho da seguinte. */
+  limpar(acoesTela);
+  limpar(principalDoTopo);
 
   areaConteudo.className = pagina.cheia ? 'conteudo sem-respiro' : 'conteudo';
   limpar(areaConteudo);
@@ -836,6 +988,7 @@ async function desenharRota() {
       visualizacao: pagina.visualizacao,
       navegar: (r) => (location.hash = `#/${r}`),
       definirAcoes: definirAcoesDoTopo,
+      definirPrincipal: definirPrincipalDoTopo,
     });
     limpar(areaConteudo);
     areaConteudo.append(conteudo);
@@ -856,6 +1009,11 @@ async function iniciarApp() {
   await carregarNotificacoes();
   montarEstrutura();
   conectarEventos();
+  /* Funcoes com nome: iniciarApp roda de novo ao trocar de escritorio, e o
+     mesmo ouvinte registrado outra vez nao duplica. */
+  for (const evento of ['contato', 'contatos', 'mensagem']) ouvir(evento, atualizarContadoresDaBarra);
+  ouvir('porConexao', aoContarPorNumero);
+  ouvir('numero', aoMudarNumero);
   window.addEventListener('hashchange', desenharRota);
   await desenharRota();
 }

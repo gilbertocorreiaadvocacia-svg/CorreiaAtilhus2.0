@@ -3,6 +3,7 @@ import { abrirVisualizador, campoComDica, cartaoDeArquivo, dica, paginacao, prev
 import {
   acharConexao,
   acharEtiqueta,
+  disparar,
   escolherNumero,
   estado,
   numeroEscolhido,
@@ -73,6 +74,70 @@ const ABAS = [
  * gravado obrigaria a migrar a base inteira para nao ganhar nada.
  */
 const ABA_CONCLUIDOS = { id: 'arquivados', rotulo: 'Concluidos' };
+
+/*
+ * As etapas da venda, no cabecalho da conversa.
+ *
+ * Saem do TIPO do status (servidor/config.js, TIPOS_STATUS), e nao do nome: o
+ * escritorio renomeia e cria status a vontade, e o tipo e o que diz o que cada
+ * um e. E o mesmo corte que o Dashboard usa para o funil.
+ *
+ * "Proposta" cobre Proposta enviada e Assinatura pendente, que tem o mesmo
+ * tipo. Status sem classificacao ("nenhum") so conta como pos-venda quando vem
+ * depois do de sucesso na lista — e o caso de Documentacao pendente e Processo
+ * em andamento; antes dele, ele nao diz etapa nenhuma.
+ */
+const ETAPAS_DA_VENDA = [
+  { rotulo: 'Triagem', tipos: ['nova', 'analise'] },
+  { rotulo: 'Qualificado', tipos: ['qualificado'] },
+  { rotulo: 'Assinatura', tipos: ['proposta'] },
+  { rotulo: 'Pós-venda', tipos: ['sucesso'] },
+];
+
+/* Os tipos que tiram a conversa da venda: no lugar das etapas, o nome do status. */
+const TIPOS_DE_PERDA = ['desqualificado', 'recusada', 'desistencia'];
+
+function etapaDoStatus(status) {
+  if (!status) return -1;
+  const direta = ETAPAS_DA_VENDA.findIndex((etapa) => etapa.tipos.includes(status.tipo));
+  if (direta >= 0) return direta;
+  const posicao = estado.status.indexOf(status);
+  const sucesso = estado.status.findIndex((s) => s.tipo === 'sucesso');
+  return sucesso >= 0 && posicao > sucesso ? ETAPAS_DA_VENDA.length - 1 : -1;
+}
+
+function etapasDaVenda(contato) {
+  const status = estado.status.find((s) => s.id === contato.statusId) || null;
+  if (TIPOS_DE_PERDA.includes(status?.tipo)) {
+    return el('span', { class: 'etapas selo erro', title: 'Fora da venda', texto: status.nome });
+  }
+
+  const atual = etapaDoStatus(status);
+  const trilha = el('div', {
+    class: 'etapas',
+    role: 'list',
+    'aria-label': status ? `Etapa da venda: ${status.nome}` : 'Ainda sem etapa da venda',
+  });
+  ETAPAS_DA_VENDA.forEach((etapa, indice) => {
+    if (indice) trilha.append(el('span', { class: 'etapa-traco', 'aria-hidden': 'true' }));
+    const situacao = atual < 0 ? '' : indice < atual ? 'feita' : indice === atual ? 'agora' : '';
+    trilha.append(
+      el(
+        'span',
+        {
+          class: `etapa ${situacao}`.trim(),
+          role: 'listitem',
+          title: indice === atual ? `${etapa.rotulo}: ${status.nome}` : etapa.rotulo,
+        },
+        [
+          el('span', { class: 'etapa-bola' }, [situacao === 'feita' ? icone('ok', 11) : null]),
+          el('span', { class: 'etapa-nome', texto: etapa.rotulo }),
+        ],
+      ),
+    );
+  });
+  return trilha;
+}
 
 /*
  * Texto comparavel: sem maiuscula e sem acento.
@@ -170,7 +235,7 @@ function rotuloComDica(texto, ajuda) {
  */
 const RASCUNHOS = new Map();
 
-export async function paginaAtendimento({ parametros, visualizacao = 'conversas' }) {
+export async function paginaAtendimento({ parametros, visualizacao = 'conversas', definirPrincipal = () => {} }) {
   const filtro = {
     aba: 'ia',
     busca: '',
@@ -253,6 +318,9 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
     contatos = resposta.contatos;
     contagens = resposta.contagens;
     porConexao = resposta.porConexao || {};
+    /* O seletor de numero mora na barra de cima do sistema: e de la que ele
+       mostra quantas conversas esperam em cada numero. */
+    disparar('porConexao', porConexao);
     totalNoServidor = resposta.total ?? resposta.contatos.length;
     totalPorStatus = resposta.porStatus || {};
 
@@ -279,15 +347,12 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
     // a terceira coluna sumia mas a grade continuava reservando os 300px dela,
     // e sobrava uma faixa vazia na direita.
     if (visualizacao === 'conversas') {
-      /* Duas faixas: a barra em cima, as tres colunas embaixo. A grade das
-         colunas continua sendo .atendimento, com as larguras do tema — e por
-         isso ela ganha um elemento proprio em vez de virar o container. */
-      const lista = colunaLista();
-      container.className = 'tela-atendimento';
-      container.append(
-        lista.barra,
-        el('div', { class: 'atendimento' }, [lista.coluna, colunaConversa(), colunaPropriedades()]),
-      );
+      /* As tres colunas, sem barra em cima. A barra da fila se desfez: o numero
+         subiu para a barra de cima do sistema, a Nova conversa para o canto
+         dela, e a busca e os filtros foram para a cabeca da fila, que e o que
+         eles recortam. */
+      container.className = 'atendimento';
+      container.append(colunaLista(), colunaConversa(), colunaPropriedades());
     } else {
       container.className = 'atendimento coluna-unica';
       container.append(visualizacao === 'kanban' ? montarKanban() : montarTabela());
@@ -352,136 +417,61 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
   }
 
   /**
-   * O rotulo de um botao de filtro: o nome do campo, ou o que esta escolhido.
+   * Os filtros ligados, cada um com o nome do que esta escolhido.
    *
-   * Botao que diz sempre "Status" nao deixa ver que ha um filtro ligado, e
-   * conversa sumida da fila por filtro esquecido e o tipo de coisa que faz
-   * alguem achar que o sistema perdeu dado.
+   * Filtro que nao se ve ligado some com conversa da fila, e isso e o tipo de
+   * coisa que faz alguem achar que o sistema perdeu dado. A cabeca da fila
+   * escreve cada um, com o x que desliga.
    */
-  function rotuloDeFiltro(chave, padrao, lista) {
-    const escolhido = lista.find((i) => i.id === filtro[chave]);
-    return escolhido ? escolhido.nome : padrao;
+  function filtrosLigados() {
+    const nomeDo = {
+      status: () => estado.status.find((s) => s.id === filtro.status)?.nome,
+      departamento: () =>
+        filtro.departamento === 'sem-departamento'
+          ? 'Sem departamento'
+          : estado.departamentos.find((d) => d.id === filtro.departamento)?.nome,
+      etiqueta: () => acharEtiqueta(filtro.etiqueta)?.nome,
+      responsavel: () =>
+        filtro.responsavel === 'nenhum'
+          ? 'Sem responsável'
+          : estado.agentes.find((a) => a.id === filtro.responsavel)?.nome ||
+            estado.membros.find((m) => m.id === filtro.responsavel)?.usuario?.nome,
+      origem: () => estado.origens.find((o) => o.id === filtro.origem)?.nome,
+    };
+    return Object.keys(nomeDo)
+      .filter((chave) => filtro[chave])
+      .map((chave) => ({ chave, rotulo: nomeDo[chave]() || 'Filtro ligado' }));
   }
 
-  /* ---------------- Seletor de numero ---------------- */
+  /* ---------------- Numero de WhatsApp ---------------- */
 
-  /**
-   * Em qual numero de WhatsApp a pessoa esta trabalhando.
+  /*
+   * O numero escolhido na barra de cima.
    *
-   * O escritorio tem mais de um numero de proposito (um comercial, que corre
-   * risco, e um de pos-venda, que nao pode cair), e cada um e uma sessao com
-   * as proprias conversas. Escolher aqui mostra so as daquele numero, e a
-   * "Nova conversa" sai por ele. Cada numero mostra quantas conversas tem
-   * alguem esperando leitura, para quem esta num numero ver que o outro chama.
+   * O seletor saiu desta tela e foi para a barra do sistema (app.js), mas o
+   * recorte continua sendo desta tela. Trocar la redesenha aqui, e a conversa
+   * aberta sai de cena: ela pode ser de outro numero.
+   *
+   * A comparacao com o filtro evita redesenhar duas vezes quando a troca nasce
+   * aqui mesmo (link para conversa de outro numero, Nova conversa).
    */
-  function seletorDeNumero() {
-    const numeros = estado.conexoes;
-    const escolhida = numeros.find((c) => c.id === filtro.conexao) || null;
-    const esperandoEmOutros = numeros
-      .filter((c) => c.id !== filtro.conexao)
-      .reduce((soma, c) => soma + (porConexao[c.id]?.naoLidas || 0), 0);
-
-    const pontoDe = (conexao) =>
-      el('span', {
-        class: `seletor-numero-ponto ${!conexao ? 'todos' : conexao.estado === 'conectado' ? 'ligado' : 'desligado'}`,
-        title: !conexao ? '' : conexao.estado === 'conectado' ? 'Conectado' : 'Desconectado',
-      });
-    const numeroDe = (conexao) =>
-      conexao.tipo === 'simulador' ? 'número de teste' : conexao.numero ? telefone(conexao.numero) : 'ainda sem número';
-
-    const gatilho = el('button', {
-      type: 'button',
-      class: 'seletor-numero',
-      'aria-haspopup': 'listbox',
-      'aria-expanded': 'false',
-      title: 'Escolher o número de WhatsApp',
-    }, [
-      pontoDe(escolhida),
-      el('span', { class: 'seletor-numero-texto' }, [
-        el('strong', { texto: escolhida ? escolhida.nome : 'Todos os números' }),
-        el('span', { texto: escolhida ? numeroDe(escolhida) : plural(numeros.length, 'número', 'números') }),
-      ]),
-      /* Alguem esperando em OUTRO numero: o selo avisa sem precisar abrir. */
-      esperandoEmOutros ? el('span', { class: 'conta canal', title: 'Conversas por ler em outros números', texto: String(esperandoEmOutros) }) : null,
-      el('span', { class: 'seletor-numero-seta' }, [icone('voltar', 12)]),
-    ]);
-
-    const lista = el('div', { class: 'seletor-numero-lista', role: 'listbox', 'aria-label': 'Números de WhatsApp', hidden: true });
-    const opcao = (conexao) => {
-      const contas = conexao ? porConexao[conexao.id] : null;
-      const total = conexao
-        ? contas?.conversas || 0
-        : Object.values(porConexao).reduce((soma, c) => soma + c.conversas, 0);
-      const ativa = (conexao?.id || '') === (filtro.conexao || '');
-      return el('button', {
-        type: 'button',
-        role: 'option',
-        'aria-selected': ativa ? 'true' : 'false',
-        class: `seletor-numero-opcao ${ativa ? 'ativo' : ''}`.trim(),
-        aoClick: async () => {
-          fechar();
-          if (ativa) return;
-          filtro.conexao = conexao?.id || '';
-          escolherNumero(filtro.conexao);
-          selecionadoId = null;
-          await desenhar();
-        },
-      }, [
-        pontoDe(conexao),
-        el('span', { class: 'seletor-numero-texto' }, [
-          el('strong', { texto: conexao ? conexao.nome : 'Todos os números' }),
-          el('span', { texto: conexao ? numeroDe(conexao) : 'Todas as conversas, de todos os números' }),
-        ]),
-        el('span', { class: 'seletor-numero-contas' }, [
-          contas?.naoLidas ? el('span', { class: 'conta canal', title: 'Conversas por ler', texto: String(contas.naoLidas) }) : null,
-          el('span', { class: 'seletor-numero-total', texto: plural(total, 'conversa', 'conversas') }),
-        ]),
-        ativa ? icone('ok', 14) : null,
-      ]);
-    };
-
-    const fecharNoClique = (evento) => {
-      if (!caixa.contains(evento.target)) fechar();
-    };
-    const teclas = (evento) => {
-      if (evento.key === 'Escape') {
-        fechar();
-        gatilho.focus();
-      }
-    };
-    function fechar() {
-      lista.hidden = true;
-      gatilho.setAttribute('aria-expanded', 'false');
-      document.removeEventListener('mousedown', fecharNoClique);
-      document.removeEventListener('keydown', teclas);
-    }
-    gatilho.addEventListener('click', () => {
-      if (!lista.hidden) return fechar();
-      limpar(lista);
-      lista.append(opcao(null), ...numeros.map(opcao));
-      if (podeConfigurar()) {
-        lista.append(
-          el('button', { type: 'button', class: 'seletor-numero-rodape', aoClick: () => (location.hash = '#/conexoes') }, [
-            icone('mais', 14),
-            'Conectar outro número',
-          ]),
-        );
-      }
-      lista.hidden = false;
-      gatilho.setAttribute('aria-expanded', 'true');
-      lista.querySelector('[aria-selected="true"]')?.focus();
-      document.addEventListener('mousedown', fecharNoClique);
-      document.addEventListener('keydown', teclas);
-    });
-
-    const caixa = el('div', { class: 'seletor-numero-caixa' }, [gatilho, lista]);
-    return caixa;
-  }
+  ouvir('numero', async (conexaoId) => {
+    if (!document.body.contains(container)) return;
+    if ((conexaoId || '') === (filtro.conexao || '')) return;
+    filtro.conexao = conexaoId || '';
+    selecionadoId = null;
+    await desenhar();
+  });
 
   /* ---------------- Coluna 1: lista ---------------- */
 
   function colunaLista() {
-    const busca = entradaTexto(filtro.busca, { type: 'search', placeholder: 'Buscar nome ou número…' });
+    const busca = entradaTexto(filtro.busca, {
+      type: 'search',
+      class: 'busca-fila-campo',
+      placeholder: 'Buscar nesta fila',
+      'aria-label': 'Buscar nome ou número nesta fila',
+    });
     let temporizador = null;
     busca.addEventListener('input', () => {
       clearTimeout(temporizador);
@@ -555,59 +545,58 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
       contaConcluidos,
     ]);
 
-    /* Quantos filtros estao ligados alem dos dois que a barra ja mostra por
-       nome. E esse numero que aparece em "Mais filtros". */
-    const outrosFiltros = Object.entries(filtro).filter(
-      ([chave, valor]) => valor && !['aba', 'busca', 'status', 'responsavel', 'conexao'].includes(chave),
-    ).length;
-
     const corpo = el('div', { class: 'coluna-corpo' });
 
     /*
-     * A BARRA SAI DE DENTRO DA COLUNA.
+     * Busca e filtros na cabeca da fila.
      *
-     * A busca e os filtros valem para a fila inteira, mas estavam espremidos
-     * nos 320px da primeira coluna, junto com as abas e a linha de concluidos
-     * — quatro coisas diferentes empilhadas num cabecalho so. Na barra, a
-     * busca ganha largura e os filtros ganham NOME em vez de um icone de funil
-     * com um numero ao lado.
+     * Eles moraram numa barra em cima das tres colunas, junto do seletor de
+     * numero e da Nova conversa. O numero subiu para a barra de cima do
+     * sistema e a Nova conversa para o canto dela; sobraram a busca e os
+     * filtros, que recortam a fila, e por isso voltam para cima dela.
      *
-     * Ela e montada aqui, e nao em desenhar(), porque depende das mesmas
-     * funcoes que a coluna usa: buscar, atualizarLista e atualizarContagens.
-     * Move-la para fora custaria hoistar tres fechamentos e a busca deixaria
-     * de conseguir atualizar a lista sem redesenhar a tela — que e o que
-     * mantem o cursor no campo enquanto se digita.
+     * Os filtros ligados aparecem escritos, cada um com o x que desliga.
+     * "Mais filtros · 2" dizia que havia filtro, mas nao qual — e conversa
+     * sumida da fila por filtro esquecido faz alguem achar que o sistema
+     * perdeu dado.
      */
-    const barra = el('div', { class: 'barra-fila' }, [
-      seletorDeNumero(),
-      el('div', { class: 'barra-fila-busca' }, [busca]),
-      el('div', { class: 'flexivel' }),
-      botao(rotuloDeFiltro('responsavel', 'Responsável', [
-        ...estado.membros.map((m) => ({ id: m.id, nome: m.usuario?.nome || 'Membro' })),
-        ...estado.agentes.map((a) => ({ id: a.id, nome: a.nome })),
-      ]), {
-        pequeno: true,
-        titulo: 'Filtrar por quem esta com a conversa',
-        aoClicar: () => abrirFiltros(['responsavel']),
-      }),
-      botao(rotuloDeFiltro('status', 'Status', estado.status), {
-        pequeno: true,
-        titulo: 'Filtrar por etapa do funil',
-        aoClicar: () => abrirFiltros(['status']),
-      }),
-      botao(outrosFiltros ? `Mais filtros · ${outrosFiltros}` : 'Mais filtros', {
-        pequeno: true,
-        titulo: 'Departamento, etiqueta, conexao e origem',
-        aoClicar: () => abrirFiltros(),
-      }),
-      el('div', { class: 'barra-fila-divisor' }),
-      botao('Nova conversa', { pequeno: true, tipo: 'principal', aoClicar: abrirNovaConversa }),
+    const ligados = filtrosLigados();
+    const botaoFiltros = botao(ligados.length ? `Filtros · ${ligados.length}` : 'Filtros', {
+      pequeno: true,
+      icone: 'filtros',
+      titulo: 'Status, responsável, departamento, etiqueta e origem',
+      aoClicar: () => abrirFiltros(),
+    });
+    botaoFiltros.classList.toggle('ativo', ligados.length > 0);
+
+    const cabeca = el('div', { class: 'coluna-cabecalho sem-respiro' }, [
+      abas,
+      concluidos,
+      el('div', { class: 'busca-fila' }, [el('label', { class: 'busca-fila-caixa' }, [icone('lupa', 14), busca]), botaoFiltros]),
+      ligados.length
+        ? el(
+            'div',
+            { class: 'filtros-ligados' },
+            ligados.map(({ chave, rotulo }) =>
+              el(
+                'button',
+                {
+                  type: 'button',
+                  class: 'filtro-ligado',
+                  title: `Tirar o filtro: ${rotulo}`,
+                  aoClick: async () => {
+                    filtro[chave] = '';
+                    await desenhar();
+                  },
+                },
+                [el('span', { texto: rotulo }), icone('fechar', 10)],
+              ),
+            ),
+          )
+        : null,
     ]);
 
-    const coluna = el('div', { class: 'coluna' }, [
-      el('div', { class: 'coluna-cabecalho sem-respiro' }, [abas, concluidos]),
-      corpo,
-    ]);
+    const coluna = el('div', { class: 'coluna' }, [cabeca, corpo]);
 
     function atualizarContagens() {
       for (const [id, span] of contadores) {
@@ -629,7 +618,7 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
     /* Tambem no primeiro desenho, e nao so depois de uma busca: e daqui que
        sai o selo cheio de Pendentes. */
     atualizarContagens();
-    return { coluna, barra };
+    return coluna;
   }
 
   /*
@@ -734,18 +723,25 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
       .map(acharEtiqueta)
       .filter(Boolean)
       .sort((a, b) => Number(b.tipo === 'caso') - Number(a.tipo === 'caso'));
-    if (!etiquetas.length) return null;
+    /* O momento entra logo depois do tipo de caso, no lugar da segunda
+       etiqueta: "BPC/LOAS · Contrato em conferencia" diz o assunto e em que pe
+       ele esta, que e o que se procura correndo o olho pela fila. */
+    const momento = contato.momento?.nome || '';
+    if (!etiquetas.length && !momento) return null;
 
-    const mostradas = etiquetas.slice(0, ETIQUETAS_NA_LINHA);
+    const mostradas = etiquetas.slice(0, momento ? 1 : ETIQUETAS_NA_LINHA);
     const sobra = etiquetas.length - mostradas.length;
 
     const marcas = el('div', {
       class: 'marcas',
-      /* O title leva a lista inteira, inclusive o que o "+N" escondeu, e agora
-         tambem o status — que saiu da linha mas continua sendo o dado que
-         explica a conversa. Cortar sem deixar como ver seria trocar
+      /* O title leva a lista inteira, inclusive o que o "+N" escondeu, e
+         tambem o status e o momento. Cortar sem deixar como ver seria trocar
          informacao por enfeite. */
-      title: [contato.status ? `Status: ${contato.status.nome}` : null, ...etiquetas.map((e) => e.nome)]
+      title: [
+        contato.status ? `Status: ${contato.status.nome}` : null,
+        momento ? `Momento: ${momento}` : null,
+        ...etiquetas.map((e) => e.nome),
+      ]
         .filter(Boolean)
         .join(' · '),
     });
@@ -758,6 +754,7 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
         ]),
       );
     }
+    if (momento) marcas.append(el('span', { class: 'selo momento', texto: momento }));
     if (sobra > 0) marcas.append(el('span', { class: 'selo mais-etiquetas', texto: `+${sobra}` }));
 
     return marcas;
@@ -862,41 +859,26 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
 
     const painelMensagens = el('div', { class: 'mensagens' });
     const compositor = montarCompositor(contato);
+    /* O aviso do contrato em conferencia, quando houver (ver mais abaixo). Mora
+       aqui para carregarMensagens() pendura-lo de novo a cada recarga. */
+    let cartaoDoContrato = null;
+
+    /* Tipo de caso e momento a vista enquanto se conversa: sao as duas coisas
+       que mudam o que se responde. */
+    const casoDaConversa = (contato.etiquetas || []).map(acharEtiqueta).find((e) => e?.tipo === 'caso');
 
     const cabecalho = el('div', { class: 'conversa-cabecalho' }, [
-      rostoQueAmplia(contato, avatar(contato, 32, marcaDoAvatar(contato))),
-      // Mesmo ritmo da lista de conversas: nome em --t-md peso 600, telefone
-      // em --t-xs fraco. Antes o nome herdava o corpo e o telefone tinha
-      // 11,5px escritos na mao.
       /*
        * Nome e telefone cortam com reticencia, e nao quebram linha.
        *
-       * Sem .cortar, um cabecalho apertado empilhava "Teste Midia" em duas
-       * linhas e o telefone em tres, e a barra inteira crescia de altura. Um
-       * nome comprido de cliente ja fazia isso antes de existir botao com
-       * palavra escrita aqui; o botao so deixou o aperto visivel todo dia.
+       * Sem .cortar, um cabecalho apertado empilhava o nome em duas linhas e a
+       * barra inteira crescia de altura.
        */
+      el('div', { class: 'conversa-linha' }, [
+      rostoQueAmplia(contato, avatar(contato, 32, marcaDoAvatar(contato))),
       el('div', { class: 'flexivel encolhe bloco-identidade' }, [
-        el('div', { class: 't-md peso-600 cortar', texto: contato.nome }),
-        el('div', { class: 't-xs c-fraco cortar', texto: telefone(contato.telefone) }),
+        el('div', { class: 'conversa-nome cortar', texto: contato.nome }),
       ]),
-      /* Tipo de caso e momento a vista enquanto se conversa: sao as duas
-         coisas que mudam o que se responde. */
-      (() => {
-        const caso = (contato.etiquetas || []).map(acharEtiqueta).find((e) => e?.tipo === 'caso');
-        if (!caso && !contato.momento) return null;
-        return el('div', { class: 'linha-p conversa-caso' }, [
-          caso
-            ? el('span', { class: 'selo selo-caso', title: 'Tipo de caso' }, [
-                el('span', { class: 'ponto', estilo: { background: caso.cor } }),
-                document.createTextNode(caso.nome),
-              ])
-            : null,
-          contato.momento
-            ? el('span', { class: 't-xs c-fraco cortar', title: 'Momento do lead', texto: contato.momento.nome })
-            : null,
-        ]);
-      })(),
       contato.estado === 'pendente'
         ? botao('Aceitar atendimento', {
             tipo: 'principal',
@@ -959,6 +941,20 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
               ),
           })
         : null,
+      ]),
+      el('div', { class: 'conversa-linha' }, [
+        el('div', { class: 'conversa-dados' }, [
+          el('span', { class: 'conversa-telefone', texto: telefone(contato.telefone) }),
+          casoDaConversa
+            ? el('span', { class: 'selo selo-caso', title: 'Tipo de caso' }, [
+                el('span', { class: 'ponto', estilo: { background: casoDaConversa.cor } }),
+                document.createTextNode(casoDaConversa.nome),
+              ])
+            : null,
+          contato.momento ? el('span', { class: 'cortar', title: 'Momento do lead', texto: contato.momento.nome }) : null,
+        ]),
+        etapasDaVenda(contato),
+      ]),
     ]);
 
     /*
@@ -1100,6 +1096,8 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
         }
         painelMensagens.append(balao(mensagem));
       }
+      /* O aviso do contrato fica depois da ultima fala, antes dos tres pontos. */
+      if (cartaoDoContrato) painelMensagens.append(cartaoDoContrato);
       // O indicador vive no fim da lista e precisa voltar a cada redesenho dela.
       painelMensagens.append(aviso3Pontos);
       painelMensagens.scrollTop = painelMensagens.scrollHeight;
@@ -1123,6 +1121,51 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
     vivo.recarregar = carregarMensagens;
 
     carregarMensagens();
+
+    /*
+     * O contrato que espera conferencia, no fim da conversa.
+     *
+     * O cartao de conferir mora no painel da direita, na aba Dados. Aqui fica o
+     * aviso com o botao que leva ate ele: e na conversa que a pessoa esta
+     * olhando quando o agente diz ao cliente que "uma pessoa vai conferir o
+     * contrato". So aparece enquanto o contrato esta em conferencia.
+     */
+    const conferirContrato = async () => {
+      if (abaPainel !== 'dados') {
+        abaPainel = 'dados';
+        await desenhar();
+      }
+      const bloco = document.querySelector('.bloco-contrato');
+      bloco?.scrollIntoView({ block: 'center' });
+      bloco?.querySelector('input')?.focus();
+    };
+    api
+      .get('/api/contratos', { contatoId: contato.id })
+      .then((contratos) => {
+        const atual = (contratos || [])[0];
+        if (atual?.situacao !== 'em_conferencia' || !document.body.contains(painelMensagens)) return;
+        const emBranco = Object.entries(atual.valores || {})
+          .filter(([, valor]) => !String(valor ?? '').trim())
+          .map(([chave]) => chave.replace(/[{}]/g, '').trim().toLowerCase());
+        cartaoDoContrato = el('div', { class: 'evento-conversa' }, [
+          el('span', { class: 'evento-conversa-icone' }, [icone('contrato', 18)]),
+          el('div', { class: 'evento-conversa-texto' }, [
+            el('strong', { texto: 'Contrato esperando a sua conferência' }),
+            el('span', {
+              class: 'cortar',
+              texto: [atual.modelo?.nome, emBranco.length ? `em branco: ${emBranco.join(', ')}` : 'dados completos']
+                .filter(Boolean)
+                .join(' · '),
+            }),
+          ]),
+          botao('Conferir', { tipo: 'principal', pequeno: true, aoClicar: conferirContrato }),
+        ]);
+        painelMensagens.insertBefore(cartaoDoContrato, aviso3Pontos.parentNode === painelMensagens ? aviso3Pontos : null);
+        painelMensagens.scrollTop = painelMensagens.scrollHeight;
+      })
+      .catch(() => {
+        /* O aviso e atalho; sem ele o cartao continua no painel da direita. */
+      });
 
     /*
      * O que ainda vai sair para esta pessoa, no alto da conversa.
@@ -1325,8 +1368,10 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
 
   function balao(mensagem) {
     const classes = ['balao'];
+    /* Fala de agente de IA sai em roxo, a cor que e so da IA no sistema. */
+    const doAgente = mensagem.autor?.tipo === 'agente';
     if (mensagem.nota) classes.push('nota');
-    else if (mensagem.direcao === 'saida') classes.push('saida');
+    else if (mensagem.direcao === 'saida') classes.push(doAgente ? 'saida ia' : 'saida');
     if (mensagem.situacao === 'erro') classes.push('erro');
 
     const autor = mensagem.autor?.nome;
@@ -1357,7 +1402,9 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
       'data-id': mensagem.id,
     }, [
       mensagem.nota ? el('div', { class: 'balao-autor', texto: `Nota interna · ${autor || 'equipe'}` }) : null,
-      !mensagem.nota && mostraAutor ? el('div', { class: 'balao-autor', texto: autor }) : null,
+      !mensagem.nota && mostraAutor
+        ? el('div', { class: 'balao-autor' }, doAgente ? [icone('agentes', 12), `${autor} · IA`] : [autor])
+        : null,
       mensagem.conteudo ? el('div', { texto: mensagem.conteudo }) : null,
       anexo,
       mensagem.transcricao
@@ -1391,14 +1438,22 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
     let ehNota = false;
     let agendarPara = null;
 
-    const alternarNota = botao('Nota interna', {
-      pequeno: true,
-      aoClicar: () => {
-        ehNota = !ehNota;
-        alternarNota.classList.toggle('principal', ehNota);
-        texto.placeholder = ehNota ? 'Nota visivel so para a equipe…' : 'Escreva a mensagem… (/ para template)';
-      },
-    });
+    /* Mensagem ou nota interna: dois estados do mesmo campo, lado a lado, e o
+       que esta ligado se ve antes de apertar Enter. */
+    const modoMensagem = el('button', { type: 'button', 'aria-pressed': 'true', texto: 'Mensagem' });
+    const modoNota = el('button', { type: 'button', class: 'nota', 'aria-pressed': 'false', texto: 'Nota interna' });
+    const escolherModo = (nota) => {
+      ehNota = nota;
+      modoMensagem.setAttribute('aria-pressed', String(!nota));
+      modoNota.setAttribute('aria-pressed', String(nota));
+      texto.placeholder = nota ? 'Nota visivel so para a equipe…' : 'Escreva a mensagem… (/ para template)';
+    };
+    modoMensagem.addEventListener('click', () => escolherModo(false));
+    modoNota.addEventListener('click', () => escolherModo(true));
+    const alternarNota = el('div', { class: 'modo-escrita', role: 'group', 'aria-label': 'Mensagem ou nota interna' }, [
+      modoMensagem,
+      modoNota,
+    ]);
 
     const rotuloAgenda = el('span', { class: 'selo', estilo: { display: 'none' } });
 
@@ -1604,7 +1659,14 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
             texto: `Enviando de ${telefone(conexao.numero) || conexao.nome}`,
           });
         })(),
-        botao('Enviar', { tipo: 'principal', icone: 'enviar', pequeno: true, aoClicar: enviar }),
+        /* So o aviao de papel: e o simbolo que todo mundo conhece do proprio
+           WhatsApp, e o nome vai no title e no aria-label. */
+        (() => {
+          const enviarBotao = botao('', { tipo: 'principal', icone: 'enviar', titulo: 'Enviar (Enter)', aoClicar: enviar });
+          enviarBotao.setAttribute('aria-label', 'Enviar');
+          enviarBotao.classList.add('botao-enviar');
+          return enviarBotao;
+        })(),
       ]),
     ]);
   }
@@ -1775,6 +1837,12 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
         });
         /* Abre de verdade a conversa criada: na aba em que ela nasceu, no
            numero por onde ela vai sair, e mesmo sem mensagem nenhuma ainda. */
+        /* Criada no Funil, a conversa abre na tela de Conversas: e la que se
+           escreve para a pessoa. */
+        if (visualizacao !== 'conversas') {
+          location.hash = `#/atendimento/${contato.id}`;
+          return;
+        }
         selecionadoId = contato.id;
         recemCriadaId = contato.id;
         if (contato.aba) filtro.aba = contato.aba;
@@ -2264,7 +2332,7 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
 
   function blocoContrato(contato) {
     const corpo = el('div', { class: 'lista-simples' }, [el('span', { class: 't-sm c-fraco', texto: 'Carregando…' })]);
-    const bloco = el('div', { class: 'propriedade' }, [el('span', { texto: 'Contrato' }), corpo]);
+    const bloco = el('div', { class: 'propriedade bloco-contrato' }, [el('span', { texto: 'Contrato' }), corpo]);
 
     const agir = (acao, sucesso) => async () => {
       try {
@@ -3599,6 +3667,12 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
     if (contatos.length) return;
     const cheia = ABAS.find((aba) => (contagens[aba.id] ?? 0) > 0);
     if (cheia) filtro.aba = cheia.id;
+  }
+
+  /* A Nova conversa fica no canto da barra de cima do sistema, e nao dentro da
+     tela: e o mesmo lugar em toda tela que tem uma acao principal. */
+  if (visualizacao !== 'contatos') {
+    definirPrincipal(botao('Nova conversa', { tipo: 'principal', icone: 'mais', aoClicar: abrirNovaConversa }));
   }
 
   await escolherAbaInicial();

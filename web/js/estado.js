@@ -134,6 +134,9 @@ export function escolherNumero(conexaoId) {
   } catch {
     /* sem armazenamento, a escolha vale so ate recarregar */
   }
+  /* O seletor mora na barra de cima e a fila mora na tela de Conversas: os
+     dois precisam saber da troca, venha ela de onde vier. */
+  disparar('numero', conexaoId || '');
 }
 
 /** Lista de responsaveis possiveis: agentes de IA e pessoas da equipe. */

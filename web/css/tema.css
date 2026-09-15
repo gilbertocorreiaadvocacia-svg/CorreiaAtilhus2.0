@@ -520,78 +520,245 @@ a {
    Estrutura
    ------------------------------------------------------------------ */
 
-/* A casca do sistema: barra global em cima, corpo embaixo.
+/* A casca do sistema: a barra de icones na esquerda, a area principal ao lado.
 
-   Ela era `display: grid` com duas colunas, e continuou assim aqui depois que
-   a barra global entrou e mudou tudo para coluna la no fim do arquivo. Duas
-   declaracoes da mesma regra, em pontos distantes, dizendo o contrario uma da
-   outra: quem lia o topo aprendia um layout que nao existia mais. Uma so. */
+   A barra tem 64px e so icones, com o nome de cada um num balao ao lado
+   (.dica-barra). A lista rola por dentro quando a janela e baixa: com treze
+   areas, um notebook de 768px de altura nao comporta todas de uma vez. */
 .app {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
   height: 100vh;
   overflow: hidden;
 }
 
-.lateral {
-  background: var(--preto);
-  border-right: 1px solid var(--borda);
+.rail {
   display: flex;
   flex-direction: column;
+  align-items: center;
   min-height: 0;
+  padding: var(--e3) 0;
+  background: var(--preto);
+  border-right: 1px solid var(--borda);
 }
 
-.marca {
+.rail-marca {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  margin-bottom: var(--e2);
+  border-radius: var(--raio);
+}
+
+.rail-marca img {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+}
+
+.rail-marca:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: 2px;
+}
+
+.rail-grupos {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: var(--e3);
-  padding: var(--e4) var(--e4) var(--e3);
+  overflow-y: auto;
+  /* A rolagem existe para janela baixa, e nao precisa de trilho desenhado:
+     numa faixa de 64px a barra de rolagem comeria um terco da largura. */
+  scrollbar-width: none;
+}
+
+.rail-grupos::-webkit-scrollbar {
+  display: none;
+}
+
+.rail-grupo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.rail-fio {
+  flex: none;
+  width: 28px;
+  height: 1px;
+  margin: var(--e2) 0;
+  background: var(--borda);
+}
+
+.rail-item {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--raio);
+  color: var(--texto-fraco);
+}
+
+.rail-item:hover {
+  color: var(--texto);
+  background: var(--superficie);
+}
+
+.rail-item:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: -2px;
+}
+
+/* A area aberta: fundo e contorno dourados. O contorno faz o trabalho para
+   quem nao distingue o dourado do cinza. */
+.rail-item.ativo {
+  color: var(--ouro-claro);
+  background: var(--ouro-fraco);
+  box-shadow: inset 0 0 0 1px var(--ouro-linha);
+}
+
+/* Contador colado no canto do icone. O anel da cor da barra separa o numero
+   do desenho que ele cobre em parte. */
+.rail-conta {
+  position: absolute;
+  top: 2px;
+  right: 1px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: var(--raio-pilula);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  box-shadow: 0 0 0 2px var(--preto);
+}
+
+.rail-conta.alerta {
+  background: var(--alerta);
+  color: var(--sobre-ouro);
+}
+
+.rail-conta.ouro {
+  background: var(--ouro);
+  color: var(--sobre-ouro);
+}
+
+.rail-fim {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--e2);
+  padding-top: var(--e2);
+}
+
+.rail-eu {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+}
+
+.rail-eu:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: 1px;
+}
+
+.rail-eu-painel {
+  position: fixed;
+  z-index: 85;
+  min-width: 220px;
+  padding: var(--e1);
+  background: var(--superficie);
+  border: 1px solid var(--borda-forte);
+  border-radius: var(--raio-g);
+  box-shadow: var(--sombra);
+}
+
+.rail-eu-quem {
+  padding: var(--e2) var(--e3);
+  margin-bottom: var(--e1);
   border-bottom: 1px solid var(--borda);
 }
 
-.marca img {
-  width: 38px;
-  height: 38px;
-  object-fit: contain;
-  flex: none;
-}
-
-.marca-texto strong {
+.rail-eu-quem strong {
   display: block;
-  font-size: var(--t-lg);
-  font-weight: 600;
-  letter-spacing: 0.015em;
-  color: var(--texto);
+  font-size: var(--t-base);
 }
 
-/* O nome completo do escritorio nao cabe em uma linha na lateral de 236px,
-   entao o espacamento afrouxa menos e a linha pode quebrar. */
-.marca-texto span {
+.rail-eu-quem span {
   display: block;
-  font-size: var(--t-xs);
-  line-height: var(--lh-apertada);
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  color: var(--ouro);
-}
-
-.seletor-workspace {
-  margin: var(--e3) var(--e3) var(--e1);
-}
-
-.menu {
-  flex: 1;
-  overflow-y: auto;
-  padding: var(--e2) var(--e2) var(--e4);
-}
-
-.menu-grupo {
-  margin-top: var(--e4);
-  padding: 0 var(--e2) var(--e2);
-  font-size: var(--t-xs);
-  letter-spacing: 0.13em;
-  text-transform: uppercase;
+  font-size: var(--t-nota);
   color: var(--texto-fraco);
+}
+
+.rail-eu-opcao {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  width: 100%;
+  padding: var(--e2) var(--e3);
+  border: 0;
+  border-radius: var(--raio);
+  background: none;
+  color: var(--texto-suave);
+  text-align: left;
+  cursor: pointer;
+}
+
+.rail-eu-opcao:hover,
+.rail-eu-opcao:focus-visible {
+  background: var(--superficie-2);
+  color: var(--texto);
+  outline: none;
+}
+
+/* O nome do icone. Fixo no documento, posicionado pelo JavaScript a partir da
+   caixa do icone: dentro da barra ele seria cortado pela rolagem dela. */
+.dica-barra {
+  position: fixed;
+  z-index: 95;
+  transform: translateY(-50%);
+  padding: var(--e1) var(--e2);
+  border: 1px solid var(--borda-forte);
+  border-radius: var(--raio-p);
+  background: var(--superficie-3);
+  color: var(--texto);
+  font-size: var(--t-base);
+  font-weight: 500;
+  white-space: nowrap;
+  box-shadow: var(--sombra);
+  pointer-events: none;
+}
+
+/* Janela baixa: icones menores antes de a lista precisar rolar. */
+@media (max-height: 760px) {
+  .rail-item,
+  .rail-marca {
+    width: 36px;
+    height: 36px;
+  }
+
+  .rail-grupo {
+    gap: 0;
+  }
+
+  .rail-fio {
+    margin: var(--e1) 0;
+  }
 }
 
 /*
@@ -650,69 +817,10 @@ a {
   border-radius: var(--raio-p);
 }
 
-/* Na faixa estreita de 64px nao ha rotulo para clicar nem espaco para a seta:
-   o grupo vira uma secao separada por um fio, com os itens sempre a vista. */
-.menu-faixa {
-  margin-top: var(--e3);
-  padding-top: var(--e3);
-  border-top: 1px solid var(--borda);
-}
-
 /* O contador do sino fica ao lado dele, e nao por cima: sobreposto, ele cobria
    o proprio icone quando o numero passava de dois digitos. */
 .caixa-sino {
   position: relative;
-}
-
-.menu a {
-  display: flex;
-  align-items: center;
-  gap: var(--e2);
-  padding: var(--e1) var(--e3);
-  min-height: var(--controle);
-  margin-bottom: var(--e1);
-  border-radius: var(--raio);
-  color: var(--texto-suave);
-  font-size: var(--t-md);
-  border: 1px solid transparent;
-}
-
-.menu a:hover {
-  background: var(--superficie);
-  color: var(--texto);
-}
-
-/* Os treze itens da lateral sao o caminho principal do sistema e ficavam com o
-   anel padrao do navegador sobre o preto da faixa. O recuo e para dentro
-   porque o item ja encosta na borda da lateral. */
-.menu a:focus-visible {
-  outline: 2px solid var(--ouro);
-  outline-offset: -2px;
-}
-
-.menu a.ativo {
-  background: var(--ouro-fraco);
-  border-color: var(--ouro-linha);
-  color: var(--ouro-claro);
-}
-
-.menu a svg {
-  width: 16px;
-  height: 16px;
-  flex: none;
-  opacity: 0.9;
-}
-
-.menu .selo {
-  margin-left: auto;
-}
-
-.rodape-lateral {
-  border-top: 1px solid var(--borda);
-  padding: var(--e3);
-  display: flex;
-  align-items: center;
-  gap: var(--e3);
 }
 
 .avatar {
@@ -735,33 +843,12 @@ img.avatar {
   border: 1px solid var(--borda);
 }
 
-.rodape-lateral .quem {
-  min-width: 0;
-  flex: 1;
-}
-.rodape-lateral .quem strong {
-  display: block;
-  font-size: var(--t-md);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.rodape-lateral .quem span {
-  display: block;
-  font-size: var(--t-xs);
-  color: var(--texto-fraco);
-}
-
-/* Coluna principal do aplicativo.
-   Escopada em filho direto de .corpo de proposito: "principal" tambem e o nome
-   da variante de botao em destaque (.botao.principal), e a regra solta atingia
-   todo botao primario do sistema, empilhando o icone acima do rotulo em vez de
-   deixar os dois lado a lado.
-   O escopo era .app > .principal ate a barra global entrar: com ela, a coluna
-   passou a morar dentro de .corpo e o seletor deixou de casar. A coluna perdeu
-   o flex, o conteudo cresceu ate a altura total e a rolagem interna nunca era
-   acionada, deixando o fim de toda tela longa inalcancavel. */
-.corpo-app > .principal {
+/* A area principal: barra de cima, cabeca da tela (quando a tela tem titulo) e
+   o conteudo, que e quem rola.
+   Chama-se area-principal, e nao principal: "principal" e tambem a variante de
+   botao em destaque (.botao.principal), e uma regra solta com esse nome ja
+   atingiu todo botao primario do sistema, empilhando o icone acima do rotulo. */
+.area-principal {
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -769,45 +856,242 @@ img.avatar {
   background: var(--fundo);
 }
 
-/* Cabecalho de tela: titulo a esquerda e, na mesma linha, os controles que
-   valem para a tela inteira. Dentro do conteudo o filtro empurrava o primeiro
-   dado para baixo e rolava junto com a pagina, sumindo justo na hora de trocar
-   o recorte. */
-.topo {
-  min-height: 76px;
+/* Barra de cima: onde se esta (escritorio e numero), a busca, o tema, o sino
+   e a acao principal da tela aberta. */
+.barra-topo {
   flex: none;
   display: flex;
   align-items: center;
   gap: var(--e3);
-  padding: var(--e3) var(--e5);
+  height: 56px;
+  padding: 0 var(--e4) 0 var(--e5);
+  background: var(--superficie);
+  border-bottom: 1px solid var(--borda);
+}
+
+.barra-topo > .espaco {
+  flex: 1;
+}
+
+/* Tema e sino sao icones soltos, sem moldura: ao lado do seletor e da busca,
+   que ja tem a sua, mais duas caixas pesariam mais do que eles. */
+.botao.botao-barra {
+  border-color: transparent;
+  background: none;
+  color: var(--texto-suave);
+}
+
+.botao.botao-barra:hover {
+  background: var(--superficie-2);
+  color: var(--texto);
+}
+
+.barra-topo-principal {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+}
+
+.barra-topo-principal:empty {
+  display: none;
+}
+
+/* Escritorio e numero, no primeiro lugar da barra: eles decidem de onde e
+   tudo o que vem depois — a fila, a busca e a Nova conversa. */
+.contexto {
+  position: relative;
+  flex: none;
+}
+
+.contexto-gatilho {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  max-width: 280px;
+  height: 40px;
+  padding: 0 var(--e3);
+  border: 1px solid var(--borda-forte);
+  border-radius: var(--raio);
+  background: var(--superficie-2);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.contexto-gatilho:hover,
+.contexto-gatilho[aria-expanded='true'] {
+  border-color: var(--ouro-linha);
+}
+
+.contexto-gatilho:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: 2px;
+}
+
+.contexto-ponto {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--texto-fraco);
+}
+
+.contexto-ponto.ligado {
+  background: var(--sucesso);
+}
+
+.contexto-ponto.desligado {
+  background: var(--erro);
+}
+
+.contexto-ponto.todos {
+  background: var(--ouro);
+}
+
+.contexto-texto {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: var(--lh-apertada);
+}
+
+.contexto-texto > strong,
+.contexto-texto > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.contexto-texto > strong {
+  font-weight: 600;
+  color: var(--texto);
+}
+
+.contexto-texto > span {
+  font-size: var(--t-nota);
+  color: var(--texto-suave);
+}
+
+.contexto-seta {
+  flex: none;
+  display: grid;
+  color: var(--texto-fraco);
+  transform: rotate(-90deg);
+}
+
+.contexto-icone {
+  flex: none;
+  display: grid;
+  color: var(--texto-fraco);
+}
+
+.contexto-lista {
+  position: absolute;
+  top: calc(100% + var(--e1));
+  left: 0;
+  z-index: 75;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 360px;
+  max-height: min(460px, calc(100vh - 80px));
+  overflow-y: auto;
+  padding: var(--e1);
+  border: 1px solid var(--borda-forte);
+  border-radius: var(--raio-g);
+  background: var(--superficie);
+  box-shadow: var(--sombra);
+}
+
+.contexto-grupo {
+  padding: var(--e2) var(--e3) var(--e1);
+  font-size: var(--t-nota);
+  font-weight: 600;
+  letter-spacing: var(--tr-alta);
+  text-transform: uppercase;
+  color: var(--texto-fraco);
+}
+
+.contexto-opcao,
+.contexto-rodape {
+  display: flex;
+  align-items: center;
+  gap: var(--e3);
+  width: 100%;
+  padding: var(--e2) var(--e3);
+  border: 0;
+  border-radius: var(--raio);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.contexto-opcao:hover,
+.contexto-opcao:focus-visible,
+.contexto-rodape:hover,
+.contexto-rodape:focus-visible {
+  background: var(--superficie-2);
+  outline: none;
+}
+
+.contexto-opcao.ativo {
+  background: var(--ouro-fraco);
+}
+
+.contexto-opcao > svg {
+  flex: none;
+  color: var(--ouro);
+}
+
+.contexto-rodape {
+  margin-top: var(--e1);
+  border-top: 1px solid var(--borda);
+  border-radius: 0 0 var(--raio) var(--raio);
+  color: var(--texto-suave);
+}
+
+/* Cabeca de tela: titulo e, na mesma linha, os controles que valem para a tela
+   inteira. Tela de trabalho (Conversas) nao tem cabeca: la a barra de cima e a
+   fila ja dizem onde se esta. */
+.cabeca-tela {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--e2) var(--e4);
+  min-height: 56px;
+  padding: var(--e2) var(--e5);
   border-bottom: 1px solid var(--borda);
   background: var(--superficie);
 }
 
-/* Titulo de tela: o unico texto grande da pagina.
+.cabeca-identidade {
+  display: flex;
+  align-items: baseline;
+  gap: var(--e3);
+  min-width: 0;
+}
 
-   Ele foi serifa 21px por um tempo, e o comentario daqui ainda explicava a
-   serifa muito depois de outra regra, no fim do arquivo, ter passado tudo para
-   a fonte de interface em 26px. Vale a fonte de interface: o titulo divide a
-   linha com filtro, botao e periodo, e serifa ao lado de controle nao pousa. A
-   serifa continua onde ela e assinatura, e nao rotulo: nome de cliente e
-   titulo de secao de documento. */
-.topo h1 {
+/* Titulo na fonte de interface: ele divide a linha com filtro, botao e
+   periodo, e serifa ao lado de controle nao pousa. A serifa fica onde ela e
+   assinatura: o nome do cliente. */
+.cabeca-tela h1 {
   margin: 0;
   font-family: var(--fonte);
-  font-size: 26px;
+  font-size: 18px;
   font-weight: 600;
   line-height: var(--lh-apertada);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
 }
 
-.topo .subtitulo {
+.cabeca-tela .subtitulo {
   color: var(--texto-fraco);
   font-size: var(--t-sm);
-}
-
-.topo .espaco {
-  flex: 1;
 }
 
 /* Margem de pe maior que a de cabeca, como em pagina impressa: a ultima
@@ -2040,6 +2324,7 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
 
 .item-conversa .marcas .selo > .ponto,
 .item-conversa .marcas .selo > svg {
+  margin-right: 5px;
   vertical-align: -1px;
 }
 
@@ -2105,205 +2390,96 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
 /* Atendimento ------------------------------------------------------ */
 
 /*
- * A tela de Conversas: barra em cima, as tres colunas embaixo.
- *
- * A busca e os filtros valem para a fila inteira e estavam espremidos nos
- * 320px da primeira coluna, junto com as abas e a linha de concluidos. Aqui
- * eles ganham a largura da tela e param de disputar com as abas.
- *
- * minmax(0, 1fr) na segunda faixa, e nao 1fr: o "auto" implicito do 1fr vira
- * o min-content da grade de colunas, e a faixa se recusava a encolher, jogando
- * a barra de rolagem para o documento inteiro.
+ * Busca e filtros da fila, na cabeca da coluna: eles recortam a fila, entao
+ * moram em cima dela.
  */
-.tela-atendimento {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  height: 100%;
-  min-height: 0;
-}
-
-.barra-fila {
+.busca-fila {
   display: flex;
   align-items: center;
   gap: var(--e2);
   padding: var(--e2) var(--e3);
-  background: var(--superficie);
-  border-bottom: 1px solid var(--borda);
+  border-top: 1px solid var(--borda);
 }
 
-/* A busca nao ocupa a barra inteira: passando de uns 340px ela vira um campo
-   vazio enorme, e o que fica longe do olho e justamente o que se digita. */
-.barra-fila-busca {
+.busca-fila-caixa {
   flex: 1;
-  max-width: 340px;
   min-width: 0;
-}
-
-/* Seletor de numero: o primeiro controle da barra, porque ele decide de que
-   sessao e tudo o que vem depois — a fila, a busca e a Nova conversa. */
-.seletor-numero-caixa {
-  position: relative;
-  flex: none;
-}
-
-.seletor-numero {
   display: flex;
   align-items: center;
   gap: var(--e2);
-  min-width: 200px;
-  max-width: 280px;
-  height: var(--controle);
-  padding: 0 var(--e3);
-  border: 1px solid var(--borda-forte);
+  height: var(--controle-p);
+  padding: 0 var(--e2);
+  border: 1px solid var(--borda);
   border-radius: var(--raio);
   background: var(--superficie-2);
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
+  color: var(--texto-fraco);
 }
 
-.seletor-numero:hover,
-.seletor-numero[aria-expanded='true'] {
+.busca-fila-caixa:focus-within {
   border-color: var(--ouro-linha);
 }
 
-.seletor-numero:focus-visible {
-  outline: 2px solid var(--ouro);
-  outline-offset: 2px;
-}
-
-.seletor-numero-ponto {
-  flex: none;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--texto-fraco);
-}
-
-.seletor-numero-ponto.ligado {
-  background: var(--sucesso);
-}
-
-.seletor-numero-ponto.desligado {
-  background: var(--erro);
-}
-
-.seletor-numero-ponto.todos {
-  background: var(--ouro);
-}
-
-.seletor-numero-texto {
+.busca-fila-caixa .busca-fila-campo {
   flex: 1;
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-  line-height: var(--lh-apertada);
+  width: auto;
+  height: 100%;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--texto);
+  font-size: var(--t-base);
 }
 
-.seletor-numero-texto > strong,
-.seletor-numero-texto > span {
+.busca-fila-caixa .busca-fila-campo:focus-visible {
+  outline: none;
+}
+
+.busca-fila-campo::-webkit-search-cancel-button {
+  display: none;
+}
+
+/* Com filtro ligado o botao fica dourado: e o sinal, antes de ler o numero, de
+   que a fila esta recortada. */
+.busca-fila .botao.ativo {
+  border-color: var(--ouro-linha);
+  background: var(--ouro-fraco);
+  color: var(--ouro-claro);
+}
+
+.filtros-ligados {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e1);
+  padding: 0 var(--e3) var(--e2);
+}
+
+.filtro-ligado {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e1);
+  max-width: 100%;
+  height: 22px;
+  padding: 0 var(--e2);
+  border: 1px solid var(--ouro-linha);
+  border-radius: var(--raio-pilula);
+  background: var(--ouro-fraco);
+  color: var(--ouro-claro);
+  font-size: var(--t-nota);
+  cursor: pointer;
+}
+
+.filtro-ligado > span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.seletor-numero-texto > strong {
-  font-weight: 600;
-  color: var(--texto);
-}
-
-.seletor-numero-texto > span {
-  font-size: var(--t-nota);
-  color: var(--texto-suave);
-}
-
-.seletor-numero-seta {
-  flex: none;
-  display: grid;
-  color: var(--texto-fraco);
-  transform: rotate(-90deg);
-}
-
-.seletor-numero-lista {
-  position: absolute;
-  top: calc(100% + var(--e1));
-  left: 0;
-  z-index: 30;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  width: 360px;
-  max-height: 420px;
-  overflow-y: auto;
-  padding: var(--e1);
-  border: 1px solid var(--borda-forte);
-  border-radius: var(--raio-g);
-  background: var(--superficie);
-  box-shadow: var(--sombra);
-}
-
-.seletor-numero-opcao,
-.seletor-numero-rodape {
-  display: flex;
-  align-items: center;
-  gap: var(--e3);
-  width: 100%;
-  padding: var(--e2) var(--e3);
-  border: none;
-  border-radius: var(--raio);
-  background: none;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.seletor-numero-opcao:hover,
-.seletor-numero-opcao:focus-visible,
-.seletor-numero-rodape:hover,
-.seletor-numero-rodape:focus-visible {
-  background: var(--superficie-2);
-  outline: none;
-}
-
-.seletor-numero-opcao.ativo {
-  background: var(--ouro-fraco);
-}
-
-.seletor-numero-opcao > svg {
-  flex: none;
-  color: var(--ouro);
-}
-
-.seletor-numero-contas {
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: var(--e2);
-}
-
-.seletor-numero-total {
-  font-size: var(--t-nota);
-  color: var(--texto-fraco);
-  white-space: nowrap;
-}
-
-.seletor-numero-rodape {
-  margin-top: var(--e1);
-  border-top: 1px solid var(--borda);
-  border-radius: 0 0 var(--raio) var(--raio);
-  color: var(--texto-suave);
-}
-
-/* Separa "o que filtra" de "o que cria". Sao gestos de natureza diferente, e
-   sem o fio o Nova conversa lia como mais um filtro. */
-.barra-fila-divisor {
-  flex: none;
-  width: 1px;
-  height: 20px;
-  margin: 0 var(--e1);
-  background: var(--borda);
+.filtro-ligado:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: 1px;
 }
 
 /* O cabecalho da coluna da fila perdeu o respiro: dentro dele sobraram so as
@@ -2323,15 +2499,19 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
  * o balao tem limite proprio de 62ch (por volta de 470px), entao a linha
  * continua do mesmo tamanho — o que encolhe e a margem em volta dela.
  */
+/* minmax(0, 1fr) na coluna do meio, e nao 1fr: o "auto" implicito do 1fr vira
+   o min-content da conversa, e ela se recusava a encolher abaixo do cabecalho
+   e da fileira de botoes do campo de escrita — o painel da direita era
+   empurrado para fora da tela. */
 .atendimento {
   display: grid;
-  grid-template-columns: 320px 1fr 350px;
+  grid-template-columns: 320px minmax(0, 1fr) 350px;
   height: 100%;
   min-height: 0;
 }
 
 .atendimento.sem-painel {
-  grid-template-columns: 320px 1fr;
+  grid-template-columns: 320px minmax(0, 1fr);
 }
 
 /* Contatos e kanban usam a grade inteira, sem coluna de lista. Vira classe, e
@@ -3500,7 +3680,7 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
 
 .item-conversa:has(.nao-lidas) .nome {
   color: var(--texto);
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .item-conversa:has(.nao-lidas) .previa {
@@ -3552,27 +3732,23 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
 }
 
 /*
- * O nome em caixa alta.
+ * O nome do cliente em serifa, na caixa em que ele e escrito.
  *
- * Nome de pessoa em caixa alta e uma escolha de fila, e nao de leitura: aqui
- * o nome nao se le, se RECONHECE, e a caixa alta da a cada linha uma silhueta
- * de altura constante que o olho acha mais rapido descendo a coluna. Em texto
- * corrido seria o contrario — caixa alta tira as ascendentes e descendentes
- * que fazem a palavra ter forma, e por isso ela nao aparece em lugar nenhum
- * dentro da conversa.
- *
- * O espacamento de 0.01em existe porque caixa alta aperta: sem ele "ANTONIO
- * FERREIRA" fica com as letras encostadas nesta fonte.
+ * Ja foi caixa alta, para dar a cada linha uma silhueta constante. O desenho
+ * aprovado (M2) volta a serifa do escritorio: e a mesma assinatura do nome no
+ * cabecalho da conversa, e numa fila de nomes proprios a serifa em 15px ja
+ * separa o nome da previa sem precisar gritar.
  */
 .item-conversa .nome {
-  font-weight: 600;
-  font-size: var(--t-base);
-  text-transform: uppercase;
-  letter-spacing: 0.01em;
+  flex: 1;
+  min-width: 0;
+  font-family: var(--fonte-titulo);
+  font-size: var(--t-leitura);
+  font-weight: 500;
+  line-height: var(--lh-apertada);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  flex: 1;
 }
 
 .item-conversa .quando {
@@ -3687,14 +3863,126 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
   background: var(--fundo);
 }
 
+/*
+ * Cabecalho da conversa em duas linhas.
+ *
+ * Em cima, quem e (o nome em serifa) e as acoes; embaixo, o telefone, o tipo
+ * de caso e em que etapa da venda a conversa esta. Numa linha so, as etapas
+ * nao cabiam ao lado do nome e dos botoes em nenhuma janela de notebook.
+ *
+ * container-type: a coluna do meio muda de largura com a janela, e e ela, e
+ * nao a janela, que decide se os nomes das etapas cabem (ver .etapa-nome).
+ */
 .conversa-cabecalho {
   flex: none;
   display: flex;
-  align-items: center;
-  gap: var(--e3);
-  padding: var(--e3) var(--e4);
+  flex-direction: column;
+  gap: var(--e1);
+  padding: var(--e2) var(--e4);
   border-bottom: 1px solid var(--borda);
   background: var(--superficie);
+  container-type: inline-size;
+}
+
+.conversa-linha {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  min-width: 0;
+  min-height: 32px;
+}
+
+.conversa-nome {
+  font-family: var(--fonte-titulo);
+  font-size: 20px;
+  font-weight: 500;
+  line-height: var(--lh-apertada);
+}
+
+.conversa-dados {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  min-width: 0;
+  color: var(--texto-fraco);
+  font-size: var(--t-nota);
+}
+
+/* O telefone nunca corta: e o dado que se copia para ligar. Quem cede espaco e
+   o momento, que tambem esta na fila e no painel. */
+.conversa-telefone,
+.conversa-dados .selo {
+  flex: none;
+}
+
+/* As etapas da venda, pelo tipo do status (config.js, TIPOS_STATUS): o
+   escritorio renomeia status a vontade, e o tipo e o que diz o que ele e. */
+.etapas {
+  flex: none;
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--e1);
+}
+
+.etapa {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--texto-fraco);
+  font-size: var(--t-nota);
+  white-space: nowrap;
+}
+
+.etapa-bola {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px var(--borda-forte);
+}
+
+.etapa.feita {
+  color: var(--texto-suave);
+}
+
+.etapa.feita .etapa-bola {
+  background: var(--superficie-3);
+  box-shadow: none;
+  color: var(--texto);
+}
+
+.etapa.agora {
+  color: var(--ouro-claro);
+  font-weight: 600;
+}
+
+.etapa.agora .etapa-bola {
+  box-shadow: inset 0 0 0 1.5px var(--ouro);
+}
+
+.etapa.agora .etapa-bola::after {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ouro);
+}
+
+.etapa-traco {
+  flex: none;
+  width: 12px;
+  height: 1px;
+  background: var(--borda-forte);
+}
+
+/* Coluna estreita: so a etapa de agora leva o nome; as outras dizem o seu no
+   title da bola. */
+@container (max-width: 760px) {
+  .etapa:not(.agora) .etapa-nome {
+    display: none;
+  }
 }
 
 /*
@@ -3782,11 +4070,31 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
   color: var(--enviado-nome);
 }
 
+/* Fala do agente de IA: roxo, a cor que e so da IA em toda a interface. Quem
+   le a conversa separa de relance o que o agente disse do que a equipe
+   escreveu, sem precisar ler o nome em cima de cada balao. */
+.balao.saida.ia {
+  background: var(--ia-fraco);
+  border-color: var(--ia-linha);
+  color: var(--texto);
+}
+
+.balao.saida.ia .balao-autor {
+  color: var(--ia);
+}
+
+.balao-autor > svg {
+  margin-right: var(--e1);
+  vertical-align: -2px;
+}
+
+/* Nota interna e passagem entre agentes: no meio da conversa, em dourado.
+   Nao e fala para o cliente, e o dourado e a cor do que o escritorio faz. */
 .balao.nota {
   align-self: center;
   max-width: min(80%, 700px);
-  background: var(--alerta-fraco);
-  border-color: var(--alerta-linha);
+  background: var(--ouro-fraco);
+  border-color: var(--ouro-linha);
   border-radius: var(--raio);
   font-size: var(--t-sm);
 }
@@ -3817,38 +4125,156 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
 }
 
 /*
- * A area de escrever e o piso da conversa, e ela sobe quando esta em uso.
+ * A area de escrever e um cartao apoiado no pe da conversa.
  *
- * O compositor fica em --superficie, a mesma familia das colunas laterais, e
- * o filete de 1px no topo e que marca onde o poco termina. A diferenca de tom
- * para o poco e pequena de proposito (1,02:1 no escuro): quem separa aqui e a
- * linha, nao a cor. O que muda de verdade e o :focus-within logo abaixo.
+ * Campo, modo (mensagem ou nota), anexo, template, agendamento e enviar moram
+ * dentro da mesma moldura: e uma coisa so, e Enter manda o que esta nela.
  */
 .compositor {
   flex: none;
-  border-top: 1px solid var(--borda);
+  margin: 0 var(--e4) var(--e4);
+  padding: var(--e2) var(--e2) var(--e2) var(--e3);
+  border: 1px solid var(--borda-forte);
+  border-radius: var(--raio-g);
   background: var(--superficie);
-  padding: var(--e3);
-  transition: box-shadow var(--transicao);
+  transition:
+    box-shadow var(--transicao),
+    border-color var(--transicao);
 }
 
 /*
- * Escrevendo, a area inteira acende — nao so o campo.
+ * Escrevendo, o cartao inteiro acende — nao so o campo.
  *
- * O compositor tem campo de texto, anexo, template, agendamento e o botao de
- * enviar. Quando so o textarea ganhava contorno, o resto continuava parecendo
- * desligado, embora Enter fosse mandar a mensagem dali. O filete dourado no
- * topo diz que a faixa toda esta ativa, que e o que corresponde ao que
- * acontece de verdade quando se aperta Enter.
+ * Quando so o textarea ganhava contorno, o resto continuava parecendo
+ * desligado, embora Enter fosse mandar a mensagem dali.
  */
 .compositor:focus-within {
-  box-shadow: inset 0 2px 0 var(--ouro);
+  border-color: var(--ouro-linha);
+  box-shadow: 0 0 0 3px var(--ouro-fraco);
 }
 
 .compositor textarea {
   min-height: var(--controle-g);
   max-height: 180px;
+  padding: var(--e1) 0;
+  border: 0;
+  background: none;
+  font-size: var(--t-leitura);
+  resize: none;
+}
+
+.compositor textarea:focus-visible {
+  outline: none;
+}
+
+/* Mensagem ou nota interna: dois estados de um mesmo campo, lado a lado. */
+.modo-escrita {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: var(--raio);
   background: var(--superficie-2);
+}
+
+.modo-escrita button {
+  height: 26px;
+  padding: 0 var(--e3);
+  white-space: nowrap;
+  border: 0;
+  border-radius: var(--raio-p);
+  background: none;
+  color: var(--texto-suave);
+  font-size: var(--t-base);
+  cursor: pointer;
+}
+
+.modo-escrita button[aria-pressed='true'] {
+  background: var(--superficie-3);
+  color: var(--texto);
+  box-shadow: inset 0 0 0 1px var(--borda-forte);
+}
+
+/* Em nota, o botao de nota fica dourado: o que se escreve nao vai para o cliente. */
+.modo-escrita button.nota[aria-pressed='true'] {
+  background: var(--ouro-fraco);
+  color: var(--ouro-claro);
+  box-shadow: inset 0 0 0 1px var(--ouro-linha);
+}
+
+.modo-escrita button:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: 1px;
+}
+
+/* Anexar, Template e Agendar sem moldura: ao lado do Enviar dourado, tres
+   caixas a mais disputariam com ele. */
+.compositor .linha-botoes .botao:not(.principal) {
+  border-color: transparent;
+  background: none;
+  color: var(--texto-suave);
+}
+
+.compositor .linha-botoes .botao:not(.principal):hover {
+  background: var(--superficie-2);
+  color: var(--texto);
+}
+
+/* Uma linha so: quem cede e o numero de onde a mensagem sai, que corta com
+   reticencia e mostra o resto no title. Quebrando, o Enviar descia para uma
+   segunda linha, longe do campo. */
+.compositor .linha-botoes {
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.compositor .linha-botoes > .cortar {
+  min-width: 0;
+}
+
+/*
+ * O contrato que espera conferencia, no fim da conversa.
+ *
+ * O cartao do contrato mora no painel da direita, na aba Dados. Aqui fica o
+ * aviso, com o botao que leva ate ele: e na conversa que a pessoa esta olhando
+ * quando o agente diz ao cliente que "uma pessoa vai conferir o contrato".
+ */
+.evento-conversa {
+  flex: none;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  gap: var(--e3);
+  margin: var(--e1) var(--e4) 0;
+  padding: var(--e3);
+  border: 1px solid var(--borda-forte);
+  border-radius: var(--raio-g);
+  background: var(--superficie);
+}
+
+.evento-conversa-icone {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--raio);
+  background: var(--ouro-fraco);
+  color: var(--ouro-claro);
+}
+
+.evento-conversa-texto {
+  flex: 1;
+  min-width: 0;
+}
+
+.evento-conversa-texto strong {
+  display: block;
+  font-size: var(--t-base);
+}
+
+.evento-conversa-texto span {
+  display: block;
+  color: var(--texto-fraco);
+  font-size: var(--t-nota);
 }
 
 .aviso-janela {
@@ -4987,7 +5413,7 @@ button.mencao-chip:focus-visible {
    ------------------------------------------------------------------ */
 
 @media (prefers-reduced-motion: no-preference) {
-  .menu a,
+  .rail-item,
   textarea,
   .botao,
   .abas button,
@@ -4995,7 +5421,6 @@ button.mencao-chip:focus-visible {
   .kanban-cartao,
   a.metrica,
   .lista-item,
-  .menu-grupo-botao,
   .config-indice a,
   .selo-clicavel,
   .cabecalho-ordenavel,
@@ -5530,132 +5955,6 @@ tbody .linha-clicavel:focus-visible {
 @keyframes gaveta-entra {
   from {
     transform: translateX(100%);
-  }
-}
-
-/* ------------------------------------------------------------------
-   Menu com grupo expansivel
-   O menu cresceu e nao cabe mais inteiro na lateral sem rolagem longa.
-   O grupo que abre e fecha guarda o que nao se usa toda hora, sem
-   esconder onde a coisa mora: o cabecalho continua sendo a mesma linha
-   dos atalhos, so que com uma seta no fim.
-   Aqui nao entra caixa alta. Isso e navegacao, quem le precisa bater o
-   olho e reconhecer a palavra, nao decifrar um rotulo decorativo.
-   ------------------------------------------------------------------ */
-
-.menu-grupo-botao {
-  display: flex;
-  align-items: center;
-  gap: var(--e2);
-  width: 100%;
-  padding: var(--e1) var(--e3);
-  min-height: var(--controle);
-  margin-bottom: var(--e1);
-  border: 1px solid transparent;
-  border-radius: var(--raio);
-  background: none;
-  color: var(--texto-suave);
-  font-size: var(--t-md);
-  font-weight: 400;
-  /* O navegador zera a entrelinha do botao. Sem repetir a do corpo, o cabecalho
-     fica 3px mais baixo que os itens e o menu perde o ritmo. */
-  line-height: var(--lh-normal);
-  text-align: left;
-  /* O cabecalho pode ficar dentro de um .menu-grupo, que e caixa alta
-     espacada. Sem estas duas linhas o grupo herdaria aquele tratamento. */
-  text-transform: none;
-  letter-spacing: normal;
-  cursor: pointer;
-}
-
-.menu-grupo-botao:hover {
-  background: var(--superficie);
-  color: var(--texto);
-}
-
-/* Grupo aberto fica no texto cheio: e o unico sinal, alem da seta, de que os
-   itens logo abaixo pertencem a ele. */
-.menu-grupo-botao[aria-expanded='true'] {
-  color: var(--texto);
-}
-
-.menu-grupo-botao:focus-visible {
-  outline: 2px solid var(--ouro);
-  outline-offset: -2px;
-}
-
-.menu-grupo-botao svg {
-  width: 16px;
-  height: 16px;
-  flex: none;
-  opacity: 0.9;
-}
-
-.menu-grupo-botao > span {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* A seta e o ultimo icone da linha. O :not(:first-child) protege o caso de um
-   grupo sem seta, em que o icone da esquerda seria girado sem motivo.
-   O unico chevron do conjunto aponta para a esquerda, entao fechado ele vem
-   virado para a direita e abrir gira mais 90 graus, ate apontar para baixo,
-   que e a direcao de onde os itens aparecem. */
-.menu-grupo-seta,
-.menu-grupo-botao > svg:last-of-type:not(:first-child) {
-  margin-left: auto;
-  opacity: 0.75;
-  transform: rotate(180deg);
-}
-
-.menu-grupo-botao[aria-expanded='true'] .menu-grupo-seta,
-.menu-grupo-botao[aria-expanded='true'] > svg:last-of-type:not(:first-child) {
-  transform: rotate(-90deg);
-}
-
-/* Os itens do grupo recuam e ganham um fio vertical. Sem ele, item de dentro
-   do grupo e atalho solto ficam na mesma coluna e o grupo some da leitura. */
-.menu-grupo-itens {
-  margin: var(--e1) 0 var(--e2) calc(var(--e3) + var(--e2));
-  padding-left: var(--e2);
-  border-left: 1px solid var(--borda);
-}
-
-.menu-grupo-itens[hidden] {
-  display: none;
-}
-
-.menu-grupo-itens a {
-  font-size: var(--t-sm);
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  /* A seta gira para mostrar de onde a lista saiu. Sem o giro, o icone so
-     troca de direcao e o olho perde a ligacao com o que abriu. */
-  .menu-grupo-seta,
-  .menu-grupo-botao > svg:last-of-type:not(:first-child) {
-    transition: transform 150ms ease;
-  }
-}
-
-/* Na lateral estreita so sobram os icones. Seta e fio vertical nao tem o que
-   ancorar sem os rotulos, entao saem junto. */
-@media (max-width: 860px) {
-  .menu-grupo-botao {
-    justify-content: center;
-  }
-  .menu-grupo-botao > span,
-  .menu-grupo-seta,
-  .menu-grupo-botao > svg:last-of-type:not(:first-child) {
-    display: none;
-  }
-  .menu-grupo-itens {
-    margin-left: 0;
-    padding-left: 0;
-    border-left: none;
   }
 }
 
@@ -7097,93 +7396,20 @@ textarea.area-g {
   white-space: nowrap;
 }
 
-/* =====================================================================
-   Barra global. Atravessa a largura toda, por cima da lateral: nada nela
-   pertence a uma tela, e sim ao sistema.
-   ===================================================================== */
-.barra-global {
-  display: flex;
-  align-items: center;
-  gap: var(--e3);
-  flex: none;
-  height: 56px;
-  padding: 0 var(--e4);
-  background: var(--preto);
-  border-bottom: 1px solid var(--borda);
-}
-
-.barra-global .marca {
-  padding: 0;
-  border: 0;
-  gap: var(--e2);
-}
-
-.barra-global .marca img {
-  width: 26px;
-  height: 26px;
-}
-
-.barra-global .marca-texto strong {
-  font-size: var(--t-base);
-}
-
-.barra-global .marca-texto span {
-  font-size: 10px;
-}
-
-/*
- * A divisao "barra lateral + conteudo" da tela inteira.
- *
- * Chamava-se so `.corpo`, e esse nome ja pertencia a outras duas coisas: o
- * bloco de texto de todo item de lista (.lista-item .corpo) e o miolo de todo
- * modal (.modal > .corpo). Como esta regra vem depois no arquivo, a grade de
- * 236px + 1fr vazava para dentro dos dois — a descricao de qualquer item de
- * lista era espremida nos 12px que sobravam da segunda coluna e quebrava letra
- * por letra, e o conteudo de qualquer modal ficava preso nos 236px da
- * primeira. Passava despercebido porque o texto transborda a vista em vez de
- * ser cortado: lia-se como espacamento estranho, e nao como defeito.
- *
- * E a segunda vez que um nome generico faz isso aqui — "principal" ja tinha
- * colidido com .botao.principal, como conta o comentario de .corpo-app >
- * .principal. Por isso o esqueleto ganhou nome proprio em vez de mais um
- * seletor mais especifico em cima.
- */
-.corpo-app {
-  display: grid;
-  grid-template-columns: 236px 1fr;
-  flex: 1;
-  min-height: 0;
-}
-
-/* Escritorio em que se esta. Com um so, e rotulo; com varios, e seletor. */
-.seletor-workspace.unico {
-  display: flex;
-  align-items: center;
-  gap: var(--e2);
-  padding: 0 var(--e3);
-  height: var(--controle-p);
-  color: var(--texto-suave);
-  font-size: var(--t-base);
-  border: 1px solid var(--borda);
-  border-radius: var(--raio);
-  white-space: nowrap;
-}
-
-.seletor-workspace.unico svg {
-  color: var(--ouro);
-  flex: none;
-}
-
 /* Busca rapida ---------------------------------------------------------- */
+/* Ocupa o meio da barra de cima ate um teto: passando de uns 480px ela vira um
+   campo vazio enorme, e o que fica longe do olho e o que se digita. */
 .busca-global {
   position: relative;
   display: flex;
   align-items: center;
   gap: var(--e2);
-  width: 300px;
-  height: var(--controle-p);
+  flex: 1;
+  min-width: 0;
+  max-width: 480px;
+  height: var(--controle);
   padding: 0 var(--e3);
-  background: var(--superficie);
+  background: var(--superficie-2);
   border: 1px solid var(--borda);
   border-radius: var(--raio);
 }
@@ -7276,29 +7502,6 @@ textarea.area-g {
   font-size: var(--t-base);
 }
 
-/* Quem esta usando, no canto direito da barra global. */
-.quem-topo {
-  display: flex;
-  align-items: center;
-  gap: var(--e2);
-}
-
-.quem-topo .quem strong {
-  display: block;
-  font-size: var(--t-base);
-  line-height: 1.2;
-}
-
-.quem-topo .quem span {
-  color: var(--texto-fraco);
-  font-size: 10px;
-}
-
-/* A lateral perdeu a marca e o rodape: os dois subiram para a barra global. */
-.lateral {
-  border-top: 0;
-}
-
 /* Rodape da rosca: as duas maiores fatias e o botao de ver o resto,
    centralizado como na referencia. */
 .rosca-ver-tudo {
@@ -7308,10 +7511,10 @@ textarea.area-g {
 
 /* Item de grade nasce com min-height auto, e por isso cresce ate caber o
    proprio conteudo em vez de se ajustar a altura da grade. Sem esta linha, a
-   coluna principal empurrava o corpo para fora do .app, que tem overflow
+   area principal empurrava o conteudo para fora do .app, que tem overflow
    hidden: a rolagem do conteudo nunca era acionada e o fim de qualquer tela
    longa ficava inalcancavel. */
-.corpo-app > * {
+.app > * {
   min-height: 0;
   min-width: 0;
 }
@@ -8087,48 +8290,25 @@ tbody tr:focus-within .conexao-alca {
 }
 
 /* ------------------------------------------------------------------
-   Tela estreita: a lateral vira faixa de icones
+   Tela estreita
 
-   Este bloco fica no FIM do arquivo de proposito. Tudo o que ele
-   sobrescreve (.corpo-app, .seletor-workspace.unico, a barra global) e
-   declarado nas ultimas mil linhas, e com a mesma especificidade quem
-   ganha e quem vem depois. No meio do arquivo, como estava, a regra da
-   faixa de 64px perdia em qualquer largura: a lateral continuava com
-   236px num notebook pequeno, so que sem os rotulos — uma coluna larga
-   de icones centralizados, comendo um terco da tela.
+   Fica no FIM do arquivo de proposito: o que ele sobrescreve e declarado
+   antes, e com a mesma especificidade quem ganha e quem vem depois.
    ------------------------------------------------------------------ */
 
 @media (max-width: 860px) {
-  .corpo-app {
-    grid-template-columns: 64px 1fr;
-  }
-
-  .marca-texto,
-  .menu a span,
-  .rodape-lateral .quem,
-  .barra-global .marca-texto {
+  /* Do seletor de escritorio e numero sobra o ponto; os nomes aparecem ao
+     abrir a lista. O atalho da busca sai para o campo caber. */
+  .contexto-texto,
+  .busca-atalho {
     display: none;
   }
 
-  /* O seletor de escritorio some nas duas formas. Escrito so como
-     .seletor-workspace, ele perdia para .seletor-workspace.unico, que tem uma
-     classe a mais e e declarada depois: o rotulo do escritorio continuava
-     ocupando a barra numa tela onde nao cabe. */
-  .seletor-workspace,
-  .seletor-workspace.unico {
-    display: none;
+  .barra-topo {
+    padding-left: var(--e3);
   }
 
-  .menu a,
-  .menu-grupo-botao {
-    justify-content: center;
-  }
-
-  /* A busca global cede a largura fixa: com 300px ela empurrava o sino e o
-     avatar para fora da barra. */
-  .busca-global {
-    width: auto;
-    flex: 1;
-    min-width: 0;
+  .cabeca-tela {
+    padding-inline: var(--e3);
   }
 }
