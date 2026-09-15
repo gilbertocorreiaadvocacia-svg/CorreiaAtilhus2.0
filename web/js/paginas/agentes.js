@@ -1671,7 +1671,7 @@ export async function paginaAgentes({ parametros, definirAcoes, definirPrincipal
         ]),
         el('p', {
           class: 'dica',
-          texto: 'Em cada escritório ficam só os agentes da área, ligados; o que houver de outro sai com cópia guardada. Deste escritório saem os agentes dessas duas áreas.',
+          texto: 'Em cada escritório ficam só os agentes da área, ligados; o que houver de outro sai com cópia guardada. Deste escritório saem os agentes dessas duas áreas, e aqui fica o Agente 26 (triagem de quem já é cliente), desligado.',
         }),
         opcao,
       ]),

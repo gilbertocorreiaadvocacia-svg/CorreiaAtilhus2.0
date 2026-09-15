@@ -1,9 +1,8 @@
-import path from 'node:path';
-import { PASTA_DADOS, PROMPT, VOZES, areaValida } from '../config.js';
+import { PROMPT, VOZES, areaValida } from '../config.js';
 import { achar, atualizar, inserir, listar, remover } from '../nucleo/banco.js';
-import { gravarAtomico, normalizar, novoId, slug } from '../nucleo/util.js';
-import { PACOTES, prepararEscritorio } from '../ia/pacotes.js';
-import { criarWorkspacesPorArea } from '../nucleo/workspaces-por-area.js';
+import { normalizar, novoId, slug } from '../nucleo/util.js';
+import { PACOTES } from '../ia/pacotes.js';
+import { PASTA_PADRAO, instalarPacote, novoAgente as agenteNovo, separarPorEscritorio } from '../nucleo/agentes-por-escritorio.js';
 import { normalizarMomentos } from '../nucleo/casos.js';
 import { sintetizar, vozDisponivel } from '../ia/audio.js';
 import { analisarPrompt, catalogoCompleto, ferramentasDoAgente } from '../ia/mencoes.js';
@@ -264,48 +263,10 @@ export function registrarAutomacoes(rotas) {
     return limpo;
   }
 
-  /** A pasta padrao, quando ninguem escolheu nenhuma. */
-  const PASTA_PADRAO = 'Meus Agentes';
-
-  /**
-   * A forma de um agente novo, num lugar so.
-   *
-   * Havia TRES lugares criando agente com listas de campos diferentes: a
-   * semente, o POST /api/agentes e o POST /api/agentes/gerar. O terceiro ja
-   * nascia sem vozId e sem modoAudio, e o defeito era mudo: o agente gerado
-   * por IA aparecia normal na lista, e so quem fosse escolher a voz dele
-   * descobria que o campo se comportava diferente do dos outros.
-   *
-   * Com um construtor so, acrescentar campo ao agente e mexer aqui — e o
-   * agente gerado por IA nasce igual ao criado a mao. A semente continua
-   * separada de proposito: ela roda uma vez, com prompts proprios, e nao pode
-   * depender de uma rota.
-   */
+  /* O construtor unico do agente mora em nucleo/agentes-por-escritorio.js: e o
+     mesmo que instala os pacotes e separa as areas por escritorio. */
   function novoAgente(ctx, dados = {}) {
-    return {
-      id: novoId('agn'),
-      workspaceId: ctx.workspaceId,
-      nome: dados.nome || 'Novo agente',
-      objetivo: dados.objetivo || 'atender',
-      prompt: dados.prompt || '',
-      palavrasChave: dados.palavrasChave || [],
-      modelo: dados.modelo || 'claude-sonnet-5',
-      delaySegundos: dados.delaySegundos ?? 15,
-      conhecimentoIds: dados.conhecimentoIds || [],
-      vozId: null,
-      modoAudio: false,
-      pasta: dados.pasta || PASTA_PADRAO,
-      area: areaValida(dados.area),
-      requisitos: dados.requisitos || [],
-      /*
-       * A foto e uma URL de /midia, guardada pelo mesmo upload que ja recebe
-       * video de proposta e audio. Nasce vazia: sem ela o avatar() do sistema
-       * desenha as iniciais, que e o que a tela ja mostrava antes de existir
-       * foto nenhuma.
-       */
-      foto: dados.foto || null,
-      ativo: dados.ativo !== false,
-    };
+    return agenteNovo(ctx.workspaceId, dados);
   }
 
   rotas.get('/api/agentes', async ({ ctx }) =>
@@ -347,116 +308,9 @@ export function registrarAutomacoes(rotas) {
     }));
   });
 
-  /**
-   * Tudo o que apontava para um dos agentes que vao sair passa para `para` (o
-   * agente que recebe a conversa) ou fica sem ninguem (null): conversa, numero,
-   * desistencia do follow-up e pos-assinatura da ZapSign.
-   */
-  function reatribuir(workspaceId, ids, para) {
-    const conta = { conversas: 0, numeros: 0 };
-    if (!ids.size) return conta;
-    const eraDeQuemSai = (quem) => quem?.tipo === 'agente' && ids.has(quem.id);
-
-    for (const contato of listar('contatos', { workspaceId })) {
-      if (!eraDeQuemSai(contato.responsavel)) continue;
-      atualizar(
-        'contatos',
-        contato.id,
-        para ? { responsavel: para } : { responsavel: null, estado: contato.estado === 'ia' ? 'pendente' : contato.estado },
-      );
-      conta.conversas += 1;
-    }
-    for (const numero of listar('conexoes', { workspaceId })) {
-      if (!eraDeQuemSai(numero.responsavelPadrao)) continue;
-      atualizar('conexoes', numero.id, { responsavelPadrao: para });
-      conta.numeros += 1;
-    }
-    for (const registro of listar('status', { workspaceId })) {
-      if (!(registro.followups || []).some((passo) => eraDeQuemSai(passo.desistir?.responsavel))) continue;
-      atualizar('status', registro.id, {
-        followups: registro.followups.map((passo) =>
-          eraDeQuemSai(passo.desistir?.responsavel) ? { ...passo, desistir: { ...passo.desistir, responsavel: para } } : passo,
-        ),
-      });
-    }
-    const integracoes = achar('integracoes', { workspaceId });
-    if (eraDeQuemSai(integracoes?.zapsign?.posAssinatura?.responsavel)) {
-      atualizar('integracoes', integracoes.id, {
-        zapsign: { ...integracoes.zapsign, posAssinatura: { ...integracoes.zapsign.posAssinatura, responsavel: para } },
-      });
-    }
-    return conta;
-  }
-
-  /* Os agentes que vao sair, inteiros, num arquivo em PASTA_DADOS/copias-de-agentes
-     (e nao numa colecao nova: o espelho da nuvem so conhece as colecoes do banco). */
-  function guardarCopia(workspaceId, agentes, motivo) {
-    if (!agentes.length) return null;
-    const nome = `agentes-${workspaceId}-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
-    gravarAtomico(
-      path.join(PASTA_DADOS, 'copias-de-agentes', nome),
-      JSON.stringify({ workspaceId, motivo, copiadoEm: new Date().toISOString(), agentes }, null, 2),
-    );
-    return nome;
-  }
-
-  /**
-   * Instala o pacote de uma area num escritorio. Antes dos agentes, cria o que
-   * os prompts citam pelo nome e o escritorio nao tem (etiquetas,
-   * departamentos, templates e variaveis; ver prepararEscritorio).
-   *
-   * Agente do pacote que ja existe (pelo nome) fica como esta: o escritorio
-   * pode ter afinado o prompt dele.
-   *
-   * Com `substituir`, os agentes que NAO sao do pacote saem, com copia, e tudo o
-   * que apontava para eles passa para o primeiro agente do pacote, o que recebe
-   * a conversa. Com `ligar`, os agentes do pacote ficam ligados. Com `conexao`,
-   * o numero passa a ser da area e o primeiro agente responde por ele.
-   */
-  function instalarPacote({ workspaceId, area, substituir = false, ligar = false, conexao = null }) {
-    const pacote = PACOTES[area];
-    const doPacote = new Set(pacote.agentes.map((a) => normalizar(a.nome)));
-    const saem = substituir ? listar('agentes', { workspaceId }).filter((a) => !doPacote.has(normalizar(a.nome))) : [];
-    const copia = guardarCopia(workspaceId, saem, `fora do pacote ${pacote.nome}`);
-
-    const criadosNoEscritorio = prepararEscritorio(workspaceId, pacote);
-    const bases = listar('conhecimento', { workspaceId })
-      .filter((base) => pacote.bases.some((pedaco) => normalizar(base.nome).includes(pedaco)))
-      .map((base) => base.id);
-
-    const criados = [];
-    const mantidos = [];
-    for (const dados of pacote.agentes) {
-      const existente = listar('agentes', { workspaceId }).find((a) => normalizar(a.nome) === normalizar(dados.nome));
-      if (existente) {
-        if (ligar && !existente.ativo) atualizar('agentes', existente.id, { ativo: true });
-        mantidos.push({ id: existente.id, nome: existente.nome });
-        continue;
-      }
-      const agente = inserir(
-        'agentes',
-        novoAgente({ workspaceId }, { ...dados, area, pasta: dados.pasta || pacote.pasta, conhecimentoIds: bases }),
-      );
-      criados.push({ id: agente.id, nome: agente.nome });
-    }
-
-    const entrada = listar('agentes', { workspaceId }).find((a) => normalizar(a.nome) === normalizar(pacote.agentes[0].nome));
-    const paraEntrada = { tipo: 'agente', id: entrada.id, nome: entrada.nome };
-    const reatribuidos = reatribuir(workspaceId, new Set(saem.map((a) => a.id)), paraEntrada);
-    for (const agente of saem) remover('agentes', agente.id);
-    if (conexao) atualizar('conexoes', conexao.id, { area, responsavelPadrao: paraEntrada });
-
-    return {
-      criados,
-      mantidos,
-      removidos: saem.map((a) => ({ id: a.id, nome: a.nome })),
-      copia,
-      reatribuidos,
-      criadosNoEscritorio,
-      variaveisCriadas: criadosNoEscritorio.variaveis,
-    };
-  }
-
+  /* Instalar (nucleo/agentes-por-escritorio.js): cria o que os roteiros citam e
+     nao existe, nunca sobrescreve agente do pacote que ja existe e, com
+     `substituir`, tira o que nao e do pacote, com copia. */
   rotas.post('/api/agentes-pacotes/:area', async ({ ctx, params, corpo }) => {
     exigirConfiguracao(ctx);
     if (!PACOTES[params.area]) throw comCodigo('Nao ha pacote de agentes para esta area.', 404);
@@ -482,48 +336,15 @@ export function registrarAutomacoes(rotas) {
     return { ok: true, ...resultado, conexao: conexao ? { id: conexao.id, nome: conexao.nome } : null };
   });
 
-  /**
-   * Cada area no seu escritorio: os agentes do Previdenciario no escritorio
-   * Previdenciario, os do Trabalhista no Trabalhista.
-   *
-   * Roda a partir do escritorio geral (o sem area). Cria os escritorios que
-   * faltam (nucleo/workspaces-por-area.js), deixa em cada um so os agentes do
-   * pacote da area, ligados, e tira do escritorio geral os agentes desses
-   * pacotes. Com `apagarOutros`, sai tambem o resto dos agentes do geral, e o
-   * que estava com eles fica sem agente. Tudo o que sai vai antes para
-   * copias-de-agentes.
-   */
+  /* Cada area no seu escritorio, a partir do escritorio geral
+     (separarPorEscritorio, em nucleo/agentes-por-escritorio.js). A mesma coisa
+     roda com o servidor parado por ferramentas/agentes-por-escritorio.js. */
   rotas.post('/api/agentes-por-escritorio', async ({ ctx, corpo }) => {
     exigirConfiguracao(ctx);
     if (areaDoEscritorio(ctx.workspaceId)) {
       throw comCodigo('Separe a partir do escritorio geral, o que nao tem area.', 409);
     }
-
-    const escritorios = [];
-    const nomesQueMudam = new Set();
-    for (const alvo of criarWorkspacesPorArea({ baseWorkspaceId: ctx.workspaceId })) {
-      if (!PACOTES[alvo.area]) continue;
-      for (const agente of PACOTES[alvo.area].agentes) nomesQueMudam.add(normalizar(agente.nome));
-      const resultado = instalarPacote({ workspaceId: alvo.workspaceId, area: alvo.area, substituir: true, ligar: true });
-      escritorios.push({
-        area: alvo.area,
-        nome: alvo.nome,
-        workspaceId: alvo.workspaceId,
-        criadoAgora: alvo.situacao === 'criado',
-        agentes: resultado.criados.length + resultado.mantidos.length,
-        removidos: resultado.removidos.length,
-        copia: resultado.copia,
-      });
-    }
-
-    const saem = listar('agentes', { workspaceId: ctx.workspaceId }).filter(
-      (agente) => corpo?.apagarOutros === true || nomesQueMudam.has(normalizar(agente.nome)),
-    );
-    const copia = guardarCopia(ctx.workspaceId, saem, 'separados por escritorio');
-    const reatribuidos = reatribuir(ctx.workspaceId, new Set(saem.map((a) => a.id)), null);
-    for (const agente of saem) remover('agentes', agente.id);
-
-    return { ok: true, escritorios, removidosDaqui: saem.map((a) => ({ id: a.id, nome: a.nome })), copia, reatribuidos };
+    return { ok: true, ...separarPorEscritorio({ origemId: ctx.workspaceId, apagarOutros: corpo?.apagarOutros === true }) };
   });
 
   rotas.post('/api/agentes', async ({ ctx, corpo }) => {

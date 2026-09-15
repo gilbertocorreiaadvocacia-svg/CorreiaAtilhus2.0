@@ -3,6 +3,7 @@ import { normalizar, novoId } from '../nucleo/util.js';
 import { AUXILIO_ACIDENTE } from './pacotes/auxilio-acidente.js';
 import { BPC } from './pacotes/bpc.js';
 import { MATERNIDADE } from './pacotes/maternidade.js';
+import { AGENTE_26 } from './pacotes/suporte.js';
 import { EDUARDA } from './pacotes/triagem.js';
 import { TRABALHISTA } from './pacotes/trabalhista.js';
 
@@ -165,11 +166,12 @@ export const PACOTES = {
       ['qualidade_segurado', 'Qualidade de segurado', 'Se contribuia ou tinha carteira na epoca.'],
       ['data_parto', 'Data do parto ou adocao', 'Data do nascimento, da adocao ou prevista, DD/MM/AAAA.'],
     ],
+    /* As pastas com os nomes que o escritorio usava na LiderHub. */
     agentes: [
       EDUARDA,
-      ...AUXILIO_ACIDENTE.map((agente) => ({ ...agente, pasta: 'Auxílio-acidente' })),
-      ...BPC.map((agente) => ({ ...agente, pasta: 'BPC/LOAS' })),
-      ...MATERNIDADE.map((agente) => ({ ...agente, pasta: 'Salário-maternidade' })),
+      ...AUXILIO_ACIDENTE.map((agente) => ({ ...agente, pasta: 'Auxílio-Acidente FER MAR26' })),
+      ...BPC.map((agente) => ({ ...agente, pasta: 'BPC Loas' })),
+      ...MATERNIDADE.map((agente) => ({ ...agente, pasta: 'Salário Maternidade' })),
     ],
   },
 
@@ -205,7 +207,7 @@ export const PACOTES = {
       ['nome_reclamada', 'Empresa reclamada', 'Nome da empresa que vai no processo.'],
       ['doc_reclamada', 'CNPJ da empresa', 'CNPJ da empresa, se o cliente souber.'],
     ],
-    agentes: TRABALHISTA.map((agente) => ({ ...agente, pasta: 'Trabalhista' })),
+    agentes: TRABALHISTA.map((agente) => ({ ...agente, pasta: 'Agentes Trabalhista + Auxilio acidente' })),
   },
 
   civel: {
@@ -280,6 +282,32 @@ export const PACOTES = {
       },
     ],
   },
+};
+
+/**
+ * O que fica no escritorio geral (o sem area) depois de separar as areas: o
+ * Agente 26, rascunho da LiderHub para quem ja e cliente, desligado. Nao entra
+ * na lista de "Agentes por area" porque nao e de area nenhuma.
+ */
+export const ESCRITORIO_GERAL = {
+  nome: 'Escritório geral',
+  pasta: 'Sem pasta',
+  bases: [],
+  departamentos: [['Suporte', 'var(--serie-6)']],
+  etiquetas: [
+    ['Dúvidas', 'var(--serie-5)'],
+    ['Consultas', 'var(--serie-2)'],
+    ['Pagamento', 'var(--sucesso)'],
+    ['Perícia', 'var(--serie-3)'],
+    ['Laudo', 'var(--serie-4)'],
+    ['Entrega de documentos', 'var(--serie-7)'],
+    ['Solicitação de documentos', 'var(--serie-8)'],
+    ['Acidente de trabalho ou doença ocupacional', 'var(--serie-4)'],
+    ['Trabalhista', 'var(--serie-6)'],
+  ],
+  templates: [],
+  variaveis: [['cpf', 'CPF', 'CPF do cliente, so numeros.']],
+  agentes: [AGENTE_26],
 };
 
 /**

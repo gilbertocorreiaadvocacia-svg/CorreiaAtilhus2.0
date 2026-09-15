@@ -89,7 +89,7 @@ export async function testarWorkspacesPorArea({ base }) {
   const pastas = [...new Set(agentesPrevidenciarios.map((a) => a.pasta))];
   s.ok(
     'Previdenciario: agentes separados por beneficio',
-    ['Triagem', 'BPC/LOAS', 'Auxílio-acidente', 'Salário-maternidade'].every((p) => pastas.includes(p)),
+    ['Triagem', 'BPC Loas', 'Auxílio-Acidente FER MAR26', 'Salário Maternidade'].every((p) => pastas.includes(p)),
     JSON.stringify(pastas),
   );
   s.ok('Previdenciario: todos desligados', agentesPrevidenciarios.length === 15 && agentesPrevidenciarios.every((a) => !a.ativo));
@@ -181,7 +181,12 @@ export async function testarWorkspacesPorArea({ base }) {
     (separado.dados?.removidosDaqui || []).some((a) => a.id === trabalhistaNoGeral?.id) && !noGeralDepois.some((a) => a.id === trabalhistaNoGeral?.id),
     JSON.stringify(separado.dados?.removidosDaqui),
   );
-  s.ok('Separar: sem pedir, os outros agentes do escritorio geral ficam', noGeralDepois.length > 0);
+  s.ok('Separar: sem pedir, os outros agentes do escritorio geral ficam', noGeralDepois.some((a) => a.nome !== 'Agente 26'));
+  s.ok(
+    'Separar: o Agente 26 fica no escritorio geral, desligado e sem mencao invalida',
+    noGeralDepois.some((a) => a.nome === 'Agente 26' && !a.ativo && a.pasta === 'Sem pasta' && !(a.mencoesInvalidas || []).length),
+    JSON.stringify(noGeralDepois.filter((a) => a.nome === 'Agente 26')),
+  );
 
   await entrar(trabalhista);
   const trabalhistasDepois = (await api.get('/api/agentes')).dados || [];
