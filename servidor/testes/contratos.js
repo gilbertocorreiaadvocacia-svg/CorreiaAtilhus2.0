@@ -90,6 +90,11 @@ export async function testarContratos({ base, zapsign }) {
   await pedir(c1.id);
   const lista = await contratosDe(c1.id);
   s.ok('pedir de novo nao duplica o contrato', lista.length === 1, `contratos: ${lista.length}`);
+  s.ok(
+    'a lista de contratos traz o telefone da conversa, para a tela de Contratos',
+    String(lista[0]?.telefone || '').endsWith('0001'),
+    JSON.stringify(lista[0]?.telefone),
+  );
   const contrato = lista[0];
   s.ok('o valor do modelo vem das variaveis da conversa', contrato?.valores?.['{{CPF}}'] === '12345678909', JSON.stringify(contrato?.valores));
 

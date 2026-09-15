@@ -306,10 +306,12 @@ export function registrarIntegracoes(rotas) {
         return !contato || podeVerConversa(ctx, contato);
       })
       .sort((a, b) => String(b.criadoEm).localeCompare(String(a.criadoEm)))
-      .map((contrato) => ({
-        ...contrato,
-        contato: achar('contatos', contrato.contatoId)?.nome || 'conversa removida',
-      })),
+      .map((contrato) => {
+        /* O telefone vai junto: a tela de Contratos mostra a lista sem abrir
+           conversa por conversa. */
+        const contato = achar('contatos', contrato.contatoId);
+        return { ...contrato, contato: contato?.nome || 'conversa removida', telefone: contato?.telefone || '' };
+      }),
   );
 
   /* A equipe pede o contrato pela tela, como o agente pede pela mencao. */

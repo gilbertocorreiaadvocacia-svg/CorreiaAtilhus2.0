@@ -4926,6 +4926,307 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
   box-shadow: 0 0 0 3px var(--ouro-fraco);
 }
 
+/* Contratos -------------------------------------------------------- */
+
+/*
+ * A tela de Contratos: a lista na esquerda, a conferencia no painel.
+ *
+ * minmax(0, 1fr) pelo mesmo motivo de .atendimento: sem ele, uma linha com
+ * nome comprido empurra o painel para fora da tela.
+ */
+.contratos {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 380px;
+  height: 100%;
+  min-height: 0;
+}
+
+.contratos-lista {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e3);
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--e4) var(--e5) var(--e6);
+}
+
+.contratos-tabela {
+  flex: none;
+  border: 1px solid var(--borda);
+  border-radius: var(--raio-g);
+  background: var(--superficie);
+  overflow: hidden;
+}
+
+/* A linha e um botao: a lista e a navegacao da tela, e precisa do Tab. */
+.contratos-linha {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1.25fr) 88px;
+  column-gap: var(--e3);
+  align-items: center;
+  width: 100%;
+  min-height: 58px;
+  margin: 0;
+  padding: var(--e2) var(--e4);
+  border: 0;
+  border-bottom: 1px solid var(--borda);
+  border-radius: 0;
+  background: var(--fundo);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.contratos-linha:hover {
+  background: var(--superficie-2);
+}
+
+.contratos-linha:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: -2px;
+}
+
+.contratos-linha.ativo {
+  background: var(--ouro-fraco);
+  box-shadow: inset 3px 0 0 var(--ouro);
+}
+
+.contratos-linha.cabecalho {
+  min-height: 36px;
+  background: var(--superficie);
+  color: var(--texto-fraco);
+  font-size: var(--t-nota);
+  font-weight: 600;
+  letter-spacing: var(--tr-alta);
+  text-transform: uppercase;
+  cursor: default;
+}
+
+.contratos-linha.cabecalho > span:last-child,
+.contratos-quando {
+  text-align: right;
+}
+
+.contratos-grupo {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  height: 34px;
+  padding: 0 var(--e4);
+  border-bottom: 1px solid var(--borda);
+  background: var(--superficie-2);
+  color: var(--texto-suave);
+  font-size: var(--t-nota);
+  font-weight: 600;
+  letter-spacing: var(--tr-alta);
+  text-transform: uppercase;
+}
+
+/* O grupo que pede alguem agora e o unico em dourado. */
+.contratos-grupo.ouro {
+  color: var(--ouro-claro);
+}
+
+.contratos-grupo-conta {
+  color: var(--texto-fraco);
+}
+
+.contratos-cliente {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: var(--lh-apertada);
+}
+
+.contratos-cliente strong {
+  font-family: var(--fonte-titulo);
+  font-size: 14.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.contratos-cliente span {
+  margin-top: 2px;
+  color: var(--texto-fraco);
+  font-size: var(--t-nota);
+}
+
+.contratos-caso {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  color: var(--texto-suave);
+}
+
+.contratos-situacao {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  min-width: 0;
+}
+
+.contratos-situacao small {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--texto-fraco);
+  font-size: var(--t-nota);
+}
+
+.contratos-situacao small.alerta {
+  color: var(--alerta);
+}
+
+.contratos-juri {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--t-nota);
+}
+
+.contratos-juri.sucesso {
+  color: var(--sucesso);
+}
+
+.contratos-juri.alerta {
+  color: var(--alerta);
+}
+
+.contratos-juri.erro {
+  color: var(--erro);
+}
+
+.contratos-juri.nada,
+.contratos-quando {
+  color: var(--texto-fraco);
+}
+
+.contratos-quando {
+  font-size: var(--t-nota);
+}
+
+.contratos-nada {
+  padding: var(--e4);
+  color: var(--texto-fraco);
+}
+
+.contratos-rodape {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  margin: 0;
+  color: var(--texto-fraco);
+  font-size: var(--t-nota);
+}
+
+/* A cor da situacao na pilula: dourado pede alguem, verde assinou, vermelho
+   encerrou mal, ambar e o Juri que ainda nao respondeu. */
+.pilula.ouro {
+  color: var(--ouro-claro);
+}
+
+.pilula.sucesso {
+  color: var(--sucesso);
+}
+
+.pilula.erro {
+  color: var(--erro);
+}
+
+.pilula.alerta {
+  color: var(--alerta);
+}
+
+.contratos-painel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  border-left: 1px solid var(--borda);
+  background: var(--superficie);
+}
+
+.contratos-painel-cabeca {
+  padding: var(--e4);
+  border-bottom: 1px solid var(--borda);
+}
+
+.contratos-painel-nome {
+  font-family: var(--fonte-titulo);
+  font-size: 19px;
+  font-weight: 500;
+  line-height: var(--lh-apertada);
+}
+
+.contratos-abrir {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: var(--e2);
+  font-size: var(--t-nota);
+  font-weight: 600;
+}
+
+.contratos-dados {
+  border-bottom: 0;
+}
+
+.contratos-campos {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--e2) var(--e3);
+}
+
+.contratos-campos .campo {
+  margin: 0;
+}
+
+/* Campo em branco: e o que falta conferir antes de aprovar. */
+.contratos-campos input.em-branco {
+  border-color: var(--alerta-linha);
+  box-shadow: inset 0 0 0 1px var(--alerta-linha);
+}
+
+/* As acoes ficam presas no pe do painel: com muitos campos, aprovar nao pode
+   depender de rolar ate o fim. */
+.contratos-acoes {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--e2);
+  margin-top: auto;
+  padding: var(--e4);
+  border-top: 1px solid var(--borda);
+  background: var(--superficie);
+}
+
+@media (max-width: 1180px) {
+  .contratos {
+    grid-template-columns: minmax(0, 1fr) 320px;
+  }
+
+  .contratos-linha {
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1.4fr) 72px;
+  }
+
+  .contratos-caso,
+  .contratos-juri,
+  .contratos-linha.cabecalho > span:nth-child(2),
+  .contratos-linha.cabecalho > span:nth-child(4) {
+    display: none;
+  }
+}
+
 /* Painel ----------------------------------------------------------- */
 
 .metricas {

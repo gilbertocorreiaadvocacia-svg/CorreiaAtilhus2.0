@@ -44,6 +44,7 @@ import { paginaTarefas } from './paginas/tarefas.js';
 import { paginaConexoes } from './paginas/conexoes.js';
 import { paginaConfiguracoes } from './paginas/configuracoes.js';
 import { moduloAgentes } from './paginas/modulo-agentes.js';
+import { paginaContratos } from './paginas/contratos.js';
 
 const raiz = document.getElementById('raiz');
 
@@ -61,6 +62,7 @@ const PAGINAS = {
   atendimento: { titulo: 'Conversas', montar: paginaAtendimento, cheia: true, semCabeca: true, visualizacao: 'conversas' },
   contatos: { titulo: 'Contatos', montar: paginaAtendimento, cheia: true, visualizacao: 'contatos' },
   kanban: { titulo: 'Funil', montar: paginaAtendimento, cheia: true, visualizacao: 'kanban' },
+  contratos: { titulo: 'Contratos', montar: paginaContratos, cheia: true },
 
   /* Agentes, Base de conhecimento e Chat de teste sao abas do mesmo modulo
      (paginas/modulo-agentes.js). As tres rotas continuam existindo. */
@@ -106,6 +108,12 @@ const BARRA = [
     },
     { rota: 'contatos', rotulo: 'Contatos', icone: 'usuarios' },
     { rota: 'kanban', rotulo: 'Funil', icone: 'filtros' },
+    {
+      rota: 'contratos',
+      rotulo: 'Contratos',
+      icone: 'contrato',
+      contador: { chave: 'conferir', tipo: 'ouro', rotulo: 'para conferir' },
+    },
     { rota: 'tarefas', rotulo: 'Tarefas', icone: 'ok' },
     { rota: 'agendamentos', rotulo: 'Agendamentos', icone: 'agenda' },
   ],
@@ -367,11 +375,15 @@ let relogioDosContadores = null;
 function atualizarContadoresDaBarra() {
   clearTimeout(relogioDosContadores);
   relogioDosContadores = setTimeout(async () => {
-    try {
-      const resposta = await api.get('/api/contatos', { comMensagem: 'true', limite: 1 });
-      pintarContador('pendentes', resposta.contagens?.pendentes || 0);
-    } catch {
-      /* O numero e informacao a mais: sem ele, a barra continua levando para a fila. */
+    const [conversas, contratos] = await Promise.allSettled([
+      api.get('/api/contatos', { comMensagem: 'true', limite: 1 }),
+      api.get('/api/contratos'),
+    ]);
+    /* O numero e informacao a mais: se uma consulta falhar, o icone continua
+       levando para a tela, so sem o contador. */
+    if (conversas.status === 'fulfilled') pintarContador('pendentes', conversas.value?.contagens?.pendentes || 0);
+    if (contratos.status === 'fulfilled') {
+      pintarContador('conferir', (contratos.value || []).filter((c) => c.situacao === 'em_conferencia').length);
     }
   }, 400);
 }
