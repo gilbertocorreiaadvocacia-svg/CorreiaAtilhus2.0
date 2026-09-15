@@ -520,14 +520,15 @@ a {
    Estrutura
    ------------------------------------------------------------------ */
 
-/* A casca do sistema: a barra de icones na esquerda, a area principal ao lado.
+/* A casca do sistema: o menu lateral na esquerda, a area principal ao lado.
 
-   A barra tem 64px e so icones, com o nome de cada um num balao ao lado
-   (.dica-barra). A lista rola por dentro quando a janela e baixa: com treze
-   areas, um notebook de 768px de altura nao comporta todas de uma vez. */
+   Aberto, o menu escreve o nome de cada area e agrupa as que andam juntas em
+   modulos que abrem e fecham. Recolhido (.recolhida), volta a ser a faixa de
+   64px so com icones, com o nome de cada um num balao ao lado (.dica-barra).
+   A lista rola por dentro quando a janela e baixa. */
 .app {
   display: grid;
-  grid-template-columns: 64px minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr);
   height: 100vh;
   overflow: hidden;
 }
@@ -535,27 +536,51 @@ a {
 .rail {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  width: 240px;
   min-height: 0;
-  padding: var(--e3) 0;
+  padding: var(--e3) var(--e2);
   background: var(--preto);
   border-right: 1px solid var(--borda);
 }
 
 .rail-marca {
   flex: none;
-  display: grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  margin-bottom: var(--e2);
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  min-height: 40px;
+  margin-bottom: var(--e3);
+  padding: 0 var(--e2);
   border-radius: var(--raio);
+  color: var(--texto);
+  text-decoration: none;
 }
 
 .rail-marca img {
+  flex: none;
   width: 34px;
   height: 34px;
   object-fit: contain;
+}
+
+.rail-marca-texto {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.rail-marca-texto strong {
+  font-family: var(--fonte-titulo);
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.rail-marca-texto span {
+  font-size: var(--t-nota);
+  color: var(--texto-fraco);
+  white-space: nowrap;
 }
 
 .rail-marca:focus-visible {
@@ -569,10 +594,9 @@ a {
   width: 100%;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  gap: 2px;
   overflow-y: auto;
-  /* A rolagem existe para janela baixa, e nao precisa de trilho desenhado:
-     numa faixa de 64px a barra de rolagem comeria um terco da largura. */
+  /* A rolagem existe para janela baixa, e nao precisa de trilho desenhado. */
   scrollbar-width: none;
 }
 
@@ -580,30 +604,37 @@ a {
   display: none;
 }
 
-.rail-grupo {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-}
-
-.rail-fio {
-  flex: none;
-  width: 28px;
-  height: 1px;
-  margin: var(--e2) 0;
-  background: var(--borda);
-}
-
 .rail-item {
   position: relative;
   flex: none;
-  display: grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
+  display: flex;
+  align-items: center;
+  gap: var(--e3);
+  width: 100%;
+  min-height: 38px;
+  padding: 0 var(--e3);
+  border: 0;
   border-radius: var(--raio);
+  background: none;
   color: var(--texto-fraco);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.rail-item > svg {
+  flex: none;
+}
+
+.rail-rotulo {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .rail-item:hover {
@@ -616,29 +647,65 @@ a {
   outline-offset: -2px;
 }
 
-/* A area aberta: fundo e contorno dourados. O contorno faz o trabalho para
-   quem nao distingue o dourado do cinza. */
+/* A area aberta: fundo e contorno. O contorno faz o trabalho para quem nao
+   distingue a cor do cinza. */
 .rail-item.ativo {
   color: var(--ouro-claro);
   background: var(--ouro-fraco);
   box-shadow: inset 0 0 0 1px var(--ouro-linha);
 }
 
-/* Contador colado no canto do icone. O anel da cor da barra separa o numero
-   do desenho que ele cobre em parte. */
-.rail-conta {
-  position: absolute;
-  top: 2px;
-  right: 1px;
-  min-width: 16px;
-  height: 16px;
-  padding: 0 4px;
+/* O modulo: o gatilho com a seta, e os itens de dentro recuados sob o icone,
+   presos por um fio. A seta e o "voltar" do conjunto de icones: aberta aponta
+   para baixo, fechada aponta para a direita. */
+.rail-modulo-gatilho > svg:last-child {
+  transform: rotate(-90deg);
+  transition: transform var(--transicao);
+  opacity: 0.7;
+}
+
+.rail-modulo.fechado .rail-modulo-gatilho > svg:last-child {
+  transform: rotate(180deg);
+}
+
+/* O modulo que guarda a tela aberta fica com o nome aceso, aberto ou nao. */
+.rail-modulo.contem-ativo > .rail-modulo-gatilho {
+  color: var(--texto);
+}
+
+.rail-subitens {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 2px 0 var(--e2) 21px;
+  padding-left: var(--e2);
+  border-left: 1px solid var(--borda);
+}
+
+.rail-modulo.fechado .rail-subitens {
+  display: none;
+}
+
+.rail-subitem {
+  gap: var(--e2);
+  min-height: 34px;
+  padding-left: var(--e2);
+  font-size: 13.5px;
+}
+
+/* Contador no fim da linha. O do item e na cor da urgencia; a soma no modulo
+   fechado e neutra, porque junta numeros de naturezas diferentes. */
+.rail-conta,
+.rail-soma {
+  flex: none;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
   border-radius: var(--raio-pilula);
-  font-size: 10px;
+  font-size: 10.5px;
   font-weight: 700;
-  line-height: 16px;
+  line-height: 18px;
   text-align: center;
-  box-shadow: 0 0 0 2px var(--preto);
 }
 
 .rail-conta.alerta {
@@ -651,30 +718,151 @@ a {
   color: var(--sobre-ouro);
 }
 
+.rail-soma {
+  background: var(--superficie-3);
+  color: var(--texto);
+  box-shadow: inset 0 0 0 1px var(--borda-forte);
+}
+
+.rail-modulo:not(.fechado) .rail-soma {
+  display: none;
+}
+
 .rail-fim {
   flex: none;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: var(--e2);
+  gap: 2px;
+  margin-top: var(--e2);
   padding-top: var(--e2);
+  border-top: 1px solid var(--borda);
 }
 
-.rail-eu {
-  display: grid;
-  place-items: center;
+.rail-recolher > svg {
+  transition: transform var(--transicao);
+}
+
+/* Recolhido: a faixa de icones. Os itens de dentro dos modulos aparecem todos,
+   separados por um fio, porque sem rotulo nao ha gatilho para abrir. */
+.rail.recolhida {
+  width: 64px;
+  align-items: center;
+  padding-inline: 0;
+}
+
+.rail.recolhida .rail-rotulo,
+.rail.recolhida .rail-marca-texto,
+.rail.recolhida .rail-modulo-gatilho {
+  display: none;
+}
+
+.rail.recolhida .rail-marca {
+  justify-content: center;
+  width: 40px;
+  padding: 0;
+}
+
+.rail.recolhida .rail-grupos,
+.rail.recolhida .rail-fim {
+  align-items: center;
+}
+
+.rail.recolhida .rail-item {
+  justify-content: center;
   width: 40px;
   height: 40px;
+  min-height: 40px;
   padding: 0;
+}
+
+.rail.recolhida .rail-modulo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: var(--e1) 0;
+  padding: var(--e1) 0;
+  border-block: 1px solid var(--borda);
+}
+
+.rail.recolhida .rail-subitens {
+  display: flex;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  border-left: 0;
+}
+
+/* Recolhido, o contador volta a ficar colado no canto do icone, com o anel da
+   cor da barra separando o numero do desenho que ele cobre em parte. */
+.rail.recolhida .rail-conta {
+  position: absolute;
+  top: 2px;
+  right: 1px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  font-size: 10px;
+  line-height: 16px;
+  box-shadow: 0 0 0 2px var(--preto);
+}
+
+.rail.recolhida .rail-recolher > svg {
+  transform: rotate(180deg);
+}
+
+/* Quem esta logado: o rosto e, com o menu aberto, o nome e o papel ao lado. */
+.rail-eu {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  width: 100%;
+  min-height: 44px;
+  padding: var(--e1) var(--e2);
   border: 0;
-  border-radius: 50%;
+  border-radius: var(--raio);
   background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
   cursor: pointer;
+}
+
+.rail-eu:hover {
+  background: var(--superficie);
 }
 
 .rail-eu:focus-visible {
   outline: 2px solid var(--ouro);
   outline-offset: 1px;
+}
+
+.rail-eu-nome {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+.rail-eu-nome strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--t-base);
+  font-weight: 600;
+  color: var(--texto);
+}
+
+.rail-eu-nome span {
+  font-size: var(--t-nota);
+  color: var(--texto-fraco);
+}
+
+.rail.recolhida .rail-eu {
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  border-radius: 50%;
 }
 
 .rail-eu-painel {
@@ -744,20 +932,21 @@ a {
   pointer-events: none;
 }
 
-/* Janela baixa: icones menores antes de a lista precisar rolar. */
+/* Janela baixa: linhas mais baixas antes de a lista precisar rolar. */
 @media (max-height: 760px) {
-  .rail-item,
-  .rail-marca {
+  .rail-item {
+    min-height: 34px;
+  }
+
+  .rail-subitem {
+    min-height: 30px;
+  }
+
+  .rail.recolhida .rail-item,
+  .rail.recolhida .rail-marca {
     width: 36px;
     height: 36px;
-  }
-
-  .rail-grupo {
-    gap: 0;
-  }
-
-  .rail-fio {
-    margin: var(--e1) 0;
+    min-height: 36px;
   }
 }
 
@@ -8969,6 +9158,380 @@ tbody tr:focus-within .conexao-alca {
   flex-direction: column;
   gap: var(--e1);
   color: var(--texto-suave);
+}
+
+/* ------------------------------------------------------------------
+   Cor
+
+   A marca continua preta e dourada. Por cima dela entra uma camada de cor
+   que carrega informacao:
+
+   - cada area do sistema tem um tom (Conversas verde, Contatos ciano,
+     Kanban coral...): o icone da barra, o quadrado ao lado do titulo e o
+     brilho da barra de cima dizem onde se esta sem precisar ler;
+   - cada pessoa tem um tom so dela no rosto, sempre o mesmo (ui.js, tomDe);
+   - a etapa da venda, a coluna do Kanban e o status tem a cor deles.
+
+   O dourado segue sendo a cor da acao do escritorio: botao principal e
+   selecao. Fica no fim do arquivo, antes da tela estreita, porque sobrescreve
+   regras declaradas antes com a mesma especificidade.
+   ------------------------------------------------------------------ */
+
+:root {
+  /* Oito tons vivos. Claros o bastante para virar texto sobre o fundo escuro
+     tingido deles mesmos, que e como o rosto e o chip os usam. */
+  --tom-1: #5bbcff;
+  --tom-2: #3ddc97;
+  --tom-3: #f7b538;
+  --tom-4: #ff7a59;
+  --tom-5: #f06aa8;
+  --tom-6: #a98bff;
+  --tom-7: #2fd3d3;
+  --tom-8: #b9d84f;
+
+  /* O tom de cada area, pelo nome da rota (app.js poe --area no icone e
+     --area-atual na pagina). */
+  --area-dashboard: var(--tom-1);
+  --area-atendimento: var(--tom-2);
+  --area-contatos: var(--tom-7);
+  --area-kanban: var(--tom-4);
+  --area-contratos: var(--ouro);
+  --area-tarefas: var(--tom-5);
+  --area-agendamentos: var(--tom-3);
+  --area-agentes: var(--ia);
+  --area-conhecimento: var(--ia);
+  --area-simulador: var(--ia);
+  --area-vozes: var(--tom-6);
+  --area-conexoes: var(--tom-8);
+  --area-integracoes: var(--tom-1);
+  --area-configuracoes: var(--texto-suave);
+  --area-atual: var(--ouro);
+}
+
+/* No claro os mesmos oito, escurecidos: sobre papel o tom claro some. */
+[data-tema='claro'] {
+  --tom-1: #0b5f94;
+  --tom-2: #0a6f47;
+  --tom-3: #845600;
+  --tom-4: #b03a18;
+  --tom-5: #a3195f;
+  --tom-6: #5b3cc4;
+  --tom-7: #086d70;
+  --tom-8: #566400;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-tema='escuro']) {
+    --tom-1: #0b5f94;
+    --tom-2: #0a6f47;
+    --tom-3: #845600;
+    --tom-4: #b03a18;
+    --tom-5: #a3195f;
+    --tom-6: #5b3cc4;
+    --tom-7: #086d70;
+    --tom-8: #566400;
+  }
+}
+
+/* O rosto no tom da pessoa: fundo tingido, iniciais na cor cheia e um anel
+   fino. Com o gradiente dourado de antes, todos os rostos da fila eram iguais. */
+.avatar {
+  --tom: var(--ouro);
+  background: color-mix(in srgb, var(--tom) 22%, var(--superficie-2));
+  color: var(--tom);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tom) 42%, transparent);
+}
+
+.avatar[data-tom='1'] { --tom: var(--tom-1); }
+.avatar[data-tom='2'] { --tom: var(--tom-2); }
+.avatar[data-tom='3'] { --tom: var(--tom-3); }
+.avatar[data-tom='4'] { --tom: var(--tom-4); }
+.avatar[data-tom='5'] { --tom: var(--tom-5); }
+.avatar[data-tom='6'] { --tom: var(--tom-6); }
+.avatar[data-tom='7'] { --tom: var(--tom-7); }
+.avatar[data-tom='8'] { --tom: var(--tom-8); }
+.avatar[data-tom='ia'] { --tom: var(--ia); }
+
+img.avatar {
+  box-shadow: none;
+}
+
+/* Barra de icones: cada icone no tom da area, apagado em repouso, aceso ao
+   passar o mouse e na area aberta. */
+.rail-item {
+  color: color-mix(in srgb, var(--area, var(--texto-fraco)) 58%, var(--texto-fraco));
+}
+
+.rail-item:hover {
+  color: var(--area, var(--texto));
+  background: color-mix(in srgb, var(--area, var(--texto)) 12%, transparent);
+}
+
+.rail-item.ativo {
+  color: var(--area, var(--ouro-claro));
+  background: color-mix(in srgb, var(--area, var(--ouro)) 18%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--area, var(--ouro)) 48%, transparent);
+}
+
+/* A barra de cima acende de leve no tom da area aberta, vindo da esquerda. */
+.barra-topo {
+  background-image: linear-gradient(90deg, color-mix(in srgb, var(--area-atual) 13%, transparent), transparent 45%);
+}
+
+.modulo-agentes.cheio > .modulo-barra {
+  background-image: linear-gradient(90deg, color-mix(in srgb, var(--area-atual) 8%, transparent), transparent 40%);
+}
+
+.cabeca-identidade {
+  align-items: center;
+}
+
+/* O quadrado com o icone da area, ao lado do titulo da tela. */
+.cabeca-marca {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--raio);
+  background: color-mix(in srgb, var(--area-atual) 18%, transparent);
+  color: var(--area-atual);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--area-atual) 40%, transparent);
+}
+
+.cabeca-marca:empty {
+  display: none;
+}
+
+.vazio-icone {
+  background: color-mix(in srgb, var(--area-atual) 14%, var(--superficie-2));
+  border-color: color-mix(in srgb, var(--area-atual) 36%, transparent);
+  color: var(--area-atual);
+}
+
+/* Etiqueta e status com o tom mais presente. O texto continua na cor de
+   sempre, pelo motivo escrito em .selo.propria. */
+.selo.propria {
+  background: color-mix(in srgb, var(--cor-etiqueta) 22%, transparent);
+  border-color: color-mix(in srgb, var(--cor-etiqueta) 55%, transparent);
+}
+
+/* Cada etapa da venda na cor dela, no cabecalho da conversa (atendimento.js
+   poe --etapa). */
+.etapa.feita .etapa-bola {
+  background: color-mix(in srgb, var(--etapa, var(--texto)) 24%, transparent);
+  color: var(--etapa, var(--texto));
+}
+
+.etapa.agora {
+  color: var(--etapa, var(--ouro-claro));
+}
+
+.etapa.agora .etapa-bola {
+  box-shadow: inset 0 0 0 1.5px var(--etapa, var(--ouro));
+}
+
+.etapa.agora .etapa-bola::after {
+  background: var(--etapa, var(--ouro));
+}
+
+/* Cartao de metrica do Dashboard com o tom da propria etapa subindo do topo. */
+.metrica {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--metrica-cor, var(--ouro)) 11%, var(--superficie)), var(--superficie) 70%);
+  border-color: color-mix(in srgb, var(--metrica-cor, var(--borda)) 24%, var(--borda));
+}
+
+/* Coluna do Kanban com o tom do status: filete em cima e o cabecalho tingido
+   (atendimento.js poe --cor-coluna). */
+.kanban-coluna {
+  border-top: 3px solid var(--cor-coluna, var(--borda));
+}
+
+.kanban-coluna > header {
+  background: color-mix(in srgb, var(--cor-coluna, transparent) 11%, transparent);
+}
+
+.kanban-cartao-topo {
+  align-items: center;
+}
+
+/* Contatos ----------------------------------------------------------- */
+
+/* Os quatro numeros do alto: quantos, quantos esperam, quantos estao com a IA
+   e quantos estao sem ninguem. Cada um no seu tom (--tom vem do JavaScript). */
+.contatos-resumo {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--e3);
+  margin-bottom: var(--e3);
+}
+
+.contatos-numero {
+  display: flex;
+  align-items: center;
+  gap: var(--e3);
+  padding: var(--e3) var(--e4);
+  border: 1px solid color-mix(in srgb, var(--tom) 28%, var(--borda));
+  border-radius: var(--raio-g);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--tom) 13%, var(--superficie)), var(--superficie) 72%);
+}
+
+.contatos-numero-icone {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--raio);
+  background: color-mix(in srgb, var(--tom) 20%, transparent);
+  color: var(--tom);
+}
+
+.contatos-numero-dados {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.contatos-numero-dados strong {
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.1;
+  color: var(--texto);
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+.contatos-numero-dados span {
+  font-weight: 500;
+  color: var(--texto-suave);
+}
+
+.contatos-numero-dados small {
+  font-size: var(--t-nota);
+  color: var(--texto-fraco);
+}
+
+/* A carteira dividida por status, numa faixa so, com a legenda embaixo. */
+.contatos-status {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e2);
+  margin-bottom: var(--e3);
+  padding: var(--e3) var(--e4);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio-g);
+  background: var(--superficie);
+}
+
+.contatos-status-barra {
+  display: flex;
+  gap: 2px;
+  height: 10px;
+  border-radius: var(--raio-pilula);
+  overflow: hidden;
+}
+
+.contatos-status-barra > span {
+  flex-basis: 0;
+  min-width: 4px;
+}
+
+.contatos-status-legenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e1) var(--e4);
+}
+
+.contatos-status-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e1);
+  color: var(--texto-suave);
+}
+
+.contatos-status-item b {
+  color: var(--texto);
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+.contatos-status-item small {
+  font-size: var(--t-nota);
+  color: var(--texto-fraco);
+}
+
+/* A linha da tabela: rosto, nome em serifa e o WhatsApp embaixo. */
+.contato-linha {
+  display: flex;
+  align-items: center;
+  gap: var(--e3);
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.contato-linha-dados {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.contato-linha-nome {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--fonte-titulo);
+  font-size: 15px;
+  color: var(--texto);
+}
+
+.contato-linha:hover .contato-linha-nome {
+  color: var(--area-contatos);
+}
+
+.contato-linha-telefone {
+  font-size: var(--t-nota);
+  color: var(--texto-fraco);
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+.contato-caso,
+.contato-quem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e2);
+  white-space: nowrap;
+}
+
+.contato-quem.ninguem {
+  color: var(--tom-4);
+  font-weight: 500;
+}
+
+.contato-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 var(--e2);
+  border-radius: var(--raio-pilula);
+  background: color-mix(in srgb, var(--chip) 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--chip) 40%, transparent);
+  color: var(--texto);
+  font-size: var(--t-nota);
+  white-space: nowrap;
+}
+
+.contato-quando {
+  color: var(--texto-suave);
+  white-space: nowrap;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+.contatos-tabela thead th {
+  background: var(--superficie-2);
+}
+
+.contatos-tabela tbody tr:hover {
+  background: color-mix(in srgb, var(--area-contatos) 7%, transparent);
 }
 
 /* ------------------------------------------------------------------

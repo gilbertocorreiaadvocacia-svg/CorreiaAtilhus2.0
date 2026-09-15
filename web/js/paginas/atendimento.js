@@ -87,11 +87,13 @@ const ABA_CONCLUIDOS = { id: 'arquivados', rotulo: 'Concluidos' };
  * depois do de sucesso na lista — e o caso de Documentacao pendente e Processo
  * em andamento; antes dele, ele nao diz etapa nenhuma.
  */
+/* Cada etapa com a sua cor (tokens de tema.css): a trilha no cabecalho da
+   conversa diz de relance em que ponto a venda esta. */
 const ETAPAS_DA_VENDA = [
-  { rotulo: 'Triagem', tipos: ['nova', 'analise'] },
-  { rotulo: 'Qualificado', tipos: ['qualificado'] },
-  { rotulo: 'Assinatura', tipos: ['proposta'] },
-  { rotulo: 'Pós-venda', tipos: ['sucesso'] },
+  { rotulo: 'Triagem', tipos: ['nova', 'analise'], cor: 'var(--tom-3)' },
+  { rotulo: 'Qualificado', tipos: ['qualificado'], cor: 'var(--tom-1)' },
+  { rotulo: 'Assinatura', tipos: ['proposta'], cor: 'var(--ouro)' },
+  { rotulo: 'Pós-venda', tipos: ['sucesso'], cor: 'var(--tom-2)' },
 ];
 
 /* Os tipos que tiram a conversa da venda: no lugar das etapas, o nome do status. */
@@ -127,6 +129,7 @@ function etapasDaVenda(contato) {
         {
           class: `etapa ${situacao}`.trim(),
           role: 'listitem',
+          estilo: { '--etapa': etapa.cor },
           title: indice === atual ? `${etapa.rotulo}: ${status.nome}` : etapa.rotulo,
         },
         [
@@ -3067,25 +3070,113 @@ export async function paginaAtendimento({
         contadorMassa.textContent = plural(marcados.size, 'selecionada', 'selecionadas');
       });
 
+      const caso = (contato.etiquetas || []).map(acharEtiqueta).find((e) => e?.tipo === 'caso');
+      const responsavel = contato.responsavel;
+      /* O agente completo, e nao so {tipo, id, nome}: e com ele que o avatar
+         sabe que e IA e pinta o rosto com a cor dos agentes. */
+      const rostoDoResponsavel =
+        responsavel?.tipo === 'agente' ? (estado.agentes || []).find((a) => a.id === responsavel.id) || responsavel : responsavel;
+
       corpo.append(
         el('tr', {}, [
           el('td', {}, [caixa]),
           el('td', {}, [
             // O endereco ja e a rota da conversa: o link leva para la sozinho,
             // sem a tabela precisar saber trocar de visualizacao.
-            el('a', { href: `#/atendimento/${contato.id}`, texto: contato.nome }),
+            el('a', { class: 'contato-linha', href: `#/atendimento/${contato.id}` }, [
+              avatar(contato, 34),
+              el('span', { class: 'contato-linha-dados' }, [
+                el('span', { class: 'contato-linha-nome', texto: contato.nome }),
+                el('span', { class: 'contato-linha-telefone', texto: telefone(contato.telefone) }),
+              ]),
+            ]),
           ]),
-          el('td', { texto: telefone(contato.telefone) }),
           el('td', {}, [contato.status ? selo(contato.status.nome, '', contato.status.cor) : '-']),
-          el('td', { texto: contato.departamento?.nome || '-' }),
-          el('td', { texto: contato.responsavel?.nome || '-' }),
+          el('td', {}, [
+            caso
+              ? el('span', { class: 'contato-caso' }, [
+                  el('span', { class: 'ponto', estilo: { background: caso.cor } }),
+                  document.createTextNode(caso.nome),
+                ])
+              : '-',
+          ]),
+          el('td', {}, [
+            responsavel?.id
+              ? el('span', { class: 'contato-quem' }, [
+                  avatar(rostoDoResponsavel, 22),
+                  document.createTextNode(responsavel.nome || (responsavel.tipo === 'agente' ? 'Agente' : 'Equipe')),
+                ])
+              : el('span', { class: 'contato-quem ninguem', texto: 'Ninguém' }),
+          ]),
+          el('td', {}, [
+            contato.departamento
+              ? el('span', {
+                  class: 'contato-chip',
+                  estilo: { '--chip': contato.departamento.cor || 'var(--area-contatos)' },
+                  texto: contato.departamento.nome,
+                })
+              : '-',
+          ]),
           el('td', { texto: contato.origem?.nome || '-' }),
-          el('td', { texto: quando(contato.ultimaMensagemEm) || '-' }),
+          el('td', { class: 'contato-quando', texto: quando(contato.ultimaMensagemEm) || '-' }),
         ]),
       );
     }
 
-    areaContatos.append(barraTopo);
+    /* O resumo da carteira no filtro de agora: quantos, quantos com a IA, quantos
+       sem ninguem (o que pede acao) e quantos falaram hoje. */
+    const inicioDoDia = new Date();
+    inicioDoDia.setHours(0, 0, 0, 0);
+    const comIa = contatos.filter((c) => c.responsavel?.tipo === 'agente').length;
+    const semNinguem = contatos.filter((c) => !c.responsavel?.id).length;
+    const falaramHoje = contatos.filter((c) => c.ultimaMensagemEm && Date.parse(c.ultimaMensagemEm) >= inicioDoDia.getTime()).length;
+    const porcento = (n) => `${Math.round((n / contatos.length) * 100)}%`;
+    const numeroDoResumo = (rotulo, valor, detalhe, nomeDoIcone, tom) =>
+      el('div', { class: 'contatos-numero', estilo: { '--tom': tom } }, [
+        el('span', { class: 'contatos-numero-icone' }, [icone(nomeDoIcone, 20)]),
+        el('div', { class: 'contatos-numero-dados' }, [
+          el('strong', { texto: numero(valor) }),
+          el('span', { texto: rotulo }),
+          el('small', { texto: detalhe }),
+        ]),
+      ]);
+    const resumo = el('div', { class: 'contatos-resumo' }, [
+      numeroDoResumo('Contatos', Math.max(totalNoServidor || 0, contatos.length), 'no filtro de agora', 'usuarios', 'var(--area-contatos)'),
+      numeroDoResumo('Com a IA', comIa, `${porcento(comIa)} com um agente`, 'agentes', 'var(--area-agentes)'),
+      numeroDoResumo('Sem responsável', semNinguem, semNinguem ? 'esperando alguém assumir' : 'todos têm alguém', 'alerta', 'var(--tom-4)'),
+      numeroDoResumo('Falaram hoje', falaramHoje, 'mensagem desde a meia-noite', 'relogio', 'var(--tom-2)'),
+    ]);
+
+    /* A carteira dividida por status, do maior para o menor. */
+    const grupos = new Map();
+    for (const c of contatos) {
+      const chave = c.status?.id || c.status?.nome || '';
+      const grupo = grupos.get(chave) || { nome: c.status?.nome || 'Sem status', cor: c.status?.cor || 'var(--texto-fraco)', total: 0 };
+      grupo.total += 1;
+      grupos.set(chave, grupo);
+    }
+    const porStatus = [...grupos.values()].sort((a, b) => b.total - a.total);
+    const distribuicao = el('div', { class: 'contatos-status' }, [
+      el(
+        'div',
+        { class: 'contatos-status-barra', role: 'img', 'aria-label': porStatus.map((g) => `${g.nome}: ${g.total}`).join(', ') },
+        porStatus.map((g) => el('span', { title: `${g.nome}: ${g.total}`, estilo: { flexGrow: String(g.total), background: g.cor } })),
+      ),
+      el(
+        'div',
+        { class: 'contatos-status-legenda' },
+        porStatus.map((g) =>
+          el('span', { class: 'contatos-status-item' }, [
+            el('span', { class: 'ponto', estilo: { background: g.cor } }),
+            document.createTextNode(g.nome),
+            el('b', { texto: numero(g.total) }),
+            el('small', { texto: porcento(g.total) }),
+          ]),
+        ),
+      ),
+    ]);
+
+    areaContatos.append(barraTopo, resumo, distribuicao);
 
     // O corte do limite precisa aparecer: uma tabela que diz 1.000 contatos
     // quando existem 4.000 faz a pessoa concluir coisa errada da base.
@@ -3106,15 +3197,15 @@ export async function paginaAtendimento({
       // deveriam morar em web/css/tema.css, junto das regras de tabela.
       el('div', { class: 'cartao cartao-tabela' }, [
         el('div', { class: 'tabela-rolagem' }, [
-          el('table', {}, [
+          el('table', { class: 'contatos-tabela' }, [
             el('thead', {}, [
               el('tr', {}, [
                 el('th', { class: 'col-selecao' }, [el('span', { class: 'apenas-leitor', texto: 'Selecionar' })]),
-                cabecalhoOrdenavel('Nome', 'nome'),
-                el('th', { texto: 'WhatsApp' }),
+                cabecalhoOrdenavel('Contato', 'nome'),
                 cabecalhoOrdenavel('Status', 'status'),
-                el('th', { texto: 'Departamento' }),
+                el('th', { texto: 'Caso' }),
                 el('th', { texto: 'Responsável' }),
+                el('th', { texto: 'Departamento' }),
                 el('th', { texto: 'Origem' }),
                 cabecalhoOrdenavel('Ultima mensagem', 'ultimaMensagem'),
               ]),
@@ -3581,7 +3672,7 @@ export async function paginaAtendimento({
             : 'Mensagens sem resposta somadas nesta coluna';
       }
 
-      const colunaNo = el('div', { class: 'kanban-coluna' }, [
+      const colunaNo = el('div', { class: 'kanban-coluna', estilo: { '--cor-coluna': coluna.cor } }, [
         el('header', {}, [
           el('span', { class: 'ponto', estilo: { background: coluna.cor } }),
           el('span', { class: 'flexivel encolhe cortar', texto: coluna.nome }),

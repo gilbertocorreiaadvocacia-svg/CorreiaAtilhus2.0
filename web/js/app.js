@@ -86,55 +86,70 @@ const PAGINAS = {
 };
 
 /**
- * A barra de icones.
+ * O menu lateral.
  *
- * Tres grupos, na ordem em que o dia acontece: o que se abre para comecar
- * (Dashboard), o que se atende (conversas, contatos, kanban, contratos,
- * tarefas, agendamentos) e o que se configura para o atendimento andar
- * sozinho (agentes, vozes, numeros, integracoes). Configuracoes fica no pe,
- * junto de quem esta logado, e guarda tambem os Templates.
+ * Com o nome de cada area escrito, e as areas que andam juntas num modulo que
+ * abre e fecha, como no LiderHub: Atendimento (conversas, contatos, kanban e
+ * contratos) e Automacoes (os agentes e o que eles usam). O modulo da tela
+ * aberta abre sozinho; os outros ficam como a pessoa deixou, guardado neste
+ * navegador.
  *
- * Os grupos nao abrem nem fecham. Na faixa de 64px nao ha rotulo para clicar,
- * e grupo fechado esconderia rota sem deixar jeito de abrir. O nome de cada
- * icone aparece ao lado dele, ao passar o mouse ou chegar pelo Tab.
+ * Recolhido, o menu volta a ser a faixa de icones de 64px, com o nome de cada
+ * um num balao ao lado: e para quem trabalha em tela menor e quer a largura
+ * para a conversa. Configuracoes fica no pe, junto de quem esta logado, e
+ * guarda tambem os Templates.
  *
- * `contador` liga o icone a um numero contado no servidor (ver
- * atualizarContadoresDaBarra).
+ * `contador` liga o item a um numero contado no servidor (ver
+ * atualizarContadoresDaBarra). Com o modulo fechado, a soma aparece nele.
  */
-const BARRA = [
-  [{ rota: 'dashboard', rotulo: 'Dashboard', icone: 'painel' }],
-  [
-    {
-      rota: 'atendimento',
-      rotulo: 'Conversas',
-      icone: 'conversas',
-      contador: { chave: 'pendentes', tipo: 'alerta', rotulo: 'esperando alguém' },
-    },
-    { rota: 'contatos', rotulo: 'Contatos', icone: 'usuarios' },
-    { rota: 'kanban', rotulo: 'Kanban', icone: 'filtros' },
-    {
-      rota: 'contratos',
-      rotulo: 'Contratos',
-      icone: 'contrato',
-      contador: { chave: 'conferir', tipo: 'ouro', rotulo: 'para conferir' },
-    },
-    { rota: 'tarefas', rotulo: 'Tarefas', icone: 'ok' },
-    { rota: 'agendamentos', rotulo: 'Agendamentos', icone: 'agenda' },
-  ],
-  [
-    { rota: 'agentes', rotulo: 'Agentes', icone: 'agentes' },
-    { rota: 'vozes', rotulo: 'Vozes', icone: 'pessoa' },
-    { rota: 'conexoes', rotulo: 'Conexões', icone: 'conexoes' },
-    { rota: 'integracoes', rotulo: 'Integrações', icone: 'abrir' },
-  ],
+const MENU = [
+  { rota: 'dashboard', rotulo: 'Dashboard', icone: 'painel' },
+  { rota: 'conexoes', rotulo: 'Conexões', icone: 'conexoes' },
+  {
+    modulo: 'atendimento',
+    rotulo: 'Atendimento',
+    icone: 'conversas',
+    itens: [
+      {
+        rota: 'atendimento',
+        rotulo: 'Conversas',
+        icone: 'conversas',
+        contador: { chave: 'pendentes', tipo: 'alerta', rotulo: 'esperando alguém' },
+      },
+      { rota: 'contatos', rotulo: 'Contatos', icone: 'usuarios' },
+      { rota: 'kanban', rotulo: 'Kanban', icone: 'filtros' },
+      {
+        rota: 'contratos',
+        rotulo: 'Contratos',
+        icone: 'contrato',
+        contador: { chave: 'conferir', tipo: 'ouro', rotulo: 'para conferir' },
+      },
+    ],
+  },
+  {
+    modulo: 'automacoes',
+    rotulo: 'Automações',
+    icone: 'raio',
+    itens: [
+      { rota: 'agentes', rotulo: 'Agentes', icone: 'agentes' },
+      { rota: 'conhecimento', rotulo: 'Base de conhecimento', icone: 'pasta' },
+      { rota: 'simulador', rotulo: 'Chat de teste', icone: 'simulador' },
+      { rota: 'vozes', rotulo: 'Vozes', icone: 'pessoa' },
+      { rota: 'integracoes', rotulo: 'Integrações', icone: 'abrir' },
+    ],
+  },
+  { rota: 'tarefas', rotulo: 'Tarefas', icone: 'ok' },
+  { rota: 'agendamentos', rotulo: 'Agendamentos', icone: 'agenda' },
 ];
 
 const CONFIGURACOES = { rota: 'configuracoes', rotulo: 'Configurações', icone: 'ajustes' };
 
-/* Telas que moram dentro de outra na barra: abrir uma delas acende o icone de
-   quem as contem (Base de conhecimento e Chat de teste sao abas de Agentes;
-   Templates e uma secao de Configuracoes). */
-const DENTRO_DE = { conhecimento: 'agentes', simulador: 'agentes', templates: 'configuracoes' };
+/* Todos os itens que abrem uma tela, os de dentro dos modulos inclusive. */
+const ITENS_DO_MENU = [...MENU.flatMap((item) => item.itens || [item]), CONFIGURACOES];
+
+/* Telas que moram dentro de outra no menu: abrir uma delas acende o item de
+   quem as contem (Templates e uma secao de Configuracoes). */
+const DENTRO_DE = { templates: 'configuracoes' };
 const itemDoMenuDa = (rota) => DENTRO_DE[rota] || rota;
 
 /* ------------------------------------------------------------------ */
@@ -215,6 +230,9 @@ let barraNo = null;
 let dicaDaBarra = null;
 
 function mostrarDica(alvo) {
+  /* Com o menu aberto o nome ja esta escrito ao lado do icone: o balao so
+     existe no menu recolhido. */
+  if (!barraNo?.classList.contains('recolhida')) return;
   if (!dicaDaBarra) {
     dicaDaBarra = el('div', { class: 'dica-barra', 'aria-hidden': 'true', hidden: true });
     document.body.append(dicaDaBarra);
@@ -230,16 +248,19 @@ function esconderDica() {
   if (dicaDaBarra) dicaDaBarra.hidden = true;
 }
 
-function itemDaBarra(item) {
+function itemDaBarra(item, { subitem = false } = {}) {
   const link = el(
     'a',
     {
-      class: 'rail-item',
+      class: subitem ? 'rail-item rail-subitem' : 'rail-item',
       href: `#/${item.rota}`,
       dataset: { rota: item.rota, rotulo: item.rotulo },
+      /* A cor da area (tokens --area-*, em tema.css): o icone ganha o tom
+         dela, e a area aberta acende nele. */
+      estilo: { '--area': `var(--area-${item.rota})` },
       'aria-label': item.rotulo,
     },
-    [icone(item.icone, 20)],
+    [icone(item.icone, subitem ? 18 : 20), el('span', { class: 'rail-rotulo', texto: item.rotulo })],
   );
   if (item.contador) {
     link.append(
@@ -279,7 +300,10 @@ function menuDaPessoa() {
       'aria-expanded': 'false',
       'aria-label': `${usuario.nome}, ${papel}`,
     },
-    [avatar(usuario, 32)],
+    [
+      avatar(usuario, 32),
+      el('span', { class: 'rail-rotulo rail-eu-nome' }, [el('strong', { texto: usuario.nome }), el('span', { texto: papel })]),
+    ],
   );
 
   const painel = el('div', { class: 'rail-eu-painel', role: 'menu', hidden: true }, [
@@ -332,24 +356,111 @@ function menuDaPessoa() {
   return [gatilho, painel];
 }
 
+/* O que o menu lembra neste navegador: os modulos fechados e se ele esta
+   recolhido. Sem armazenamento, ele so abre sempre do mesmo jeito. */
+const CHAVE_MODULOS_FECHADOS = 'correiatendimentos:menu-fechados';
+const CHAVE_MENU_RECOLHIDO = 'correiatendimentos:menu-recolhido';
+
+function lerDoMenu(chave, padrao) {
+  try {
+    const valor = localStorage.getItem(chave);
+    return valor === null ? padrao : JSON.parse(valor);
+  } catch {
+    return padrao;
+  }
+}
+
+function gravarNoMenu(chave, valor) {
+  try {
+    localStorage.setItem(chave, JSON.stringify(valor));
+  } catch {
+    /* navegador sem armazenamento: o menu so nao lembra */
+  }
+}
+
+function abrirModulo(caixa, aberto, lembrar = false) {
+  caixa.classList.toggle('fechado', !aberto);
+  caixa.querySelector('.rail-modulo-gatilho')?.setAttribute('aria-expanded', aberto ? 'true' : 'false');
+  if (!lembrar) return;
+  const fechados = new Set(lerDoMenu(CHAVE_MODULOS_FECHADOS, []));
+  if (aberto) fechados.delete(caixa.dataset.modulo);
+  else fechados.add(caixa.dataset.modulo);
+  gravarNoMenu(CHAVE_MODULOS_FECHADOS, [...fechados]);
+}
+
+/* Um modulo do menu: o gatilho com o nome e a seta, e os itens de dentro. */
+function moduloDaBarra(modulo) {
+  const caixa = el('div', { class: 'rail-modulo', dataset: { modulo: modulo.modulo } });
+  const gatilho = el(
+    'button',
+    {
+      type: 'button',
+      class: 'rail-item rail-modulo-gatilho',
+      dataset: { rotulo: modulo.rotulo },
+      estilo: { '--area': `var(--area-${modulo.itens[0].rota})` },
+      aoClick: () => abrirModulo(caixa, caixa.classList.contains('fechado'), true),
+    },
+    [
+      icone(modulo.icone, 20),
+      el('span', { class: 'rail-rotulo', texto: modulo.rotulo }),
+      el('span', { class: 'rail-soma', 'aria-hidden': 'true', hidden: true }),
+      icone('voltar', 14),
+    ],
+  );
+  caixa.append(
+    gatilho,
+    el(
+      'div',
+      { class: 'rail-subitens', role: 'group', 'aria-label': modulo.rotulo },
+      modulo.itens.map((item) => itemDaBarra(item, { subitem: true })),
+    ),
+  );
+  abrirModulo(caixa, !lerDoMenu(CHAVE_MODULOS_FECHADOS, []).includes(modulo.modulo));
+  return caixa;
+}
+
 function montarBarra() {
   if (!barraNo) return;
   limpar(barraNo);
+  /* Sem escolha guardada, janela estreita comeca com o menu recolhido: a
+     largura vai para a conversa. */
+  barraNo.classList.toggle('recolhida', Boolean(lerDoMenu(CHAVE_MENU_RECOLHIDO, window.innerWidth < 1280)));
 
-  const grupos = el('div', { class: 'rail-grupos' });
-  BARRA.forEach((grupo, indice) => {
-    if (indice) grupos.append(el('span', { class: 'rail-fio', 'aria-hidden': 'true' }));
-    grupos.append(el('div', { class: 'rail-grupo', role: 'group' }, grupo.map(itemDaBarra)));
-  });
+  const grupos = el(
+    'div',
+    { class: 'rail-grupos' },
+    MENU.map((item) => (item.itens ? moduloDaBarra(item) : itemDaBarra(item))),
+  );
   /* Com a lista rolando, o balao ficaria apontando para onde o icone estava. */
   grupos.addEventListener('scroll', esconderDica, { passive: true });
+
+  const recolher = el('button', { type: 'button', class: 'rail-item rail-recolher' });
+  const pintarRecolher = () => {
+    const recolhida = barraNo.classList.contains('recolhida');
+    limpar(recolher);
+    recolher.append(icone('voltar', 16), el('span', { class: 'rail-rotulo', texto: 'Recolher menu' }));
+    recolher.dataset.rotulo = recolhida ? 'Abrir o menu' : 'Recolher menu';
+    recolher.setAttribute('aria-label', recolher.dataset.rotulo);
+    recolher.setAttribute('aria-expanded', recolhida ? 'false' : 'true');
+  };
+  recolher.addEventListener('click', () => {
+    const recolhida = !barraNo.classList.contains('recolhida');
+    barraNo.classList.toggle('recolhida', recolhida);
+    gravarNoMenu(CHAVE_MENU_RECOLHIDO, recolhida);
+    esconderDica();
+    pintarRecolher();
+  });
+  recolher.addEventListener('pointerenter', () => mostrarDica(recolher));
+  recolher.addEventListener('pointerleave', esconderDica);
+  pintarRecolher();
 
   barraNo.append(
     el('a', { class: 'rail-marca', href: `#/${ROTA_PADRAO}`, 'aria-label': 'Correia Advogados: abrir as conversas' }, [
       el('img', { src: 'assets/logo.png', alt: '' }),
+      el('span', { class: 'rail-marca-texto' }, [el('strong', { texto: 'Correia Advogados' }), el('span', { texto: 'Atendimento' })]),
     ]),
     grupos,
-    el('div', { class: 'rail-fim' }, [itemDaBarra(CONFIGURACOES), ...menuDaPessoa()]),
+    el('div', { class: 'rail-fim' }, [itemDaBarra(CONFIGURACOES), ...menuDaPessoa(), recolher]),
   );
 
   marcarRotaAtiva(rotaAtual());
@@ -358,11 +469,18 @@ function montarBarra() {
 
 function marcarRotaAtiva(rota) {
   const daBarra = itemDoMenuDa(rota);
-  for (const link of document.querySelectorAll('.rail-item')) {
+  for (const link of document.querySelectorAll('.rail-item[data-rota]')) {
     const ativo = link.dataset.rota === daBarra;
     link.classList.toggle('ativo', ativo);
     if (ativo) link.setAttribute('aria-current', 'page');
     else link.removeAttribute('aria-current');
+  }
+  /* O modulo da tela aberta abre sozinho: o item aceso nunca fica escondido
+     dentro de um modulo fechado. Isso nao muda o que a pessoa guardou. */
+  for (const modulo of document.querySelectorAll('.rail-modulo')) {
+    const temAtivo = Boolean(modulo.querySelector('.rail-item.ativo'));
+    modulo.classList.toggle('contem-ativo', temAtivo);
+    if (temAtivo) abrirModulo(modulo, true);
   }
 }
 
@@ -401,6 +519,18 @@ function pintarContador(chave, valor) {
     if (!link) continue;
     link.setAttribute('aria-label', valor ? `${link.dataset.rotulo}, ${valor} ${conta.dataset.rotulo}` : link.dataset.rotulo);
   }
+  /* Modulo fechado mostra a soma dos numeros de dentro: fechar Atendimento nao
+     pode esconder que tem gente esperando. */
+  for (const modulo of document.querySelectorAll('.rail-modulo')) {
+    const soma = modulo.querySelector('.rail-soma');
+    if (!soma) continue;
+    const total = [...modulo.querySelectorAll('.rail-subitens .rail-conta')].reduce(
+      (conta, no) => conta + (no.hidden ? 0 : Number(no.textContent.replace('+', '')) || 0),
+      0,
+    );
+    soma.textContent = total > 99 ? '99+' : String(total);
+    soma.hidden = !total;
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -410,6 +540,7 @@ function pintarContador(chave, valor) {
 let areaConteudo = null;
 let cabecaTela = null;
 let tituloTela = null;
+let marcaTela = null;
 let subtituloTela = null;
 let acoesTela = null;
 let principalDoTopo = null;
@@ -611,7 +742,7 @@ function montarEstrutura() {
      rola junto com a pagina, sumindo justo quando se quer trocar o recorte. */
   acoesTela = el('div', { class: 'topo-acoes' });
   cabecaTela = el('header', { class: 'cabeca-tela' }, [
-    el('div', { class: 'cabeca-identidade' }, [tituloTela, subtituloTela]),
+    el('div', { class: 'cabeca-identidade' }, [(marcaTela = el('span', { class: 'cabeca-marca', 'aria-hidden': 'true' })), tituloTela, subtituloTela]),
     acoesTela,
   ]);
   /* A acao principal da tela (Nova conversa, Novo agente) fica no canto da
@@ -983,6 +1114,13 @@ async function desenharRota() {
 
   marcarRotaAtiva(nome);
   esconderDica();
+
+  /* O tom e o icone da area aberta: acendem a barra de cima, o quadrado ao
+     lado do titulo e o estado vazio (tokens --area-* em tema.css). */
+  const daArea = ITENS_DO_MENU.find((item) => item.rota === itemDoMenuDa(nome));
+  document.documentElement.style.setProperty('--area-atual', `var(--area-${daArea?.rota || 'configuracoes'})`);
+  limpar(marcaTela);
+  if (daArea) marcaTela.append(icone(daArea.icone, 18));
 
   tituloTela.textContent = pagina.titulo;
   subtituloTela.textContent = pagina.subtitulo || '';

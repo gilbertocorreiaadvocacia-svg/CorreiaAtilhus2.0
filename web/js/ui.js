@@ -193,11 +193,9 @@ export function interruptor(rotulo, ligado, aoMudar, opcoes = {}) {
     chave,
     el('span', { class: 'interruptor-rotulo', texto: rotulo }),
   ]);
-  // O clique no rotulo aciona a chave. Um <label> nao alcanca <button>, entao a
-  // ligacao e feita aqui, a mao.
-  caixa.addEventListener('click', (evento) => {
-    if (evento.target !== chave && !chave.contains(evento.target)) chave.click();
-  });
+  // O clique no rotulo ja aciona a chave sozinho: <button> e um controle que o
+  // <label> alcanca. Repassar o clique a mao aqui ligava e desligava de uma vez,
+  // e clicar no texto do interruptor nao mudava nada.
   if (opcoes.ajuda) caixa.append(el('small', { class: 'ajuda-campo', texto: opcoes.ajuda }));
   return Object.assign(caixa, { chave });
 }
@@ -453,6 +451,7 @@ export function avatar(pessoa, tamanho = 32, opcoes = {}) {
   const circulo = () =>
     el('div', {
       class: 'avatar',
+      dataset: { tom: tomDe(pessoa) },
       estilo: { width: medida, height: medida },
       texto: iniciais(pessoa?.nome || '') || '?',
     });
@@ -485,4 +484,20 @@ export function avatar(pessoa, tamanho = 32, opcoes = {}) {
     face,
     el('span', { class: `avatar-marca ${opcoes.marca}`, title: opcoes.marcaTitulo || null }),
   ]);
+}
+
+/*
+ * O tom do rosto de cada pessoa (1 a 8, tokens --tom-* em tema.css).
+ *
+ * Sai do id, ou do nome para quem ainda nao tem id, entao e sempre o mesmo:
+ * o cliente tem a mesma cor na fila, no Kanban e em Contatos, e duas conversas
+ * seguidas nao se confundem de relance. Agente fica na cor da IA, que e dele
+ * em todo o sistema.
+ */
+function tomDe(pessoa) {
+  if (pessoa && ('modelo' in pessoa || 'prompt' in pessoa)) return 'ia';
+  const chave = String(pessoa?.id || pessoa?.nome || '');
+  let soma = 0;
+  for (const letra of chave) soma = (soma * 31 + letra.charCodeAt(0)) >>> 0;
+  return String((soma % 8) + 1);
 }
