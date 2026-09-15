@@ -4697,8 +4697,12 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
   align-items: stretch;
 }
 
+/* A largura da coluna sai da quantidade de colunas da parte aberta do funil
+   (--colunas vem do JavaScript): poucas colunas enchem a tela, muitas rolam de
+   lado com piso de 232px, onde o nome do cliente ainda cabe. */
 .kanban-coluna {
-  width: 268px;
+  width: max(232px, calc((100% - (var(--colunas, 4) - 1) * var(--e3)) / var(--colunas, 4)));
+  max-width: 340px;
   flex: none;
   background: var(--superficie);
   border: 1px solid var(--borda);
@@ -4718,10 +4722,15 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
   font-weight: 600;
 }
 
+/* minmax(0, 1fr): sem ele o cartao cresce ate o tamanho do nome e da ultima
+   fala, que nao quebram linha, e passa da largura da coluna em vez de cortar
+   com reticencia. */
 .kanban-lista {
   padding: var(--e2);
   overflow-y: auto;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
   gap: var(--e2);
 }
 
@@ -4762,22 +4771,140 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
   padding-left: calc(var(--e3) - 2px);
 }
 
-.kanban-momento {
-  margin-top: var(--e1);
-  font-size: var(--t-xs);
+/* O cartao do quadro (M2): nome em serifa e hora, a ultima fala, e no pe o
+   tipo de caso, as mensagens por ler e quem conduz. */
+.kanban-cartao-topo {
+  display: flex;
+  align-items: baseline;
+  gap: var(--e2);
+  min-width: 0;
+}
+
+.kanban-cartao-nome {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--fonte-titulo);
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.kanban-cartao-hora {
+  flex: none;
   color: var(--texto-fraco);
+  font-size: var(--t-nota);
+}
+
+.kanban-cartao-previa {
+  margin-top: 2px;
+  color: var(--texto-suave);
+  font-size: var(--t-nota);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.kanban-cartao-pe {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  min-width: 0;
+  margin-top: var(--e2);
+  color: var(--texto-suave);
+  font-size: var(--t-nota);
+}
+
+.kanban-cartao-caso {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* O rotulo do grupo de momento dentro da coluna: texto de apoio, sem moldura,
-   para nao competir com os cartoes. */
+.kanban-cartao-caso > .ponto {
+  margin-right: 5px;
+}
+
+.kanban-cartao-caso.sem {
+  color: var(--texto-fraco);
+}
+
+/* Quem conduz, pela cor de quem e: roxo e da IA, verde e de pessoa da equipe,
+   e vermelho e ninguem — a conversa que precisa de alguem. */
+.kanban-quem {
+  flex: none;
+  margin-left: auto;
+  padding: 1px 7px;
+  border-radius: var(--raio-pilula);
+  font-weight: 600;
+}
+
+.kanban-quem.ia {
+  color: var(--ia);
+  background: var(--ia-fraco);
+}
+
+.kanban-quem.equipe {
+  color: var(--sucesso);
+  background: color-mix(in srgb, var(--sucesso) 14%, transparent);
+}
+
+.kanban-quem.ninguem {
+  color: var(--erro);
+  background: var(--erro-fraco);
+}
+
+.kanban-cartao .nao-lidas {
+  flex: none;
+}
+
+/* Contrato esperando conferencia: o cartao que pede alguem agora. */
+.kanban-cartao.agir {
+  border-color: var(--ouro-linha);
+}
+
+.kanban-agir {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 24px;
+  margin-top: var(--e2);
+  border-radius: var(--raio-p);
+  background: var(--ouro-fraco);
+  color: var(--ouro-claro);
+  font-size: var(--t-nota);
+  font-weight: 600;
+}
+
+/* O rotulo do grupo de momento dentro da coluna: caixa alta pequena, sem
+   moldura, para nao competir com os cartoes. */
 .kanban-grupo {
   padding: var(--e2) var(--e1) 0;
-  font-size: var(--t-xs);
+  font-size: var(--t-nota);
   font-weight: 600;
+  letter-spacing: var(--tr-alta);
+  text-transform: uppercase;
   color: var(--texto-fraco);
+}
+
+/* Na cabeca do Funil: a parte do funil nao obedece ao teto de 200px dos
+   filtros, e o chip de tipo de caso e da altura pequena. */
+.topo-acoes > .grupo-alternado {
+  max-width: none;
+}
+
+.chip-filtro.chip-caso {
+  min-height: var(--controle-p);
+  padding: 0 var(--e2);
+  gap: 0;
+  font-size: var(--t-nota);
+}
+
+.chip-filtro.chip-caso > .ponto {
+  margin-right: 5px;
 }
 
 .kanban-grupo:first-child {

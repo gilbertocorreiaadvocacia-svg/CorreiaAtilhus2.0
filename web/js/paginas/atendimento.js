@@ -140,6 +140,28 @@ function etapasDaVenda(contato) {
 }
 
 /*
+ * As tres partes do funil no quadro, tambem pelo tipo do status.
+ *
+ * Venda e o caminho ate o contrato assinado. Pos-venda sao os status sem
+ * classificacao que vem depois do de sucesso (Documentacao pendente, Processo
+ * em andamento). Encerradas sao as perdas. Com todos os status numa fileira
+ * so, as colunas paradas empurravam o funil para fora da tela.
+ */
+const SEGMENTOS_DO_FUNIL = [
+  { id: 'venda', rotulo: 'Venda' },
+  { id: 'posvenda', rotulo: 'Pós-venda' },
+  { id: 'encerradas', rotulo: 'Encerradas' },
+];
+
+function segmentoDoStatus(status) {
+  if (!status) return 'venda';
+  if (TIPOS_DE_PERDA.includes(status.tipo)) return 'encerradas';
+  const ultimaEtapa = ETAPAS_DA_VENDA.length - 1;
+  if (etapaDoStatus(status) === ultimaEtapa && status.tipo !== 'sucesso') return 'posvenda';
+  return 'venda';
+}
+
+/*
  * Texto comparavel: sem maiuscula e sem acento.
  *
  * As etiquetas do escritorio sao escritas sem acento ("Auxilio-doenca"), mas
@@ -235,7 +257,16 @@ function rotuloComDica(texto, ajuda) {
  */
 const RASCUNHOS = new Map();
 
-export async function paginaAtendimento({ parametros, visualizacao = 'conversas', definirPrincipal = () => {} }) {
+export async function paginaAtendimento({
+  parametros,
+  visualizacao = 'conversas',
+  definirAcoes = () => {},
+  definirPrincipal = () => {},
+}) {
+  /* Qual parte do funil o quadro mostra (ver SEGMENTOS_DO_FUNIL). Vive aqui
+     para sobreviver ao redesenho que cada evento do servidor dispara. */
+  let segmentoDoFunil = 'venda';
+
   const filtro = {
     aba: 'ia',
     busca: '',
@@ -3323,11 +3354,89 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
     // O quadro tem height 100% no CSS. Dentro da coluna flex ele vira o item
     // que cresce, senao a faixa de aviso rouba altura e a rolagem some. Quem
     // faz esse acerto agora e a regra .area-kanban > .kanban.
+    /*
+     * A cabeca do Funil: a parte do funil, o tipo de caso e quem conduz.
+     *
+     * Remontada a cada desenho, porque os numeros mudam com os eventos do
+     * servidor. Nao ha campo de digitar ali, entao remontar nao tira foco.
+     */
+    function acoesDoFunil() {
+      const contar = (segmento) =>
+        estado.status
+          .filter((s) => segmentoDoStatus(s) === segmento)
+          .reduce((soma, s) => soma + (totalPorStatus[s.id] || 0), 0) +
+        (segmento === 'venda' ? totalPorStatus[''] || 0 : 0);
+
+      const partes = el(
+        'div',
+        { class: 'grupo-alternado', role: 'group', 'aria-label': 'Parte do funil' },
+        SEGMENTOS_DO_FUNIL.map((segmento) =>
+          botao(`${segmento.rotulo} ${numero(contar(segmento.id))}`, {
+            pequeno: true,
+            tipo: segmento.id === segmentoDoFunil ? 'principal' : '',
+            aoClicar: async () => {
+              if (segmento.id === segmentoDoFunil) return;
+              segmentoDoFunil = segmento.id;
+              await desenhar();
+            },
+          }),
+        ),
+      );
+
+      /* O tipo de caso e o recorte mais usado no quadro: fica a um clique, e
+         clicar de novo desliga. */
+      const chipsDeCaso = estado.etiquetas
+        .filter((etiqueta) => etiqueta.tipo === 'caso')
+        .map((caso) => {
+          const ligado = filtro.etiqueta === caso.id;
+          return el(
+            'button',
+            {
+              type: 'button',
+              class: `chip-filtro chip-caso${ligado ? ' ativo' : ''}`,
+              'aria-pressed': ligado ? 'true' : 'false',
+              title: ligado ? `Tirar o filtro ${caso.nome}` : `Mostrar só ${caso.nome}`,
+              aoClick: async () => {
+                filtro.etiqueta = ligado ? '' : caso.id;
+                await desenhar();
+              },
+            },
+            [el('span', { class: 'ponto', estilo: { background: caso.cor } }), document.createTextNode(caso.nome)],
+          );
+        });
+
+      const conduz = filtrosLigados().find((ligado) => ligado.chave === 'responsavel');
+      const quemConduz = el(
+        'button',
+        {
+          type: 'button',
+          class: `chip-filtro${conduz ? ' ativo' : ''}`,
+          'aria-haspopup': 'dialog',
+          aoClick: () => abrirFiltros(['responsavel']),
+        },
+        [
+          icone('usuarios', 14),
+          el('span', { texto: 'Quem conduz' }),
+          conduz ? el('strong', { class: 'chip-filtro-valor', texto: conduz.rotulo }) : null,
+        ],
+      );
+
+      return [partes, ...chipsDeCaso, quemConduz];
+    }
+
     const quadro = el('div', { class: 'kanban' });
+
+    /* So as colunas da parte aberta do funil. "Sem status" entra na Venda, e so
+       quando tem alguem: vazia, ela e largura perdida no comeco do quadro. */
+    const semStatus = totalPorStatus[''] ?? contatos.filter((c) => !c.statusId).length;
     const colunas = [
-      { id: '', nome: 'Sem status', cor: 'var(--texto-fraco)' },
-      ...estado.status.map((s) => ({ id: s.id, nome: s.nome, cor: s.cor })),
+      ...(segmentoDoFunil === 'venda' && semStatus ? [{ id: '', nome: 'Sem status', cor: 'var(--texto-fraco)' }] : []),
+      ...estado.status
+        .filter((s) => segmentoDoStatus(s) === segmentoDoFunil)
+        .map((s) => ({ id: s.id, nome: s.nome, cor: s.cor })),
     ];
+    quadro.style.setProperty('--colunas', String(Math.max(colunas.length, 1)));
+    definirAcoes(acoesDoFunil());
 
     for (const coluna of colunas) {
       const daColuna = contatos.filter((c) => (c.statusId || '') === coluna.id);
@@ -3367,9 +3476,19 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
         // abertura da conversa passa a funcionar pelo Tab e pelo Enter. Mover
         // de coluna sem mouse continua sendo pelo seletor de Status no painel
         // da conversa, que e o mesmo campo que o arrasto grava.
+        /* Contrato esperando conferencia pede alguem agora: o cartao ganha
+           contorno dourado e uma faixa que diz isso. O clique leva a conversa,
+           e la o aviso do contrato leva ao cartao de conferir. */
+        const conferir = normalizarTexto(contato.momento?.nome) === 'contrato em conferencia';
+        const responsavel = contato.responsavel;
+        const quem = !responsavel?.id
+          ? { classe: 'ninguem', texto: 'Ninguém' }
+          : responsavel.tipo === 'agente'
+            ? { classe: 'ia', texto: 'IA' }
+            : { classe: 'equipe', texto: String(responsavel.nome || 'Equipe').split(' ')[0] };
         const cartaoContato = el('button', {
           type: 'button',
-          class: 'kanban-cartao',
+          class: `kanban-cartao${conferir ? ' agir' : ''}`,
           draggable: 'true',
           title: `Abrir a conversa de ${contato.nome}`,
           aoDragstart: (evento) => {
@@ -3381,24 +3500,26 @@ export async function paginaAtendimento({ parametros, visualizacao = 'conversas'
             location.hash = `#/atendimento/${contato.id}`;
           },
         }, [
-          el('div', { class: 't-md peso-600', texto: contato.nome }),
-          el('div', { class: 't-xs c-fraco mt-1', texto: telefone(contato.telefone) }),
-          contato.momento
-            ? el('div', {
-                class: 'kanban-momento',
-                title: `Momento desde ${new Date(contato.momento.desde).toLocaleString('pt-BR')}`,
-                texto: contato.momento.nome,
-              })
-            : null,
-          el('div', { class: 'marcas linha-p quebra mt-2' }, [
-            caso ? selo(caso.nome, 'selo-caso', caso.cor) : null,
-            contato.responsavel ? selo(contato.responsavel.nome, 'ouro') : null,
-            ...(contato.etiquetas || [])
-              .map(acharEtiqueta)
-              .filter((e) => e && e.tipo !== 'caso')
-              .slice(0, caso ? 1 : 2)
-              .map((etiqueta) => selo(etiqueta.nome, '', etiqueta.cor)),
+          el('div', { class: 'kanban-cartao-topo' }, [
+            el('span', { class: 'kanban-cartao-nome', texto: contato.nome }),
+            el('span', { class: 'kanban-cartao-hora', texto: quando(contato.ultimaMensagemEm) }),
           ]),
+          el('div', { class: 'kanban-cartao-previa', texto: contato.previa || telefone(contato.telefone) }),
+          el('div', { class: 'kanban-cartao-pe' }, [
+            caso
+              ? el('span', { class: 'kanban-cartao-caso' }, [
+                  el('span', { class: 'ponto', estilo: { background: caso.cor } }),
+                  document.createTextNode(caso.nome),
+                ])
+              : el('span', { class: 'kanban-cartao-caso sem', texto: 'Sem tipo de caso' }),
+            contato.naoLidas ? el('span', { class: 'nao-lidas', texto: String(contato.naoLidas) }) : null,
+            el('span', {
+              class: `kanban-quem ${quem.classe}`,
+              title: responsavel?.nome ? `Com ${responsavel.nome}` : 'Sem responsável',
+              texto: quem.texto,
+            }),
+          ]),
+          conferir ? el('div', { class: 'kanban-agir' }, [icone('contrato', 13), 'Contrato para conferir']) : null,
         ]);
         /* A cor do caso vai na borda esquerda, nunca no texto: e a mesma
            cor nos dois temas, e texto colorido perde contraste num deles. */
