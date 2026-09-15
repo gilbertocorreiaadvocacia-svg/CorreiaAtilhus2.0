@@ -213,11 +213,33 @@ export async function testarEncadeamento({ base, anthropic }) {
   s.ok('agentes passando um para o outro param no teto', voltas === 4, `chamadas: ${voltas}`);
   s.ok('e a conversa vai para uma pessoa', presa?.responsavel?.tipo === 'membro', JSON.stringify(presa?.responsavel));
 
+  /* ---------------- Passar para pessoa: a despedida sai ---------------- */
+
+  /* Diferente da passagem entre agentes: ninguem fala depois, entao a fala do
+     agente na mesma resposta precisa chegar ao cliente. */
+  const comPessoa = await novaConversa(3, especialista.id);
+  const DESPEDIDA = 'Vou chamar uma pessoa da equipe para falar com voce.';
+  await roteiro([
+    {
+      status: 200,
+      texto: DESPEDIDA,
+      chamadas: [{ nome: 'transferir_conversa', argumentos: { destino: 'distribuir', resumo_para_proximo: 'Cliente pediu uma pessoa.' } }],
+    },
+  ]);
+  await responderAgora(especialista.id, comPessoa);
+  s.ok('passando para uma pessoa, a conversa fica com ela', (await conversa(comPessoa))?.responsavel?.tipo === 'membro');
+  const falasComPessoa = (await mensagens(comPessoa)).filter((m) => m.direcao === 'saida' && !m.nota);
+  s.ok(
+    'e a despedida do agente chega ao cliente',
+    falasComPessoa.some((m) => m.autor?.id === especialista.id && m.conteudo === DESPEDIDA),
+    falasComPessoa.map((m) => `${m.autor?.nome}: ${m.conteudo}`).join(' | '),
+  );
+
   /* ---------------- Limpeza ---------------- */
 
   await falsa.post('/__roteiro', { roteiro: [] });
   await api.patch('/api/integracoes', { ia: { chaveAnthropic: null } });
-  for (const id of [contatoId, outraConversa]) await api.delete(`/api/contatos/${id}`);
+  for (const id of [contatoId, outraConversa, comPessoa]) await api.delete(`/api/contatos/${id}`);
   for (const agente of [secretaria, especialista, trabalhista]) await api.delete(`/api/agentes/${agente.id}`);
 
   return s;

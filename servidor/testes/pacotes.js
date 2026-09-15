@@ -45,24 +45,43 @@ export async function testarPacotes({ base }) {
     doPacote.every((a) => !(a.mencoesInvalidas || []).length),
     doPacote.filter((a) => (a.mencoesInvalidas || []).length).map((a) => `${a.nome}: ${a.mencoesInvalidas.join(',')}`).join(' | '),
   );
-  const secretaria = doPacote.find((a) => a.nome === 'Secretária Previdenciária');
   s.ok(
-    'a secretaria recebe as ferramentas de passar, etiquetar e marcar momento',
-    ['transferir_conversa', 'adicionar_etiqueta', 'definir_momento'].every((f) => (secretaria?.ferramentas || []).includes(f)),
+    'cada squad fica na area dele',
+    doPacote.filter((a) => /\[trab\]/.test(a.nome)).every((a) => a.area === 'trabalhista') &&
+      doPacote.filter((a) => /Eduarda|BPC|Materno|aux acidente/.test(a.nome)).every((a) => a.area === 'previdenciario'),
+    JSON.stringify(doPacote.map((a) => [a.nome, a.area])),
+  );
+  const secretaria = doPacote.find((a) => a.nome === 'Eduarda (Triagem)');
+  s.ok(
+    'a Eduarda recebe as ferramentas de passar e de etiquetar',
+    ['transferir_conversa', 'adicionar_etiqueta'].every((f) => (secretaria?.ferramentas || []).includes(f)),
     (secretaria?.ferramentas || []).join(', '),
   );
-  const especialista = doPacote.find((a) => a.nome === 'Especialista Auxílio-doença');
+  const dados = doPacote.find((a) => a.nome === 'AG07 [trab] Dados e Contrato');
   s.ok(
-    'o especialista recebe agenda, variaveis e a lista do que coletar',
-    ['agenda', 'salvar_variavel'].every((f) => (especialista?.ferramentas || []).includes(f)) &&
-      (especialista?.requisitos || []).includes('ctps_foto'),
-    `${(especialista?.ferramentas || []).join(', ')} | ${JSON.stringify(especialista?.requisitos)}`,
+    'o AG07 recebe variaveis e a lista do que coletar',
+    (dados?.ferramentas || []).includes('salvar_variavel') && (dados?.requisitos || []).includes('rg'),
+    `${(dados?.ferramentas || []).join(', ')} | ${JSON.stringify(dados?.requisitos)}`,
   );
 
+  /* O que os prompts citam pelo nome passa a existir no escritorio. */
+  const nomes = (lista) => (Array.isArray(lista) ? lista : []).map((x) => x.nome);
+  const etiquetas = nomes((await api.get('/api/etiquetas')).dados);
+  s.ok('cria as etiquetas citadas', ['Objeção', 'Já é cliente', 'Rescisão indireta'].every((n) => etiquetas.includes(n)), JSON.stringify(etiquetas));
+  s.ok('cria o departamento Suporte', nomes((await api.get('/api/departamentos')).dados).includes('Suporte'));
+  const templates = (await api.get('/api/templates')).dados;
+  const atalhos = (Array.isArray(templates) ? templates : templates?.templates || []).map((t) => t.atalho);
+  s.ok('cria os templates citados', ['oab', 'propostatrabalhista', 'avaliacao'].every((a) => atalhos.includes(a)), JSON.stringify(atalhos));
+
   /* Instalar de novo: nada duplica, e o prompt editado fica. */
+  const tamanhoPrevidenciario = lista.find((p) => p.area === 'previdenciario')?.agentes.length;
   if (secretaria) await api.patch(`/api/agentes/${secretaria.id}`, { prompt: `${secretaria.prompt}\nAFINADO PELO ESCRITORIO` });
   const deNovo = (await api.post('/api/agentes-pacotes/previdenciario', { conexaoId: simulador?.id })).dados;
-  s.ok('instalar de novo nao cria nada', deNovo?.criados?.length === 0 && deNovo?.mantidos?.length === 6, JSON.stringify(deNovo));
+  s.ok(
+    'instalar de novo nao cria nada',
+    deNovo?.criados?.length === 0 && deNovo?.mantidos?.length === tamanhoPrevidenciario && !deNovo?.removidos?.length,
+    JSON.stringify(deNovo),
+  );
   const depois = ((await api.get('/api/agentes')).dados || []).find((a) => a.id === secretaria?.id);
   s.ok('e nao sobrescreve o prompt afinado', /AFINADO PELO ESCRITORIO/.test(depois?.prompt || ''));
 

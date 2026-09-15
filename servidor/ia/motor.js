@@ -409,11 +409,25 @@ async function rodarAgente(contatoId, passo) {
       }
     }
 
-    if (textoFinal && !paraDeResponder) {
+    /*
+     * Quem passou a conversa a uma PESSOA, ou desligou a IA, ainda se despede.
+     *
+     * O roteiro do escritorio faz isso o tempo todo: "como voce ja tem advogado
+     * nao posso analisar o caso" e so entao desliga; "a equipe de suporte ja
+     * vai te atender" e so entao passa. Sem esta volta, a frase escrita junto da
+     * ferramenta nunca saia, e o cliente ficava sem resposta nenhuma.
+     *
+     * Passando a outro AGENTE, nao: quem recebe responde na hora (encadear), e
+     * as duas falas chegariam seguidas.
+     */
+    const despedida = paraDeResponder && !passo.encadear;
+
+    if (textoFinal && (!paraDeResponder || despedida)) {
       const atualizado = achar('contatos', contatoId) || contato;
-      /* So fala quem ainda e o responsavel. Se no meio da rodada a conversa
-         foi passada adiante, o texto deste agente nao sai mais. */
-      if (atualizado.responsavel?.tipo === 'agente' && atualizado.responsavel.id === agente.id) {
+      /* So fala quem ainda e o responsavel, ou quem acabou de entregar a
+         conversa a uma pessoa. Se no meio da rodada a conversa foi passada a
+         outro agente, o texto deste nao sai mais. */
+      if (despedida || (atualizado.responsavel?.tipo === 'agente' && atualizado.responsavel.id === agente.id)) {
         // Com o modo audio ligado, a resposta vai falada, e o texto vai junto,
         // para a equipe conseguir ler o historico sem abrir cada audio.
         let midia = null;

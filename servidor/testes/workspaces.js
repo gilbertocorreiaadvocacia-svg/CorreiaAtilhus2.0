@@ -62,7 +62,7 @@ export async function testarWorkspacesPorArea({ base }) {
   const agentesTrabalhistas = (await api.get('/api/agentes')).dados || [];
   s.ok(
     'Trabalhista: os agentes da area, desligados ate a configuracao chegar',
-    agentesTrabalhistas.length === 3 && agentesTrabalhistas.every((a) => !a.ativo && a.area === 'trabalhista'),
+    agentesTrabalhistas.length === 8 && agentesTrabalhistas.every((a) => !a.ativo && a.area === 'trabalhista'),
     JSON.stringify(agentesTrabalhistas.map((a) => [a.nome, a.ativo, a.area])),
   );
   s.ok('Trabalhista: nenhuma mencao invalida nos agentes', agentesTrabalhistas.every((a) => !(a.mencoesInvalidas || []).length));
@@ -89,10 +89,40 @@ export async function testarWorkspacesPorArea({ base }) {
   const pastas = [...new Set(agentesPrevidenciarios.map((a) => a.pasta))];
   s.ok(
     'Previdenciario: agentes separados por beneficio',
-    ['BPC/LOAS', 'Auxílio-doença', 'Auxílio-acidente', 'Salário-maternidade'].every((p) => pastas.includes(p)),
+    ['Triagem', 'BPC/LOAS', 'Auxílio-acidente', 'Salário-maternidade'].every((p) => pastas.includes(p)),
     JSON.stringify(pastas),
   );
-  s.ok('Previdenciario: todos desligados', agentesPrevidenciarios.length === 6 && agentesPrevidenciarios.every((a) => !a.ativo));
+  s.ok('Previdenciario: todos desligados', agentesPrevidenciarios.length === 15 && agentesPrevidenciarios.every((a) => !a.ativo));
+  s.ok(
+    'Previdenciario: nenhuma mencao invalida nos agentes',
+    agentesPrevidenciarios.every((a) => !(a.mencoesInvalidas || []).length),
+    agentesPrevidenciarios.filter((a) => (a.mencoesInvalidas || []).length).map((a) => `${a.nome}: ${a.mencoesInvalidas.join(',')}`).join(' | '),
+  );
+
+  /* Substituir: os agentes de antes saem, com copia, e o que apontava para eles passa para a Eduarda. */
+  const numeroDaArea = ((await api.get('/api/conexoes')).dados || []).find((c) => c.tipo === 'qrcode');
+  const umAntigo = agentesPrevidenciarios[agentesPrevidenciarios.length - 1];
+  if (numeroDaArea && umAntigo) {
+    await api.patch(`/api/conexoes/${numeroDaArea.id}`, { responsavelPadrao: { tipo: 'agente', id: umAntigo.id, nome: umAntigo.nome } });
+  }
+  const troca = (await api.post('/api/agentes-pacotes/previdenciario', { substituir: true })).dados;
+  s.ok(
+    'Substituir: tira os agentes de antes e poe os do pacote, com copia guardada',
+    troca?.removidos?.length === 15 && troca?.criados?.length === 15 && /^agentes-.+\.json$/.test(troca?.copia || ''),
+    JSON.stringify({ removidos: troca?.removidos?.length, criados: troca?.criados?.length, copia: troca?.copia }),
+  );
+  const depoisDaTroca = (await api.get('/api/agentes')).dados || [];
+  s.ok(
+    'Substituir: nenhum agente antigo sobra',
+    depoisDaTroca.length === 15 && !depoisDaTroca.some((a) => agentesPrevidenciarios.some((antigo) => antigo.id === a.id)),
+    JSON.stringify(depoisDaTroca.map((a) => a.nome)),
+  );
+  const numeroDepois = ((await api.get('/api/conexoes')).dados || []).find((c) => c.id === numeroDaArea?.id);
+  s.ok(
+    'Substituir: o numero que apontava para um agente antigo passa para a Eduarda',
+    numeroDepois?.responsavelPadrao?.nome === 'Eduarda (Triagem)' && depoisDaTroca.some((a) => a.id === numeroDepois.responsavelPadrao.id),
+    JSON.stringify(numeroDepois?.responsavelPadrao),
+  );
 
   const casosPrevidenciarios = ((await api.get('/api/etiquetas')).dados || [])
     .filter((e) => e.tipo === 'caso')

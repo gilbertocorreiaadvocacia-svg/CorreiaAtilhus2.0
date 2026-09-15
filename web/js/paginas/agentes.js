@@ -357,17 +357,33 @@ export async function paginaAgentes({ parametros, definirAcoes, definirPrincipal
       '',
     );
 
+    let substituir = false;
+    const quantosHoje = (estado.agentes || []).length;
+    const trocar = interruptor(
+      'Apagar os agentes de agora e ficar só com estes',
+      false,
+      (ligado) => {
+        substituir = ligado;
+        desenharLista();
+      },
+      {
+        ajuda: `${plural(quantosHoje, 'agente sai', 'agentes saem')}, com uma cópia guardada na pasta de dados do sistema. As conversas e os números que estavam com eles passam para o primeiro agente da lista.`,
+      },
+    );
+
     function desenharLista() {
       limpar(lista);
       const pacote = pacotes.find((p) => p.area === escolhaArea.value);
-      for (const agente of pacote?.agentes || []) {
+      (pacote?.agentes || []).forEach((agente, posicao) => {
+        const fica = agente.instalado && !substituir;
         lista.append(
           el('li', { class: 'linha-p' }, [
             el('span', { class: 'flexivel', texto: agente.nome }),
-            selo(agente.instalado ? 'já existe, fica como está' : 'novo', agente.instalado ? '' : 'ouro'),
+            posicao === 0 ? selo('recebe a conversa', 'propria') : null,
+            selo(fica ? 'já existe, fica como está' : 'novo', fica ? '' : 'ouro'),
           ]),
         );
-      }
+      });
     }
     desenharLista();
 
@@ -376,23 +392,25 @@ export async function paginaAgentes({ parametros, definirAcoes, definirPrincipal
       corpo: el('div', {}, [
         el('p', {
           class: 'cartao-ajuda',
-          texto: 'Uma secretária entende a demanda e passa para o especialista; o especialista qualifica e passa para a proposta. Cada um responde na hora em que recebe a conversa.',
+          texto: 'O primeiro agente recebe a conversa e passa para o membro do squad certo; cada membro faz a sua etapa e passa para o próximo, até o contrato. Quem recebe responde na hora. Etiquetas, departamentos e templates que os roteiros citam e ainda não existem são criados junto.',
         }),
         campo('Área', escolhaArea),
         lista,
+        trocar,
         campo(
           'Usar num número',
           escolhaNumero,
-          'Opcional. O número passa a ser desta área, e a secretária responde toda conversa nova dele.',
+          'Opcional. O número passa a ser desta área, e o primeiro agente responde toda conversa nova dele.',
         ),
       ]),
       confirmar: 'Instalar',
       aoConfirmar: async () => {
         const resposta = await api.post(`/api/agentes-pacotes/${escolhaArea.value}`, {
           conexaoId: escolhaNumero.value || undefined,
+          substituir,
         });
         aviso(
-          `${plural(resposta.criados.length, 'agente criado', 'agentes criados')}${resposta.mantidos.length ? `, ${plural(resposta.mantidos.length, 'já existia', 'já existiam')}` : ''}${resposta.conexao ? `. ${resposta.conexao.nome} agora é desta área` : ''}.`,
+          `${plural(resposta.criados.length, 'agente criado', 'agentes criados')}${resposta.mantidos.length ? `, ${plural(resposta.mantidos.length, 'já existia', 'já existiam')}` : ''}${resposta.removidos?.length ? `, ${plural(resposta.removidos.length, 'antigo apagado', 'antigos apagados')} (cópia em ${resposta.copia})` : ''}${resposta.conexao ? `. ${resposta.conexao.nome} agora é desta área` : ''}.`,
           'sucesso',
         );
         if (resposta.conexao) await recarregar('conexoes').catch(() => {});

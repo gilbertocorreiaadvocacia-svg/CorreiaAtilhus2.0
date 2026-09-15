@@ -3,7 +3,7 @@ import { achar, atualizar, inserir, listar, registrarLog } from './banco.js';
 import { TIPOS_DE_CASO, migrarTiposDeCaso } from './casos.js';
 import { normalizar, novoId } from './util.js';
 import { completarComEvolutionLocal } from '../whatsapp/evolution-local.js';
-import { PACOTES } from '../ia/pacotes.js';
+import { PACOTES, prepararEscritorio } from '../ia/pacotes.js';
 
 /**
  * Um workspace por area de atendimento: Previdenciario e Trabalhista.
@@ -176,12 +176,8 @@ function montarWorkspace(origem, { area, nome }) {
 
   /* ---------------- Os agentes da area, desligados ---------------- */
 
-  const chaves = new Set(listar('variaveis', { workspaceId: id }).map((v) => v.chave));
-  for (const [chave, nomeDaVariavel, descricao] of pacote?.variaveis || []) {
-    if (chaves.has(chave)) continue;
-    inserir('variaveis', { id: novoId('var'), workspaceId: id, nome: nomeDaVariavel, chave, descricao, tipo: 'texto' });
-    chaves.add(chave);
-  }
+  /* O que os prompts citam pelo nome e o escritorio de origem nao tem. */
+  if (pacote) prepararEscritorio(id, pacote);
   for (const agente of pacote?.agentes || []) {
     inserir('agentes', {
       id: novoId('agn'),
