@@ -22,6 +22,7 @@ import {
   telefone,
   vazio,
 } from '../ui.js';
+import { paginaTemplates } from './templates.js';
 
 /**
  * Configuracoes em duas colunas.
@@ -106,6 +107,18 @@ const GRUPOS = [
     ],
   },
   {
+    rotulo: 'Atendimento',
+    itens: [
+      {
+        id: 'templates',
+        rotulo: 'Templates',
+        descricao:
+          'Mensagens prontas com texto e mídia: o conteúdo do follow-up, do vídeo de proposta e do tutorial de assinatura. Na conexão oficial, e a única forma de escrever depois das 24 horas.',
+        montar: () => paginaTemplates(),
+      },
+    ],
+  },
+  {
     rotulo: 'Sistema',
     itens: [
       {
@@ -148,8 +161,12 @@ const REDIRECIONAMENTOS = {
  * quem pode configurar. Sem esse recorte, o papel Suporte abria Membros e
  * Chaves de API pelo indice, preenchia um formulario inteiro e so descobria a
  * falta de acesso no Salvar.
+ *
+ * Atendimento (Templates) tambem fica aberto, como era quando Templates tinha
+ * icone proprio na barra: a equipe consulta a lista, e o botao de criar so
+ * aparece para quem configura.
  */
-const GRUPOS_LIVRES = ['Perfil', 'Sistema'];
+const GRUPOS_LIVRES = ['Perfil', 'Atendimento', 'Sistema'];
 
 function gruposVisiveis() {
   if (podeConfigurar()) return GRUPOS;

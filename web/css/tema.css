@@ -2942,8 +2942,42 @@ input.agentes-nome:focus {
 }
 
 .agentes-rosto {
+  position: relative;
   flex: none;
   display: flex;
+}
+
+/* O rosto e o botao da foto: o selo dourado no canto diz que da para mexer,
+   com um + enquanto ainda nao ha foto. */
+button.agentes-rosto {
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+}
+
+button.agentes-rosto:hover .avatar {
+  filter: brightness(0.85);
+}
+
+button.agentes-rosto:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: 2px;
+}
+
+.agentes-rosto-marca {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--fundo);
+  border-radius: 50%;
+  background: var(--ouro);
+  color: var(--sobre-ouro);
 }
 
 .agentes-barra-prompt {
@@ -3536,10 +3570,6 @@ button.agentes-passo:focus-visible {
   display: flex;
   align-items: center;
   gap: var(--e3);
-}
-
-.agentes-arquivo {
-  display: none;
 }
 
 @media (max-width: 1280px) {

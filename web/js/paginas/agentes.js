@@ -533,7 +533,10 @@ export async function paginaAgentes({ parametros, definirAcoes, definirPrincipal
       },
     });
 
-    const rosto = el('span', { class: 'agentes-rosto' });
+    /* Para quem configura, o rosto e o botao da foto (ver escolherFoto). */
+    const rosto = podeConfigurar()
+      ? el('button', { type: 'button', class: 'agentes-rosto', aoClick: () => escolherFoto(atual()) })
+      : el('span', { class: 'agentes-rosto' });
     const sub = el('div', { class: 'agentes-identidade-sub' });
 
     /* As instrucoes leem o agente pela lista de agora: o modelo (que muda o
@@ -555,13 +558,18 @@ export async function paginaAgentes({ parametros, definirAcoes, definirPrincipal
       atualizarSalvo,
     );
 
-    /* O que muda sem redesenhar o centro: o rosto (foto nova no Perfil), ligado
-       ou desligado, o modelo e a medida do texto, que depende do modelo. */
+    /* O que muda sem redesenhar o centro: o rosto (foto nova), ligado ou
+       desligado, o modelo e a medida do texto, que depende do modelo. */
     function pintar() {
       const a = atual();
       const modelo = (estado.sessao?.modelos || []).find((m) => m.id === a.modelo);
       limpar(rosto);
       rosto.append(avatar(a, 44));
+      if (rosto.tagName === 'BUTTON') {
+        rosto.append(el('span', { class: 'agentes-rosto-marca', 'aria-hidden': 'true' }, [icone(a.foto ? 'contrato' : 'mais', 11)]));
+        rosto.title = a.foto ? 'Trocar a foto do agente' : 'Adicionar uma foto ao agente';
+        rosto.setAttribute('aria-label', rosto.title);
+      }
       limpar(sub);
       sub.append(
         ...[
@@ -1096,29 +1104,39 @@ export async function paginaAgentes({ parametros, definirAcoes, definirPrincipal
     ]);
   }
 
-  /* ---------------- Perfil ---------------- */
+  /* ---------------- Foto do agente ---------------- */
 
-  function abaPerfil(agente, salvarConfig) {
-    /* Formatos que o navegador desenha. Foto de iPhone vem em HEIC: sobe sem
-       erro e o <img> nao desenha — melhor recusar dizendo o que fazer. */
-    const FORMATOS = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-    const seletor = el('input', { type: 'file', accept: FORMATOS.join(','), class: 'agentes-arquivo', 'aria-label': `Escolher a foto de ${agente.nome}` });
+  /* Formatos que o navegador desenha. Foto de iPhone vem em HEIC: sobe sem erro
+     e o <img> nao desenha — melhor recusar dizendo o que fazer. */
+  const FORMATOS_DE_FOTO = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+
+  /* Abre o seletor de arquivo e grava a foto. Quem chama e o rosto do agente,
+     no alto das instrucoes, e o Perfil: so no Perfil, atras de uma aba de
+     icone, a foto ficava escondida. */
+  function escolherFoto(agente) {
+    const seletor = el('input', { type: 'file', accept: FORMATOS_DE_FOTO.join(',') });
     seletor.addEventListener('change', async () => {
       const arquivo = seletor.files[0];
       if (!arquivo) return;
-      if (!FORMATOS.includes(arquivo.type)) {
+      if (!FORMATOS_DE_FOTO.includes(arquivo.type)) {
         aviso('Use uma foto em JPG, PNG ou WEBP. Foto de iPhone costuma vir em HEIC: exporte como JPG antes.', 'erro');
-        seletor.value = '';
         return;
       }
       try {
         const midia = await enviarArquivo(arquivo);
-        await salvarConfig({ foto: midia.url }, 'Foto do agente atualizada.');
+        await api.patch(`/api/agentes/${agente.id}`, { foto: midia.url });
+        aviso(agente.foto ? 'Foto do agente trocada.' : 'Foto do agente adicionada.', 'sucesso');
+        await recarregarTudo();
       } catch (erro) {
         aviso(erro.message, 'erro');
-        seletor.value = '';
       }
     });
+    seletor.click();
+  }
+
+  /* ---------------- Perfil ---------------- */
+
+  function abaPerfil(agente, salvarConfig) {
 
     const pastas = [...new Set(agentes.map((a) => a.pasta || PASTA_PADRAO))].sort((a, b) => {
       if (a === PASTA_PADRAO) return -1;
@@ -1168,11 +1186,10 @@ export async function paginaAgentes({ parametros, definirAcoes, definirPrincipal
         el('div', { class: 'agentes-foto' }, [
           avatar(agente, 64),
           el('div', { class: 'linha-p quebra' }, [
-            botao(agente.foto ? 'Trocar foto' : 'Escolher foto', { pequeno: true, aoClicar: () => seletor.click() }),
+            botao(agente.foto ? 'Trocar foto' : 'Escolher foto', { pequeno: true, aoClicar: () => escolherFoto(agente) }),
             agente.foto
               ? botao('Tirar a foto', { pequeno: true, aoClicar: () => salvarConfig({ foto: null }, 'Foto removida.') })
               : null,
-            seletor,
           ]),
         ]),
       ),

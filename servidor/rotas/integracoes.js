@@ -490,7 +490,7 @@ export function registrarIntegracoes(rotas) {
           titulo: 'Personalizar as mensagens prontas',
           descricao: 'Boas-vindas, proposta em video, tutorial de assinatura e follow-ups.',
           pronto: templates.some((t) => t.midia),
-          link: '#/templates',
+          link: '#/configuracoes/templates',
         },
         {
           id: 'followup',

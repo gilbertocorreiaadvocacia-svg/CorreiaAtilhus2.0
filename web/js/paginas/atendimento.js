@@ -1868,7 +1868,7 @@ export async function paginaAtendimento({
         });
         /* Abre de verdade a conversa criada: na aba em que ela nasceu, no
            numero por onde ela vai sair, e mesmo sem mensagem nenhuma ainda. */
-        /* Criada no Funil, a conversa abre na tela de Conversas: e la que se
+        /* Criada no Kanban, a conversa abre na tela de Conversas: e la que se
            escreve para a pessoa. */
         if (visualizacao !== 'conversas') {
           location.hash = `#/atendimento/${contato.id}`;
@@ -3355,7 +3355,7 @@ export async function paginaAtendimento({
     // que cresce, senao a faixa de aviso rouba altura e a rolagem some. Quem
     // faz esse acerto agora e a regra .area-kanban > .kanban.
     /*
-     * A cabeca do Funil: a parte do funil, o tipo de caso e quem conduz.
+     * A cabeca do Kanban: a parte do funil, o tipo de caso e quem conduz.
      *
      * Remontada a cada desenho, porque os numeros mudam com os eventos do
      * servidor. Nao ha campo de digitar ali, entao remontar nao tira foco.

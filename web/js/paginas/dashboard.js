@@ -231,7 +231,7 @@ export async function paginaDashboard({ definirAcoes = () => {} } = {}) {
 
     const partes = [
       avisoDeTipos(dados),
-      secaoEventos(dados, filtro),
+      secaoEventos(dados),
       secaoGargalos(dados),
       secaoPerformance(dados, filtro, modoAnalise, (valor) => {
         modoAnalise = valor;
@@ -773,29 +773,11 @@ function percentualDoCartao(card, totalNovas) {
   return Number((((Number(card?.total) || 0) / base) * 100).toFixed(1));
 }
 
-function secaoEventos(dados, filtro) {
+function secaoEventos(dados) {
   const { cards, statusPorTipo, base } = dados;
 
-  /* Seis cartoes zerados lado a lado nao informam nada e ainda parecem defeito.
-     Quando o periodo nao teve movimento nenhum, a secao troca os zeros por uma
-     frase que diz o que fazer em seguida. */
-  const semMovimento =
-    !base.total && CARTOES.every((definicao) => !(Number(cards[definicao.chave]?.total) || 0));
-  if (semMovimento) {
-    return secao(
-      'Eventos por status',
-      null,
-      cartao(
-        null,
-        null,
-        vazio(
-          'Nenhuma conversa se mexeu neste periodo',
-          `Nada entrou nem mudou de status ${faixaEmTexto(filtro)}. ${comoSairDoVazio(filtro)}`,
-        ),
-      ),
-    );
-  }
-
+  /* Os seis cartoes aparecem mesmo zerados. Periodo sem movimento tambem e
+     resposta, e uma frase no lugar deles deixava a tela sem nada para ler. */
   const grade = el(
     'div',
     { class: 'metricas' },
@@ -819,7 +801,9 @@ function cartaoDeEvento(definicao, card, statusPorTipo, base, modo) {
   const marca = icone(definicao.icone, 15);
   marca.style.color = cor;
 
-  const mini = miniLinha(card.serie, { cor });
+  /* Sem serie, a minilinha sai reta: os seis cartoes ficam da mesma altura e o
+     zero aparece desenhado, e nao como grafico faltando. */
+  const mini = miniLinha(card.serie?.length ? card.serie : [0, 0], { cor });
   const percentual =
     definicao.chave === 'nova' && modo === 'cohort'
       ? 'base'
@@ -1066,9 +1050,25 @@ function cartaoEvolucao(dados, filtro, modoAnalise, aoTrocarModo) {
 
   const caixa = cartaoComDica({ titulo: 'Evolução no período', conceito }, alternador);
 
-  if (!temEvento) {
-    /* Sem serie, o grafico sairia como uma moldura vazia com os eixos zerados.
-       A frase diz o que aconteceu e o que fazer para sair daqui. */
+  const linhas = modoAnalise === 'conversoes' ? emPercentual(serie) : serie;
+  /* O eixo do grafico e o rotulo do periodo ja em pt-BR: a serie chega com a
+     data em ISO, que ninguem le de relance. */
+  const periodos = linhas.map((linha) => ({ ...linha, rotulo: rotuloDoPeriodo(linha.periodo, filtro.agrupamento) }));
+
+  /* Periodo sem evento desenha o grafico assim mesmo: os dias do periodo no
+     eixo, as linhas no chao e a escala de 0 a 4, para o zero se ler como
+     leitura feita, e nao como tela quebrada. So sem periodo nenhum na serie
+     (filtro sem data) sobra a frase. */
+  const grafico = graficoEvolucao({
+    serie: linhas,
+    series: SERIES_EVOLUCAO,
+    altura: 300,
+    percentual: modoAnalise === 'conversoes',
+    teto: temEvento ? null : 4,
+    rotulo: modoAnalise === 'conversoes' ? 'Conversoes no periodo' : 'Evolucao no periodo',
+  });
+
+  if (!grafico) {
     caixa.append(
       vazio(
         'Nada para desenhar nesta linha do tempo',
@@ -1078,20 +1078,7 @@ function cartaoEvolucao(dados, filtro, modoAnalise, aoTrocarModo) {
     return caixa;
   }
 
-  const linhas = modoAnalise === 'conversoes' ? emPercentual(serie) : serie;
-  /* O eixo do grafico e o rotulo do periodo ja em pt-BR: a serie chega com a
-     data em ISO, que ninguem le de relance. */
-  const periodos = linhas.map((linha) => ({ ...linha, rotulo: rotuloDoPeriodo(linha.periodo, filtro.agrupamento) }));
-  caixa.append(
-    graficoEvolucao({
-      serie: linhas,
-      series: SERIES_EVOLUCAO,
-      altura: 300,
-      percentual: modoAnalise === 'conversoes',
-      rotulo: modoAnalise === 'conversoes' ? 'Conversoes no periodo' : 'Evolucao no periodo',
-    }),
-    legenda(SERIES_EVOLUCAO),
-  );
+  caixa.append(grafico, legenda(SERIES_EVOLUCAO));
   return caixa;
 }
 
@@ -1273,22 +1260,19 @@ const CONCEITO_ORIGEM =
   'Onde se ve qual anuncio gera contrato, e nao apenas conversa. A origem chega sozinha pelo anuncio ou pelo link de campanha, e pode ser corrigida na propria conversa.';
 
 function cartaoPorOrigem(dados, filtro) {
-  const linhas = dados.porOrigem
+  const comVolume = dados.porOrigem
     .filter((origem) => Number(origem.novas) > 0)
     .sort((a, b) => b.novas - a.novas);
 
-  /* A tabela some quando nao ha origem, e a pergunta "de onde vem o cliente"
-     fica sem resposta na tela. Melhor manter o cartao e explicar o que falta
-     para ele encher. */
-  if (!linhas.length) {
-    return cartaoComDica(
-      { titulo: 'Por origem', conceito: CONCEITO_ORIGEM },
-      vazio(
-        'Nenhuma conversa com origem registrada',
-        `Nenhuma conversa ${faixaEmTexto(filtro)} esta ligada a uma origem cadastrada. A lista fica em Configuracoes > Classes.`,
-      ),
-    );
-  }
+  /* Sem conversa com origem, a tabela aparece assim mesmo, com as origens
+     cadastradas zeradas: a pergunta "de onde vem o cliente" continua com o
+     lugar dela na tela, e a linha de ajuda do cartao diz por que esta em zero. */
+  const zerada = (nome) => ({ nome, novas: 0, qualificados: 0, propostas: 0, sucessos: 0, perdas: 0 });
+  const cadastradas = (estado.origens || []).map((origem) => zerada(origem.nome));
+  const linhas = comVolume.length ? comVolume : cadastradas.length ? cadastradas : [zerada('Sem origem cadastrada')];
+  const ajuda = comVolume.length
+    ? null
+    : `Nenhuma conversa ${faixaEmTexto(filtro)} esta ligada a uma origem. A lista fica em Configuracoes > Classes.`;
 
   const corpo = el('tbody');
   for (const origem of linhas) {
@@ -1312,7 +1296,7 @@ function cartaoPorOrigem(dados, filtro) {
   }
 
   return cartaoComDica(
-    { titulo: 'Por origem', conceito: CONCEITO_ORIGEM },
+    { titulo: 'Por origem', conceito: CONCEITO_ORIGEM, ajuda },
     el('div', { class: 'tabela-rolagem' }, [
       el('table', { class: 'tabela-densa' }, [
         el('thead', {}, [
@@ -1364,14 +1348,16 @@ function cartaoDeRosca(divisao, itens, filtro, totalDaCarteira) {
   const caixa = cartaoComDica({ titulo: divisao.titulo, conceito: divisao.conceito });
   marcarCabeco(caixa, divisao.icone);
 
+  /* `vazia`: sem fatia, o anel sai apagado com o zero no meio, e o cartao
+     continua com o grafico no lugar em vez de trocar por uma frase. */
   const grafico = rosca(
     lista.map((item) => ({ nome: item.nome, valor: item.total, cor: item.cor })),
-    { rotulo: divisao.titulo },
+    { rotulo: divisao.titulo, vazia: true },
   );
+  caixa.append(grafico);
 
-  if (!grafico) {
-    /* Lista sem barra nenhuma sairia como um retangulo vazio, que se le como
-       carregamento travado. No lugar dela, o motivo e a saida. Esta secao olha a carteira de
+  if (!lista.length) {
+    /* Embaixo do anel apagado vai o motivo. Esta secao olha a carteira de
        agora, entao mexer no periodo aqui nao muda nada, e mandar ampliar o
        periodo levaria a pessoa para o lado errado.
 
@@ -1387,11 +1373,9 @@ function cartaoDeRosca(divisao, itens, filtro, totalDaCarteira) {
     } else {
       motivo = 'Nenhuma conversa visivel para voce na carteira.';
     }
-    caixa.append(vazio('Nada para dividir aqui', motivo));
+    caixa.append(el('p', { class: 'cartao-ajuda sem-margem', texto: motivo }));
     return caixa;
   }
-
-  caixa.append(grafico);
 
   /* A rosca mostra a proporcao, e nao o nome de cada fatia. As duas maiores vao
      escritas embaixo, com o valor, porque sao as que respondem a pergunta na

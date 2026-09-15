@@ -24,7 +24,6 @@ import {
   tocar,
 } from './avisos.js';
 
-import { paginaInicio } from './paginas/inicio.js';
 
 /* O sistema abre na fila de conversas, e nao num resumo.
    Quem senta nesta tela senta para atender, e o primeiro clique de todo dia
@@ -35,7 +34,6 @@ const ROTA_PADRAO = 'atendimento';
 import { paginaAtendimento } from './paginas/atendimento.js';
 import { paginaAgentes } from './paginas/agentes.js';
 import { paginaConhecimento } from './paginas/conhecimento.js';
-import { paginaTemplates } from './paginas/templates.js';
 import { paginaVozes } from './paginas/vozes.js';
 import { paginaIntegracoes } from './paginas/integracoes.js';
 import { paginaDashboard } from './paginas/dashboard.js';
@@ -54,14 +52,13 @@ const raiz = document.getElementById('raiz');
  * Duplicar a tela seria duplicar filtro, acao em massa e painel da conversa.
  */
 const PAGINAS = {
-  inicio: { titulo: 'Início', montar: paginaInicio },
   dashboard: { titulo: 'Dashboard', montar: paginaDashboard },
   conexoes: { titulo: 'Conexões', subtitulo: 'Gerencie suas conexões com canais de comunicação.', montar: paginaConexoes },
 
   /* Conversas nao tem cabeca de tela: a fila comeca logo abaixo da barra de cima. */
   atendimento: { titulo: 'Conversas', montar: paginaAtendimento, cheia: true, semCabeca: true, visualizacao: 'conversas' },
   contatos: { titulo: 'Contatos', montar: paginaAtendimento, cheia: true, visualizacao: 'contatos' },
-  kanban: { titulo: 'Funil', montar: paginaAtendimento, cheia: true, visualizacao: 'kanban' },
+  kanban: { titulo: 'Kanban', montar: paginaAtendimento, cheia: true, visualizacao: 'kanban' },
   contratos: { titulo: 'Contratos', montar: paginaContratos, cheia: true },
 
   /* Agentes, Base de conhecimento e Chat de teste sao abas do mesmo modulo
@@ -70,7 +67,15 @@ const PAGINAS = {
      da aba aberta. */
   agentes: { titulo: 'Agentes de IA', montar: moduloAgentes('agentes'), cheia: true, semCabeca: true },
   conhecimento: { titulo: 'Base de conhecimento', montar: moduloAgentes('conhecimento'), semCabeca: true },
-  templates: { titulo: 'Templates', montar: paginaTemplates },
+  /* Templates mora em Configuracoes. A rota antiga fica como atalho: aviso do
+     sino e link guardado com #/templates abrem a secao nova. */
+  templates: {
+    titulo: 'Templates',
+    montar: () => {
+      location.replace('#/configuracoes/templates');
+      return el('div', { class: 'vazio', texto: 'Abrindo Templates em Configurações…' });
+    },
+  },
   vozes: { titulo: 'Vozes', montar: paginaVozes },
   integracoes: { titulo: 'Integrações', montar: paginaIntegracoes },
 
@@ -84,10 +89,10 @@ const PAGINAS = {
  * A barra de icones.
  *
  * Tres grupos, na ordem em que o dia acontece: o que se abre para comecar
- * (Inicio, Dashboard), o que se atende (conversas, contatos, funil, tarefas,
- * agendamentos) e o que se configura para o atendimento andar sozinho
- * (agentes, templates, vozes, numeros, integracoes). Configuracoes fica no pe,
- * junto de quem esta logado.
+ * (Dashboard), o que se atende (conversas, contatos, kanban, contratos,
+ * tarefas, agendamentos) e o que se configura para o atendimento andar
+ * sozinho (agentes, vozes, numeros, integracoes). Configuracoes fica no pe,
+ * junto de quem esta logado, e guarda tambem os Templates.
  *
  * Os grupos nao abrem nem fecham. Na faixa de 64px nao ha rotulo para clicar,
  * e grupo fechado esconderia rota sem deixar jeito de abrir. O nome de cada
@@ -97,10 +102,7 @@ const PAGINAS = {
  * atualizarContadoresDaBarra).
  */
 const BARRA = [
-  [
-    { rota: 'inicio', rotulo: 'Início', icone: 'inicio' },
-    { rota: 'dashboard', rotulo: 'Dashboard', icone: 'painel' },
-  ],
+  [{ rota: 'dashboard', rotulo: 'Dashboard', icone: 'painel' }],
   [
     {
       rota: 'atendimento',
@@ -109,7 +111,7 @@ const BARRA = [
       contador: { chave: 'pendentes', tipo: 'alerta', rotulo: 'esperando alguém' },
     },
     { rota: 'contatos', rotulo: 'Contatos', icone: 'usuarios' },
-    { rota: 'kanban', rotulo: 'Funil', icone: 'filtros' },
+    { rota: 'kanban', rotulo: 'Kanban', icone: 'filtros' },
     {
       rota: 'contratos',
       rotulo: 'Contratos',
@@ -121,7 +123,6 @@ const BARRA = [
   ],
   [
     { rota: 'agentes', rotulo: 'Agentes', icone: 'agentes' },
-    { rota: 'templates', rotulo: 'Templates', icone: 'templates' },
     { rota: 'vozes', rotulo: 'Vozes', icone: 'pessoa' },
     { rota: 'conexoes', rotulo: 'Conexões', icone: 'conexoes' },
     { rota: 'integracoes', rotulo: 'Integrações', icone: 'abrir' },
@@ -131,8 +132,9 @@ const BARRA = [
 const CONFIGURACOES = { rota: 'configuracoes', rotulo: 'Configurações', icone: 'ajustes' };
 
 /* Telas que moram dentro de outra na barra: abrir uma delas acende o icone de
-   quem as contem (Base de conhecimento e Chat de teste sao abas de Agentes). */
-const DENTRO_DE = { conhecimento: 'agentes', simulador: 'agentes' };
+   quem as contem (Base de conhecimento e Chat de teste sao abas de Agentes;
+   Templates e uma secao de Configuracoes). */
+const DENTRO_DE = { conhecimento: 'agentes', simulador: 'agentes', templates: 'configuracoes' };
 const itemDoMenuDa = (rota) => DENTRO_DE[rota] || rota;
 
 /* ------------------------------------------------------------------ */

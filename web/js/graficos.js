@@ -527,6 +527,17 @@ function desenharFunilBarras(degraus, perdas, { altura, largura, caixa = null, r
 
     svg.append(
       texto(item.nome, { x: 0, y: meio + 4, fill: "var(--texto-suave)", "font-size": T_SM }),
+      /* Trilho com a largura inteira atras de cada barra. Com a etapa zerada a
+         barra some, e sem o trilho o grafico virava uma lista de nomes com zero
+         ao lado. */
+      no("rect", {
+        x: arred(calha),
+        y: arred(y),
+        width: arred(areaBarra),
+        height: alturaBarra,
+        rx: r,
+        fill: "var(--superficie-3)",
+      }),
     );
 
     /* O vao ate a barra de cima e a queda. Fica so contornado, porque e
@@ -620,10 +631,47 @@ export function rosca(fatias, opcoes = {}) {
   const lista = (Array.isArray(fatias) ? fatias : [])
     .map((f) => ({ nome: f.nome, valor: Math.max(0, Number(f.valor) || 0), cor: f.cor }))
     .filter((f) => f.valor > 0);
-  if (!lista.length) return null;
-
   const altura = opcoes.altura ?? 176;
+
+  /* Sem fatia, quem pede `vazia` recebe o anel apagado com o zero no meio: o
+     grafico continua no lugar, e zero se le como zero. Sem a opcao, o retorno
+     nulo segue dizendo que nao ha o que desenhar. */
+  if (!lista.length) {
+    return opcoes.vazia ? responsivo(altura, 150, (largura) => desenharAnelVazio({ ...opcoes, altura, largura })) : null;
+  }
+
   return responsivo(altura, 150, (largura, caixa) => desenharRosca(lista, { ...opcoes, altura, largura, caixa }));
+}
+
+function desenharAnelVazio({ altura, largura, espessura = 26, rotulo = 'Distribuicao' }) {
+  const lado = Math.min(altura, largura);
+  const raioMedio = lado / 2 - 6 - espessura / 2;
+
+  const svg = no('svg', {
+    viewBox: `0 0 ${largura} ${altura}`,
+    role: 'img',
+    'aria-label': `${rotulo}: nenhuma conversa`,
+    style: `width:100%;height:${altura}px;display:block`,
+  });
+  svg.append(
+    no('circle', {
+      cx: arred(largura / 2),
+      cy: arred(altura / 2),
+      r: arred(raioMedio),
+      fill: 'none',
+      stroke: 'var(--superficie-3)',
+      'stroke-width': espessura,
+    }),
+    texto('0', {
+      x: arred(largura / 2),
+      y: arred(altura / 2 + 6),
+      'text-anchor': 'middle',
+      fill: 'var(--texto-fraco)',
+      'font-size': 18,
+      'font-weight': '600',
+    }),
+  );
+  return svg;
 }
 
 function desenharRosca(lista, { altura, largura, espessura = 26, caixa = null, rotulo = 'Distribuicao' }) {
