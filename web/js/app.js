@@ -156,11 +156,84 @@ const itemDoMenuDa = (rota) => DENTRO_DE[rota] || rota;
 /* Entrada                                                             */
 /* ------------------------------------------------------------------ */
 
+/* O e-mail que a pessoa pediu para lembrar neste computador. Nunca a senha. */
+const CHAVE_EMAIL_LEMBRADO = 'correiatendimentos:entrada-email';
+
+/* As areas do escritorio, com a cor de cada uma (tokens em .entrada, tema.css). */
+const AREAS_DA_ENTRADA = [
+  ['Previdenciário', 'var(--entrada-previdenciario)'],
+  ['Trabalhista', 'var(--entrada-trabalhista)'],
+  ['Cível', 'var(--entrada-civel)'],
+];
+
+function saudacaoDaHora(data = new Date()) {
+  const hora = data.getHours();
+  if (hora >= 5 && hora < 12) return 'Bom dia.';
+  if (hora >= 12 && hora < 18) return 'Boa tarde.';
+  return 'Boa noite.';
+}
+
+/**
+ * A tela de entrada: o painel de vidro sobre a trama do escudo (a 5.6,
+ * escolhida em 16/09).
+ *
+ * A senha padrao da semeadura saiu da tela. Ela ficava escrita para quem
+ * abrisse o endereco, e o sistema vai para a internet (HOSPEDAGEM.md); quem
+ * instala le no README e no console do servidor.
+ */
 function telaEntrada(mensagemInicial) {
   limpar(raiz);
 
-  const email = entradaTexto('', { type: 'email', placeholder: 'voce@correia.adv.br', autocomplete: 'username' });
-  const senha = entradaTexto('', { type: 'password', autocomplete: 'current-password' });
+  let emailLembrado = '';
+  try {
+    emailLembrado = localStorage.getItem(CHAVE_EMAIL_LEMBRADO) || '';
+  } catch {
+    /* navegador sem armazenamento: o campo so comeca vazio */
+  }
+
+  const email = entradaTexto(emailLembrado, {
+    type: 'email',
+    id: 'entrada-email',
+    placeholder: 'nome@correiadvogados.com.br',
+    autocomplete: 'username',
+  });
+  const senha = entradaTexto('', { type: 'password', id: 'entrada-senha', autocomplete: 'current-password' });
+  const mostrar = el('button', {
+    type: 'button',
+    class: 'entrada-mostrar',
+    'aria-controls': 'entrada-senha',
+    'aria-pressed': 'false',
+    texto: 'Mostrar',
+    aoClick: () => {
+      const mostrando = senha.type === 'password';
+      senha.type = mostrando ? 'text' : 'password';
+      mostrar.textContent = mostrando ? 'Ocultar' : 'Mostrar';
+      mostrar.setAttribute('aria-pressed', mostrando ? 'true' : 'false');
+      senha.focus();
+    },
+  });
+
+  const lembrar = el('input', { type: 'checkbox', id: 'entrada-lembrar' });
+  lembrar.checked = Boolean(emailLembrado);
+
+  const ajuda = el('p', {
+    class: 'entrada-ajuda',
+    id: 'entrada-ajuda',
+    hidden: true,
+    texto: 'Quem troca a senha é o administrador do escritório, em Configurações › Membros. Peça a ele uma senha nova.',
+  });
+  const esqueci = el('button', {
+    type: 'button',
+    class: 'entrada-link',
+    'aria-controls': 'entrada-ajuda',
+    'aria-expanded': 'false',
+    texto: 'Esqueci a senha',
+    aoClick: () => {
+      ajuda.hidden = !ajuda.hidden;
+      esqueci.setAttribute('aria-expanded', ajuda.hidden ? 'false' : 'true');
+    },
+  });
+
   // role="alert" porque a falha de login e a unica resposta que a tela da, e
   // sem ele o leitor de tela nao anuncia nada depois do Enter.
   const erro = el('div', {
@@ -177,6 +250,12 @@ function telaEntrada(mensagemInicial) {
     erro.style.display = 'none';
     try {
       await api.post('/api/sessao/entrar', { email: email.value.trim(), senha: senha.value });
+      try {
+        if (lembrar.checked) localStorage.setItem(CHAVE_EMAIL_LEMBRADO, email.value.trim());
+        else localStorage.removeItem(CHAVE_EMAIL_LEMBRADO);
+      } catch {
+        /* sem armazenamento, so nao lembra */
+      }
       await iniciarApp();
     } catch (falha) {
       erro.textContent = falha.message;
@@ -187,30 +266,52 @@ function telaEntrada(mensagemInicial) {
   // O Entrar e submit, e nao um botao com onclick: formulario com dois campos e
   // nenhum submit nao dispara submit no Enter, entao apertar Enter na senha nao
   // fazia nada. Com type="submit" o caminho e um so, o aoSubmit acima.
-  const formulario = el('form', { aoSubmit: entrar }, [
+  const formulario = el('form', { class: 'entrada-form', aoSubmit: entrar }, [
     campo('E-mail', email),
-    campo('Senha', senha),
+    campo('Senha', el('div', { class: 'entrada-senha' }, [senha, mostrar])),
+    el('div', { class: 'entrada-linha' }, [
+      el('label', { class: 'entrada-lembrar' }, [lembrar, el('span', { texto: 'Lembrar meu e-mail' })]),
+      esqueci,
+    ]),
+    ajuda,
     erro,
-    botao('Entrar', { tipo: 'principal', submeter: true }),
+    botao('Entrar', { tipo: 'principal', submeter: true, grande: true }),
   ]);
+
+  const hoje = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date());
 
   raiz.append(
     el('div', { class: 'entrada' }, [
-      el('div', { class: 'entrada-cartao' }, [
-        el('img', { src: 'assets/logo.png', alt: 'Correia Advogados Associados' }),
-        el('h1', { texto: 'CorreiaAtilhus2.0' }),
-        el('p', { texto: 'Correia Advogados Associados' }),
-        formulario,
-        mensagemInicial
-          ? el('div', { class: 'entrada-dica', html: mensagemInicial })
-          : el('div', {
-              class: 'entrada-dica',
-              html: 'Primeiro acesso: <strong>admin@correia.adv.br</strong><br />senha <strong>correia2026</strong>',
-            }),
+      el('div', { class: 'entrada-trama', 'aria-hidden': 'true' }),
+      el('div', { class: 'entrada-brilho', 'aria-hidden': 'true' }),
+      el('div', { class: 'entrada-marca' }, [
+        el('img', { src: 'assets/logo.png', alt: '' }),
+        el('div', {}, [el('strong', { texto: 'Correia Advogados Associados' }), el('span', { texto: 'Área da equipe' })]),
+      ]),
+      el('div', { class: 'entrada-apresentacao' }, [
+        el('p', { class: 'entrada-frase' }, ['Quem procura o escritório encontra ', el('em', { texto: 'resposta.' })]),
+        el(
+          'ul',
+          { class: 'entrada-areas', 'aria-label': 'Áreas do escritório' },
+          AREAS_DA_ENTRADA.map(([nome, cor]) => el('li', { estilo: { '--area': cor }, texto: nome })),
+        ),
+      ]),
+      el('span', { class: 'entrada-cidades', texto: 'Timbaúba · Carpina · Condado — PE' }),
+      el('main', { class: 'entrada-painel' }, [
+        el('div', { class: 'entrada-dia' }, [
+          el('span', { texto: hoje }),
+          el('span', { class: 'entrada-status' }, [el('i', { 'aria-hidden': 'true' }), 'Sistema no ar']),
+        ]),
+        el('div', { class: 'entrada-conteudo' }, [
+          el('h1', { class: 'entrada-saudacao', texto: saudacaoDaHora() }),
+          el('p', { class: 'entrada-sub', texto: 'Entre para ver as conversas de hoje.' }),
+          mensagemInicial ? el('div', { class: 'entrada-aviso', role: 'status', html: mensagemInicial }) : null,
+          formulario,
+        ]),
       ]),
     ]),
   );
-  email.focus();
+  (emailLembrado ? senha : email).focus();
 }
 
 /* ------------------------------------------------------------------ */

@@ -450,70 +450,376 @@ a {
    Entrada
    ------------------------------------------------------------------ */
 
+/*
+ * O painel de vidro sobre a trama do escudo (a 5.6, escolhida em 16/09).
+ *
+ * A tela de entrada e SEMPRE escura, no tema claro tambem: e a vitrine da
+ * marca, e o vidro sobre a trama dourada so funciona sobre o preto. Por isso os
+ * tokens sao redefinidos aqui dentro; os campos, o selo de erro e o botao do
+ * sistema leem os mesmos tokens e saem escuros sem regra propria.
+ *
+ * A frase grande fica fora da escala de tipo (11/13/15/21/34) de proposito: e
+ * a unica vitrine do sistema, e em 34px ela some ao lado do painel.
+ */
 .entrada {
+  --preto: #050504;
+  --fundo: #040403;
+  --superficie: #0e0d0c;
+  --superficie-2: #151412;
+  --superficie-3: #1c1b17;
+  --borda: #201e1a;
+  --borda-forte: #2b2823;
+  --ouro: #c9a961;
+  --ouro-claro: #eadfb4;
+  --ouro-escuro: #8a6e3a;
+  --ouro-fraco: rgba(201, 169, 97, 0.14);
+  --ouro-linha: rgba(201, 169, 97, 0.28);
+  --ouro-acao-de: #d2b473;
+  --ouro-acao-ate: #a4854a;
+  --sobre-ouro: #191204;
+  --texto: #efeae0;
+  --texto-suave: #a9a296;
+  --texto-fraco: #948d84;
+  --sucesso: #3be090;
+  --erro: #f04667;
+  --erro-fraco: rgba(229, 127, 104, 0.15);
+  --erro-linha: rgba(229, 127, 104, 0.38);
+  --entrada-previdenciario: #51bcff;
+  --entrada-trabalhista: #f78825;
+  --entrada-civel: #3be090;
+  --vidro-borda: rgba(234, 223, 180, 0.14);
+
+  color-scheme: dark;
+  position: relative;
   min-height: 100vh;
-  display: grid;
-  place-items: center;
-  padding: var(--e5);
-  /* Fundo chapado. O halo de 900x500 era o unico gradiente decorativo grande
-     do sistema, e aparecia na primeira tela que qualquer pessoa ve. */
-  background: var(--preto);
+  overflow: hidden;
+  background: var(--fundo);
+  color: var(--texto);
 }
 
-.entrada-cartao {
-  width: 100%;
-  max-width: 380px;
-  background: var(--superficie);
-  border: 1px solid var(--borda);
-  border-radius: var(--raio-g);
-  padding: var(--e6) var(--e6) var(--e5);
-  box-shadow: var(--sombra);
-  text-align: center;
+/* A trama do escudo: duas familias de faixas cruzadas a 45 graus. */
+.entrada-trama {
+  position: absolute;
+  inset: 0;
+  background:
+    repeating-linear-gradient(45deg, rgba(201, 169, 97, 0.1) 0 18px, transparent 18px 60px),
+    repeating-linear-gradient(-45deg, rgba(201, 169, 97, 0.07) 0 18px, transparent 18px 60px);
 }
 
-.entrada-cartao img {
-  width: 110px;
-  height: 110px;
-  object-fit: contain;
-  margin-bottom: var(--e4);
+.entrada-brilho {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(720px 520px at 62% 30%, rgba(201, 169, 97, 0.2), transparent 70%),
+    radial-gradient(120% 110% at 30% 60%, transparent 40%, var(--fundo) 95%);
 }
 
-.entrada-cartao h1 {
-  margin: 0 0 var(--e1);
-  font-size: var(--t-xl);
-  font-weight: 600;
-  letter-spacing: 0.02em;
-}
-
-/* Caixa normal, como o resto do sistema. A assinatura da marca em CAIXA ALTA
-   espacada era a unica linha de texto corrido da interface nesse tratamento. */
-.entrada-cartao p {
-  margin: 0 0 var(--e5);
-  color: var(--texto-suave);
-  font-size: var(--t-sm);
-}
-
-.entrada-cartao form {
-  display: grid;
+.entrada-marca {
+  position: absolute;
+  top: var(--e7);
+  left: var(--e7);
+  z-index: 2;
+  display: flex;
+  align-items: center;
   gap: var(--e3);
-  text-align: left;
+}
+
+.entrada-marca img {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+}
+
+.entrada-marca strong {
+  display: block;
+  font-family: var(--fonte-titulo);
+  font-size: var(--t-titulo);
+  font-weight: 500;
+  line-height: var(--lh-apertada);
+}
+
+.entrada-marca span {
+  font-size: var(--t-base);
+  color: var(--texto-suave);
+}
+
+.entrada-apresentacao {
+  position: absolute;
+  top: 50%;
+  left: var(--e7);
+  z-index: 1;
+  width: min(640px, calc(60% - 2 * var(--e7)));
+  transform: translateY(-50%);
+}
+
+.entrada-frase {
+  margin: 0;
+  font-family: var(--fonte-titulo);
+  font-size: clamp(34px, 4.2vw, 60px);
+  font-weight: 500;
+  line-height: 1.05;
+  text-wrap: balance;
+}
+
+.entrada-frase em {
+  font-style: italic;
+  color: var(--ouro-claro);
+}
+
+.entrada-areas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e3);
+  margin: var(--e6) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.entrada-areas li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e2);
+  padding: var(--e2) var(--e4);
+  border: 1px solid var(--vidro-borda);
+  border-radius: var(--raio-pilula);
+  background: rgba(21, 20, 18, 0.5);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  font-size: var(--t-base);
+}
+
+.entrada-areas li::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--area);
+}
+
+.entrada-cidades {
+  position: absolute;
+  bottom: var(--e7);
+  left: var(--e7);
+  z-index: 1;
+  font-size: var(--t-base);
+  letter-spacing: 0.06em;
+  color: var(--texto-fraco);
+}
+
+/* O vidro ocupa a lateral inteira. */
+.entrada-painel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  width: 40%;
+  min-width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--e6);
+  padding: var(--e7);
+  overflow-y: auto;
+  border-left: 1px solid var(--vidro-borda);
+  background: rgba(14, 13, 12, 0.5);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  backdrop-filter: blur(18px) saturate(1.2);
+}
+
+.entrada-dia {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--e3);
+  font-size: var(--t-base);
+  color: var(--texto-fraco);
+}
+
+.entrada-dia > span:first-child::first-letter {
+  text-transform: uppercase;
+}
+
+.entrada-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e2);
+  color: var(--texto-suave);
+}
+
+.entrada-status i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--sucesso);
+  box-shadow: 0 0 0 3px rgba(59, 224, 144, 0.18);
+}
+
+.entrada-conteudo {
+  width: 100%;
+  max-width: 400px;
+  margin-block: auto;
+}
+
+.entrada-saudacao {
+  margin: 0;
+  font-family: var(--fonte-titulo);
+  font-size: 44px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.entrada-sub {
+  margin: var(--e2) 0 var(--e6);
+  font-size: var(--t-leitura);
+  color: var(--texto-suave);
+}
+
+.entrada-aviso {
+  margin-bottom: var(--e4);
+  padding: var(--e3) var(--e4);
+  border: 1px solid var(--ouro-linha);
+  border-radius: var(--raio);
+  background: var(--ouro-fraco);
+  font-size: var(--t-base);
+}
+
+.entrada-form {
+  display: grid;
 }
 
 /* A entrada e a unica tela com um campo so na frente da pessoa, entao aqui
-   o campo e o botao usam a altura de destaque. Alvo maior onde ele cabe,
-   sem esticar nenhuma outra tela. */
-.entrada-cartao form input,
-.entrada-cartao form .botao {
+   o campo e o botao usam a altura de destaque. */
+.entrada-form input[type='email'],
+.entrada-form input[type='password'],
+.entrada-form input[type='text'] {
   min-height: var(--controle-g);
+  border-color: var(--borda-forte);
+  background: rgba(5, 5, 4, 0.6);
 }
 
-.entrada-dica {
-  margin-top: var(--e5);
-  padding-top: var(--e4);
-  border-top: 1px solid var(--borda);
-  color: var(--texto-fraco);
-  font-size: var(--t-sm);
+.entrada-senha {
+  position: relative;
+}
+
+.entrada-senha input {
+  padding-right: 88px;
+}
+
+.entrada-mostrar {
+  position: absolute;
+  top: 50%;
+  right: var(--e2);
+  min-height: var(--controle-p);
+  padding: 0 var(--e3);
+  transform: translateY(-50%);
+  border: 0;
+  border-radius: var(--raio-p);
+  background: transparent;
+  color: var(--ouro);
+  font: inherit;
+  font-size: var(--t-base);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.entrada-mostrar:hover,
+.entrada-mostrar:focus-visible {
+  outline: none;
+  background: var(--ouro-fraco);
+}
+
+.entrada-linha {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e3);
+  margin-bottom: var(--e3);
+  font-size: var(--t-base);
+  color: var(--texto-suave);
+}
+
+.entrada-lembrar {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e2);
+  cursor: pointer;
+}
+
+.entrada-lembrar input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--ouro);
+}
+
+.entrada-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ouro);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+}
+
+.entrada-link:hover,
+.entrada-link:focus-visible {
+  outline: none;
+  text-decoration-color: currentColor;
+}
+
+.entrada-ajuda {
+  margin: 0 0 var(--e3);
+  padding: var(--e3) var(--e4);
+  border-left: 2px solid var(--ouro);
+  background: var(--superficie-2);
+  font-size: var(--t-base);
   line-height: var(--lh-solta);
+  color: var(--texto-suave);
+}
+
+.entrada-ajuda[hidden] {
+  display: none;
+}
+
+.entrada-form .selo.erro {
+  justify-self: start;
+}
+
+.entrada-form .botao {
+  width: 100%;
+  min-height: var(--controle-g);
+  margin-top: var(--e2);
+}
+
+/* Tela estreita: o vidro vira a tela inteira, e a marca fica em cima dele. */
+@media (max-width: 900px) {
+  .entrada-apresentacao,
+  .entrada-cidades {
+    display: none;
+  }
+
+  .entrada-marca {
+    top: var(--e5);
+    left: var(--e5);
+  }
+
+  .entrada-marca img {
+    width: 48px;
+    height: 48px;
+  }
+
+  .entrada-painel {
+    width: 100%;
+    min-width: 0;
+    padding: 104px var(--e5) var(--e5);
+    border-left: 0;
+  }
+
+  .entrada-conteudo {
+    margin-inline: auto;
+  }
 }
 
 /* ------------------------------------------------------------------
@@ -6408,8 +6714,7 @@ th.numero {
 
 h1,
 h2,
-.cartao-titulo,
-.entrada-cartao h1 {
+.cartao-titulo {
   font-family: var(--fonte-titulo);
 }
 
