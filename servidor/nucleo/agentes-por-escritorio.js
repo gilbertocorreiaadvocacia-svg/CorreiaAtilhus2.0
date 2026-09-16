@@ -167,6 +167,28 @@ export function instalarPacote({ workspaceId, area = null, pacote = PACOTES[area
 }
 
 /**
+ * O agente de avaliacao do atendimento em todo escritorio que ainda nao o
+ * recebeu (pedido de 16/09). Roda na subida do servidor, e UMA vez por
+ * escritorio: se o escritorio apagar o agente depois, ele nao volta sozinho.
+ */
+export function garantirAvaliacaoNosEscritorios() {
+  let instalados = 0;
+  for (const workspace of listar('workspaces')) {
+    if (workspace.avaliacaoInstaladaEm) continue;
+    const pacote = workspace.area ? PACOTES[workspace.area] : ESCRITORIO_GERAL;
+    const modelo = pacote?.agentes.find((a) => a.objetivo === 'avaliar');
+    const jaTem = listar('agentes', { workspaceId: workspace.id }).some((a) => a.objetivo === 'avaliar');
+    if (modelo && !jaTem) {
+      prepararEscritorio(workspace.id, { templates: ['avaliacao'] });
+      inserir('agentes', novoAgente(workspace.id, { ...modelo, area: workspace.area || null }));
+      instalados += 1;
+    }
+    atualizar('workspaces', workspace.id, { avaliacaoInstaladaEm: new Date().toISOString() });
+  }
+  return instalados;
+}
+
+/**
  * Cada area no seu escritorio: os agentes do Previdenciario no escritorio
  * Previdenciario, os do Trabalhista no Trabalhista.
  *

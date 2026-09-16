@@ -1,6 +1,7 @@
 import { inserir, listar } from '../nucleo/banco.js';
 import { normalizar, novoId } from '../nucleo/util.js';
 import { AUXILIO_ACIDENTE } from './pacotes/auxilio-acidente.js';
+import { avaliadorDoEscritorio } from './pacotes/avaliacao.js';
 import { BPC } from './pacotes/bpc.js';
 import { MATERNIDADE } from './pacotes/maternidade.js';
 import { AGENTE_26 } from './pacotes/suporte.js';
@@ -153,7 +154,7 @@ export const PACOTES = {
       ['Já é cliente', 'var(--sucesso)'],
       ['Trabalhista', 'var(--serie-6)'],
     ],
-    templates: ['bemvindo', 'videoproposta', 'tutorialassinatura', 'oab'],
+    templates: ['bemvindo', 'videoproposta', 'tutorialassinatura', 'oab', 'avaliacao'],
     variaveis: [
       ...DADOS_DO_CONTRATO,
       ['nome_pai', 'Nome do pai', 'Nome do pai, como no documento.'],
@@ -172,6 +173,7 @@ export const PACOTES = {
       ...AUXILIO_ACIDENTE.map((agente) => ({ ...agente, pasta: 'Auxílio-Acidente FER MAR26' })),
       ...BPC.map((agente) => ({ ...agente, pasta: 'BPC Loas' })),
       ...MATERNIDADE.map((agente) => ({ ...agente, pasta: 'Salário Maternidade' })),
+      avaliadorDoEscritorio('Previdenciário'),
     ],
   },
 
@@ -207,13 +209,17 @@ export const PACOTES = {
       ['nome_reclamada', 'Empresa reclamada', 'Nome da empresa que vai no processo.'],
       ['doc_reclamada', 'CNPJ da empresa', 'CNPJ da empresa, se o cliente souber.'],
     ],
-    agentes: TRABALHISTA.map((agente) => ({ ...agente, pasta: 'Agentes Trabalhista + Auxilio acidente' })),
+    agentes: [
+      ...TRABALHISTA.map((agente) => ({ ...agente, pasta: 'Agentes Trabalhista + Auxilio acidente' })),
+      avaliadorDoEscritorio('Trabalhista'),
+    ],
   },
 
   civel: {
     nome: 'Cível / Consumidor',
     pasta: 'Cível e Consumidor',
     bases: ['objec'],
+    templates: ['avaliacao'],
     variaveis: [
       ['empresa_reclamada', 'Empresa reclamada', 'Nome da empresa com quem o cliente tem o problema.'],
       ['problema_consumo', 'Problema de consumo', 'O que aconteceu e desde quando.'],
@@ -280,6 +286,7 @@ export const PACOTES = {
           'Explique em poucas frases como o escritorio trabalha: analise do caso por advogado, tentativa de solucao com a empresa quando couber e acao na Justica, muitas vezes no Juizado Especial; honorarios conforme a tabela do escritorio.',
         ),
       },
+      avaliadorDoEscritorio('Cível'),
     ],
   },
 };
@@ -305,9 +312,9 @@ export const ESCRITORIO_GERAL = {
     ['Acidente de trabalho ou doença ocupacional', 'var(--serie-4)'],
     ['Trabalhista', 'var(--serie-6)'],
   ],
-  templates: [],
+  templates: ['avaliacao'],
   variaveis: [['cpf', 'CPF', 'CPF do cliente, so numeros.']],
-  agentes: [AGENTE_26],
+  agentes: [AGENTE_26, avaliadorDoEscritorio('Escritório geral')],
 };
 
 /**

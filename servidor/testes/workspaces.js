@@ -62,7 +62,7 @@ export async function testarWorkspacesPorArea({ base }) {
   const agentesTrabalhistas = (await api.get('/api/agentes')).dados || [];
   s.ok(
     'Trabalhista: os agentes da area, desligados ate a configuracao chegar',
-    agentesTrabalhistas.length === 8 && agentesTrabalhistas.every((a) => !a.ativo && a.area === 'trabalhista'),
+    agentesTrabalhistas.length === 9 && agentesTrabalhistas.every((a) => !a.ativo && a.area === 'trabalhista'),
     JSON.stringify(agentesTrabalhistas.map((a) => [a.nome, a.ativo, a.area])),
   );
   s.ok('Trabalhista: nenhuma mencao invalida nos agentes', agentesTrabalhistas.every((a) => !(a.mencoesInvalidas || []).length));
@@ -92,7 +92,7 @@ export async function testarWorkspacesPorArea({ base }) {
     ['Triagem', 'BPC Loas', 'Auxílio-Acidente FER MAR26', 'Salário Maternidade'].every((p) => pastas.includes(p)),
     JSON.stringify(pastas),
   );
-  s.ok('Previdenciario: todos desligados', agentesPrevidenciarios.length === 15 && agentesPrevidenciarios.every((a) => !a.ativo));
+  s.ok('Previdenciario: todos desligados', agentesPrevidenciarios.length === 16 && agentesPrevidenciarios.every((a) => !a.ativo));
   s.ok(
     'Previdenciario: nenhuma mencao invalida nos agentes',
     agentesPrevidenciarios.every((a) => !(a.mencoesInvalidas || []).length),
@@ -116,7 +116,7 @@ export async function testarWorkspacesPorArea({ base }) {
     'Substituir: tira so quem nao e do pacote, com copia guardada',
     troca?.removidos?.length === 1 &&
       troca.removidos[0].id === deFora?.id &&
-      troca?.mantidos?.length === 15 &&
+      troca?.mantidos?.length === 16 &&
       troca?.criados?.length === 0 &&
       /^agentes-.+\.json$/.test(troca?.copia || ''),
     JSON.stringify({ removidos: troca?.removidos, mantidos: troca?.mantidos?.length, criados: troca?.criados?.length, copia: troca?.copia }),
@@ -124,7 +124,7 @@ export async function testarWorkspacesPorArea({ base }) {
   const depoisDaTroca = (await api.get('/api/agentes')).dados || [];
   s.ok(
     'Substituir: os agentes do pacote continuam os mesmos',
-    depoisDaTroca.length === 15 && agentesPrevidenciarios.every((antes) => depoisDaTroca.some((a) => a.id === antes.id)),
+    depoisDaTroca.length === 16 && agentesPrevidenciarios.every((antes) => depoisDaTroca.some((a) => a.id === antes.id)),
     JSON.stringify(depoisDaTroca.map((a) => a.nome)),
   );
   const numeroDepois = ((await api.get('/api/conexoes')).dados || []).find((c) => c.id === numeroDaArea?.id);
@@ -172,7 +172,7 @@ export async function testarWorkspacesPorArea({ base }) {
     'Separar: cada escritorio fica com os agentes da sua area',
     separado.status === 200 &&
       (separado.dados?.escritorios || []).length === 2 &&
-      separado.dados.escritorios.every((e) => e.agentes === (e.area === 'trabalhista' ? 8 : 15)),
+      separado.dados.escritorios.every((e) => e.agentes === (e.area === 'trabalhista' ? 9 : 16)),
     JSON.stringify(separado.dados),
   );
   const noGeralDepois = (await api.get('/api/agentes')).dados || [];
@@ -191,8 +191,8 @@ export async function testarWorkspacesPorArea({ base }) {
   await entrar(trabalhista);
   const trabalhistasDepois = (await api.get('/api/agentes')).dados || [];
   s.ok(
-    'Separar: no Trabalhista, os oito agentes da area, ligados',
-    trabalhistasDepois.length === 8 && trabalhistasDepois.every((a) => a.ativo && a.area === 'trabalhista'),
+    'Separar: no Trabalhista, os nove agentes da area (com o de avaliacao), ligados',
+    trabalhistasDepois.length === 9 && trabalhistasDepois.every((a) => a.ativo && a.area === 'trabalhista'),
     JSON.stringify(trabalhistasDepois.map((a) => [a.nome, a.ativo])),
   );
   s.ok('Separar: de dentro de um escritorio de area, e recusado', (await api.post('/api/agentes-por-escritorio', {})).status === 409);

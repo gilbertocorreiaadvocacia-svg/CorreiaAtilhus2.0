@@ -27,6 +27,7 @@ import { agendarFollowupsDoStatus, aplicarStatus, cancelarFollowups, limparAgend
 import { proximoHorarioValido, horarioComercialDe } from '../automacao/horario.js';
 import { apagarMidia, guardarBase64 } from '../nucleo/midia.js';
 import { cancelarResposta } from '../ia/motor.js';
+import { interromperAvaliacao, pedirAvaliacao } from '../automacao/avaliacao.js';
 import { inserirNota, notificar } from '../ia/mencoes.js';
 import { removerTarefasDoContato } from './tarefas.js';
 import { definirMomento, umTipoDeCaso } from '../nucleo/casos.js';
@@ -516,6 +517,8 @@ export function registrarAtendimento(rotas) {
   rotas.post('/api/contatos/:id/arquivar', async ({ ctx, params, corpo }) => {
     const contato = conversaOu404(ctx, params.id);
     const arquivar = corpo.arquivar !== false;
+    /* Reaberta no meio da avaliacao: a avaliacao para e a conversa volta a quem atendia. */
+    if (!arquivar) interromperAvaliacao(contato.id);
     atualizar('contatos', contato.id, {
       estado: arquivar ? 'arquivado' : contato.responsavel?.tipo === 'agente' ? 'ia' : 'pendente',
     });
@@ -523,6 +526,9 @@ export function registrarAtendimento(rotas) {
        para escolher o icone, e ha registros antigos gravados assim. O que muda
        e a frase que a pessoa le. */
     registrarLog(ctx.workspaceId, contato.id, 'arquivo', arquivar ? 'Atendimento concluido' : 'Conversa reaberta');
+    /* Concluir UMA conversa pede a avaliacao do atendimento (automacao/avaliacao.js).
+       O "Concluir" em massa, logo abaixo, nao pede: e arrumacao de fila. */
+    if (arquivar) pedirAvaliacao(contato.id, { tipo: 'membro', id: ctx.membro?.id, nome: ctx.usuario.nome });
     emitir(ctx.workspaceId, 'contato', { contatoId: contato.id });
     return enriquecer(achar('contatos', contato.id));
   });

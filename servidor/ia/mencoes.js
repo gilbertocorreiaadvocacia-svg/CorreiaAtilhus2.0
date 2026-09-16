@@ -95,6 +95,11 @@ const CATALOGO_FIXO = [
   { chave: 'gerarcontrato', nome: 'gerarcontrato', descricao: 'Gera contrato e envia o link de assinatura.' },
   { chave: 'calendario', nome: 'calendario', descricao: 'Verifica disponibilidade e agenda reuniao.' },
   { chave: 'advbox', nome: 'advbox', descricao: 'Consulta o andamento processual pelo CPF.' },
+  {
+    chave: 'concluiravaliacao',
+    nome: 'concluiravaliacao',
+    descricao: 'Encerra a avaliacao do atendimento, grava a nota e devolve a conversa a quem atendia.',
+  },
 ];
 
 /**
@@ -539,6 +544,22 @@ export function ferramentasDoAgente(agente, workspaceId) {
       },
     });
   }
+  if (tipos.has('concluiravaliacao')) {
+    ferramentas.push({
+      nome: 'concluir_avaliacao',
+      descricao:
+        'Encerra a pesquisa de satisfacao: grava a nota de 1 a 5 (sem nota, se a pessoa nao quis avaliar) e devolve a conversa a quem atendia. Use reabrir quando a pessoa trouxe um assunto novo e a equipe precisa responder.',
+      parametros: {
+        type: 'object',
+        properties: {
+          nota: { type: 'integer', minimum: 1, maximum: 5 },
+          comentario: { type: 'string', description: 'O que a pessoa disse sobre o atendimento, se disse.' },
+          reabrir: { type: 'boolean' },
+        },
+        required: [],
+      },
+    });
+  }
   if (tipos.has('advbox')) {
     ferramentas.push({
       nome: 'consultar_processo',
@@ -910,6 +931,26 @@ export async function executarFerramenta({ nome, argumentos, contato, agente, co
       lancar(workspaceId, contato.id, 'mencao_audio', custoDaMencao('audio'));
       registrar(`Modo audio ${argumentos.ligar ? 'ativado' : 'desativado'}`);
       return { ok: true };
+    }
+
+    case 'concluir_avaliacao': {
+      /* Import na hora: automacao/avaliacao.js importa o motor, que importa este arquivo. */
+      const { encerrarAvaliacao } = await import('../automacao/avaliacao.js');
+      const nota = Number(argumentos.nota);
+      const valida = Number.isInteger(nota) && nota >= 1 && nota <= 5 ? nota : null;
+      const resultado = encerrarAvaliacao(contato.id, {
+        situacao: valida ? 'respondida' : 'sem_nota',
+        nota: valida,
+        comentario: argumentos.comentario,
+        reabrir: Boolean(argumentos.reabrir),
+      });
+      if (resultado.erro) return resultado;
+      const atual = achar('contatos', contato.id);
+      if (atual) Object.assign(contato, { responsavel: atual.responsavel, estado: atual.estado, avaliacao: atual.avaliacao });
+      lancar(workspaceId, contato.id, 'mencao_concluiravaliacao', custoDaMencao('concluiravaliacao'));
+      registrar(valida ? `Avaliacao registrada: nota ${valida}` : 'Avaliacao encerrada sem nota');
+      /* Parou de responder: a despedida escrita junto sai assim mesmo (motor.js). */
+      return { ok: true, nota: valida, pare_de_responder: true };
     }
 
     case 'desativar_ia': {

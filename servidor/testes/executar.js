@@ -26,6 +26,7 @@ import { subirJuriFalso } from './juri-falso.js';
 import { testarJuri } from './juri.js';
 import { testarWorkspacesPorArea } from './workspaces.js';
 import { testarHospedagem } from './hospedagem.js';
+import { testarAvaliacao } from './avaliacao.js';
 
 /**
  * A suite do CorreiaAtilhus2.0. Rode com `npm test`.
@@ -194,6 +195,8 @@ async function principal() {
     suites.push(await testarIa(base, anthropic));
     /* Depois da IA: poe a chave de mentira de volta e tira no fim. */
     suites.push(await testarEncadeamento({ base, anthropic }));
+    /* Tambem usa a Anthropic de mentira, e poe e tira a chave. */
+    suites.push(await testarAvaliacao({ base, anthropic }));
     /* Cria workspaces novos: depois de quem conta agentes e etiquetas da origem. */
     suites.push(await testarWorkspacesPorArea({ base }));
     /* Depois de todas as outras: acrescenta conversas em Ativos, e as suites

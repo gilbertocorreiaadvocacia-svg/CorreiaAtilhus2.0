@@ -124,6 +124,8 @@ function medir(tamanho, modeloId) {
 /** Como as conversas chegam a este agente, numa linha. */
 function gatilhoDe(agente) {
   if (!agente.ativo) return { texto: 'Desligado', tipo: 'fraco' };
+  /* O agente de avaliacao nao recebe conversa de ninguem: entra quando a equipe conclui. */
+  if (agente.objetivo === 'avaliar') return { texto: 'Entra quando um atendimento é concluído', tipo: '' };
   if (agente.primarioEm?.length) return { texto: `Atende sozinho: ${agente.primarioEm.map((c) => c.nome).join(', ')}`, tipo: '' };
   if (agente.palavrasChave?.length) return { texto: `Palavra-chave: ${agente.palavrasChave.slice(0, 3).join(', ')}`, tipo: '' };
   if (agente.referenciadoPor?.length) return { texto: `Recebe de ${agente.referenciadoPor.map((r) => r.nome).join(', ')}`, tipo: '' };

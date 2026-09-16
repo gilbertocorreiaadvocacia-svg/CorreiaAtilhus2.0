@@ -3,6 +3,8 @@ import http from 'node:http';
 import path from 'node:path';
 import { HOSPEDADO, HOST, INTERVALO_AGENDADOR, PORTA, RAIZ, enderecoPermitido } from './config.js';
 import { prepararHospedagem } from './nucleo/hospedagem.js';
+import { garantirAvaliacaoNosEscritorios } from './nucleo/agentes-por-escritorio.js';
+import { iniciarAvaliacoes } from './automacao/avaliacao.js';
 import { caminhoDaMidia } from './nucleo/midia.js';
 import { atualizar, encerrarBanco, iniciarBanco, listar } from './nucleo/banco.js';
 import { migrarCoresParaTokens } from './nucleo/paleta.js';
@@ -46,6 +48,9 @@ if (coresTrocadas) console.log(`Paleta: ${coresTrocadas} cores da semeadura anti
 /* Depois das cores: a migracao dos tipos compara com a cor ja em token. */
 const casosAcertados = migrarTiposDeCaso();
 if (casosAcertados) console.log(`Tipos de caso e momentos: ${casosAcertados} acertos.`);
+/* O agente de avaliacao do atendimento, uma vez em cada escritorio. */
+const avaliadores = garantirAvaliacaoNosEscritorios();
+if (avaliadores) console.log(`Avaliacao do atendimento: agente instalado em ${avaliadores} escritorio(s).`);
 limparSessoesOrfas();
 /* Rodadas de importacao do celular que o reinicio interrompeu. */
 retomarSincronizacoes();
@@ -399,6 +404,8 @@ servidor.listen(PORTA, HOST, () => {
   iniciarAcompanhamento();
   /* Assinado, o contrato vai para o Atilhus Juri; o que falhar fica na fila. */
   iniciarIntegracaoJuri();
+  /* Avaliacao sem resposta em 2 dias se encerra e devolve a conversa. */
+  iniciarAvaliacoes();
 });
 
 function encerrar() {
