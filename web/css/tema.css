@@ -5661,7 +5661,7 @@ select.chat-teste-escolha {
 
 /* A seta gira em vez de virar outro icone: e o mesmo campo em dois estados. */
 .escolha-resumo[aria-expanded='true'] .seta-escolha {
-  transform: rotate(90deg);
+  transform: rotate(180deg);
 }
 
 .escolha-lista {
@@ -5688,6 +5688,235 @@ select.chat-teste-escolha {
   display: flex;
   flex-direction: column;
   gap: var(--e1);
+}
+
+/*
+ * Aba Dados: a pessoa no centro, e os campos em cartoes.
+ *
+ * O cartao aqui e objeto de verdade, e nao moldura de secao: um guarda quem
+ * atende, outro a classificacao, outro o que fica atras de "Ver mais". Por
+ * isso eles dispensam o titulo escrito que as secoes tinham.
+ */
+.painel-dados {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e3);
+  padding: var(--e4) var(--e2) var(--e3);
+}
+
+.painel-pessoa {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--e1);
+  margin-bottom: var(--e1);
+  text-align: center;
+}
+
+.painel-pessoa .avatar {
+  font-size: var(--t-titulo);
+  box-shadow:
+    0 0 0 2px var(--ouro-linha),
+    0 10px 30px color-mix(in srgb, var(--ouro) 12%, transparent);
+}
+
+.painel-pessoa .avatar-marca {
+  right: 3px;
+  bottom: 3px;
+  width: 18px;
+  height: 18px;
+  border-width: 3px;
+}
+
+.painel-pessoa .avatar-ampliar {
+  margin-bottom: var(--e2);
+}
+
+.painel-pessoa > .avatar-caixa {
+  margin-bottom: var(--e2);
+}
+
+.painel-pessoa-nome {
+  max-width: 100%;
+  font-size: var(--t-leitura);
+  font-weight: 600;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+
+.painel-pessoa-fone {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  color: var(--texto-suave);
+  font-size: var(--t-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+/* A bandeira desenhada em CSS, e nao emoji: emoji de bandeira nao existe no
+   Windows, que mostra as letras "BR" no lugar. */
+.bandeira-brasil {
+  position: relative;
+  flex: none;
+  width: 18px;
+  height: 12px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: #1f9d55;
+}
+
+.bandeira-brasil::before {
+  content: '';
+  position: absolute;
+  inset: 2px 3px;
+  background: #f2c328;
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+}
+
+.bandeira-brasil::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #1d4ed8;
+  transform: translate(-50%, -50%);
+}
+
+.painel-pessoa-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--e2);
+  margin-top: var(--e2);
+}
+
+.acao-pilula {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--controle-p);
+  padding: 0 var(--e3);
+  border: 1px solid var(--borda-forte);
+  border-radius: var(--raio-pilula);
+  background: none;
+  color: var(--texto-suave);
+  font: inherit;
+  font-size: var(--t-sm);
+  cursor: pointer;
+}
+
+.acao-pilula:hover {
+  border-color: var(--ouro-linha);
+  color: var(--texto);
+}
+
+.acao-pilula:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: 2px;
+}
+
+.painel-cartao {
+  border: 1px solid var(--borda);
+  border-radius: var(--raio-g);
+  background: var(--superficie-2);
+}
+
+.painel-cartao .lista-propriedades {
+  gap: 0;
+}
+
+.painel-cartao .escolha {
+  padding: var(--e1) var(--e3);
+}
+
+.painel-cartao .escolha-resumo {
+  min-height: var(--controle);
+}
+
+/* No cartao a seta so aparece quando serve: ao passar o mouse, no foco e com
+   a lista aberta. Cinco setas paradas, uma por linha, eram cinco sinais
+   repetindo a mesma coisa ao lado de cada valor. */
+.painel-cartao .escolha-resumo .seta-escolha {
+  opacity: 0;
+}
+
+.painel-cartao .escolha-resumo:hover .seta-escolha,
+.painel-cartao .escolha-resumo:focus-visible .seta-escolha,
+.painel-cartao .escolha-resumo[aria-expanded='true'] .seta-escolha {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .painel-cartao .escolha-resumo .seta-escolha {
+    opacity: 1;
+  }
+}
+
+.painel-cartao .escolha-lista {
+  margin-top: var(--e1);
+  padding-bottom: var(--e2);
+}
+
+.painel-cartao > .propriedade:last-child,
+.painel-mais-corpo > .propriedade:last-child {
+  border-bottom: none;
+}
+
+/* Quem atende: o rostinho e o nome numa pilula cheia, que se le como pessoa,
+   e nao como categoria (essas tem contorno). */
+.chip-pessoa {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e2);
+  max-width: 100%;
+  height: 30px;
+  padding: 0 var(--e3) 0 4px;
+  border-radius: var(--raio-pilula);
+  background: var(--superficie-3);
+  color: var(--texto);
+  font-size: var(--t-sm);
+}
+
+.chip-pessoa .avatar {
+  font-size: 10px;
+}
+
+.painel-mais-gatilho {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  width: 100%;
+  min-height: 46px;
+  padding: 0 var(--e3);
+  border: none;
+  border-radius: var(--raio-g);
+  background: none;
+  color: var(--texto-suave);
+  font: inherit;
+  font-size: var(--t-sm);
+  cursor: pointer;
+}
+
+.painel-mais-gatilho:hover,
+.painel-mais-gatilho:hover .seta-escolha {
+  color: var(--texto);
+}
+
+.painel-mais-gatilho:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: -2px;
+}
+
+.painel-mais-gatilho[aria-expanded='true'] .seta-escolha {
+  transform: rotate(180deg);
+}
+
+.painel-mais-corpo {
+  border-top: 1px solid var(--borda);
 }
 
 /*

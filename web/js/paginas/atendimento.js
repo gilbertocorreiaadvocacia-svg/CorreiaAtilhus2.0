@@ -1994,21 +1994,141 @@ export async function paginaAtendimento({
 
 
     /*
+     * A pessoa no centro, acima de tudo.
+     *
+     * O painel abre para responder "quem e?" antes de "como esta
+     * classificada?". Com o rosto em 84px e o nome centralizado, a resposta
+     * vem antes de ler qualquer campo — e o desenho aprovado do escritorio,
+     * no molde da LiderHub.
+     *
+     * O selinho no canto do rosto e o mesmo da lista: quem conduz a conversa.
+     */
+    const copiarNumero = async () => {
+      try {
+        await navigator.clipboard.writeText(contato.telefone);
+        aviso('Numero copiado.', 'sucesso');
+      } catch {
+        /* Sem permissao de area de transferencia o navegador recusa em
+           silencio, e um botao que nao responde parece defeito. */
+        aviso('O navegador nao deixou copiar. O numero e ' + telefone(contato.telefone), 'alerta');
+      }
+    };
+
+    const pessoa = el('div', { class: 'painel-pessoa' }, [
+      rostoQueAmplia(contato, avatar(contato, 84, marcaDoAvatar(contato))),
+      el('div', { class: 'painel-pessoa-nome', texto: contato.nome }),
+      el('div', { class: 'painel-pessoa-fone' }, [
+        String(contato.telefone || '').startsWith('55') ? el('span', { class: 'bandeira-brasil', 'aria-hidden': 'true' }) : null,
+        el('span', { texto: telefone(contato.telefone) }),
+      ]),
+      el('div', { class: 'painel-pessoa-acoes' }, [
+        el('button', { type: 'button', class: 'acao-pilula', aoClick: copiarNumero }, [icone('copiar', 14), 'Copiar número']),
+      ]),
+    ]);
+
+    /*
+     * Quem atende, como um chip com o rosto e o nome.
+     *
+     * Era um <select> com "IA · Nome" e "Equipe · Nome". Virou o mesmo campo
+     * que mostra o valor e abre a lista no clique, como status e departamento:
+     * o painel inteiro fala uma gramatica so.
+     */
+    const nomeDoResponsavel = (() => {
+      if (!contato.responsavel?.id) return '';
+      const opcao = opcoesResponsavel().find((o) => o.valor === responsavelAtual);
+      return contato.responsavel.nome || opcao?.rotulo.replace(/^(IA|Equipe) · /, '') || 'Responsável';
+    })();
+
+    const campoResponsavel = campoRecolhivel({
+      chave: 'responsavel',
+      iconeDoCampo: 'atendimento',
+      rotulo: 'Quem atende esta conversa',
+      resumo: nomeDoResponsavel
+        ? el('span', { class: 'chip-pessoa' }, [
+            avatar({ id: contato.responsavel.id, nome: nomeDoResponsavel }, 22),
+            el('span', { class: 'cortar', texto: nomeDoResponsavel }),
+          ])
+        : convite('Escolher quem atende'),
+      conteudo: listaDeEscolha({
+        opcoes: opcoesResponsavel()
+          .filter((o) => o.valor)
+          .map((o) => ({ id: o.valor, nome: o.rotulo })),
+        atual: responsavelAtual,
+        rotuloVazio: 'Sem responsável',
+        chaveDoTermo: 'responsavel',
+        nomeDoGrupo: 'escolha-responsavel',
+        aoEscolher: (valor) => {
+          fechar('responsavel');
+          if (!valor) return salvar({ responsavel: null });
+          const [tipo, id] = valor.split(':');
+          return salvar({ responsavel: { tipo, id } });
+        },
+      }),
+    });
+
+    /*
+     * O contrato fica no "Ver mais", menos quando espera conferencia.
+     *
+     * Conferir e um clique que ninguem mais da: o link so sai para o cliente
+     * depois dele. Escondido atras de um botao, o contrato ficaria parado sem
+     * ninguem ver — entao, nesse estado, ele sobe para o corpo do painel.
+     */
+    const contratoEmDestaque = el('div', { class: 'painel-cartao', hidden: true });
+    const contrato = blocoContrato(contato, {
+      aoPedirConferencia: (bloco) => {
+        contratoEmDestaque.append(bloco);
+        contratoEmDestaque.hidden = false;
+      },
+    });
+
+    /* O resto — contrato, modo audio e variaveis — e consulta de vez em
+       quando. Fica atras de "Ver mais", que lembra se estava aberto: salvar
+       uma variavel redesenha o painel, e ele nao pode fechar na cara. */
+    const maisAberto = expandidos.has('ver-mais');
+    const corpoMais = el('div', { class: 'painel-mais-corpo', hidden: !maisAberto }, [
+      contrato,
+      el('div', { class: 'propriedade' }, [
+        el('span', { texto: 'Modo áudio' }),
+        el('label', { class: 'linha t-md' }, [
+          (() => {
+            // A largura cheia do tema vale para campo de texto, select e
+            // textarea. Caixa de marcar nunca esteve na lista, entao o
+            // width: auto escrito aqui nao fazia nada.
+            const caixa = el('input', { type: 'checkbox' });
+            caixa.checked = Boolean(contato.modoAudio);
+            caixa.addEventListener('change', () => salvar({ modoAudio: caixa.checked }));
+            return caixa;
+          })(),
+          'Responder em audio',
+        ]),
+      ]),
+      el('div', { class: 'propriedade' }, [el('span', { texto: 'Variáveis' }), variaveis]),
+    ]);
+    const rotuloMais = el('span', { texto: maisAberto ? 'Ver menos' : 'Ver mais' });
+    const gatilhoMais = el('button', {
+      type: 'button',
+      class: 'painel-mais-gatilho',
+      'aria-expanded': maisAberto ? 'true' : 'false',
+    }, [el('span', { class: 'seta-escolha' }, [icone('baixo', 14)]), rotuloMais]);
+    gatilhoMais.addEventListener('click', () => {
+      const vaiAbrir = corpoMais.hidden;
+      corpoMais.hidden = !vaiAbrir;
+      gatilhoMais.setAttribute('aria-expanded', vaiAbrir ? 'true' : 'false');
+      rotuloMais.textContent = vaiAbrir ? 'Ver menos' : 'Ver mais';
+      if (vaiAbrir) expandidos.add('ver-mais');
+      else expandidos.delete('ver-mais');
+    });
+
+    /*
      * O conteudo da aba Dados. As outras cinco sao montadas mais abaixo, sob
      * demanda: nenhuma delas precisa existir enquanto ninguem a abriu.
+     *
+     * Sem titulo de secao: os cartoes ja separam o que e de quem atende do
+     * que e da classificacao.
      */
-    const painelDados = el('div', {}, [
-        el('div', { class: 'propriedade' }, [
-          el('span', { texto: 'Atendimento' }),
-          selecao(opcoesResponsavel(), responsavelAtual, {
-            aoChange: async (evento) => {
-              const valor = evento.target.value;
-              if (!valor) return salvar({ responsavel: null });
-              const [tipo, id] = valor.split(':');
-              return salvar({ responsavel: { tipo, id } });
-            },
-          }),
-        ]),
+    const painelDados = el('div', { class: 'painel-dados' }, [
+        pessoa,
+        el('div', { class: 'painel-cartao' }, [campoResponsavel]),
         /*
          * As quatro classificacoes da conversa num bloco so, uma por linha,
          * cada uma com o icone do que ela e.
@@ -2020,8 +2140,7 @@ export async function paginaAtendimento({
          * coluna de 300px e o que falta. Quem usa leitor de tela nao perde o
          * rotulo: ele vai no aria-label do proprio campo.
          */
-        el('div', { class: 'propriedade' }, [
-          el('span', { texto: 'Propriedades' }),
+        el('div', { class: 'painel-cartao' }, [
           el('div', { class: 'lista-propriedades' }, [
             campoRecolhivel({
               chave: 'status',
@@ -2111,23 +2230,8 @@ export async function paginaAtendimento({
             }),
           ]),
         ]),
-        blocoContrato(contato),
-        el('div', { class: 'propriedade' }, [
-          el('span', { texto: 'Modo áudio' }),
-          el('label', { class: 'linha t-md' }, [
-            (() => {
-              // A largura cheia do tema vale para campo de texto, select e
-              // textarea. Caixa de marcar nunca esteve na lista, entao o
-              // width: auto escrito aqui nao fazia nada.
-              const caixa = el('input', { type: 'checkbox' });
-              caixa.checked = Boolean(contato.modoAudio);
-              caixa.addEventListener('change', () => salvar({ modoAudio: caixa.checked }));
-              return caixa;
-            })(),
-            'Responder em audio',
-          ]),
-        ]),
-        el('div', { class: 'propriedade' }, [el('span', { texto: 'Variáveis' }), variaveis]),
+        contratoEmDestaque,
+        el('div', { class: 'painel-cartao painel-mais' }, [gatilhoMais, corpoMais]),
     ]);
 
     /* ---------------- As seis abas do painel ---------------- */
@@ -2223,39 +2327,14 @@ export async function paginaAtendimento({
       botoesPainel.get(ordem[destino]).focus();
     });
 
-    const cabecalho = el('div', { class: 'coluna-cabecalho' }, [
-      // O mesmo par de nome e telefone do cabecalho da conversa, no mesmo
-      // ritmo: --t-md peso 600 em cima, --t-xs fraco embaixo.
-      el('div', { class: 'linha' }, [
-        rostoQueAmplia(contato, avatar(contato)),
-        el('div', { class: 'flexivel encolhe' }, [
-          el('div', { class: 't-md peso-600 cortar', texto: contato.nome }),
-          el('div', { class: 't-xs c-fraco cortar', texto: telefone(contato.telefone) }),
-        ]),
-        botao('', {
-          icone: 'copiar',
-          titulo: 'Copiar o número',
-          pequeno: true,
-          aoClicar: async () => {
-            try {
-              await navigator.clipboard.writeText(contato.telefone);
-              aviso('Numero copiado.', 'sucesso');
-            } catch {
-              /* Sem permissao de area de transferencia o navegador recusa em
-                 silencio, e um botao que nao responde parece defeito. */
-              aviso('O navegador nao deixou copiar. O numero e ' + telefone(contato.telefone), 'alerta');
-            }
-          },
-        }),
-      ]),
-    ]);
-
     /* A aba guardada pode nao existir mais (nunca aconteceu ainda, mas custa
        uma linha garantir que o painel nunca abra em branco). */
     if (!PAINEIS.some((p) => p.id === abaPainel)) abaPainel = 'dados';
     mostrarPainel(abaPainel);
 
-    return el('div', { class: 'coluna' }, [cabecalho, abasPainel, corpo]);
+    /* As abas no topo e a pessoa dentro de Dados: o cabecalho com nome e
+       telefone saiu, porque o rosto no centro ja diz os dois. */
+    return el('div', { class: 'coluna painel-contato' }, [abasPainel, corpo]);
   }
 
   /**
@@ -2310,7 +2389,7 @@ export async function paginaAtendimento({
       el('span', { class: 'flexivel encolhe' }, [resumo]),
       /* A seta gira em vez de trocar de icone: e a mesma coisa em dois
          estados, nao duas coisas. */
-      el('span', { class: 'seta-escolha' }, [icone('abrir', 12)]),
+      el('span', { class: 'seta-escolha' }, [icone('baixo', 12)]),
     ]);
 
     gatilho.addEventListener('click', () => {
@@ -2368,7 +2447,7 @@ export async function paginaAtendimento({
     cancelado: ['Cancelado na ZapSign', 'erro'],
   };
 
-  function blocoContrato(contato) {
+  function blocoContrato(contato, opcoes = {}) {
     const corpo = el('div', { class: 'lista-simples' }, [el('span', { class: 't-sm c-fraco', texto: 'Carregando…' })]);
     const bloco = el('div', { class: 'propriedade bloco-contrato' }, [el('span', { texto: 'Contrato' }), corpo]);
 
@@ -2411,6 +2490,7 @@ export async function paginaAtendimento({
       }
 
       if (atual.situacao === 'em_conferencia') {
+        opcoes.aoPedirConferencia?.(bloco);
         const entradas = Object.entries(atual.valores || {}).map(([chave, valor]) => {
           const entrada = entradaTexto(valor);
           corpo.append(campo(chave.replace(/[{}]/g, '').trim(), entrada));
