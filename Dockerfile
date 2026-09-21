@@ -26,7 +26,7 @@ RUN mkdir -p /dados && chown node:node /dados && chmod +x /app/servidor/entrada-
 # roda como root.
 EXPOSE 4477
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
-  CMD wget -qO- http://127.0.0.1:4477/api/saude > /dev/null || exit 1
+  CMD wget -qO- "http://127.0.0.1:${PORTA:-4477}/api/saude" > /dev/null || exit 1
 
 ENTRYPOINT ["/app/servidor/entrada-docker.sh"]
 CMD ["node", "servidor/index.js"]

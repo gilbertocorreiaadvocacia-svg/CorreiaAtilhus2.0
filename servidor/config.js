@@ -66,7 +66,14 @@ export const PASTA_MIDIA = path.join(PASTA_DADOS, 'midia');
 /** Teto da Meta por arquivo. Acima disso o envio volta com erro 131053. */
 export const LIMITE_MIDIA = 16 * 1024 * 1024;
 
-export const PORTA = Number(process.env.PORT || process.env.PORTA || 4477);
+/*
+ * PORTA vence PORT. Paineis como o EasyPanel poem um PORT=80 por conta
+ * propria em todo servico; obedecendo, o sistema subia na 80 enquanto a
+ * verificacao de saude, o webhook da Evolution e o guia esperavam a 4477, e o
+ * painel derrubava o servico por "nao responder". A imagem ja declara
+ * PORTA=4477; PORT fica para quem nao diz nada.
+ */
+export const PORTA = Number(process.env.PORTA || process.env.PORT || 4477);
 
 /**
  * Em que endereco o servidor escuta.
