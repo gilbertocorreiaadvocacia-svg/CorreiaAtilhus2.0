@@ -93,7 +93,9 @@ async function buscarAgora(contatoId) {
   /* Conversa so com o codigo @lid ainda nao tem telefone; o codigo serve. */
   const soCodigo = Boolean(contato.lid) && contato.telefone === String(contato.lid).split('@')[0];
   const numero = contato.telefone && !soCodigo ? contato.telefone : contato.lid || contato.telefone;
-  const endereco = await driver.buscarFoto({ conexao, numero });
+  /* O contato vai junto: no Instagram a foto sai do codigo da conta, e nao
+     de numero nenhum. */
+  const endereco = await driver.buscarFoto({ conexao, numero, contato }).catch(() => null);
 
   const mudancas = { fotoVerificadaEm: agora() };
   if (endereco) {

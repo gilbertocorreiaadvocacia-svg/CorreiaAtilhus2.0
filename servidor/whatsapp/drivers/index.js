@@ -1,6 +1,8 @@
 import { driverSimulador } from './simulador.js';
 import { driverOficial } from './oficial.js';
 import { driverQrCode } from './qrcode.js';
+import { driverInstagram } from './instagram.js';
+import { driverTikTok } from './tiktok.js';
 
 /**
  * Os drivers de WhatsApp.
@@ -18,6 +20,12 @@ import { driverQrCode } from './qrcode.js';
  *                 (Evolution API ou WPPConnect). Entra em grupo, manda audio e
  *                 nao depende de template. Em compensacao e conexao nao
  *                 oficial: a Meta pode banir o numero.
+ *  - `instagram`  Direct do Instagram, API oficial da Meta. Janela de 24h.
+ *  - `tiktok`     DM do TikTok, Business Messaging API. Janela de 48h.
+ *
+ * Nos dois ultimos a pessoa nao tem telefone: a mensagem normalizada traz
+ * `idCanal` (por onde a resposta volta) e `usuario` (o @) no lugar dele — ver
+ * whatsapp/canais.js.
  *
  * Tudo o que o resto do sistema sabe e a interface abaixo. O motor de IA, o
  * follow-up, a mencao e a API publica chamam `enviarMensagem()` sem nunca
@@ -58,6 +66,8 @@ const DRIVERS = {
   simulador: driverSimulador,
   oficial: driverOficial,
   qrcode: driverQrCode,
+  instagram: driverInstagram,
+  tiktok: driverTikTok,
 };
 
 /** O driver de uma conexao. Tipo desconhecido cai no simulador, que nao envia

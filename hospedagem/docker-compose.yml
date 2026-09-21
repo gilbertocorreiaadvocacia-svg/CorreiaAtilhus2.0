@@ -26,6 +26,8 @@ services:
     restart: unless-stopped
     environment:
       CORREIA_HOSPEDADO: '1'
+      # O endereco publico: Instagram e TikTok mandam as mensagens para ele.
+      CORREIA_ENDERECO_PUBLICO: https://${DOMINIO:?defina DOMINIO no arquivo .env}
       CORREIA_ADMIN_EMAIL: ${CORREIA_ADMIN_EMAIL:-admin@correia.adv.br}
       CORREIA_ADMIN_SENHA: ${CORREIA_ADMIN_SENHA:?defina CORREIA_ADMIN_SENHA no arquivo .env}
       # A Evolution e o conteiner ao lado; a volta dos webhooks e este conteiner.

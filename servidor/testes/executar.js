@@ -28,6 +28,8 @@ import { testarJuri } from './juri.js';
 import { testarWorkspacesPorArea } from './workspaces.js';
 import { testarHospedagem } from './hospedagem.js';
 import { testarAvaliacao } from './avaliacao.js';
+import { subirRedesFalsas } from './redes-falsas.js';
+import { testarRedes } from './redes.js';
 
 /**
  * A suite do CorreiaAtilhus2.0. Rode com `npm test`.
@@ -111,6 +113,8 @@ async function principal() {
   const zapsign = `http://127.0.0.1:${portaZapsign}`;
   const portaJuri = await portaLivre();
   const juri = `http://127.0.0.1:${portaJuri}`;
+  const portaRedes = await portaLivre();
+  const redes = `http://127.0.0.1:${portaRedes}`;
   const evolucao = `http://127.0.0.1:${portaEvolucao}`;
   const anthropic = `http://127.0.0.1:${portaAnthropic}`;
 
@@ -121,6 +125,7 @@ async function principal() {
   const anthropicFalsa = await subirAnthropicFalsa(portaAnthropic);
   const zapsignFalsa = await subirZapsignFalsa(portaZapsign, 'zs-de-mentira');
   const juriFalso = await subirJuriFalso(portaJuri, 'segredo-do-juri');
+  const redesFalsas = await subirRedesFalsas(portaRedes);
   const sistema = spawn(process.execPath, [path.join(RAIZ, 'servidor/index.js')], {
     env: {
       ...process.env,
@@ -134,6 +139,11 @@ async function principal() {
       CORREIA_ZAPSIGN_URL: zapsign,
       CORREIA_ZAPSIGN_INTERVALO: '150',
       CORREIA_ZAPSIGN_ESPERAS: '100,100,100',
+      /* Instagram e TikTok de mentira, e o endereco publico que eles chamam
+         (o login do TikTok volta para ele). */
+      CORREIA_INSTAGRAM_URL: `${redes}/ig`,
+      CORREIA_TIKTOK_URL: `${redes}/tt`,
+      CORREIA_ENDERECO_PUBLICO: base,
       /* A fila do Atilhus Juri, tambem em milissegundos. */
       CORREIA_JURI_INTERVALO: '150',
       CORREIA_JURI_ESPERAS: '100,100,100',
@@ -172,6 +182,7 @@ async function principal() {
     anthropicFalsa.close();
     zapsignFalsa.close();
     juriFalso.close();
+    redesFalsas.close();
     fs.rmSync(pastaDados, { recursive: true, force: true });
   }
 
@@ -187,6 +198,7 @@ async function principal() {
     suites.push(await testarSimuladorEOficial({ base }));
     suites.push(await testarQrCode({ base, evolucao, chaveEvolucao: CHAVE_EVOLUCAO }));
     suites.push(await testarOrigens({ base, evolucao, chaveEvolucao: CHAVE_EVOLUCAO }));
+    suites.push(await testarRedes({ base, redes }));
     suites.push(await testarConversas({ base }));
     suites.push(await testarAgentes({ base }));
     suites.push(await testarCasos({ base }));

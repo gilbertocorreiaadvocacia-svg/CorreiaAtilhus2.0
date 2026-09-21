@@ -60,6 +60,8 @@ let TIPOS = [
   { id: 'simulador', nome: 'Simulador', temSessao: false },
   { id: 'oficial', nome: 'API Oficial (Meta)', temSessao: false },
   { id: 'qrcode', nome: 'QR Code (não oficial)', temSessao: true },
+  { id: 'instagram', nome: 'Instagram (Direct)', temSessao: false },
+  { id: 'tiktok', nome: 'TikTok (DM)', temSessao: false },
 ];
 
 function tipoDe(id) {
@@ -99,6 +101,16 @@ export async function paginaConexoes({ definirAcoes } = {}) {
     if (Array.isArray(tipos) && tipos.length) TIPOS = tipos;
   } catch {
     /* segue com a lista de reserva */
+  }
+
+  /* A volta do login do TikTok traz o resultado na busca do endereco. */
+  const voltaDoTikTok = new URLSearchParams(location.search).get('tiktok');
+  if (voltaDoTikTok) {
+    aviso(
+      voltaDoTikTok === 'ok' ? 'Conta do TikTok conectada.' : 'O login do TikTok nao terminou. Tente de novo pelo menu da conexao.',
+      voltaDoTikTok === 'ok' ? 'sucesso' : 'erro',
+    );
+    history.replaceState(null, '', `${location.pathname}${location.hash}`);
   }
 
   let filtro = '';
@@ -287,8 +299,14 @@ export async function paginaConexoes({ definirAcoes } = {}) {
           { rotulo: 'Ver detalhes', icone: 'abrir', aoClicar: () => abrirDetalhes(conexao, desenhar) },
           podeConfigurar() ? { rotulo: 'Configurar', icone: 'ajustes', aoClicar: () => editar(conexao, desenhar) } : null,
           { rotulo: 'Testar conexão', icone: 'atualizar', aoClicar: () => testar(conexao, desenhar) },
-          conexao.tipo === 'oficial'
+          ['oficial', 'instagram', 'tiktok'].includes(conexao.tipo)
             ? { rotulo: 'Copiar URL do webhook', icone: 'copiar', aoClicar: () => copiarWebhook(conexao) }
+            : null,
+          conexao.tipo === 'tiktok' && podeConfigurar()
+            ? { rotulo: 'Entrar com a conta do TikTok', icone: 'abrir', aoClicar: () => entrarNoTikTok(conexao) }
+            : null,
+          conexao.tipo === 'tiktok' && podeConfigurar()
+            ? { rotulo: 'Cadastrar webhook no TikTok', icone: 'conexoes', aoClicar: () => cadastrarWebhookTikTok(conexao) }
             : null,
           podeConfigurar() ? { separador: true } : null,
           podeConfigurar()
@@ -963,8 +981,31 @@ async function testar(conexao, recarregarTela) {
   await recarregarTela();
 }
 
+/* O login do TikTok acontece na pagina do TikTok, que devolve o navegador
+   para o sistema com o resultado (ver servidor/rotas/conexoes.js). */
+async function entrarNoTikTok(conexao) {
+  try {
+    const { url } = await api.post(`/api/conexoes/${conexao.id}/tiktok/entrar`, {});
+    location.href = url;
+  } catch (erro) {
+    aviso(erro.message, 'erro');
+  }
+}
+
+async function cadastrarWebhookTikTok(conexao) {
+  try {
+    const resultado = await api.post(`/api/conexoes/${conexao.id}/tiktok/webhook`, {});
+    aviso(`Webhook cadastrado no TikTok: ${resultado.endereco}`, 'sucesso');
+  } catch (erro) {
+    aviso(erro.message, 'erro');
+  }
+}
+
 function copiarWebhook(conexao) {
-  const url = `${location.origin}/webhook/${conexao.id}`;
+  /* Instagram e TikTok tem um endereco por app; o WhatsApp oficial, um por
+     numero. A rota diz qual e, e o endereco publico vem na frente quando o
+     sistema esta hospedado. */
+  const url = `${conexao.enderecoPublico || location.origin}${conexao.webhookUrl || `/webhook/${conexao.id}`}`;
   navigator.clipboard
     ?.writeText(url)
     .then(() => aviso('URL do webhook copiada.', 'sucesso'))
@@ -1051,6 +1092,8 @@ function formulario(conexao, { aoSalvar }) {
     simulador: 'Simulador (funciona hoje, sem chip)',
     oficial: 'API Oficial da Meta (Cloud API)',
     qrcode: 'QR Code (nao oficial, le pelo celular)',
+    instagram: 'Instagram (Direct, API oficial da Meta)',
+    tiktok: 'TikTok (DM, Business Messaging API)',
   };
   const tipo = selecao(
     TIPOS.map((t) => ({ valor: t.id, rotulo: ROTULOS[t.id] || t.nome })),
@@ -1133,9 +1176,70 @@ function formulario(conexao, { aoSalvar }) {
     ),
   ]);
 
+  /*
+   * Instagram e TikTok. Os dois so funcionam com o sistema hospedado: e no
+   * endereco publico que a rede entrega as mensagens. Sem ele, o bloco diz
+   * isso antes de alguem preencher tudo e esperar mensagem que nao vem.
+   */
+  /* Conexao nova ainda nao tem o campo: qualquer outra do escritorio diz. */
+  const publico = conexao?.enderecoPublico || (estado.conexoes || []).find((c) => c.enderecoPublico)?.enderecoPublico || null;
+  const avisoHospedagem = publico
+    ? null
+    : el('div', { class: 'alerta-caixa mb-3', texto: 'Este canal precisa do sistema hospedado (VPS com domínio). No notebook, a rede não tem como entregar as mensagens.' });
+
+  const igConta = entradaTexto(conexao?.instagram?.contaId || '', { placeholder: 'preenchido pelo Testar conexão' });
+  const igToken = entradaTexto('', {
+    type: 'password',
+    placeholder: conexao?.instagram?.token ? 'guardado; deixe em branco para manter' : 'token de acesso do Instagram',
+  });
+  const igSegredo = entradaTexto('', {
+    type: 'password',
+    placeholder: conexao?.instagram?.appSecret ? 'guardada; deixe em branco para manter' : 'chave secreta do app',
+  });
+  const igVerificacao = entradaTexto(conexao?.instagram?.verifyToken || '');
+
+  const blocoInstagram = el('div', { estilo: { display: tipo.value === 'instagram' ? 'block' : 'none' } }, [
+    subtitulo(
+      'Instagram: Direct pela API oficial',
+      'Precisa de conta profissional do Instagram e de um app na Meta com "Instagram API com login do Instagram". O passo a passo está no INSTAGRAM-TIKTOK.md do projeto.',
+    ),
+    avisoHospedagem,
+    el('div', { class: 'mono mt-2 mb-3 quebra-palavra', texto: `Webhook: ${publico || location.origin}/webhook/instagram` }),
+    campo('Token de acesso', igToken, 'No painel da Meta: seu app > Instagram > Configuração da API com login do Instagram > Gerar token.'),
+    campo('Chave secreta do app do Instagram', igSegredo, 'Mesma tela, "Chave secreta do app do Instagram". Sem ela nenhuma mensagem entra: é o que prova que o evento veio da Meta.'),
+    campo('Token de verificação', igVerificacao, 'Cole este valor no campo "Verificar token" do webhook, no painel da Meta.'),
+    campo('ID da conta', igConta, 'Preenchido sozinho ao testar a conexão.'),
+  ]);
+
+  const ttApp = entradaTexto(conexao?.tiktok?.appId || '', { placeholder: 'App ID do TikTok for Business' });
+  const ttSegredo = entradaTexto('', {
+    type: 'password',
+    placeholder: conexao?.tiktok?.appSecret ? 'guardada; deixe em branco para manter' : 'Secret do app',
+  });
+
+  const blocoTikTok = el('div', { estilo: { display: tipo.value === 'tiktok' ? 'block' : 'none' } }, [
+    subtitulo(
+      'TikTok: DM pela Business Messaging API',
+      'Precisa de conta comercial do TikTok e de um app no TikTok API for Business com a Business Messaging API aprovada. O passo a passo está no INSTAGRAM-TIKTOK.md do projeto.',
+    ),
+    avisoHospedagem,
+    el('div', { class: 'mono mt-2 quebra-palavra', texto: `Retorno do login: ${publico || location.origin}/tiktok/retorno` }),
+    el('div', { class: 'mono mt-1 mb-3 quebra-palavra', texto: `Webhook: ${publico || location.origin}/webhook/tiktok` }),
+    campo('App ID', ttApp),
+    campo('Secret do app', ttSegredo, 'Assina as mensagens que chegam e renova o login sozinho.'),
+    el('p', {
+      class: 'ajuda',
+      texto: conexao?.tiktok?.businessId
+        ? `Conta conectada${conexao.numero ? `: ${conexao.numero}` : ''}. Para trocar, use "Entrar com a conta do TikTok" no menu da conexão.`
+        : 'Depois de salvar, use "Entrar com a conta do TikTok" e "Cadastrar webhook no TikTok", no menu da conexão.',
+    }),
+  ]);
+
   tipo.addEventListener('change', () => {
     blocoOficial.style.display = tipo.value === 'oficial' ? 'block' : 'none';
     blocoQrCode.style.display = tipo.value === 'qrcode' ? 'block' : 'none';
+    blocoInstagram.style.display = tipo.value === 'instagram' ? 'block' : 'none';
+    blocoTikTok.style.display = tipo.value === 'tiktok' ? 'block' : 'none';
   });
 
   async function salvar() {
@@ -1169,6 +1273,16 @@ function formulario(conexao, { aoSalvar }) {
       };
       if (qrChave.value.trim()) dados.qrcode.chave = qrChave.value.trim();
     }
+    /* Segredo em branco = mantenha o guardado, como nos outros caminhos. */
+    if (tipo.value === 'instagram') {
+      dados.instagram = { contaId: igConta.value.trim(), verifyToken: igVerificacao.value.trim() };
+      if (igToken.value.trim()) dados.instagram.token = igToken.value.trim();
+      if (igSegredo.value.trim()) dados.instagram.appSecret = igSegredo.value.trim();
+    }
+    if (tipo.value === 'tiktok') {
+      dados.tiktok = { appId: ttApp.value.trim() };
+      if (ttSegredo.value.trim()) dados.tiktok.appSecret = ttSegredo.value.trim();
+    }
     if (novo) await api.post('/api/conexoes', dados);
     else await api.patch(`/api/conexoes/${conexao.id}`, dados);
     aviso('Conexao salva.', 'sucesso');
@@ -1190,6 +1304,8 @@ function formulario(conexao, { aoSalvar }) {
     campo('Responsavel padrao', responsavelPadrao, 'Normalmente o agente de triagem.'),
     blocoOficial,
     blocoQrCode,
+    blocoInstagram,
+    blocoTikTok,
   ];
 
   return { campos, salvar };
@@ -1257,6 +1373,23 @@ function credenciaisFaltando(conexao) {
     if (!cfg.servidor) faltas.push({ rotulo: 'endereço do serviço', bloqueia: true });
     if (!cfg.chave) faltas.push({ rotulo: 'chave de API do serviço', bloqueia: true });
     if (!cfg.instancia) faltas.push({ rotulo: 'nome da instância', bloqueia: true });
+    return faltas;
+  }
+  if (conexao.tipo === 'instagram') {
+    const cfg = conexao.instagram || {};
+    const faltas = [];
+    if (!cfg.token) faltas.push({ rotulo: 'token de acesso', bloqueia: true });
+    if (!cfg.appSecret) faltas.push({ rotulo: 'chave secreta do app', bloqueia: true });
+    if (!conexao.enderecoPublico) faltas.push({ rotulo: 'sistema hospedado', bloqueia: true });
+    return faltas;
+  }
+  if (conexao.tipo === 'tiktok') {
+    const cfg = conexao.tiktok || {};
+    const faltas = [];
+    if (!cfg.appId) faltas.push({ rotulo: 'App ID', bloqueia: true });
+    if (!cfg.appSecret) faltas.push({ rotulo: 'secret do app', bloqueia: true });
+    if (!cfg.businessId) faltas.push({ rotulo: 'login da conta comercial', bloqueia: true });
+    if (!conexao.enderecoPublico) faltas.push({ rotulo: 'sistema hospedado', bloqueia: true });
     return faltas;
   }
   if (conexao.tipo !== 'oficial') return [];

@@ -48,6 +48,7 @@ export async function paginaIntegracoes() {
         blocoAgenda(integracoes, desenhar),
         blocoAndamento(integracoes, desenhar),
         blocoMetaConversoes(integracoes, desenhar),
+        blocoTikTokEventos(integracoes, desenhar),
         blocoFerramentas(integracoes, desenhar),
       ].filter(Boolean),
     );
@@ -679,6 +680,81 @@ function blocoMetaConversoes(integracoes, recarregarTela) {
             aoClicar: async () => {
               const resultado = await api.post('/api/integracoes/meta-conversoes/testar', {});
               aviso(resultado.ok ? `Conectado a "${resultado.nome}".` : resultado.erro, resultado.ok ? 'sucesso' : 'erro');
+            },
+          })
+        : null,
+    ),
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* TikTok. API de Eventos                                              */
+/* ------------------------------------------------------------------ */
+
+function blocoTikTokEventos(integracoes, recarregarTela) {
+  const cfg = integracoes.tiktokEventos || {};
+
+  const ativo = el('input', { type: 'checkbox' });
+  ativo.checked = Boolean(cfg.ativo);
+  const conjuntoId = entradaTexto(cfg.conjuntoId || '', { placeholder: 'ID do conjunto de eventos de CRM' });
+  const token = entradaTexto('', { type: 'password', placeholder: cfg.token ? 'ja configurado' : 'token de acesso' });
+  const codigoDeTeste = entradaTexto(cfg.codigoDeTeste || '', { placeholder: 'so para testar; deixe vazio em uso normal' });
+
+  const eventosPorTipo = {};
+  const linhasEvento = [];
+  for (const tipo of estado.sessao.tiposStatus.filter((t) => t.referencia !== null)) {
+    eventosPorTipo[tipo.id] = entradaTexto(cfg.eventos?.[tipo.id] || '', {
+      placeholder: tipo.id === 'sucesso' ? 'CompletePayment' : tipo.id === 'qualificado' ? 'QualifiedLead' : 'deixe vazio para nao enviar',
+    });
+    linhasEvento.push(linhaAjuste(tipo.nome, null, eventosPorTipo[tipo.id]));
+  }
+
+  const balao = el('div', {}, [
+    el('div', { texto: 'O par da API de Conversao da Meta, para o TikTok. Devolvendo quem virou Qualificado e quem assinou, a campanha do TikTok passa a procurar gente parecida com quem fecha.' }),
+    el('div', { class: 'mt-2', texto: 'Só vai lead que veio do TikTok (origem do TikTok ou conversa na DM). O que sai: telefone e e-mail com hash, e um código da conversa.' }),
+    el('div', { class: 'mt-1', texto: 'Na DM do TikTok a conversa nasce sem telefone: o evento só sai depois que o agente coletar o telefone ou o e-mail.' }),
+  ]);
+
+  return cartaoAjustes(
+    'TikTok. API de Eventos',
+    balao,
+    linhaAjuste('Enviar eventos para o TikTok', 'Desligado, nada e enviado, mesmo com as credenciais preenchidas.', ativo),
+    linhaAjuste('Conjunto de eventos', null, conjuntoId, { balao: 'No Gerenciador de Eventos do TikTok: Conectar fonte de dados > CRM. O ID do conjunto aparece nos detalhes.' }),
+    linhaAjuste('Token de acesso', null, token, { balao: 'Gerado nas configuracoes do conjunto de eventos, no Gerenciador de Eventos do TikTok.' }),
+    linhaAjuste('Codigo de teste', null, codigoDeTeste, { balao: 'Da aba "Testar eventos". Com ele, o botao Testar manda um evento de teste que nao conta na campanha.' }),
+    linhaAjuste('Qual etapa vira qual evento', null, null, { largo: true, balao: 'Etapa em branco nao gera evento.' }),
+    linhasEvento,
+    rodapeAjustes(
+      podeConfigurar()
+        ? botao('Salvar', {
+            tipo: 'principal',
+            pequeno: true,
+            aoClicar: async () => {
+              const eventos = {};
+              for (const [tipo, entrada] of Object.entries(eventosPorTipo)) {
+                if (entrada.value.trim()) eventos[tipo] = entrada.value.trim();
+              }
+              await api.patch('/api/integracoes', {
+                tiktokEventos: {
+                  ativo: ativo.checked,
+                  conjuntoId: conjuntoId.value.trim(),
+                  token: token.value.trim(),
+                  codigoDeTeste: codigoDeTeste.value.trim(),
+                  fonte: 'crm',
+                  eventos,
+                },
+              });
+              aviso('Integracao salva.', 'sucesso');
+              await recarregarTela();
+            },
+          })
+        : null,
+      podeConfigurar()
+        ? botao('Testar', {
+            pequeno: true,
+            aoClicar: async () => {
+              const resultado = await api.post('/api/integracoes/tiktok-eventos/testar', {});
+              aviso(resultado.ok ? 'Evento de teste aceito pelo TikTok.' : resultado.erro, resultado.ok ? 'sucesso' : 'erro');
             },
           })
         : null,

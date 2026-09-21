@@ -97,6 +97,12 @@ export async function aplicarStatus(contato, status, autor, { dispararFollowups 
         enviarConversao({ workspaceId: contato.workspaceId, contato, tipoStatus: status.tipo }),
       )
       .catch(() => {});
+    /* O mesmo para o TikTok, so com lead que veio de la. */
+    import('../integracoes/tiktok-eventos.js')
+      .then(({ enviarEventoTikTok }) =>
+        enviarEventoTikTok({ workspaceId: contato.workspaceId, contato, tipoStatus: status.tipo }),
+      )
+      .catch(() => {});
   }
 
   emitir(contato.workspaceId, 'contato', { contatoId: contato.id });

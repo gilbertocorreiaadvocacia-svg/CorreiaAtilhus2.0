@@ -26,6 +26,7 @@ import { registrarTarefas } from './rotas/tarefas.js';
 import { registrarIntegracoes } from './rotas/integracoes.js';
 import { autenticarChave, dentroDoLimite, registrarPublica } from './rotas/publica.js';
 import { retomarSincronizacoes } from './whatsapp/sincronizar-historico.js';
+import { iniciarRenovacaoDeTokens } from './whatsapp/renovar-tokens.js';
 
 iniciarBanco();
 /* Quando ESTA copia subiu. Vai na saude, para dar para distinguir duas. */
@@ -410,6 +411,8 @@ servidor.listen(PORTA, HOST, () => {
   iniciarIntegracaoJuri();
   /* Avaliacao sem resposta em 2 dias se encerra e devolve a conversa. */
   iniciarAvaliacoes();
+  /* Tokens do Instagram e do TikTok renovados antes de vencer. */
+  iniciarRenovacaoDeTokens();
 });
 
 function encerrar() {

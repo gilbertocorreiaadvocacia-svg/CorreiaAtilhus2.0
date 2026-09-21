@@ -11,6 +11,7 @@ import {
 } from '../nucleo/banco.js';
 import { emitir } from '../nucleo/eventos.js';
 import { canalDoRastro, descreverOrigem, origemDoCanal, rastroUtil } from '../nucleo/origens.js';
+import { CANAIS, canalDaConexao } from './canais.js';
 import { membrosQuePodemVer } from '../nucleo/auth.js';
 import { notificar } from '../ia/mencoes.js';
 import { agora, normalizar, normalizarTelefone, normalizarTelefoneDoWhatsApp, novoId } from '../nucleo/util.js';
@@ -48,7 +49,32 @@ export function acharOuCriarContato({
   /* 'manual' quando alguem do escritorio digitou o nome (cadastro, CSV): ai
      ele vale mais do que a agenda do celular. Do WhatsApp, e nome de perfil. */
   nomeOrigem = null,
+  /* Instagram e TikTok: o codigo da pessoa (ou da conversa) na rede, e o @. */
+  idCanal = null,
+  usuario = null,
 }) {
+  /*
+   * Conversa de rede social: a pessoa e a conta, nao o telefone.
+   *
+   * Procura pelo codigo da rede dentro da mesma conexao, e nasce com o
+   * telefone VAZIO. Por telefone, todas as conversas sem numero seriam a mesma
+   * pessoa — a primeira do Instagram engoliria todas as seguintes.
+   */
+  if (idCanal) {
+    const existente = listar('contatos', { workspaceId }).find(
+      (c) => c.idCanal === idCanal && c.conexaoId === conexao.id,
+    );
+    if (existente) {
+      if (usuario && existente.usuarioCanal !== usuario) {
+        atualizar('contatos', existente.id, { usuarioCanal: usuario });
+        existente.usuarioCanal = usuario;
+      }
+      return { contato: existente, novo: false };
+    }
+  }
+
+  if (idCanal) return criarContato({ workspaceId, conexao, numero: '', lid: null, nomeInicial: nome || (usuario ? `@${usuario}` : ''), nomeOrigem: nome ? 'perfil' : null, foto, idCanal, usuario });
+
   /*
    * De onde veio o numero muda como ele se normaliza.
    *
@@ -114,15 +140,30 @@ export function acharOuCriarContato({
     }
   }
 
-  contato = inserir('contatos', {
+  return criarContato({
+    workspaceId,
+    conexao,
+    numero,
+    lid,
+    foto,
+    ...(nome && nomeOrigem === 'manual'
+      ? { nomeInicial: nome, nomeOrigem: 'manual' }
+      : { nomeInicial: daAgenda || nome || numero, nomeOrigem: daAgenda ? 'agenda' : nome ? 'perfil' : null }),
+  });
+}
+
+/** A conversa nova, com os padroes da conexao. Serve ao WhatsApp e as redes. */
+function criarContato({ workspaceId, conexao, numero, lid, nomeInicial, nomeOrigem, foto, idCanal = null, usuario = null }) {
+  const canal = canalDaConexao(conexao);
+  const contato = inserir('contatos', {
     id: novoId('ctt'),
     workspaceId,
     conexaoId: conexao.id,
     telefone: numero,
     lid,
-    ...(nome && nomeOrigem === 'manual'
-      ? { nome, nomeOrigem: 'manual' }
-      : { nome: daAgenda || nome || numero, nomeOrigem: daAgenda ? 'agenda' : nome ? 'perfil' : null }),
+    nome: nomeInicial || (canal === 'whatsapp' ? SEM_IDENTIFICACAO : `Contato do ${CANAIS[canal].nome}`),
+    nomeOrigem,
+    ...(canal !== 'whatsapp' ? { canal, idCanal, usuarioCanal: usuario || null } : {}),
     foto,
     statusId: conexao.statusPadraoId || null,
     departamentoId: conexao.departamentoPadraoId || null,
@@ -221,15 +262,29 @@ function avisarMensagemNova(workspaceId, contato, mensagem) {
   }
 }
 
+/*
+ * A palavra-chave MAIS LONGA que aparece no texto decide.
+ *
+ * "Vi o anuncio no TikTok" casa com "tiktok" (do TikTok organico) e com
+ * "anuncio no tiktok" (do pago). A mais longa e a mais especifica; antes
+ * vencia a primeira origem da lista, e a resposta dependia da ordem em que as
+ * origens foram cadastradas.
+ */
 function detectarOrigem(workspaceId, texto) {
   const alvo = normalizar(texto);
   if (!alvo) return null;
+  let melhor = null;
+  let tamanho = 0;
   for (const origem of listar('origens', { workspaceId })) {
     for (const palavra of origem.palavrasChave || []) {
-      if (palavra && alvo.includes(normalizar(palavra))) return origem;
+      const chave = normalizar(palavra);
+      if (chave && alvo.includes(chave) && chave.length > tamanho) {
+        melhor = origem;
+        tamanho = chave.length;
+      }
     }
   }
-  return null;
+  return melhor;
 }
 
 /**
@@ -295,8 +350,31 @@ export async function receberMensagem({
   metadados = null,
   daPropriaConta = false,
   lid = null,
+  idCanal = null,
+  usuario = null,
 }) {
-  const { contato, novo } = acharOuCriarContato({ workspaceId, conexao, telefone, nome, doWhatsApp: true, lid });
+  const { contato, novo } = acharOuCriarContato({ workspaceId, conexao, telefone, nome, doWhatsApp: true, lid, idCanal, usuario });
+
+  /*
+   * O nome da pessoa no Instagram vem numa consulta a parte: a mensagem traz
+   * so o codigo dela. Uma vez, na conversa nova, e sem segurar a mensagem se a
+   * consulta falhar — a conversa fica com o @ ate a proxima.
+   */
+  if (novo && idCanal && driverDa(conexao).perfilDoContato) {
+    const perfil = await driverDa(conexao).perfilDoContato({ conexao, idCanal }).catch(() => null);
+    if (perfil) {
+      const mudancas = {};
+      if (perfil.usuario && perfil.usuario !== contato.usuarioCanal) mudancas.usuarioCanal = perfil.usuario;
+      const nomeNovo = perfil.nome || (perfil.usuario ? `@${perfil.usuario}` : '');
+      if (nomeNovo && nomeNovo !== contato.nome && contato.nomeOrigem !== 'manual') {
+        Object.assign(mudancas, { nome: nomeNovo, nomeOrigem: 'perfil' });
+      }
+      if (Object.keys(mudancas).length) {
+        atualizar('contatos', contato.id, mudancas);
+        Object.assign(contato, mudancas);
+      }
+    }
+  }
 
   /*
    * A pessoa respondeu pelo celular, e nao pela tela.
@@ -433,18 +511,25 @@ export async function receberMensagem({
    * por um anuncio — mas nunca troca uma origem que alguem ja escolheu.
    */
   const canal = canalDoRastro(metadados);
+  /* No Direct e na DM do TikTok a marca diz so por onde a conversa veio, e nao
+     se foi anuncio. Ai a frase pronta do anuncio (palavra-chave) ainda refina,
+     e vem primeiro: "Vi o anuncio no TikTok" e trafego pago, mesmo pela DM. */
+  const soOCanal = metadados?.entryPoint === 'direct';
+  const pelaPalavra = primeira && soOCanal ? detectarOrigem(workspaceId, mensagem.conteudo) : null;
   if (rastroUtil(metadados) && !contato.rastroDeOrigem) mudancas.rastroDeOrigem = metadados;
   /* `anuncio` e o que a API de Conversoes da Meta le: so com o CTWA Clid. */
   if (metadados?.ctwaClid && !contato.anuncio) mudancas.anuncio = metadados;
   if (canal && !contato.origemId) {
-    const origem = origemDoCanal(workspaceId, canal);
+    const origem = pelaPalavra || origemDoCanal(workspaceId, canal);
     if (origem) {
       mudancas.origemId = origem.id;
-      mudancas.origemAutomatica = { canal, em: mensagem.criadoEm };
-      registrarLog(workspaceId, contato.id, 'origem', `Origem lida na mensagem: ${descreverOrigem(origem, metadados)}`, {
-        tipo: 'sistema',
-        nome: 'WhatsApp',
-      });
+      if (!pelaPalavra) {
+        mudancas.origemAutomatica = { canal, em: mensagem.criadoEm };
+        registrarLog(workspaceId, contato.id, 'origem', `Origem lida na mensagem: ${descreverOrigem(origem, metadados)}`, {
+          tipo: 'sistema',
+          nome: CANAIS[canalDaConexao(conexao)].nome,
+        });
+      }
     }
   }
 

@@ -98,6 +98,18 @@ export const HOST = process.env.CORREIA_HOST || '127.0.0.1';
 export const HOSPEDADO = process.env.CORREIA_HOSPEDADO === '1';
 
 /**
+ * O endereco do sistema na internet (https://atendimento.seudominio.com.br).
+ *
+ * Instagram e TikTok so conversam com endereco publico: e para ele que mandam
+ * as mensagens, e e dele que buscam o arquivo que o sistema anexa (a Meta nao
+ * alcanca um localhost). Na VPS vem do DOMINIO do .env; no notebook fica vazio,
+ * e a tela diz que esses dois canais esperam a hospedagem.
+ */
+export const ENDERECO_PUBLICO = String(
+  process.env.CORREIA_ENDERECO_PUBLICO || (process.env.DOMINIO ? `https://${process.env.DOMINIO}` : ''),
+).replace(/\/+$/, '');
+
+/**
  * Quem pode falar com o servidor quando ele escuta em todas as interfaces.
  *
  * Esta maquina, e as faixas privadas que o Docker usa para as suas redes

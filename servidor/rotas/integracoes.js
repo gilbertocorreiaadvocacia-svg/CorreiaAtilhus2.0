@@ -65,6 +65,9 @@ function mascarar(registro) {
     metaConversoes: registro.metaConversoes
       ? { ...registro.metaConversoes, token: mascara(registro.metaConversoes.token) }
       : { ativo: false, pixelId: '', token: '', eventos: {} },
+    tiktokEventos: registro.tiktokEventos
+      ? { ...registro.tiktokEventos, token: mascara(registro.tiktokEventos.token) }
+      : { ativo: false, conjuntoId: '', token: '', fonte: 'crm', codigoDeTeste: '', eventos: {} },
   };
 }
 
@@ -163,6 +166,14 @@ export function registrarIntegracoes(rotas) {
         token: preservarSegredo(corpo.metaConversoes.token, atual.metaConversoes?.token),
       };
     }
+    if (corpo.tiktokEventos) {
+      mudancas.tiktokEventos = {
+        ...atual.tiktokEventos,
+        ...corpo.tiktokEventos,
+        fonte: corpo.tiktokEventos.fonte === 'offline' ? 'offline' : 'crm',
+        token: preservarSegredo(corpo.tiktokEventos.token, atual.tiktokEventos?.token),
+      };
+    }
     if (corpo.customTools) {
       mudancas.customTools = corpo.customTools.map((ferramenta) => {
         const anterior = (atual.customTools || []).find((f) => f.id === ferramenta.id);
@@ -177,6 +188,12 @@ export function registrarIntegracoes(rotas) {
     exigirConfiguracao(ctx);
     const { testarConexao } = await import('../integracoes/meta-conversoes.js');
     return testarConexao(ctx.workspaceId);
+  });
+
+  rotas.post('/api/integracoes/tiktok-eventos/testar', async ({ ctx }) => {
+    exigirConfiguracao(ctx);
+    const { testarEventosTikTok } = await import('../integracoes/tiktok-eventos.js');
+    return testarEventosTikTok(ctx.workspaceId);
   });
 
   rotas.post('/api/integracoes/zapsign/sincronizar', async ({ ctx }) => {

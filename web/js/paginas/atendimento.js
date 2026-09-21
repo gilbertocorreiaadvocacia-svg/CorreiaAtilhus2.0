@@ -774,9 +774,25 @@ export async function paginaAtendimento({
     anuncio_instagram: ['Pago · Instagram', 'Tráfego pago · Instagram'],
     anuncio_facebook: ['Pago · Facebook', 'Tráfego pago · Facebook'],
     anuncio: ['Tráfego pago', 'Tráfego pago'],
+    anuncio_tiktok: ['Pago · TikTok', 'Tráfego pago · TikTok'],
     instagram: ['Instagram', 'Instagram'],
     facebook: ['Facebook', 'Facebook'],
+    tiktok: ['TikTok', 'TikTok'],
   };
+
+  /*
+   * Como a pessoa se identifica: o telefone, no WhatsApp; o @ e a rede, no
+   * Instagram e no TikTok, onde a conversa nasce sem telefone. Quando o
+   * cliente passa o numero e alguem o grava, o telefone volta a aparecer.
+   */
+  const NOME_DA_REDE = { instagram: 'Instagram', tiktok: 'TikTok' };
+
+  function identificacaoDo(contato) {
+    if (contato.telefone) return telefone(contato.telefone);
+    const rede = NOME_DA_REDE[contato.canal];
+    if (!rede) return '';
+    return contato.usuarioCanal ? `@${contato.usuarioCanal} · ${rede}` : rede;
+  }
 
   function origemDa(contato) {
     return contato.origem || estado.origens.find((o) => o.id === contato.origemId) || null;
@@ -915,7 +931,7 @@ export async function paginaAtendimento({
         /* Previa, marcador de IA e contador dividem a segunda linha. Empilhados,
            cada um custava uma linha inteira da lista. */
         el('div', { class: 'linha-previa' }, [
-          el('div', { class: 'previa', texto: contato.previa || telefone(contato.telefone) }),
+          el('div', { class: 'previa', texto: contato.previa || identificacaoDo(contato) }),
           /* Do responsavel sobra so o caso que muda a decisao: quem esta com a
              IA, ninguem precisa atender agora. O nome de quem atende repetia em
              toda linha e vive no painel da direita. */
@@ -1026,7 +1042,7 @@ export async function paginaAtendimento({
       ]),
       el('div', { class: 'conversa-linha' }, [
         el('div', { class: 'conversa-dados' }, [
-          el('span', { class: 'conversa-telefone', texto: telefone(contato.telefone) }),
+          el('span', { class: 'conversa-telefone', texto: identificacaoDo(contato) }),
           casoDaConversa
             ? el('span', { class: 'selo selo-caso', title: 'Tipo de caso' }, [
                 el('span', { class: 'ponto', estilo: { background: casoDaConversa.cor } }),
@@ -1632,13 +1648,19 @@ export async function paginaAtendimento({
       }
     });
 
+    /* A janela de resposta de cada canal: no WhatsApp oficial ainda passa
+       template aprovado; no Instagram e no TikTok nada passa ate o cliente
+       escrever de novo. */
+    const tipoDaConexao = acharConexao(contato.conexaoId)?.tipo;
+    const TEXTO_DA_JANELA = {
+      oficial: 'Janela de 24 horas fechada. Fora dela a Meta so aceita template aprovado, escolha um pelo botao de templates.',
+      instagram: 'Janela de 24 horas fechada. O Instagram so deixa responder ate 24 horas depois da ultima mensagem do cliente: espere ele escrever de novo.',
+      tiktok: 'Janela de 48 horas fechada. O TikTok so deixa responder ate 48 horas depois da ultima mensagem do cliente: espere ele escrever de novo.',
+    };
+    const janelaFechada = contato.janela ? contato.janela.horas && !contato.janela.aberta : tipoDaConexao === 'oficial' && !contato.janelaAberta;
     const avisoJanela =
-      acharConexao(contato.conexaoId)?.tipo === 'oficial' && !contato.janelaAberta
-        ? el('div', {
-            class: 'aviso-janela',
-            texto:
-              'Janela de 24 horas fechada. Fora dela a Meta so aceita template aprovado, escolha um pelo botao de templates.',
-          })
+      janelaFechada && TEXTO_DA_JANELA[tipoDaConexao]
+        ? el('div', { class: 'aviso-janela', texto: TEXTO_DA_JANELA[tipoDaConexao] })
         : null;
 
     /*
@@ -2048,14 +2070,20 @@ export async function paginaAtendimento({
      *
      * O selinho no canto do rosto e o mesmo da lista: quem conduz a conversa.
      */
-    const copiarNumero = async () => {
+    /* Sem telefone (Instagram, TikTok), o que se copia e o @ da pessoa. */
+    const oQueCopiar = contato.telefone
+      ? { valor: contato.telefone, rotulo: 'Copiar número', feito: 'Numero copiado.', mostra: telefone(contato.telefone) }
+      : contato.usuarioCanal
+        ? { valor: `@${contato.usuarioCanal}`, rotulo: 'Copiar @', feito: 'Usuario copiado.', mostra: `@${contato.usuarioCanal}` }
+        : null;
+    const copiar = async () => {
       try {
-        await navigator.clipboard.writeText(contato.telefone);
-        aviso('Numero copiado.', 'sucesso');
+        await navigator.clipboard.writeText(oQueCopiar.valor);
+        aviso(oQueCopiar.feito, 'sucesso');
       } catch {
         /* Sem permissao de area de transferencia o navegador recusa em
            silencio, e um botao que nao responde parece defeito. */
-        aviso('O navegador nao deixou copiar. O numero e ' + telefone(contato.telefone), 'alerta');
+        aviso(`O navegador nao deixou copiar: ${oQueCopiar.mostra}`, 'alerta');
       }
     };
 
@@ -2064,11 +2092,13 @@ export async function paginaAtendimento({
       el('div', { class: 'painel-pessoa-nome', texto: contato.nome }),
       el('div', { class: 'painel-pessoa-fone' }, [
         String(contato.telefone || '').startsWith('55') ? el('span', { class: 'bandeira-brasil', 'aria-hidden': 'true' }) : null,
-        el('span', { texto: telefone(contato.telefone) }),
+        el('span', { texto: identificacaoDo(contato) }),
       ]),
-      el('div', { class: 'painel-pessoa-acoes' }, [
-        el('button', { type: 'button', class: 'acao-pilula', aoClick: copiarNumero }, [icone('copiar', 14), 'Copiar número']),
-      ]),
+      oQueCopiar
+        ? el('div', { class: 'painel-pessoa-acoes' }, [
+            el('button', { type: 'button', class: 'acao-pilula', aoClick: copiar }, [icone('copiar', 14), oQueCopiar.rotulo]),
+          ])
+        : null,
     ]);
 
     /*
@@ -3235,7 +3265,7 @@ export async function paginaAtendimento({
               avatar(contato, 34),
               el('span', { class: 'contato-linha-dados' }, [
                 el('span', { class: 'contato-linha-nome', texto: contato.nome }),
-                el('span', { class: 'contato-linha-telefone', texto: telefone(contato.telefone) }),
+                el('span', { class: 'contato-linha-telefone', texto: identificacaoDo(contato) }),
               ]),
             ]),
           ]),
@@ -3756,7 +3786,7 @@ export async function paginaAtendimento({
             el('span', { class: 'kanban-cartao-nome', texto: contato.nome }),
             el('span', { class: 'kanban-cartao-hora', texto: quando(contato.ultimaMensagemEm) }),
           ]),
-          el('div', { class: 'kanban-cartao-previa', texto: contato.previa || telefone(contato.telefone) }),
+          el('div', { class: 'kanban-cartao-previa', texto: contato.previa || identificacaoDo(contato) }),
           el('div', { class: 'kanban-cartao-pe' }, [
             caso
               ? el('span', { class: 'kanban-cartao-caso' }, [

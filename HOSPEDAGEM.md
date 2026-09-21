@@ -96,6 +96,11 @@ Nunca deixe o notebook e o servidor ligados no mesmo número ao mesmo tempo.
 | --- | --- |
 | Webhook da ZapSign | `https://SEU_DOMINIO/v1/zapsign/webhook` |
 | Webhook da Meta (API oficial) | `https://SEU_DOMINIO/webhook/ID_DA_CONEXAO` (o ID aparece em Conexões) |
+| Webhook do Instagram (Direct) | `https://SEU_DOMINIO/webhook/instagram` |
+| Webhook do TikTok (DM) | `https://SEU_DOMINIO/webhook/tiktok` (o sistema cadastra sozinho) |
+| Retorno do login do TikTok | `https://SEU_DOMINIO/tiktok/retorno` |
+
+Passo a passo do Instagram e do TikTok: `INSTAGRAM-TIKTOK.md`.
 
 ## 9. Cópia de segurança diária
 

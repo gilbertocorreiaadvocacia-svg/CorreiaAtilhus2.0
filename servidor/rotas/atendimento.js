@@ -20,6 +20,7 @@ import { aplicarModoFoco, ehAdministrador, filtrarConversasVisiveis, podeVerConv
 import { emitir } from '../nucleo/eventos.js';
 import { agora, aplicarVariaveis, garantirPasta, normalizar, normalizarTelefone, novoId, ordenarPor } from '../nucleo/util.js';
 import { enviarMensagem, janelaAberta } from '../whatsapp/envio.js';
+import { janelaDaConversa } from '../whatsapp/canais.js';
 import { acharOuCriarContato } from '../whatsapp/recebimento.js';
 import { driverDa } from '../whatsapp/drivers/index.js';
 import { agendarFoto } from '../whatsapp/fotos.js';
@@ -70,6 +71,10 @@ function enriquecer(contato) {
       ? { id: origem.id, nome: origem.nome, cor: origem.cor || null, canal: origem.canal || null, pago: Boolean(origem.pago) }
       : null,
     janelaAberta: janelaAberta(contato),
+    /* A janela do canal desta conversa: 24h no WhatsApp oficial e no
+       Instagram, 48h no TikTok, nenhuma no QR Code. */
+    janela: janelaDaConversa(contato),
+    canal: contato.canal || 'whatsapp',
     /*
      * Em que aba esta conversa aparece.
      *

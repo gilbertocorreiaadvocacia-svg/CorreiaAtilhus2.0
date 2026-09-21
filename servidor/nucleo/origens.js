@@ -60,6 +60,31 @@ export const CANAIS_DE_ORIGEM = [
     cor: 'var(--serie-6)',
     nomesConhecidos: ['facebook', 'facebook organico'],
   },
+  /*
+   * TikTok. O anuncio de mensagem do TikTok nao deixa marca que se leia na
+   * mensagem, como o da Meta deixa: quem separa pago de organico e a frase
+   * pronta do anuncio. Por isso o pago ja nasce com a palavra-chave "anuncio
+   * no tiktok" — escreva o texto inicial do anuncio com ela ("Vi o anuncio no
+   * TikTok e quero saber mais") e o lead cai aqui.
+   */
+  {
+    canal: 'anuncio_tiktok',
+    nome: 'Tráfego pago · TikTok',
+    curto: 'Pago · TikTok',
+    pago: true,
+    cor: 'var(--ouro)',
+    nomesConhecidos: ['anuncio tiktok', 'trafego pago tiktok', 'trafego pago · tiktok', 'tiktok ads', 'ads tiktok'],
+    palavrasChave: ['anuncio no tiktok'],
+  },
+  {
+    canal: 'tiktok',
+    nome: 'TikTok',
+    curto: 'TikTok',
+    pago: false,
+    cor: 'var(--serie-7)',
+    nomesConhecidos: ['tiktok', 'tik tok', 'tiktok organico'],
+    palavrasChave: ['tiktok', 'tik tok'],
+  },
 ];
 
 /* As palavras-chave com que a semeadura antiga criou os dois anuncios. Elas
@@ -96,12 +121,16 @@ export function canalDoRastro(rastro) {
     PALAVRA_ANUNCIO.test(conversao) ||
     PALAVRA_ANUNCIO.test(entrada);
 
-  const instagram = [endereco, aplicativo, conversao, entrada].some((v) => v.includes('instagram')) || /(^|_)ig(_|$)/.test(entrada);
+  const tiktok = [endereco, aplicativo, conversao, entrada].some((v) => v.includes('tiktok'));
+  const instagram =
+    !tiktok && ([endereco, aplicativo, conversao, entrada].some((v) => v.includes('instagram')) || /(^|_)ig(_|$)/.test(entrada));
   const facebook =
+    !tiktok &&
     !instagram &&
     ([aplicativo, conversao, entrada].some((v) => v.includes('facebook')) || /facebook\.com|fb\.me|fb\.com/.test(endereco));
 
-  if (pago) return instagram ? 'anuncio_instagram' : facebook ? 'anuncio_facebook' : 'anuncio';
+  if (pago) return tiktok ? 'anuncio_tiktok' : instagram ? 'anuncio_instagram' : facebook ? 'anuncio_facebook' : 'anuncio';
+  if (tiktok) return 'tiktok';
   if (instagram) return 'instagram';
   if (facebook) return 'facebook';
   return null;
@@ -113,6 +142,11 @@ export function origemDoCanal(workspaceId, canal) {
   if (!definicao) return null;
   const existente = listar('origens', { workspaceId }).find((o) => o.canal === canal);
   if (existente) return existente;
+  /* Palavra-chave de fabrica so entra se nenhuma outra origem ja a usa: duas
+     origens com a mesma palavra fariam a escolha depender da ordem da lista. */
+  const emUso = new Set(
+    listar('origens', { workspaceId }).flatMap((o) => (o.palavrasChave || []).map(normalizar)),
+  );
   return inserir('origens', {
     id: novoId('org'),
     workspaceId,
@@ -120,7 +154,7 @@ export function origemDoCanal(workspaceId, canal) {
     cor: definicao.cor,
     canal,
     pago: definicao.pago,
-    palavrasChave: [],
+    palavrasChave: (definicao.palavrasChave || []).filter((p) => !emUso.has(normalizar(p))),
   });
 }
 

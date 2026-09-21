@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
-import { PORTA, areaValida } from '../config.js';
+import { ENDERECO_PUBLICO, PORTA, areaValida } from '../config.js';
+import { ESCOPOS_TIKTOK, concluirLoginTikTok, registrarWebhookTikTok } from '../whatsapp/drivers/tiktok.js';
 import { achar, atualizar, inserir, listar, registrarLog, remover } from '../nucleo/banco.js';
 import { emitir } from '../nucleo/eventos.js';
 import { agora, normalizarTelefone, novoId, ordenarPor } from '../nucleo/util.js';
@@ -49,12 +50,36 @@ function registrarEvento(conexao, tipo, descricao, autor = null) {
  * existe. O campo em branco na tela significa "mantenha o que esta guardado".
  */
 function paraTela(conexao) {
+  const mascara = (valor) => (valor ? '***' : '');
   return {
     ...conexao,
     ordem: Number.isFinite(conexao.ordem) ? conexao.ordem : Number.MAX_SAFE_INTEGER,
-    oficial: conexao.oficial ? { ...conexao.oficial, token: conexao.oficial.token ? '***' : '' } : null,
-    qrcode: conexao.qrcode ? { ...conexao.qrcode, chave: conexao.qrcode.chave ? '***' : '' } : null,
-    webhookUrl: `/webhook/${conexao.id}`,
+    oficial: conexao.oficial ? { ...conexao.oficial, token: mascara(conexao.oficial.token) } : null,
+    qrcode: conexao.qrcode ? { ...conexao.qrcode, chave: mascara(conexao.qrcode.chave) } : null,
+    instagram: conexao.instagram
+      ? { ...conexao.instagram, token: mascara(conexao.instagram.token), appSecret: mascara(conexao.instagram.appSecret) }
+      : null,
+    tiktok: conexao.tiktok
+      ? {
+          ...conexao.tiktok,
+          appSecret: mascara(conexao.tiktok.appSecret),
+          token: mascara(conexao.tiktok.token),
+          renovacao: mascara(conexao.tiktok.renovacao),
+          estadoLogin: undefined,
+        }
+      : null,
+    /* Instagram e TikTok tem UM webhook por app, e nao um por conexao: e a
+       conta de cada evento que diz de qual conexao ele e. */
+    webhookUrl: ['instagram', 'tiktok'].includes(conexao.tipo) ? `/webhook/${conexao.tipo}` : `/webhook/${conexao.id}`,
+    enderecoPublico: ENDERECO_PUBLICO || null,
+  };
+}
+
+/** Os campos de rede social que a conexao nasce tendo, vazios. */
+function blocosDasRedes() {
+  return {
+    instagram: { contaId: '', token: '', appSecret: '', verifyToken: crypto.randomBytes(16).toString('hex') },
+    tiktok: { appId: '', appSecret: '', businessId: '', token: '', renovacao: '', usuario: '' },
   };
 }
 
@@ -79,6 +104,23 @@ function juntarSegredo(atual = {}, novo = {}, campoSegredo) {
  * e nao esta maquina. Por isso o campo e configuravel, e a tela explica quando
  * mexer nele.
  */
+/** A conexao de Instagram ou TikTok a que um evento do webhook do app se refere. */
+function conexaoDoWebhookGeral(tipo, carga) {
+  if (!carga) return null;
+  if (tipo === 'instagram') {
+    const contas = new Set((carga.entry || []).map((entrada) => String(entrada.id)));
+    return listar('conexoes').find((c) => c.tipo === 'instagram' && contas.has(String(c.instagram?.contaId || ''))) || null;
+  }
+  if (tipo === 'tiktok') {
+    const conta = String(carga.user_openid || '');
+    return listar('conexoes').find((c) => c.tipo === 'tiktok' && conta && String(c.tiktok?.businessId || '') === conta) || null;
+  }
+  return null;
+}
+
+/* Para onde o TikTok devolve o navegador depois do login da conta comercial. */
+const retornoDoTikTok = () => `${ENDERECO_PUBLICO}/tiktok/retorno`;
+
 function urlDoWebhook(conexao) {
   const configurada = String(conexao.qrcode?.urlWebhook || '').replace(/\/+$/, '');
   const base = configurada || `http://localhost:${PORTA}`;
@@ -138,6 +180,7 @@ export function registrarConexoes(rotas) {
         instancia: id,
         urlWebhook: '',
       }),
+      ...blocosDasRedes(),
     });
     registrarEvento(conexao, 'criada', `Conexao criada em modo ${conexao.tipo}.`, {
       tipo: 'membro',
@@ -154,6 +197,24 @@ export function registrarConexoes(rotas) {
 
     if (corpo.oficial) corpo.oficial = juntarSegredo(conexao.oficial, corpo.oficial, 'token');
     if (corpo.qrcode) corpo.qrcode = juntarSegredo(conexao.qrcode, corpo.qrcode, 'chave');
+    /* Conexao criada antes dos canais de rede social nao tem os blocos. */
+    const redes = blocosDasRedes();
+    if (corpo.instagram) {
+      const atual = conexao.instagram || redes.instagram;
+      corpo.instagram = juntarSegredo(atual, juntarSegredo(atual, corpo.instagram, 'token'), 'appSecret');
+      if (!corpo.instagram.verifyToken) corpo.instagram.verifyToken = atual.verifyToken || redes.instagram.verifyToken;
+      /* Token novo so pode ser renovado depois de 24 horas: a rodada de
+         renovacao conta a partir daqui. */
+      if (corpo.instagram.token && corpo.instagram.token !== atual.token) {
+        Object.assign(corpo.instagram, { tokenGuardadoEm: agora(), tokenRenovadoEm: null });
+      }
+    }
+    if (corpo.tiktok) {
+      const atual = conexao.tiktok || redes.tiktok;
+      /* Token e renovacao so entram pelo login do TikTok, nunca pela tela. */
+      const { token, renovacao, tokenVenceEm, renovacaoVenceEm, estadoLogin, ...editavel } = corpo.tiktok;
+      corpo.tiktok = juntarSegredo(atual, editavel, 'appSecret');
+    }
     if (corpo.area !== undefined) corpo.area = areaValida(corpo.area);
 
     const anterior = conexao.tipo;
@@ -479,6 +540,88 @@ export function registrarConexoes(rotas) {
     };
   });
 
+  /* ---------------- Login do TikTok ---------------- */
+
+  /**
+   * O endereco do login do TikTok para esta conexao.
+   *
+   * O TikTok so entrega o token da conta comercial depois que alguem entra
+   * com ela na pagina dele e autoriza o app; ele devolve o navegador para
+   * /tiktok/retorno com um codigo, que vira o token. O `state` amarra a volta
+   * a esta conexao e a este pedido — sem ele, qualquer um mandaria um codigo
+   * da propria conta para dentro da conexao do escritorio.
+   */
+  rotas.post('/api/conexoes/:id/tiktok/entrar', async ({ ctx, params }) => {
+    exigirConfiguracao(ctx);
+    const conexao = achar('conexoes', params.id);
+    if (!conexao || conexao.workspaceId !== ctx.workspaceId) throw comCodigo('Conexao nao encontrada.', 404);
+    if (conexao.tipo !== 'tiktok') throw comCodigo('Esta conexao nao e do TikTok.', 400);
+    if (!ENDERECO_PUBLICO) throw comCodigo('O login do TikTok precisa do sistema hospedado, com endereco publico.', 409);
+    if (!conexao.tiktok?.appId) throw comCodigo('Preencha e salve o App ID do app do TikTok antes de entrar.', 400);
+
+    const estadoLogin = crypto.randomBytes(16).toString('hex');
+    atualizar('conexoes', conexao.id, { tiktok: { ...conexao.tiktok, estadoLogin, estadoLoginEm: agora() } });
+    const url = new URL('https://www.tiktok.com/v2/auth/authorize/');
+    url.searchParams.set('client_key', conexao.tiktok.appId);
+    url.searchParams.set('response_type', 'code');
+    url.searchParams.set('scope', ESCOPOS_TIKTOK.join(','));
+    url.searchParams.set('redirect_uri', retornoDoTikTok());
+    url.searchParams.set('state', `${conexao.id}.${estadoLogin}`);
+    return { url: url.toString() };
+  });
+
+  rotas.get('/tiktok/retorno', async ({ res, query }) => {
+    const [conexaoId, estadoLogin] = String(query.state || '').split('.');
+    const conexao = conexaoId ? achar('conexoes', conexaoId) : null;
+    const valido =
+      conexao?.tipo === 'tiktok' &&
+      estadoLogin &&
+      conexao.tiktok?.estadoLogin === estadoLogin &&
+      Date.now() - Date.parse(conexao.tiktok.estadoLoginEm || '') < 15 * 60 * 1000;
+
+    let aviso = 'erro';
+    if (valido && query.code) {
+      try {
+        await concluirLoginTikTok(conexao, String(query.code), retornoDoTikTok());
+        const atual = achar('conexoes', conexao.id);
+        atualizar('conexoes', conexao.id, { tiktok: { ...atual.tiktok, estadoLogin: null, estadoLoginEm: null } });
+        const teste = await driverDa(atual).testar({ conexao: achar('conexoes', conexao.id) });
+        atualizar('conexoes', conexao.id, {
+          estado: teste.ok ? 'conectado' : 'desconectado',
+          numero: teste.numero || atual.numero,
+          nomeExibicao: teste.nomeExibicao || null,
+          conectadoEm: teste.ok ? agora() : null,
+          ultimoErro: teste.ok ? null : teste.erro,
+        });
+        registrarEvento(atual, 'conectado', `Conta do TikTok autorizada${teste.numero ? `: ${teste.numero}` : ''}.`);
+        emitir(conexao.workspaceId, 'conexao', { conexaoId: conexao.id });
+        aviso = 'ok';
+      } catch (erro) {
+        if (conexao) registrarEvento(conexao, 'erro', `Login do TikTok falhou: ${erro.message}`);
+      }
+    }
+    /* O aviso vai na busca, e nao dentro do #: a rota da tela e o que vem
+       depois do #, e "conexoes?tiktok=ok" seria uma pagina que nao existe. */
+    res.writeHead(302, { Location: `/?tiktok=${aviso}#/conexoes` });
+    res.end();
+    return null;
+  }, { publica: true, cru: true });
+
+  /** Cadastra no TikTok o endereco que recebe as DMs (um por app). */
+  rotas.post('/api/conexoes/:id/tiktok/webhook', async ({ ctx, params }) => {
+    exigirConfiguracao(ctx);
+    const conexao = achar('conexoes', params.id);
+    if (!conexao || conexao.workspaceId !== ctx.workspaceId) throw comCodigo('Conexao nao encontrada.', 404);
+    if (!ENDERECO_PUBLICO) throw comCodigo('O webhook do TikTok precisa do sistema hospedado, com endereco publico.', 409);
+    try {
+      const resultado = await registrarWebhookTikTok(conexao, `${ENDERECO_PUBLICO}/webhook/tiktok`);
+      registrarEvento(conexao, 'webhook', `Webhook cadastrado no TikTok: ${resultado.endereco}`);
+      return resultado;
+    } catch (erro) {
+      throw comCodigo(`O TikTok recusou o webhook: ${erro.message}`, 502);
+    }
+  });
+
   /* ---------------- Webhook ---------------- */
 
   /**
@@ -487,7 +630,14 @@ export function registrarConexoes(rotas) {
    * a rota responde 404, que e a verdade: nao ha nada para verificar ali.
    */
   rotas.get('/webhook/:conexaoId', async ({ res, params, query }) => {
-    const conexao = achar('conexoes', params.conexaoId);
+    /* O webhook do Instagram e do app, e nao da conexao: vale o token de
+       verificacao de qualquer conexao do Instagram. */
+    const conexao =
+      params.conexaoId === 'instagram'
+        ? listar('conexoes').find(
+            (c) => c.tipo === 'instagram' && c.instagram?.verifyToken && c.instagram.verifyToken === query['hub.verify_token'],
+          )
+        : achar('conexoes', params.conexaoId);
     const driver = conexao ? driverDa(conexao) : null;
 
     if (!driver?.verificarWebhook) {
@@ -510,9 +660,25 @@ export function registrarConexoes(rotas) {
    * novo nao mexe em nada deste bloco.
    */
   rotas.post('/webhook/:conexaoId', async ({ req, res, params, corpoBruto }) => {
-    const conexao = achar('conexoes', params.conexaoId);
+    /*
+     * Instagram e TikTok chamam UM endereco por app (/webhook/instagram,
+     * /webhook/tiktok). A conexao sai da conta que o proprio evento traz; a
+     * assinatura e conferida depois, com a chave dela.
+     */
+    const geral = params.conexaoId === 'instagram' || params.conexaoId === 'tiktok';
+    let carga = null;
+    if (geral) {
+      try {
+        carga = JSON.parse(corpoBruto.toString('utf8'));
+      } catch {
+        carga = null;
+      }
+    }
+    const conexao = geral ? conexaoDoWebhookGeral(params.conexaoId, carga) : achar('conexoes', params.conexaoId);
     if (!conexao) {
-      res.writeHead(404);
+      /* Conta que nao e de nenhuma conexao: 200 e nada, senao a rede repete o
+         mesmo evento por dias. */
+      res.writeHead(geral ? 200 : 404);
       res.end();
       return null;
     }
@@ -532,11 +698,12 @@ export function registrarConexoes(rotas) {
 
     if (!driver.interpretarWebhook) return null;
 
-    let carga;
-    try {
-      carga = JSON.parse(corpoBruto.toString('utf8'));
-    } catch {
-      return null;
+    if (!carga) {
+      try {
+        carga = JSON.parse(corpoBruto.toString('utf8'));
+      } catch {
+        return null;
+      }
     }
 
     let eventos;
