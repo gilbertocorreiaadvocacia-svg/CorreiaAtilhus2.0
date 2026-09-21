@@ -134,6 +134,76 @@ Os dados ficam nos volumes do Docker e não se perdem na atualização. Só `doc
 
 ---
 
+## Se a VPS já tem o EasyPanel
+
+Quando a VPS já roda outro sistema pelo EasyPanel, **não reinstale nada**. O CorreiaAtilhus2.0 entra como um projeto novo, ao lado dos outros, e o EasyPanel cuida do HTTPS. As partes 3 a 7 acima não valem nesse caso: o `docker-compose.yml` disputaria as portas 80 e 443 com o EasyPanel.
+
+São três serviços num projeto chamado `correia`. Dentro do projeto, cada um acha o outro pelo nome `correia_<serviço>`.
+
+1. **Crie o projeto.** No EasyPanel, clique em **Create Project** e dê o nome `correia`.
+2. **Crie o banco da Evolution.** Clique em **+ Service > Postgres**, dê o nome `banco` e crie. Em **Credentials**, copie a **Internal Connection URL**.
+3. **Crie a Evolution (o WhatsApp por QR Code).** Clique em **+ Service > App** e dê o nome `evolution`.
+   - **Source > Docker Image:** `evoapicloud/evolution-api:v2.3.7`
+   - **Environment:** troque `CHAVE` por uma chave inventada (`openssl rand -hex 20`) e `URL_DO_BANCO` pela URL do passo 2.
+     ```
+     AUTHENTICATION_API_KEY=CHAVE
+     DATABASE_PROVIDER=postgresql
+     DATABASE_CONNECTION_URI=URL_DO_BANCO?schema=evolution_api
+     DATABASE_URL=URL_DO_BANCO?schema=evolution_api
+     DATABASE_CONNECTION_CLIENT_NAME=evolution_exchange
+     CACHE_REDIS_ENABLED=false
+     CACHE_LOCAL_ENABLED=true
+     CONFIG_SESSION_PHONE_CLIENT=Correia Advogados
+     CONFIG_SESSION_PHONE_NAME=Chrome
+     SERVER_URL=http://correia_evolution:8080
+     TZ=America/Sao_Paulo
+     ```
+   - **Mounts:** um **Volume** com o nome `instancias` no caminho `/evolution/instances`. É o que mantém o WhatsApp conectado quando a Evolution reinicia.
+   - **Domains:** apague o domínio que vier pronto. A Evolution não precisa aparecer na internet.
+   - Clique em **Deploy**.
+4. **Crie o sistema.** Clique em **+ Service > App** e dê o nome `sistema`.
+   - **Source > Git:** `https://github.com/gilbertocorreiaadvocacia-svg/CorreiaAtilhus2.0.git`, ramo `main`.
+   - **Build:** **Dockerfile**, arquivo `Dockerfile`.
+   - **Environment:** use a MESMA chave do passo 3 e uma senha de administrador com 12 caracteres ou mais.
+     ```
+     CORREIA_HOSPEDADO=1
+     CORREIA_ADMIN_EMAIL=seu-email-de-login
+     CORREIA_ADMIN_SENHA=senha-com-12-ou-mais
+     CORREIA_EVOLUTION_URL=http://correia_evolution:8080
+     CORREIA_EVOLUTION_CHAVE=CHAVE
+     CORREIA_EVOLUTION_WEBHOOK=http://correia_sistema:4477
+     CORREIA_ENDERECO_PUBLICO=https://ENDERECO-DO-PASSO-SEGUINTE
+     ```
+   - **Mounts:** um **Volume** com o nome `dados` no caminho `/dados`. Ali ficam conversas, contatos e mídias.
+   - **Domains:** fique com o domínio que o EasyPanel cria (`...easypanel.host`) ou ponha um seu. A **porta** é **4477**. Copie o endereço com `https://` para o `CORREIA_ENDERECO_PUBLICO`.
+   - Clique em **Deploy** e acompanhe em **Logs**. Quando aparecer `CORREIAATILHUS2.0`, abra o endereço.
+
+### Trazer os dados do notebook, no EasyPanel
+
+1. Gere o pacote no notebook e mande para a VPS, como na parte 6 acima (`scp ... root@IP_DA_VPS:/root/`).
+2. No EasyPanel, pare o serviço `sistema` (**Stop**).
+3. No terminal da VPS (no hPanel, **Console da Web**), rode:
+   ```bash
+   DADOS=/etc/easypanel/projects/correia/sistema/volumes/dados
+   ls "$DADOS"    # confira que a pasta existe antes de seguir
+   tar czf /root/antes-da-importacao.tar.gz -C "$DADOS" .
+   find "$DADOS" -mindepth 1 -delete && tar xzf /root/dados-para-hospedagem.tar.gz -C "$DADOS" && chown -R 1000:1000 "$DADOS"
+   rm /root/dados-para-hospedagem.tar.gz
+   ```
+4. Ligue o serviço de novo (**Start**) e conecte o WhatsApp, como na parte 7.
+
+### Cópia de segurança diária, no EasyPanel
+
+No `crontab -e` da VPS:
+
+```
+0 3 * * * mkdir -p /root/copias-correia && tar czf /root/copias-correia/dados-$(date +\%F).tar.gz -C /etc/easypanel/projects/correia/sistema/volumes/dados . && ls -1t /root/copias-correia/dados-*.tar.gz | tail -n +15 | xargs -r rm --
+```
+
+Para atualizar o sistema, clique em **Deploy** no serviço `sistema`. Os dados ficam no volume e não se perdem.
+
+---
+
 ## Segurança, em uma lista
 
 - O `.env` da VPS tem as chaves: nunca vai para o GitHub.
