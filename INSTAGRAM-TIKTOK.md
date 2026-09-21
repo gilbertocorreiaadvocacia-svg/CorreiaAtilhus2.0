@@ -22,7 +22,8 @@ Nos exemplos abaixo, `SEU_DOMINIO` é o endereço do sistema, por exemplo `atend
 3. **Gere o token.** No painel do app, em **Gerar tokens de acesso**, adicione a conta do escritório e clique em **Gerar token**.
 4. **Crie a conexão no sistema.** Abra **Conexões > Nova conexão > Instagram**. Preencha:
    - **Token de acesso:** o token do passo 3.
-   - **Chave secreta do app do Instagram:** fica na mesma tela do painel. Sem ela, nenhuma mensagem entra.
+   - **Chave secreta do app do Instagram:** fica na mesma tela do painel.
+   - **Chave secreta do app:** fica em **Configurações do app > Básico**. Preencha as duas: a Meta assina as mensagens com uma delas, e o sistema aceita qualquer uma. Se a mensagem for recusada, a trilha da conexão avisa.
 5. **Configure o webhook.** No painel do app, em **Webhooks**, preencha:
    - **URL de retorno:** `https://SEU_DOMINIO/webhook/instagram`
    - **Verificar token:** o **Token de verificação** que aparece na conexão, no sistema.

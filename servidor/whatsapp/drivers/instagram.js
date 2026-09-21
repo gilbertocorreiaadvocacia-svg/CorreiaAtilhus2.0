@@ -224,16 +224,23 @@ export const driverInstagram = {
 
   /**
    * Assinatura do evento (X-Hub-Signature-256), com a chave secreta do app.
-   * Sem a chave, o evento nao entra: o endereco do webhook e publico, e sem
+   * Sem chave, o evento nao entra: o endereco do webhook e publico, e sem
    * conferencia qualquer um fabricaria mensagem de cliente.
+   *
+   * DUAS CHAVES. O app da Meta tem a "Chave secreta do app" (Configuracoes >
+   * Basico) e a "Chave secreta do app do Instagram" (na configuracao da API
+   * com login do Instagram), e a documentacao nao e clara sobre qual assina o
+   * webhook. Errar a escolha deixaria o Direct mudo sem erro nenhum; por isso
+   * vale a assinatura feita com qualquer uma das duas guardadas.
    */
   conferirAssinatura({ conexao, cabecalhos, corpoBruto }) {
-    const segredo = conexao.instagram?.appSecret;
-    if (!segredo) return false;
-    const esperada = `sha256=${crypto.createHmac('sha256', segredo).update(corpoBruto).digest('hex')}`;
-    const a = Buffer.from(String(cabecalhos['x-hub-signature-256'] || ''));
-    const b = Buffer.from(esperada);
-    return a.length === b.length && crypto.timingSafeEqual(a, b);
+    const segredos = [conexao.instagram?.appSecret, conexao.instagram?.appSecretMeta].filter(Boolean);
+    if (!segredos.length) return false;
+    const recebida = Buffer.from(String(cabecalhos['x-hub-signature-256'] || ''));
+    return segredos.some((segredo) => {
+      const esperada = Buffer.from(`sha256=${crypto.createHmac('sha256', segredo).update(corpoBruto).digest('hex')}`);
+      return recebida.length === esperada.length && crypto.timingSafeEqual(recebida, esperada);
+    });
   },
 
   verificarWebhook({ conexao, query }) {

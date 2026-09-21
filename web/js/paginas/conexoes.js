@@ -1194,7 +1194,11 @@ function formulario(conexao, { aoSalvar }) {
   });
   const igSegredo = entradaTexto('', {
     type: 'password',
-    placeholder: conexao?.instagram?.appSecret ? 'guardada; deixe em branco para manter' : 'chave secreta do app',
+    placeholder: conexao?.instagram?.appSecret ? 'guardada; deixe em branco para manter' : 'chave secreta do app do Instagram',
+  });
+  const igSegredoMeta = entradaTexto('', {
+    type: 'password',
+    placeholder: conexao?.instagram?.appSecretMeta ? 'guardada; deixe em branco para manter' : 'chave secreta do app (Básico)',
   });
   const igVerificacao = entradaTexto(conexao?.instagram?.verifyToken || '');
 
@@ -1206,7 +1210,8 @@ function formulario(conexao, { aoSalvar }) {
     avisoHospedagem,
     el('div', { class: 'mono mt-2 mb-3 quebra-palavra', texto: `Webhook: ${publico || location.origin}/webhook/instagram` }),
     campo('Token de acesso', igToken, 'No painel da Meta: seu app > Instagram > Configuração da API com login do Instagram > Gerar token.'),
-    campo('Chave secreta do app do Instagram', igSegredo, 'Mesma tela, "Chave secreta do app do Instagram". Sem ela nenhuma mensagem entra: é o que prova que o evento veio da Meta.'),
+    campo('Chave secreta do app do Instagram', igSegredo, 'Mesma tela, "Chave secreta do app do Instagram". É o que prova que a mensagem veio da Meta.'),
+    campo('Chave secreta do app', igSegredoMeta, 'Configurações do app > Básico > "Chave secreta do app". Preencha as duas: a Meta assina com uma delas, e o sistema aceita qualquer uma.'),
     campo('Token de verificação', igVerificacao, 'Cole este valor no campo "Verificar token" do webhook, no painel da Meta.'),
     campo('ID da conta', igConta, 'Preenchido sozinho ao testar a conexão.'),
   ]);
@@ -1278,6 +1283,7 @@ function formulario(conexao, { aoSalvar }) {
       dados.instagram = { contaId: igConta.value.trim(), verifyToken: igVerificacao.value.trim() };
       if (igToken.value.trim()) dados.instagram.token = igToken.value.trim();
       if (igSegredo.value.trim()) dados.instagram.appSecret = igSegredo.value.trim();
+      if (igSegredoMeta.value.trim()) dados.instagram.appSecretMeta = igSegredoMeta.value.trim();
     }
     if (tipo.value === 'tiktok') {
       dados.tiktok = { appId: ttApp.value.trim() };
@@ -1379,7 +1385,7 @@ function credenciaisFaltando(conexao) {
     const cfg = conexao.instagram || {};
     const faltas = [];
     if (!cfg.token) faltas.push({ rotulo: 'token de acesso', bloqueia: true });
-    if (!cfg.appSecret) faltas.push({ rotulo: 'chave secreta do app', bloqueia: true });
+    if (!cfg.appSecret && !cfg.appSecretMeta) faltas.push({ rotulo: 'chave secreta do app', bloqueia: true });
     if (!conexao.enderecoPublico) faltas.push({ rotulo: 'sistema hospedado', bloqueia: true });
     return faltas;
   }

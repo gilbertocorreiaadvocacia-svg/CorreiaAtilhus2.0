@@ -111,6 +111,16 @@ export async function testarRedes({ base, redes }) {
     s.ok('quem vem do anuncio do Instagram cai em "Trafego pago · Instagram"', jose?.origem?.canal === 'anuncio_instagram', JSON.stringify(jose?.origem));
     s.ok('com o anuncio guardado', jose?.rastroDeOrigem?.title === 'BPC para idosos' && jose?.rastroDeOrigem?.sourceID === '120200000');
 
+    /* A Meta assina com uma de duas chaves do app; vale qualquer uma guardada. */
+    await api.patch(`/api/conexoes/${ig.id}`, { instagram: { appSecretMeta: 'segredo-do-app-meta' } });
+    const comAOutra = await enviarIg(eventoIg('9003', { mid: 'IG-IN-4', text: 'Boa tarde' }), 'segredo-do-app-meta');
+    await esperar(800);
+    const pelaOutra = await doCanal('9003');
+    contatosCriados.push(pelaOutra?.id);
+    s.ok('a assinatura com a chave secreta do app (Basico) tambem vale', comAOutra.status === 200 && Boolean(pelaOutra), String(comAOutra.status));
+    const eventosIg = (await api.get(`/api/conexoes/${ig.id}/eventos`)).dados || [];
+    s.ok('a assinatura recusada fica na trilha do numero', eventosIg.some((e) => /assinatura nao confere/.test(e.descricao || '')));
+
     const outraConta = await enviarIg({ object: 'instagram', entry: [{ id: '999', messaging: [{ sender: { id: '7' }, recipient: { id: '999' }, message: { mid: 'X', text: 'oi' } }] }] });
     await esperar(500);
     s.ok('evento de outra conta e aceito e ignorado', outraConta.status === 200 && !(await doCanal('7')));

@@ -57,7 +57,12 @@ function paraTela(conexao) {
     oficial: conexao.oficial ? { ...conexao.oficial, token: mascara(conexao.oficial.token) } : null,
     qrcode: conexao.qrcode ? { ...conexao.qrcode, chave: mascara(conexao.qrcode.chave) } : null,
     instagram: conexao.instagram
-      ? { ...conexao.instagram, token: mascara(conexao.instagram.token), appSecret: mascara(conexao.instagram.appSecret) }
+      ? {
+          ...conexao.instagram,
+          token: mascara(conexao.instagram.token),
+          appSecret: mascara(conexao.instagram.appSecret),
+          appSecretMeta: mascara(conexao.instagram.appSecretMeta),
+        }
       : null,
     tiktok: conexao.tiktok
       ? {
@@ -117,6 +122,9 @@ function conexaoDoWebhookGeral(tipo, carga) {
   }
   return null;
 }
+
+/* Quando cada conexao de rede social teve a ultima assinatura recusada. */
+const ultimaRecusa = new Map();
 
 /* Para onde o TikTok devolve o navegador depois do login da conta comercial. */
 const retornoDoTikTok = () => `${ENDERECO_PUBLICO}/tiktok/retorno`;
@@ -201,7 +209,11 @@ export function registrarConexoes(rotas) {
     const redes = blocosDasRedes();
     if (corpo.instagram) {
       const atual = conexao.instagram || redes.instagram;
-      corpo.instagram = juntarSegredo(atual, juntarSegredo(atual, corpo.instagram, 'token'), 'appSecret');
+      corpo.instagram = juntarSegredo(
+        atual,
+        juntarSegredo(atual, juntarSegredo(atual, corpo.instagram, 'token'), 'appSecret'),
+        'appSecretMeta',
+      );
       if (!corpo.instagram.verifyToken) corpo.instagram.verifyToken = atual.verifyToken || redes.instagram.verifyToken;
       /* Token novo so pode ser renovado depois de 24 horas: a rodada de
          renovacao conta a partir daqui. */
@@ -686,6 +698,17 @@ export function registrarConexoes(rotas) {
     const driver = driverDa(conexao);
 
     if (driver.conferirAssinatura && !driver.conferirAssinatura({ conexao, cabecalhos: req.headers, corpoBruto })) {
+      /* Na trilha do numero, no maximo uma vez a cada dez minutos: e o unico
+         jeito de alguem descobrir que a chave secreta esta errada, e sem o
+         limite um estranho encheria a trilha mandando lixo. */
+      if (geral && Date.now() - (ultimaRecusa.get(conexao.id) || 0) > 10 * 60 * 1000) {
+        ultimaRecusa.set(conexao.id, Date.now());
+        registrarEvento(
+          conexao,
+          'erro',
+          'Mensagem recusada: a assinatura nao confere com a chave secreta guardada. Confira as chaves secretas do app em Configurar.',
+        );
+      }
       res.writeHead(401);
       res.end();
       return null;
