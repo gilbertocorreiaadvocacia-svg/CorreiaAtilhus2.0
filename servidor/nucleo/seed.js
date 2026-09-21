@@ -2,6 +2,7 @@ import { achar, inserir, listar, tabela } from './banco.js';
 import { criarUsuario } from './auth.js';
 import { novoId } from './util.js';
 import { migrarTiposDeCaso } from './casos.js';
+import { migrarCanaisDeOrigem } from './origens.js';
 
 /**
  * Primeira execucao: monta o workspace do escritorio ja com um funil que faz
@@ -461,7 +462,8 @@ export function semearWorkspace(workspaceId, { clonarDe = null } = {}) {
     descricao: '',
     followups: [],
   });
-  /* Workspace novo ja nasce com os tipos de caso e os momentos: sem isso so
-     ganharia os dois na proxima vez que o servidor subisse. */
+  /* Workspace novo ja nasce com os tipos de caso, os momentos e as origens de
+     anuncio: sem isso so ganharia os tres na proxima vez que o servidor subisse. */
   migrarTiposDeCaso();
+  migrarCanaisDeOrigem();
 }

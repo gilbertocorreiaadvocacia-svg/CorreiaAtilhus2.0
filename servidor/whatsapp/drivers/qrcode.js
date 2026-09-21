@@ -495,7 +495,9 @@ export const driverQrCode = {
           idExterno: item?.key?.id || null,
           daPropriaConta,
           ...extraido,
-          metadados: null,
+          /* A marca de anuncio ou de perfil so interessa na mensagem do
+             cliente: a nossa nao diz nada sobre de onde ele veio. */
+          metadados: daPropriaConta ? null : rastroDaMensagem(item),
         });
       }
     }
@@ -518,6 +520,48 @@ export const driverQrCode = {
  * sistema aprende e a outra nao, e a divergencia aparece meses depois como
  * mensagem em branco no historico.
  */
+/**
+ * A marca de origem que o WhatsApp poe na mensagem, ou null.
+ *
+ * Quem clica num anuncio "Enviar mensagem" do Instagram ou do Facebook chega
+ * com um `externalAdReply` no contextInfo (titulo, endereco do criativo, o
+ * CTWA Clid que a API de Conversoes da Meta usa para atribuir o contrato), e
+ * as versoes novas trazem tambem de onde a conversa foi aberta
+ * (entryPointConversionSource / entryPointConversionApp).
+ *
+ * O contextInfo aparece em lugares diferentes conforme o tipo da mensagem e a
+ * versao da Evolution: na raiz do evento, dentro do proprio tipo
+ * (extendedTextMessage.contextInfo, imageMessage.contextInfo...) ou em
+ * messageContextInfo. Procura nos tres, e fica com o primeiro que traz marca.
+ */
+export function rastroDaMensagem(item) {
+  const m = item?.message || {};
+  const contextos = [
+    item?.contextInfo,
+    m.messageContextInfo,
+    ...Object.values(m).map((valor) => (valor && typeof valor === 'object' ? valor.contextInfo : null)),
+  ].filter((c) => c && typeof c === 'object');
+
+  const ctx = contextos.find(
+    (c) => c.externalAdReply || c.conversionSource || c.entryPointConversionSource || c.entryPointConversionApp,
+  );
+  if (!ctx) return null;
+
+  const anuncio = ctx.externalAdReply || {};
+  return {
+    ctwaClid: anuncio.ctwaClid || null,
+    title: anuncio.title || null,
+    body: anuncio.body || null,
+    mediaURL: anuncio.mediaUrl || anuncio.thumbnailUrl || null,
+    sourceID: anuncio.sourceId || null,
+    sourceURL: anuncio.sourceUrl || null,
+    sourceType: anuncio.sourceType || null,
+    sourceApp: anuncio.sourceApp || ctx.entryPointConversionApp || null,
+    conversionSource: ctx.conversionSource || null,
+    entryPoint: ctx.entryPointConversionSource || null,
+  };
+}
+
 export function extrairMensagem(item) {
   const m = item?.message || {};
   const chave = item?.key || null;

@@ -9,6 +9,7 @@ import { esperarNoAr, suite } from './apoio.js';
 import { subirEvolucaoFalsa } from './evolution-falsa.js';
 import { subirAnthropicFalsa } from './anthropic-falsa.js';
 import { testarQrCode } from './conexoes-qrcode.js';
+import { testarOrigens } from './origens.js';
 import { testarSimuladorEOficial } from './conexoes-regressao.js';
 import { testarPortaOcupada } from './porta-ocupada.js';
 import { testarConversas } from './conversas.js';
@@ -185,6 +186,7 @@ async function principal() {
 
     suites.push(await testarSimuladorEOficial({ base }));
     suites.push(await testarQrCode({ base, evolucao, chaveEvolucao: CHAVE_EVOLUCAO }));
+    suites.push(await testarOrigens({ base, evolucao, chaveEvolucao: CHAVE_EVOLUCAO }));
     suites.push(await testarConversas({ base }));
     suites.push(await testarAgentes({ base }));
     suites.push(await testarCasos({ base }));

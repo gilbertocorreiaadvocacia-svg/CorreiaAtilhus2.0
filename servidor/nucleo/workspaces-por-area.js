@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { achar, atualizar, inserir, listar, registrarLog } from './banco.js';
 import { TIPOS_DE_CASO, migrarTiposDeCaso } from './casos.js';
+import { migrarCanaisDeOrigem } from './origens.js';
 import { normalizar, novoId } from './util.js';
 import { completarComEvolutionLocal } from '../whatsapp/evolution-local.js';
 import { PACOTES, prepararEscritorio } from '../ia/pacotes.js';
@@ -226,7 +227,9 @@ export function criarWorkspacesPorArea({ baseWorkspaceId }) {
     relato.push({ ...alvo, situacao: 'criado', ...montarWorkspace(origem, alvo) });
   }
 
-  /* Momentos e tipos de caso que ainda faltem, respeitando a area de cada um. */
+  /* Momentos e tipos de caso que ainda faltem, respeitando a area de cada um,
+     e as origens de anuncio e Instagram. */
   migrarTiposDeCaso();
+  migrarCanaisDeOrigem();
   return relato;
 }

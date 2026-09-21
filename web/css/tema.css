@@ -2853,6 +2853,56 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
   color: var(--texto-fraco);
 }
 
+/* A origem nao encolhe: o rotulo e curto ("Pago · Instagram"), e quem cede
+   espaco na linha apertada e o momento, que tambem esta no painel. */
+.item-conversa .marcas .selo-origem {
+  flex: none;
+}
+
+/* Anuncio pago em dourado, na fila e no cabecalho: e o lead que custou
+   dinheiro. O resto das origens fica no tom de apoio das outras marcas. */
+.selo-origem.pago,
+.item-conversa .marcas .selo-origem.pago {
+  color: var(--ouro-claro);
+}
+
+.selo-origem > svg {
+  flex: none;
+}
+
+.item-conversa .marcas .selo-origem > svg {
+  margin-right: 4px;
+}
+
+/* O anuncio de onde o lead veio, alinhado com o valor da linha de origem
+   (icone de 20px mais o espaco). */
+.origem-anuncio {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 var(--e3) var(--e2) calc(var(--e3) + 20px + var(--e2));
+  font-size: var(--t-sm);
+}
+
+.origem-anuncio-titulo {
+  color: var(--texto);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.origem-anuncio-texto {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: var(--texto-suave);
+}
+
+.origem-anuncio a {
+  align-self: flex-start;
+  color: var(--ouro-claro);
+}
+
 /*
  * Concluidos: a fila que ja acabou.
  *

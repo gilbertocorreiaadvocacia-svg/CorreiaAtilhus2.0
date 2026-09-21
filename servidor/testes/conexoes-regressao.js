@@ -99,6 +99,9 @@ export async function testarSimuladorEOficial({ base }) {
      campanha volta a otimizar por "conversa iniciada", que e barata e nao paga
      a conta. E o dado mais facil de perder num refatoramento de recebimento. */
   s.ok('o rastro do anuncio foi guardado', meta?.anuncio?.ctwaClid === 'CLID_TESTE');
+  /* Sem o endereco do criativo nao da para saber a rede: vira "Trafego pago",
+     e nao Facebook por suposicao, como era. */
+  s.ok('anuncio sem rede conhecida vira "Trafego pago"', meta?.origem?.canal === 'anuncio', JSON.stringify(meta?.origem));
 
   /* --- Ordem ----------------------------------------------------------- */
   const todas = (await api.get('/api/conexoes')).dados || [];

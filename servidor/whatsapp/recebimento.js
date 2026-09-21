@@ -10,6 +10,7 @@ import {
   registrarLog,
 } from '../nucleo/banco.js';
 import { emitir } from '../nucleo/eventos.js';
+import { canalDoRastro, descreverOrigem, origemDoCanal, rastroUtil } from '../nucleo/origens.js';
 import { membrosQuePodemVer } from '../nucleo/auth.js';
 import { notificar } from '../ia/mencoes.js';
 import { agora, normalizar, normalizarTelefone, normalizarTelefoneDoWhatsApp, novoId } from '../nucleo/util.js';
@@ -423,12 +424,35 @@ export async function receberMensagem({
     );
   }
 
+  /*
+   * De onde o lead veio.
+   *
+   * A marca que o WhatsApp poe na mensagem (clique em anuncio, botao do perfil
+   * do Instagram) vence a palavra-chave: e prova, e o texto e palpite. Ela vale
+   * tambem fora da primeira mensagem, para quem ja existia sem origem e voltou
+   * por um anuncio — mas nunca troca uma origem que alguem ja escolheu.
+   */
+  const canal = canalDoRastro(metadados);
+  if (rastroUtil(metadados) && !contato.rastroDeOrigem) mudancas.rastroDeOrigem = metadados;
+  /* `anuncio` e o que a API de Conversoes da Meta le: so com o CTWA Clid. */
+  if (metadados?.ctwaClid && !contato.anuncio) mudancas.anuncio = metadados;
+  if (canal && !contato.origemId) {
+    const origem = origemDoCanal(workspaceId, canal);
+    if (origem) {
+      mudancas.origemId = origem.id;
+      mudancas.origemAutomatica = { canal, em: mensagem.criadoEm };
+      registrarLog(workspaceId, contato.id, 'origem', `Origem lida na mensagem: ${descreverOrigem(origem, metadados)}`, {
+        tipo: 'sistema',
+        nome: 'WhatsApp',
+      });
+    }
+  }
+
   if (primeira) {
     mudancas.primeiraMensagemEm = mensagem.criadoEm;
-    const origem = detectarOrigem(workspaceId, mensagem.conteudo);
-    if (origem) mudancas.origemId = origem.id;
-    if (metadados?.ctwaClid) {
-      mudancas.anuncio = metadados;
+    if (!mudancas.origemId) {
+      const origem = detectarOrigem(workspaceId, mensagem.conteudo);
+      if (origem) mudancas.origemId = origem.id;
     }
   }
 

@@ -9,6 +9,7 @@ import { caminhoDaMidia } from './nucleo/midia.js';
 import { atualizar, encerrarBanco, iniciarBanco, listar } from './nucleo/banco.js';
 import { migrarCoresParaTokens } from './nucleo/paleta.js';
 import { migrarTiposDeCaso } from './nucleo/casos.js';
+import { migrarCanaisDeOrigem } from './nucleo/origens.js';
 import { contextoDaSessao, limparSessoesOrfas } from './nucleo/auth.js';
 import { criarRoteador, lerCookies, lerCorpo, responderErro, responderJson, servirEstatico } from './nucleo/http.js';
 import { inscrever } from './nucleo/eventos.js';
@@ -48,6 +49,9 @@ if (coresTrocadas) console.log(`Paleta: ${coresTrocadas} cores da semeadura anti
 /* Depois das cores: a migracao dos tipos compara com a cor ja em token. */
 const casosAcertados = migrarTiposDeCaso();
 if (casosAcertados) console.log(`Tipos de caso e momentos: ${casosAcertados} acertos.`);
+/* As origens que respondem pela marca do WhatsApp (anuncio, Instagram). */
+const origensAcertadas = migrarCanaisDeOrigem();
+if (origensAcertadas) console.log(`Origens de anuncio e Instagram: ${origensAcertadas} acertos.`);
 /* O agente de avaliacao do atendimento, uma vez em cada escritorio. */
 const avaliadores = garantirAvaliacaoNosEscritorios();
 if (avaliadores) console.log(`Avaliacao do atendimento: agente instalado em ${avaliadores} escritorio(s).`);

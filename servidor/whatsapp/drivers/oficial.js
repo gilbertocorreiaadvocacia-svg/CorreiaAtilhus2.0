@@ -219,18 +219,28 @@ export const driverOficial = {
             tipo: extraido.tipo,
             conteudo: extraido.conteudo,
             midia: extraido.midia || null,
-            metadados: contexto.ctwa_clid
-              ? {
-                  ctwaClid: contexto.ctwa_clid,
-                  title: contexto.headline || null,
-                  mediaURL: contexto.media_url || null,
-                  sourceID: contexto.source_id || null,
-                  sourceApp: contexto.source_type === 'ad' ? 'facebook' : contexto.source_type || null,
-                  sourceURL: contexto.source_url || null,
-                  sourceType: contexto.source_type || null,
-                  clickToWhatsappCall: true,
-                }
-              : null,
+            /* O referral vem no clique em anuncio (source_type "ad", com CTWA
+               Clid) e no clique em publicacao (source_type "post", sem). A
+               rede sai do endereco do criativo: todo anuncio era gravado como
+               Facebook, e o do Instagram se perdia no meio. */
+            metadados:
+              contexto.ctwa_clid || contexto.source_url || contexto.source_type
+                ? {
+                    ctwaClid: contexto.ctwa_clid || null,
+                    title: contexto.headline || null,
+                    body: contexto.body || null,
+                    mediaURL: contexto.media_url || contexto.image_url || contexto.video_url || null,
+                    sourceID: contexto.source_id || null,
+                    sourceApp: /instagram/i.test(contexto.source_url || '')
+                      ? 'instagram'
+                      : /facebook\.com|fb\.me|fb\.com/i.test(contexto.source_url || '')
+                        ? 'facebook'
+                        : null,
+                    sourceURL: contexto.source_url || null,
+                    sourceType: contexto.source_type || null,
+                    clickToWhatsappCall: Boolean(contexto.ctwa_clid),
+                  }
+                : null,
           });
         }
 

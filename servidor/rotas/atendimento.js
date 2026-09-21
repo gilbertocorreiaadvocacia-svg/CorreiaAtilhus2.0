@@ -63,7 +63,12 @@ function enriquecer(contato) {
     ...contato,
     status: status ? { id: status.id, nome: status.nome, cor: status.cor, tipo: status.tipo } : null,
     departamento: departamento ? { id: departamento.id, nome: departamento.nome, cor: departamento.cor } : null,
-    origem: origem ? { id: origem.id, nome: origem.nome } : null,
+    /* Cor, canal e "pago" vao junto: a fila mostra a origem em cada linha, e
+       uma origem criada agora pela marca do WhatsApp ainda nao esta na lista
+       que a tela carregou ao abrir. */
+    origem: origem
+      ? { id: origem.id, nome: origem.nome, cor: origem.cor || null, canal: origem.canal || null, pago: Boolean(origem.pago) }
+      : null,
     janelaAberta: janelaAberta(contato),
     /*
      * Em que aba esta conversa aparece.

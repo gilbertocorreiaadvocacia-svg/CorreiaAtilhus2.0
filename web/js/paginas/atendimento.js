@@ -754,6 +754,46 @@ export async function paginaAtendimento({
     });
   }
 
+  /*
+   * A origem do lead, como selo: de onde a pessoa veio.
+   *
+   * Na fila vai o rotulo curto do canal ("Pago · Instagram"), porque a linha
+   * tem 260px e ainda divide espaco com o caso e o momento; no cabecalho da
+   * conversa vai o nome inteiro da origem. Anuncio pago ganha o tom dourado:
+   * e o lead que custou dinheiro, e o escritorio quer ve-lo de relance.
+   *
+   * A origem vem do proprio contato (o servidor manda junto) e so cai na lista
+   * carregada ao abrir a tela quando falta: a origem criada agora pela marca
+   * do WhatsApp ainda nao esta nela.
+   */
+  /* O rotulo sai do canal, e nao do nome da origem: a "Anuncio Instagram" da
+     semeadura antiga e a "Trafego pago · Instagram" criada agora sao o mesmo
+     canal, e a fila nao pode chama-las de dois jeitos. O nome cadastrado
+     continua no title e no painel. */
+  const ROTULO_DO_CANAL = {
+    anuncio_instagram: ['Pago · Instagram', 'Tráfego pago · Instagram'],
+    anuncio_facebook: ['Pago · Facebook', 'Tráfego pago · Facebook'],
+    anuncio: ['Tráfego pago', 'Tráfego pago'],
+    instagram: ['Instagram', 'Instagram'],
+    facebook: ['Facebook', 'Facebook'],
+  };
+
+  function origemDa(contato) {
+    return contato.origem || estado.origens.find((o) => o.id === contato.origemId) || null;
+  }
+
+  function seloDeOrigem(contato, { curto = false } = {}) {
+    const origem = origemDa(contato);
+    if (!origem) return null;
+    const rotulos = ROTULO_DO_CANAL[origem.canal];
+    const texto = rotulos ? rotulos[curto ? 0 : 1] : origem.nome;
+    const lida = contato.origemAutomatica ? ' (lida na mensagem do WhatsApp)' : '';
+    return el('span', {
+      class: `selo selo-origem${origem.pago ? ' pago' : ''}`,
+      title: `Origem: ${origem.nome}${lida}`,
+    }, [icone('origem', 11), document.createTextNode(texto)]);
+  }
+
   function etiquetasDa(contato) {
     /* O tipo de caso vem primeiro: e ele que diz de que se trata a conversa,
        e e o que nao pode sumir atras do "+N". */
@@ -765,9 +805,11 @@ export async function paginaAtendimento({
        etiqueta: "BPC/LOAS · Contrato em conferencia" diz o assunto e em que pe
        ele esta, que e o que se procura correndo o olho pela fila. */
     const momento = contato.momento?.nome || '';
-    if (!etiquetas.length && !momento) return null;
+    /* A origem fica entre os dois: caso, de onde veio, em que pe esta. */
+    const origem = seloDeOrigem(contato, { curto: true });
+    if (!etiquetas.length && !momento && !origem) return null;
 
-    const mostradas = etiquetas.slice(0, momento ? 1 : ETIQUETAS_NA_LINHA);
+    const mostradas = etiquetas.slice(0, momento || origem ? 1 : ETIQUETAS_NA_LINHA);
     const sobra = etiquetas.length - mostradas.length;
 
     const marcas = el('div', {
@@ -778,6 +820,7 @@ export async function paginaAtendimento({
       title: [
         contato.status ? `Status: ${contato.status.nome}` : null,
         momento ? `Momento: ${momento}` : null,
+        origemDa(contato) ? `Origem: ${origemDa(contato).nome}` : null,
         ...etiquetas.map((e) => e.nome),
       ]
         .filter(Boolean)
@@ -792,6 +835,7 @@ export async function paginaAtendimento({
         ]),
       );
     }
+    if (origem) marcas.append(origem);
     if (momento) marcas.append(el('span', { class: 'selo momento', texto: momento }));
     if (sobra > 0) marcas.append(el('span', { class: 'selo mais-etiquetas', texto: `+${sobra}` }));
 
@@ -989,6 +1033,7 @@ export async function paginaAtendimento({
                 document.createTextNode(casoDaConversa.nome),
               ])
             : null,
+          seloDeOrigem(contato),
           contato.momento ? el('span', { class: 'cortar', title: 'Momento do lead', texto: contato.momento.nome }) : null,
         ]),
         etapasDaVenda(contato),
@@ -2228,6 +2273,7 @@ export async function paginaAtendimento({
                 },
               }),
             }),
+            blocoDoAnuncio(contato),
           ]),
         ]),
         contratoEmDestaque,
@@ -2571,6 +2617,28 @@ export async function paginaAtendimento({
     })();
 
     return bloco;
+  }
+
+  /**
+   * O anuncio por onde o lead chegou, embaixo da origem.
+   *
+   * Sai da marca que o WhatsApp pos na primeira mensagem: o titulo e o texto
+   * do criativo, e o endereco dele. Responde a pergunta seguinte a "veio do
+   * trafego pago" — de QUAL anuncio —, que e a que decide onde pôr a verba.
+   *
+   * O endereco vem de fora, na mensagem do cliente: so vira link se for
+   * http(s). Um "javascript:" ali seria clicado por alguem da equipe.
+   */
+  function blocoDoAnuncio(contato) {
+    const rastro = contato.anuncio || contato.rastroDeOrigem;
+    if (!rastro) return null;
+    const endereco = /^https?:\/\//i.test(String(rastro.sourceURL || '')) ? rastro.sourceURL : null;
+    if (!rastro.title && !rastro.body && !endereco) return null;
+    return el('div', { class: 'origem-anuncio' }, [
+      rastro.title ? el('div', { class: 'origem-anuncio-titulo', texto: rastro.title }) : null,
+      rastro.body ? el('div', { class: 'origem-anuncio-texto', texto: rastro.body }) : null,
+      endereco ? el('a', { href: endereco, target: '_blank', rel: 'noopener noreferrer', texto: 'Ver o anúncio' }) : null,
+    ]);
   }
 
   /** Convite em texto de apoio, para o campo que ainda nao tem valor. */
