@@ -189,6 +189,48 @@ export function garantirAvaliacaoNosEscritorios() {
 }
 
 /**
+ * Cada numero de area atendido pelo agente de entrada da area.
+ *
+ * Separar por escritorio punha os agentes ligados em cada area, e os numeros
+ * de WhatsApp da area ficavam SEM responsavel padrao. Os agentes estavam
+ * ligados e ninguem entregava conversa a eles: o cliente escrevia e a conversa
+ * caia em Pendentes, esperando uma pessoa (achado na auditoria de 22/09).
+ *
+ * So mexe em numero sem responsavel: numero que alguem ja apontou para uma
+ * pessoa ou outro agente fica como esta. O simulador (Chat de teste) nao entra,
+ * porque la quem escolhe o agente e a tela. O que muda vai antes para
+ * PASTA_DADOS/copias-de-agentes.
+ */
+export function ligarNumerosDasAreas() {
+  const ligados = [];
+  for (const workspace of listar('workspaces')) {
+    const pacote = workspace.area ? PACOTES[workspace.area] : null;
+    if (!pacote) continue;
+    const entrada = listar('agentes', { workspaceId: workspace.id }).find(
+      (a) => a.ativo && normalizar(a.nome) === normalizar(pacote.agentes[0].nome),
+    );
+    if (!entrada) continue;
+    const semResponsavel = listar('conexoes', { workspaceId: workspace.id }).filter(
+      (c) => c.tipo !== 'simulador' && !c.responsavelPadrao?.id,
+    );
+    if (!semResponsavel.length) continue;
+    const nome = `numeros-${workspace.id}-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+    gravarAtomico(
+      path.join(PASTA_DADOS, 'copias-de-agentes', nome),
+      JSON.stringify({ workspaceId: workspace.id, motivo: 'numeros ligados ao agente de entrada', copiadoEm: new Date().toISOString(), conexoes: semResponsavel }, null, 2),
+    );
+    for (const conexao of semResponsavel) {
+      atualizar('conexoes', conexao.id, {
+        area: conexao.area || workspace.area,
+        responsavelPadrao: { tipo: 'agente', id: entrada.id, nome: entrada.nome },
+      });
+      ligados.push({ escritorio: workspace.nome, numero: conexao.nome, tipo: conexao.tipo, agente: entrada.nome, copia: nome });
+    }
+  }
+  return ligados;
+}
+
+/**
  * Cada area no seu escritorio: os agentes do Previdenciario no escritorio
  * Previdenciario, os do Trabalhista no Trabalhista.
  *
@@ -230,6 +272,8 @@ export function separarPorEscritorio({ origemId, apagarOutros = false }) {
   for (const agente of saem) remover('agentes', agente.id);
 
   const geral = instalarPacote({ workspaceId: origemId, pacote: ESCRITORIO_GERAL, ligar: true });
+  /* Os agentes ligados precisam de quem lhes entregue conversa. */
+  const numerosLigados = ligarNumerosDasAreas();
 
   return {
     escritorios,
@@ -237,5 +281,6 @@ export function separarPorEscritorio({ origemId, apagarOutros = false }) {
     copia,
     reatribuidos,
     ficamNoGeral: geral.criados.length + geral.mantidos.length,
+    numerosLigados,
   };
 }

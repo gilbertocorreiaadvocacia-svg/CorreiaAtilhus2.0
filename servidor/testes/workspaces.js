@@ -195,6 +195,14 @@ export async function testarWorkspacesPorArea({ base }) {
     trabalhistasDepois.length === 9 && trabalhistasDepois.every((a) => a.ativo && a.area === 'trabalhista'),
     JSON.stringify(trabalhistasDepois.map((a) => [a.nome, a.ativo])),
   );
+  /* O achado da auditoria de 22/09: agentes ligados e o numero da area sem
+     ninguem para entregar a conversa a eles. */
+  const numerosTrabalhista = ((await api.get('/api/conexoes')).dados || []).filter((c) => c.tipo !== 'simulador');
+  s.ok(
+    'Separar: o numero da area passa a ser atendido pelo agente de entrada dela',
+    numerosTrabalhista.length > 0 && numerosTrabalhista.every((c) => c.responsavelPadrao?.tipo === 'agente' && /AG01/.test(c.responsavelPadrao?.nome || '')),
+    JSON.stringify(numerosTrabalhista.map((c) => [c.nome, c.responsavelPadrao])),
+  );
   s.ok('Separar: de dentro de um escritorio de area, e recusado', (await api.post('/api/agentes-por-escritorio', {})).status === 409);
   await entrar(origem);
 
