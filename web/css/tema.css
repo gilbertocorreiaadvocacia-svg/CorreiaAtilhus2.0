@@ -451,10 +451,11 @@ a {
    ------------------------------------------------------------------ */
 
 /*
- * O painel de vidro sobre a trama do escudo (a 5.6, escolhida em 16/09).
+ * A Aurora dourada (opcao 1, escolhida em 22/09): tres luzes desfocadas
+ * passeiam devagar atras de um cartao de vidro.
  *
  * A tela de entrada e SEMPRE escura, no tema claro tambem: e a vitrine da
- * marca, e o vidro sobre a trama dourada so funciona sobre o preto. Por isso os
+ * marca, e o vidro sobre as luzes douradas so funciona sobre o preto. Por isso os
  * tokens sao redefinidos aqui dentro; os campos, o selo de erro e o botao do
  * sistema leem os mesmos tokens e saem escuros sem regra propria.
  *
@@ -484,10 +485,7 @@ a {
   --erro: #f04667;
   --erro-fraco: rgba(229, 127, 104, 0.15);
   --erro-linha: rgba(229, 127, 104, 0.38);
-  --entrada-previdenciario: #51bcff;
-  --entrada-trabalhista: #f78825;
-  --entrada-civel: #3be090;
-  --vidro-borda: rgba(234, 223, 180, 0.14);
+  --vidro-borda: rgba(234, 223, 180, 0.16);
 
   color-scheme: dark;
   position: relative;
@@ -497,21 +495,67 @@ a {
   color: var(--texto);
 }
 
-/* A trama do escudo: duas familias de faixas cruzadas a 45 graus. */
-.entrada-trama {
+/* As tres luzes: ouro no alto, ambar embaixo a esquerda, grafite a direita.
+   Cada uma vai e volta no proprio ritmo, entao o desenho nunca se repete. */
+.entrada-luz {
   position: absolute;
-  inset: 0;
-  background:
-    repeating-linear-gradient(45deg, rgba(201, 169, 97, 0.1) 0 18px, transparent 18px 60px),
-    repeating-linear-gradient(-45deg, rgba(201, 169, 97, 0.07) 0 18px, transparent 18px 60px);
+  border-radius: 50%;
+  filter: blur(80px);
+  animation: entrada-flutua 18s ease-in-out infinite alternate;
+  pointer-events: none;
 }
 
-.entrada-brilho {
+.entrada-luz-1 {
+  top: -14vw;
+  left: 34vw;
+  width: 46vw;
+  height: 40vw;
+  background: rgba(201, 169, 97, 0.55);
+}
+
+.entrada-luz-2 {
+  bottom: -26vw;
+  left: -12vw;
+  width: 52vw;
+  height: 44vw;
+  background: rgba(150, 96, 36, 0.5);
+  animation-duration: 24s;
+  animation-delay: -6s;
+}
+
+.entrada-luz-3 {
+  top: 18vw;
+  right: -12vw;
+  width: 36vw;
+  height: 34vw;
+  background: rgba(74, 84, 104, 0.45);
+  animation-duration: 21s;
+  animation-delay: -12s;
+}
+
+@keyframes entrada-flutua {
+  0% {
+    transform: translate(0, 0) scale(1);
+  }
+  100% {
+    transform: translate(7vw, 5vw) scale(1.18);
+  }
+}
+
+/* O grao fino tira o aspecto de degrade de programa. */
+.entrada-grao {
   position: absolute;
   inset: 0;
-  background:
-    radial-gradient(720px 520px at 62% 30%, rgba(201, 169, 97, 0.2), transparent 70%),
-    radial-gradient(120% 110% at 30% 60%, transparent 40%, var(--fundo) 95%);
+  opacity: 0.35;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1.2px);
+  background-size: 7px 7px;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .entrada-luz {
+    animation: none;
+  }
 }
 
 .entrada-marca {
@@ -548,7 +592,7 @@ a {
   top: 50%;
   left: var(--e7);
   z-index: 1;
-  width: min(640px, calc(60% - 2 * var(--e7)));
+  width: min(620px, calc(100% - 520px - 3 * var(--e7)));
   transform: translateY(-50%);
 }
 
@@ -566,82 +610,24 @@ a {
   color: var(--ouro-claro);
 }
 
-.entrada-areas {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--e3);
-  margin: var(--e6) 0 0;
-  padding: 0;
-  list-style: none;
+.entrada-apoio {
+  max-width: 44ch;
+  margin: var(--e5) 0 0;
+  font-size: var(--t-leitura);
+  line-height: var(--lh-solta);
+  color: var(--texto-suave);
 }
 
-.entrada-areas li {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--e2);
-  padding: var(--e2) var(--e4);
-  border: 1px solid var(--vidro-borda);
-  border-radius: var(--raio-pilula);
-  background: rgba(21, 20, 18, 0.5);
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
-  font-size: var(--t-base);
-}
-
-.entrada-areas li::before {
-  content: '';
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--area);
-}
-
-.entrada-cidades {
+.entrada-status {
   position: absolute;
   bottom: var(--e7);
   left: var(--e7);
   z-index: 1;
-  font-size: var(--t-base);
-  letter-spacing: 0.06em;
-  color: var(--texto-fraco);
-}
-
-/* O vidro ocupa a lateral inteira. */
-.entrada-painel {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 1;
-  width: 40%;
-  min-width: 420px;
-  display: flex;
-  flex-direction: column;
-  gap: var(--e6);
-  padding: var(--e7);
-  overflow-y: auto;
-  border-left: 1px solid var(--vidro-borda);
-  background: rgba(14, 13, 12, 0.5);
-  -webkit-backdrop-filter: blur(18px) saturate(1.2);
-  backdrop-filter: blur(18px) saturate(1.2);
-}
-
-.entrada-dia {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--e3);
-  font-size: var(--t-base);
-  color: var(--texto-fraco);
-}
-
-.entrada-dia > span:first-child::first-letter {
-  text-transform: uppercase;
-}
-
-.entrada-status {
   display: inline-flex;
   align-items: center;
   gap: var(--e2);
+  font-size: var(--t-base);
+  letter-spacing: 0.04em;
   color: var(--texto-suave);
 }
 
@@ -651,12 +637,44 @@ a {
   border-radius: 50%;
   background: var(--sucesso);
   box-shadow: 0 0 0 3px rgba(59, 224, 144, 0.18);
+  animation: entrada-pulsa 2.4s ease-in-out infinite;
+}
+
+@keyframes entrada-pulsa {
+  50% {
+    box-shadow: 0 0 0 6px rgba(59, 224, 144, 0.06);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .entrada-status i {
+    animation: none;
+  }
+}
+
+/* O cartao de vidro, de pe a direita e centrado na altura. */
+.entrada-painel {
+  position: absolute;
+  top: 50%;
+  right: var(--e8);
+  z-index: 1;
+  width: 460px;
+  max-height: calc(100vh - 2 * var(--e6));
+  overflow-y: auto;
+  transform: translateY(-50%);
+  padding: var(--e7);
+  border: 1px solid var(--vidro-borda);
+  border-radius: 20px;
+  background: rgba(18, 17, 15, 0.5);
+  -webkit-backdrop-filter: blur(22px) saturate(1.25);
+  backdrop-filter: blur(22px) saturate(1.25);
+  box-shadow:
+    0 30px 80px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(234, 223, 180, 0.08);
 }
 
 .entrada-conteudo {
   width: 100%;
-  max-width: 400px;
-  margin-block: auto;
 }
 
 .entrada-saudacao {
@@ -793,13 +811,19 @@ a {
   margin-top: var(--e2);
 }
 
-/* Tela estreita: o vidro vira a tela inteira, e a marca fica em cima dele. */
-@media (max-width: 900px) {
-  .entrada-apresentacao,
-  .entrada-cidades {
+/* Tela estreita: a frase sai, o cartao vem para o centro e as luzes ficam. */
+@media (max-width: 1000px) {
+  .entrada-apresentacao {
     display: none;
   }
 
+  .entrada-painel {
+    right: 50%;
+    transform: translate(50%, -50%);
+  }
+}
+
+@media (max-width: 560px) {
   .entrada-marca {
     top: var(--e5);
     left: var(--e5);
@@ -810,15 +834,24 @@ a {
     height: 48px;
   }
 
-  .entrada-painel {
-    width: 100%;
-    min-width: 0;
-    padding: 104px var(--e5) var(--e5);
-    border-left: 0;
+  .entrada-status {
+    bottom: var(--e5);
+    left: var(--e5);
   }
 
-  .entrada-conteudo {
-    margin-inline: auto;
+  /* No celular o cartao entra no fluxo, para a tela crescer com ele. */
+  .entrada {
+    padding: 96px var(--e4) 64px;
+  }
+
+  .entrada-painel {
+    position: relative;
+    top: auto;
+    right: auto;
+    width: auto;
+    max-height: none;
+    transform: none;
+    padding: var(--e6) var(--e5);
   }
 }
 

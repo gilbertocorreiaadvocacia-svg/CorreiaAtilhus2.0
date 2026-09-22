@@ -159,13 +159,6 @@ const itemDoMenuDa = (rota) => DENTRO_DE[rota] || rota;
 /* O e-mail que a pessoa pediu para lembrar neste computador. Nunca a senha. */
 const CHAVE_EMAIL_LEMBRADO = 'correiatendimentos:entrada-email';
 
-/* As areas do escritorio, com a cor de cada uma (tokens em .entrada, tema.css). */
-const AREAS_DA_ENTRADA = [
-  ['Previdenciário', 'var(--entrada-previdenciario)'],
-  ['Trabalhista', 'var(--entrada-trabalhista)'],
-  ['Cível', 'var(--entrada-civel)'],
-];
-
 function saudacaoDaHora(data = new Date()) {
   const hora = data.getHours();
   if (hora >= 5 && hora < 12) return 'Bom dia.';
@@ -174,8 +167,8 @@ function saudacaoDaHora(data = new Date()) {
 }
 
 /**
- * A tela de entrada: o painel de vidro sobre a trama do escudo (a 5.6,
- * escolhida em 16/09).
+ * A tela de entrada: a Aurora dourada (opcao 1, escolhida em 22/09), com o
+ * nome Atilhus Chat. Tres luzes passeiam atras de um cartao de vidro.
  *
  * A senha padrao da semeadura saiu da tela. Ela ficava escrita para quem
  * abrisse o endereco, e o sistema vai para a internet (HOSPEDAGEM.md); quem
@@ -278,30 +271,27 @@ function telaEntrada(mensagemInicial) {
     botao('Entrar', { tipo: 'principal', submeter: true, grande: true }),
   ]);
 
-  const hoje = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date());
-
   raiz.append(
     el('div', { class: 'entrada' }, [
-      el('div', { class: 'entrada-trama', 'aria-hidden': 'true' }),
-      el('div', { class: 'entrada-brilho', 'aria-hidden': 'true' }),
+      /* A aurora: tres luzes desfocadas (ouro, ambar e grafite) passeando
+         devagar, e um grao fino por cima. */
+      el('div', { class: 'entrada-luz entrada-luz-1', 'aria-hidden': 'true' }),
+      el('div', { class: 'entrada-luz entrada-luz-2', 'aria-hidden': 'true' }),
+      el('div', { class: 'entrada-luz entrada-luz-3', 'aria-hidden': 'true' }),
+      el('div', { class: 'entrada-grao', 'aria-hidden': 'true' }),
       el('div', { class: 'entrada-marca' }, [
         el('img', { src: 'assets/logo.png', alt: '' }),
-        el('div', {}, [el('strong', { texto: 'Correia Advogados Associados' }), el('span', { texto: 'Área da equipe' })]),
+        el('div', {}, [el('strong', { texto: 'Atilhus Chat' }), el('span', { texto: 'Área da equipe' })]),
       ]),
       el('div', { class: 'entrada-apresentacao' }, [
         el('p', { class: 'entrada-frase' }, ['Quem procura o escritório encontra ', el('em', { texto: 'resposta.' })]),
-        el(
-          'ul',
-          { class: 'entrada-areas', 'aria-label': 'Áreas do escritório' },
-          AREAS_DA_ENTRADA.map(([nome, cor]) => el('li', { estilo: { '--area': cor }, texto: nome })),
-        ),
+        el('p', {
+          class: 'entrada-apoio',
+          texto: 'WhatsApp, Instagram e TikTok num lugar só, com os agentes do escritório atendendo junto com a equipe.',
+        }),
       ]),
-      el('span', { class: 'entrada-cidades', texto: 'Timbaúba · Carpina · Condado — PE' }),
+      el('span', { class: 'entrada-status' }, [el('i', { 'aria-hidden': 'true' }), 'Sistema no ar']),
       el('main', { class: 'entrada-painel' }, [
-        el('div', { class: 'entrada-dia' }, [
-          el('span', { texto: hoje }),
-          el('span', { class: 'entrada-status' }, [el('i', { 'aria-hidden': 'true' }), 'Sistema no ar']),
-        ]),
         el('div', { class: 'entrada-conteudo' }, [
           el('h1', { class: 'entrada-saudacao', texto: saudacaoDaHora() }),
           el('p', { class: 'entrada-sub', texto: 'Entre para ver as conversas de hoje.' }),
