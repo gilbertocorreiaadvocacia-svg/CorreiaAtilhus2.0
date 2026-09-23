@@ -291,6 +291,27 @@ export function registrarAutomacoes(rotas) {
     }),
   );
 
+  /*
+   * So para ENXERGAR: um agente e sempre do escritorio dele (edicao, WhatsApp
+   * e IA continuam por area). Isto junta os agentes de todos os escritorios do
+   * usuario numa lista so, para a aba "Todos os escritorios" da tela de
+   * Agentes - sem o custo de mencoes/ferramentas da lista de um escritorio so.
+   */
+  rotas.get('/api/agentes/todos-escritorios', async ({ ctx }) =>
+    ctx.workspaces.flatMap((workspace) =>
+      listar('agentes', { workspaceId: workspace.id }).map((agente) => ({
+        id: agente.id,
+        nome: agente.nome,
+        pasta: agente.pasta || PASTA_PADRAO,
+        ativo: agente.ativo,
+        area: agente.area || null,
+        atualizadoEm: agente.atualizadoEm || agente.criadoEm,
+        workspaceId: workspace.id,
+        workspaceNome: workspace.nome,
+      })),
+    ),
+  );
+
   /* ---------------- Pacotes de agentes por area (ia/pacotes.js) ---------------- */
 
   /* O escritorio de uma area so recebe os agentes da propria area (pedido de

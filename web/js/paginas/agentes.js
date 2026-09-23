@@ -144,6 +144,12 @@ export async function paginaAgentes({ parametros, definirAcoes, definirPrincipal
   let catalogoDeMencoes = [];
   const pastasFechadas = lerPastasFechadas();
 
+  /* A lista por pastas so ve o escritorio aberto. Aqui e so para ENXERGAR
+     todo mundo junto numa aba: abrir ou editar continua trocando de
+     escritorio (agentes-por-escritorio.js), como sempre foi. */
+  let verTodosOsEscritorios = false;
+  let agentesDeTodos = null;
+
   /* id -> { nome, prompt } do que foi escrito e ainda nao salvo. */
   const rascunhos = new Map();
   const temRascunho = (id) => {
@@ -1325,13 +1331,14 @@ export async function paginaAgentes({ parametros, definirAcoes, definirPrincipal
   function desenharPastas() {
     limpar(pastasDaLista);
     const workspace = estado.sessao?.workspace;
+    const escritorios = estado.sessao?.workspaces || [];
     const ligados = agentes.filter((a) => a.ativo).length;
     const quantasPastas = new Set(agentes.map((a) => a.pasta || PASTA_PADRAO)).size;
 
     const campoBusca = entradaTexto(busca, {
       type: 'search',
-      placeholder: 'Buscar agente ou pasta',
-      'aria-label': 'Buscar agente ou pasta',
+      placeholder: verTodosOsEscritorios ? 'Buscar agente ou escritório' : 'Buscar agente ou pasta',
+      'aria-label': verTodosOsEscritorios ? 'Buscar agente ou escritório' : 'Buscar agente ou pasta',
       class: 'agentes-busca-campo',
     });
     campoBusca.addEventListener('input', () => {
@@ -1339,25 +1346,52 @@ export async function paginaAgentes({ parametros, definirAcoes, definirPrincipal
       desenharCorpo();
     });
 
+    /* So troca a ABA: abrir ou editar um agente de outro escritorio continua
+       trocando de escritorio de verdade (como no seletor la em cima), porque
+       cada um so existe, so atende WhatsApp e so usa a IA do seu escritorio. */
+    async function alternarEscopo() {
+      if (!verTodosOsEscritorios && !agentesDeTodos) {
+        try {
+          agentesDeTodos = await api.get('/api/agentes/todos-escritorios');
+        } catch (erro) {
+          aviso(erro.message, 'erro');
+          return;
+        }
+      }
+      verTodosOsEscritorios = !verTodosOsEscritorios;
+      desenharPastas();
+    }
+
     pastasDaLista.append(
       el('div', { class: 'agentes-pastas-topo' }, [
         el('label', { class: 'agentes-busca' }, [icone('lupa', 14), campoBusca]),
         el('span', {
           class: 'agentes-pastas-resumo',
-          texto: `${plural(agentes.length, 'agente', 'agentes')} · ${plural(ligados, 'ligado', 'ligados')} · ${plural(quantasPastas, 'pasta', 'pastas')}`,
+          texto: verTodosOsEscritorios
+            ? `${plural((agentesDeTodos || []).length, 'agente', 'agentes')} · ${plural(escritorios.length, 'escritório', 'escritórios')}`
+            : `${plural(agentes.length, 'agente', 'agentes')} · ${plural(ligados, 'ligado', 'ligados')} · ${plural(quantasPastas, 'pasta', 'pastas')}`,
         }),
-        workspace ? el('span', { class: 'agentes-escritorio', title: 'O escritório aberto' }, [icone('predio', 14), workspace.nome]) : null,
+        !verTodosOsEscritorios && workspace
+          ? el('span', { class: 'agentes-escritorio', title: 'O escritório aberto' }, [icone('predio', 14), workspace.nome])
+          : null,
+        escritorios.length > 1
+          ? botao(verTodosOsEscritorios ? 'Este escritório' : 'Todos os escritórios', {
+              pequeno: true,
+              icone: verTodosOsEscritorios ? 'predio' : 'usuarios',
+              aoClicar: alternarEscopo,
+            })
+          : null,
       ]),
     );
 
     /* No escritorio geral, enquanto houver agente de area aqui ou faltar o
-       escritorio de uma area, o convite para separar. */
+       escritorio de uma area, o convite para separar. So faz sentido olhando
+       um escritorio por vez. */
     const AREAS_COM_ESCRITORIO = ['previdenciario', 'trabalhista'];
-    const escritorios = estado.sessao?.workspaces || [];
     const falta =
       agentes.some((a) => AREAS_COM_ESCRITORIO.includes(a.area)) ||
       !AREAS_COM_ESCRITORIO.every((area) => escritorios.some((w) => w.area === area));
-    if (podeConfigurar() && workspace && !workspace.area && falta) {
+    if (!verTodosOsEscritorios && podeConfigurar() && workspace && !workspace.area && falta) {
       pastasDaLista.append(
         el('div', { class: 'agentes-separar' }, [
           icone('predio', 20),
@@ -1375,6 +1409,10 @@ export async function paginaAgentes({ parametros, definirAcoes, definirPrincipal
 
     function desenharCorpo() {
       limpar(corpo);
+      if (verTodosOsEscritorios) {
+        desenharCorpoDeTodos();
+        return;
+      }
       if (!agentes.length) {
         corpo.append(
           vazio(
@@ -1479,7 +1517,95 @@ export async function paginaAgentes({ parametros, definirAcoes, definirPrincipal
       if (!mostrou) corpo.append(el('p', { class: 'agentes-nada', texto: `Nenhum agente ou pasta com "${busca.trim()}".` }));
     }
 
+    /* A aba "Todos os escritorios": so lista, agrupado por escritorio. Nao
+       tem pasta, membro de squad nem acoes de editar - isso e sempre dentro
+       do escritorio de cada um. */
+    function desenharCorpoDeTodos() {
+      const todos = agentesDeTodos || [];
+      if (!todos.length) {
+        corpo.append(vazio('Nenhum agente em nenhum escritório', 'Crie o primeiro em Novo agente.', null, 'agentes'));
+        return;
+      }
+
+      const termo = busca.trim().toLowerCase();
+      const acha = (texto) => !termo || String(texto || '').toLowerCase().includes(termo);
+
+      const porEscritorio = new Map();
+      for (const agente of todos) {
+        if (!porEscritorio.has(agente.workspaceId)) porEscritorio.set(agente.workspaceId, []);
+        porEscritorio.get(agente.workspaceId).push(agente);
+      }
+
+      corpo.append(
+        el('div', { class: 'agentes-tabela-cabeca', 'aria-hidden': 'true' }, [
+          el('span', { texto: 'Escritórios' }),
+          el('span', { texto: 'Última edição' }),
+          el('span'),
+        ]),
+      );
+
+      let mostrou = 0;
+      for (const [workspaceId, doEscritorio] of porEscritorio) {
+        const nomeEscritorio = doEscritorio[0]?.workspaceNome || '';
+        const escritorioAcha = acha(nomeEscritorio);
+        const visiveis = doEscritorio.filter((a) => escritorioAcha || acha(a.nome) || acha(a.pasta));
+        if (!visiveis.length) continue;
+        mostrou += 1;
+
+        const ligadosDoEscritorio = doEscritorio.filter((a) => a.ativo).length;
+        corpo.append(
+          el('div', { class: 'agentes-linha agentes-linha-pasta' }, [
+            el('div', { class: 'agentes-linha-principal' }, [
+              el('span', { class: 'agentes-seta vazia' }),
+              el('span', { class: 'agentes-pasta-icone' }, [icone('predio', 16)]),
+              el('strong', { class: 'agentes-linha-nome', texto: nomeEscritorio }),
+              el('span', {
+                class: 'agentes-linha-conta',
+                texto: `${plural(doEscritorio.length, 'agente', 'agentes')} · ${plural(ligadosDoEscritorio, 'ligado', 'ligados')}`,
+              }),
+            ]),
+            el('span'),
+            el('span'),
+          ]),
+        );
+
+        for (const agente of visiveis.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))) {
+          corpo.append(linhaDoAgenteCruzado(agente, workspaceId));
+        }
+      }
+
+      if (!mostrou) corpo.append(el('p', { class: 'agentes-nada', texto: `Nenhum agente ou escritório com "${busca.trim()}".` }));
+    }
+
     desenharCorpo();
+  }
+
+  /* A linha da aba "Todos os escritorios": abrir troca de escritorio de
+     verdade primeiro (como no seletor la em cima), porque o agente so existe
+     dentro do dele. */
+  function linhaDoAgenteCruzado(agente, workspaceId) {
+    const abrir = async (evento) => {
+      evento.preventDefault();
+      if (workspaceId !== estado.sessao?.workspace?.id) await api.post('/api/sessao/workspace', { workspaceId });
+      location.hash = `#/agentes/${agente.id}`;
+      location.reload();
+    };
+    return el('div', { class: `agentes-linha agentes-linha-agente${agente.ativo ? '' : ' desligado'}` }, [
+      el('div', { class: 'agentes-linha-principal' }, [
+        el('span', { class: 'agentes-seta vazia' }),
+        el('a', { class: 'agentes-linha-link', href: `#/agentes/${agente.id}`, title: `Abrir ${agente.nome}`, aoClick: abrir }, [
+          el('span', { class: 'agente-item-rosto' }, [
+            avatar(agente, 30),
+            el('span', { class: `agente-ponto ${agente.ativo ? 'ligado' : ''}`.trim(), title: agente.ativo ? 'Ligado' : 'Desligado' }),
+          ]),
+          el('span', { class: 'agentes-linha-nome', texto: agente.nome }),
+          agente.pasta && agente.pasta !== PASTA_PADRAO ? selo(agente.pasta, 'info') : null,
+        ]),
+        agente.ativo ? null : el('span', { class: 'agentes-linha-desligado', texto: 'desligado' }),
+      ]),
+      el('span', { class: 'agentes-linha-quando', texto: dataHora(agente.atualizadoEm) || '-' }),
+      el('span'),
+    ]);
   }
 
   function linhaDoAgente(agente, { membros = [], aberto = false, aoAlternar = null, membro = false } = {}) {

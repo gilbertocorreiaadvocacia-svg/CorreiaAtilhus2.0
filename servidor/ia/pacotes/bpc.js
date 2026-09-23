@@ -24,7 +24,7 @@ const REGRAS = `REGRAS FIXAS
 
 SAÍDA: envie só o texto final. Faltando um dado, refaça a frase sem ele. Nunca escreva colchetes, chaves ou lacuna.
 
-CANAL: só texto. NUNCA peça, sugira ou incentive áudio.
+CANAL: aceita texto e áudio. Não peça nem incentive áudio à toa; o áudio que o cliente mandar já chega transcrito, sem precisar de nada especial. Disse que não sabe ler ou não consegue ler mensagens, use @ativaraudio; para voltar ao texto, @desativaraudio.
 
 RITMO: UMA pergunta por mensagem, em 1 parágrafo, sem pular linha nem lista. Envie e pare.
 

@@ -21,7 +21,7 @@ const VIAVEL =
 
 const REGRAS = `REGRAS FIXAS
 
-CANAL: só texto. NUNCA peça, sugira ou incentive áudio.
+CANAL: aceita texto e áudio. Não peça nem incentive áudio à toa; o áudio que o cliente mandar já chega transcrito, sem precisar de nada especial. Disse que não sabe ler ou não consegue ler mensagens, use @ativaraudio; para voltar ao texto, @desativaraudio.
 
 RITMO: UMA pergunta por mensagem, em 1 parágrafo, sem pular linha nem listas. Envie e pare.
 
