@@ -15,43 +15,31 @@
    abertura, que alguem esta usando um sistema que trata processo de cliente.
    E o mesmo caminho que os icones do Phosphor ja seguiam.
 
-   Instrument Sans e UM arquivo so para os quatro pesos: e fonte variavel, e o
-   Google devolvia o mesmo binario quatro vezes. Guardar os quatro seria 90 KB
-   de copia identica. Spectral e estatica, entao sao tres arquivos de verdade.
+   Inter e Instrument Sans sao variaveis: um arquivo so cobre todos os pesos.
+   A Inter e a fonte da LiderHub, e vale para texto e titulo; a Instrument Sans
+   fica so como reserva.
 
    font-display: swap para a tela nunca ficar em branco esperando fonte: ela
    abre na reserva declarada em --fonte e troca quando a local carrega — o que
    aqui e questao de milissegundos, porque o arquivo vem do mesmo servidor.
    ------------------------------------------------------------------ */
 
+/* Inter e a fonte da LiderHub (pedido dele em 24/09: mesmas letras da LiderHub),
+   e aqui vale para texto E titulo — la nao ha serifa em lugar nenhum. E fonte
+   variavel: um arquivo so cobre todos os pesos. */
+@font-face {
+  font-family: 'Inter';
+  src: url('../assets/fontes/inter.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Instrument Sans fica so como reserva, caso a Inter nao carregue. */
 @font-face {
   font-family: 'Instrument Sans';
   src: url('../assets/fontes/instrument-sans.woff2') format('woff2');
   font-weight: 400 700;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'Spectral';
-  src: url('../assets/fontes/spectral-400.woff2') format('woff2');
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'Spectral';
-  src: url('../assets/fontes/spectral-500.woff2') format('woff2');
-  font-weight: 500;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'Spectral';
-  src: url('../assets/fontes/spectral-600.woff2') format('woff2');
-  font-weight: 600;
   font-style: normal;
   font-display: swap;
 }
@@ -193,15 +181,13 @@
      borrao duro, e nao a sombra da folha que esta por cima. */
   --veu: rgba(0, 0, 0, 0.66);
 
-  /* Instrument Sans e a fonte de interface. Ela desenha numero e maiuscula
-     mais estreitos que a Segoe, o que importa numa tela que vive cheia de
-     telefone, CPF e numero de processo. A Segoe fica como reserva: se a fonte
-     nao baixar, a interface nao muda de tamanho, so de desenho. */
-  --fonte: 'Instrument Sans', 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
-  /* Serifa so no titulo de tela e no nome do cliente. Spectral e desenhada
-     para texto de documento e tem o mesmo papel que a Constantia tinha: e a
-     assinatura de um escritorio que entrega peca, parecer, contrato. */
-  --fonte-titulo: 'Spectral', Constantia, 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
+  /* Inter e a fonte da interface, a mesma da LiderHub (pedido dele em 24/09).
+     Instrument Sans e a Segoe ficam como reserva: se a Inter nao baixar, a tela
+     nao muda de tamanho, so de desenho. */
+  --fonte: 'Inter', 'Instrument Sans', 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
+  /* Titulo tambem em Inter: a LiderHub nao usa serifa em lugar nenhum, e o
+     pedido foi igualar as letras a dela. */
+  --fonte-titulo: 'Inter', 'Instrument Sans', 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
   --fonte-mono: 'Cascadia Mono', 'Consolas', 'SF Mono', monospace;
 
   /* ----------------------------------------------------------------
