@@ -57,17 +57,21 @@
 }
 
 :root {
-  --preto: #050504;
-  --fundo: #0a0a09;
-  /* As superficies encostaram no fundo. A distancia de antes (0a -> 11 -> 17
-     -> 1f) desenhava quatro degraus de cinza na mesma tela, e cada degrau
-     virava uma caixa a mais para o olho separar. Agora o que separa painel de
-     painel e a linha de 1px, nao a diferenca de tom. */
-  --superficie: #0e0d0c;
-  --superficie-2: #151412;
-  --superficie-3: #1c1b17;
-  --borda: #201e1a;
-  --borda-forte: #2b2823;
+  /* Tema escuro "Grafite" (modelo 1, escolhido em 24/09): o fundo saiu do preto
+     quente para um grafite frio, no espirito da LiderHub. O dourado continua
+     sendo a cor da acao do escritorio (botao, selecao, avatar) e o verde
+     continua sendo a fala (balao enviado) — so o fundo mudou de tom. */
+  --preto: #060709;
+  --fundo: #0e1014;
+  /* As superficies encostaram no fundo. A distancia de antes desenhava quatro
+     degraus de cinza na mesma tela, e cada degrau virava uma caixa a mais para
+     o olho separar. Agora o que separa painel de painel e a linha de 1px, nao a
+     diferenca de tom. */
+  --superficie: #12151a;
+  --superficie-2: #171b21;
+  --superficie-3: #1e232b;
+  --borda: #232830;
+  --borda-forte: #2e343d;
 
   --ouro: #c9a961;
   --ouro-claro: #eadfb4;
