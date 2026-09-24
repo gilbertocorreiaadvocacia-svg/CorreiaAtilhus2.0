@@ -271,29 +271,32 @@
   --altura-rosca: 190px;
 }
 
-/* Tema claro, mesma marca, para quem trabalha em sala clara. */
+/* Tema claro "Branco Nitido" (modelo 4, escolhido em 24/09): quase branco,
+   hairline fina e texto de alto contraste; a profundidade vem da sombra, nao da
+   cor do fundo. O neutro saiu do creme quente para um cinza-neutro frio, e o
+   dourado desceu um tom para cravar contraste sobre o branco. */
 [data-tema='claro'] {
-  --preto: #f6f3ec;
-  --fundo: #f2eee5;
+  --preto: #f7f7f5;
+  --fundo: #f4f4f1;
   --superficie: #ffffff;
-  --superficie-2: #faf7f0;
-  --superficie-3: #f2ede1;
-  --borda: #e0d8c6;
-  --borda-forte: #cfc3a9;
+  --superficie-2: #fafaf8;
+  --superficie-3: #f0efec;
+  --borda: #e7e6e0;
+  --borda-forte: #d6d4cb;
 
-  --ouro: #846834;
-  --ouro-claro: #6b5429;
+  --ouro: #7a5f2a;
+  --ouro-claro: #5c4720;
   --ouro-escuro: #b99b57;
-  --ouro-fraco: rgba(138, 110, 58, 0.1);
-  --ouro-linha: rgba(138, 110, 58, 0.24);
+  --ouro-fraco: rgba(122, 95, 42, 0.1);
+  --ouro-linha: rgba(122, 95, 42, 0.28);
 
   /* Mesmas superficies douradas do bloco escuro, sobre o ouro do tema claro
      (#846834) e com a opacidade subida: a mesma porcentagem que se enxerga
      sobre preto desaparece sobre papel. */
 
-  --texto: #23201a;
-  --texto-suave: #5f594d;
-  --texto-fraco: #6e6759;
+  --texto: #16161a;
+  --texto-suave: #55555d;
+  --texto-fraco: #5e5e66;
 
   /* Cores semanticas do tema claro, recalculadas contra o fundo certo.
 
@@ -351,8 +354,8 @@
   --ouro-acao-ate: #624b22;
   --sobre-ouro: #fbf8f1;
 
-  --veu: rgba(48, 39, 20, 0.42);
-  --sombra: 0 14px 32px rgba(60, 48, 24, 0.12);
+  --veu: rgba(22, 22, 26, 0.42);
+  --sombra: 0 14px 32px rgba(25, 24, 30, 0.14);
 }
 
 * {
@@ -7369,21 +7372,21 @@ button.mencao-chip:focus-visible {
    guardada, que o app grava em data-tema. */
 @media (prefers-color-scheme: light) {
   :root:not([data-tema='escuro']) {
-    --preto: #f6f3ec;
-    --fundo: #f2eee5;
+    --preto: #f7f7f5;
+    --fundo: #f4f4f1;
     --superficie: #ffffff;
-    --superficie-2: #faf7f0;
-    --superficie-3: #f2ede1;
-    --borda: #e0d8c6;
-    --borda-forte: #cfc3a9;
-    --ouro: #846834;
-    --ouro-claro: #6b5429;
+    --superficie-2: #fafaf8;
+    --superficie-3: #f0efec;
+    --borda: #e7e6e0;
+    --borda-forte: #d6d4cb;
+    --ouro: #7a5f2a;
+    --ouro-claro: #5c4720;
     --ouro-escuro: #b99b57;
-    --ouro-fraco: rgba(138, 110, 58, 0.1);
-    --ouro-linha: rgba(138, 110, 58, 0.24);
-    --texto: #23201a;
-    --texto-suave: #5f594d;
-    --texto-fraco: #6e6759;
+    --ouro-fraco: rgba(122, 95, 42, 0.1);
+    --ouro-linha: rgba(122, 95, 42, 0.28);
+    --texto: #16161a;
+    --texto-suave: #55555d;
+    --texto-fraco: #5e5e66;
 
     /* Cores semanticas do tema claro. Os valores do tema escuro sao claros demais
        para virar texto sobre fundo branco: o selo de alerta cai para 2,2:1. Aqui
@@ -7429,8 +7432,8 @@ button.mencao-chip:focus-visible {
     --ouro-acao-ate: #624b22;
     --sobre-ouro: #fbf8f1;
 
-    --veu: rgba(48, 39, 20, 0.42);
-    --sombra: 0 14px 32px rgba(60, 48, 24, 0.12);
+    --veu: rgba(22, 22, 26, 0.42);
+    --sombra: 0 14px 32px rgba(25, 24, 30, 0.14);
   }
 }
 
