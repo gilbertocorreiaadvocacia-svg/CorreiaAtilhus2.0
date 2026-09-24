@@ -488,7 +488,7 @@ export async function testarConversas({ base }) {
    *
    * O outro lado era pior porque era calado: undefined caia no filtro vazio e
    * devolvia o PRIMEIRO registro da tabela — conversa sem status exportada
-   * como "Nova conversa", sem ninguem desconfiar. Por isso o teste confere que
+   * como "NOVO lead", sem ninguem desconfiar. Por isso o teste confere que
    * a coluna vem VAZIA, e nao so que a rota respondeu.
    */
   const semClasse = (

@@ -58,18 +58,24 @@ export function semearSePrecisar() {
 
   /* Status do funil ------------------------------------------------------ */
   const st = {};
+  /* A ordem aqui e a ordem das colunas do Kanban (escolhida pelo escritorio em
+     24/09). As de pos-venda ficam no fim. As chaves internas (nova, triagem...)
+     nao mudam, so o nome que aparece — para agentes e codigo que ainda citarem
+     um nome antigo continuarem achando o status pela chave. */
   const statusIniciais = [
-    ['nova', 'Nova conversa', 'var(--serie-1)', 'nova', dep.comercial, 'Lead que acabou de chamar e ainda nao foi triado.'],
-    ['triagem', 'Em triagem', 'var(--serie-2)', 'analise', dep.comercial, 'Agente esta levantando os requisitos do beneficio.'],
+    ['nova', 'NOVO lead', 'var(--serie-1)', 'nova', dep.comercial, 'Lead que acabou de chamar e ainda nao foi triado.'],
+    ['triagem', 'Em análise', 'var(--serie-2)', 'analise', dep.comercial, 'Agente esta levantando os requisitos do beneficio.'],
     ['qualificado', 'Qualificado', 'var(--serie-3)', 'qualificado', dep.comercial, 'Passou nos criterios. Pode receber proposta.'],
-    ['proposta', 'Proposta enviada', 'var(--serie-4)', 'proposta', dep.comercial, 'Recebeu o video e os honorarios.'],
-    ['assinatura', 'Assinatura pendente', 'var(--serie-4)', 'proposta', dep.comercial, 'Contrato gerado, aguardando assinatura.'],
-    ['sucesso', 'Contrato assinado', 'var(--sucesso)', 'sucesso', dep.posvenda, 'Fechou. Segue para coleta de documentos.'],
-    ['documentos', 'Documentacao pendente', 'var(--serie-6)', 'nenhum', dep.posvenda, 'Cliente precisa enviar documentos.'],
-    ['protocolado', 'Processo em andamento', 'var(--serie-6)', 'nenhum', dep.juridico, 'Ja protocolado. Cliente acompanha o andamento.'],
-    ['desqualificado', 'Desqualificado', 'var(--serie-5)', 'desqualificado', null, 'Fora dos criterios do beneficio.'],
+    ['qualificado_objecao', 'Qualificado com objeção', 'var(--alerta)', 'qualificado', dep.comercial, 'Qualificado, mas levantou objecao (preco, prazo, confianca).'],
     ['recusada', 'Proposta recusada', 'var(--erro)', 'recusada', dep.comercial, 'Recusou os honorarios ou desistiu na proposta.'],
+    ['proposta', 'Preparar kit', 'var(--serie-4)', 'proposta', dep.comercial, 'Proposta aceita: preparar o contrato e a procuracao.'],
+    ['assinatura', 'Assinatura pendente', 'var(--serie-4)', 'proposta', dep.comercial, 'Contrato gerado, aguardando assinatura.'],
     ['desistencia', 'Desistencia', 'var(--serie-8)', 'desistencia', null, 'Parou de responder ate o fim da sequencia.'],
+    ['sucesso', 'Contrato fechado', 'var(--sucesso)', 'sucesso', dep.posvenda, 'Fechou. Segue para coleta de documentos.'],
+    ['desqualificado', 'Desqualificado', 'var(--serie-5)', 'desqualificado', null, 'Fora dos criterios do beneficio.'],
+    ['followup', 'Follow up', 'var(--serie-6)', 'nenhum', dep.comercial, 'Retomar depois: aguardando um retorno combinado.'],
+    ['documentos', 'Documentacao pendente', 'var(--serie-7)', 'nenhum', dep.posvenda, 'Cliente precisa enviar documentos.'],
+    ['protocolado', 'Processo em andamento', 'var(--serie-6)', 'nenhum', dep.juridico, 'Ja protocolado. Cliente acompanha o andamento.'],
   ];
   for (const [chave, nome, cor, tipo, departamentoId, descricao] of statusIniciais) {
     st[chave] = inserir('status', {
@@ -339,7 +345,7 @@ export function semearSePrecisar() {
         '4. Repita todos os dados coletados e peca a confirmacao explicita do lead.',
         '5. Confirmado, use @gerarcontrato, envie o link e em seguida @tutorialassinatura.',
         '6. Altere o @status para "Assinatura pendente".',
-        '7. Quando a assinatura for confirmada, envie @contratoassinado, altere o @status para "Contrato assinado" e transfira com @responsavel para o pos-venda.',
+        '7. Quando a assinatura for confirmada, envie @contratoassinado, altere o @status para "Contrato fechado" e transfira com @responsavel para o pos-venda.',
         '',
         'REGRAS:',
         '- Prefira perguntas que pressupoem o fechamento: "voce prefere assinar pelo celular ou pelo computador?".',
@@ -455,7 +461,7 @@ export function semearWorkspace(workspaceId, { clonarDe = null } = {}) {
   inserir('status', {
     id: novoId('sts'),
     workspaceId,
-    nome: 'Nova conversa',
+    nome: 'NOVO lead',
     cor: 'var(--serie-1)',
     tipo: 'nova',
     departamentoId: comercial,

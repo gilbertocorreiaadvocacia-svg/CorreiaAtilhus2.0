@@ -168,7 +168,7 @@ export async function testarContratos({ base, zapsign }) {
   );
   const pdf = guardados[0] ? await api.get(`/api/contatos/${c1.id}/arquivos/${guardados[0].id}`) : null;
   s.ok('e o arquivo guardado e o PDF', /^%PDF/.test(pdf?.texto || ''));
-  s.ok('a conversa vai para Contrato assinado', depois?.status?.nome === 'Contrato assinado', depois?.status?.nome);
+  s.ok('a conversa vai para Contrato fechado', depois?.status?.nome === 'Contrato fechado', depois?.status?.nome);
 
   await api.post(`/api/contratos/${contrato.id}/consultar`, {});
   const logs = (await api.get(`/api/contatos/${c1.id}/logs`)).dados || [];

@@ -680,11 +680,34 @@ async function secaoStatus(recarregarTela) {
   const status = await recarregar('status');
   const tipos = estado.sessao.tiposStatus;
 
+  /* Sobe ou desce um status na ordem do funil (as colunas do Kanban seguem
+     esta ordem). Manda a lista de ids na ordem nova e redesenha. */
+  async function moverStatus(indice, passo) {
+    const destino = indice + passo;
+    if (destino < 0 || destino >= status.length) return;
+    const ids = status.map((s) => s.id);
+    [ids[indice], ids[destino]] = [ids[destino], ids[indice]];
+    try {
+      await api.post('/api/status/ordenar', { ordem: ids });
+      await recarregarTela();
+    } catch (erro) {
+      aviso(erro.message, 'erro');
+    }
+  }
+
   const lista = el('div', { class: 'lista-simples' });
-  for (const item of status) {
+  status.forEach((item, indice) => {
     const tipo = tipos.find((t) => t.id === item.tipo);
     lista.append(
       el('div', { class: 'lista-item' }, [
+        podeConfigurar()
+          ? el('div', { class: 'ordenar-setas' }, [
+              el('span', { class: 'seta-cima' }, [
+                botao('', { pequeno: true, icone: 'baixo', titulo: `Subir ${item.nome}`, desabilitado: indice === 0, aoClicar: () => moverStatus(indice, -1) }),
+              ]),
+              botao('', { pequeno: true, icone: 'baixo', titulo: `Descer ${item.nome}`, desabilitado: indice === status.length - 1, aoClicar: () => moverStatus(indice, 1) }),
+            ])
+          : null,
         // .ponto-g mora em web/css/tema.css, junto de .ponto. A cor continua
         // inline porque vem do banco.
         el('span', { class: 'ponto ponto-g', estilo: { background: item.cor } }),
@@ -712,7 +735,7 @@ async function secaoStatus(recarregarTela) {
           : null,
       ]),
     );
-  }
+  });
 
   // A caixa que abria esta secao repetia palavra por palavra a descricao do
   // cabecalho, que agora esta na dica do titulo. A lista de status comeca aqui.

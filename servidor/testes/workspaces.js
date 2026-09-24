@@ -78,7 +78,7 @@ export async function testarWorkspacesPorArea({ base }) {
     JSON.stringify(integracoesTrabalhistas?.zapsign?.modelosPorCaso),
   );
   const funil = (await api.get('/api/status')).dados || [];
-  s.ok('Trabalhista: o funil vem com os momentos', funil.some((x) => x.nome === 'Em triagem' && (x.momentos || []).length));
+  s.ok('Trabalhista: o funil vem com os momentos', funil.some((x) => x.nome === 'Em análise' && (x.momentos || []).length));
   const semConversa = (await api.get('/api/contatos?aba=todas&limite=5')).dados;
   s.ok('Trabalhista: nasce sem conversa nenhuma', (semConversa?.total ?? (semConversa?.contatos || []).length) === 0, JSON.stringify(semConversa?.total));
 

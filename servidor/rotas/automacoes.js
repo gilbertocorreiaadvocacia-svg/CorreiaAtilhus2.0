@@ -1,5 +1,5 @@
 import { PROMPT, VOZES, areaValida } from '../config.js';
-import { achar, atualizar, inserir, listar, remover } from '../nucleo/banco.js';
+import { achar, atualizar, inserir, listar, remover, reordenar } from '../nucleo/banco.js';
 import { normalizar, novoId, slug } from '../nucleo/util.js';
 import { PACOTES } from '../ia/pacotes.js';
 import { PASTA_PADRAO, instalarPacote, novoAgente as agenteNovo, separarPorEscritorio } from '../nucleo/agentes-por-escritorio.js';
@@ -97,6 +97,15 @@ export function registrarAutomacoes(rotas) {
       followups: corpo.followups || [],
       momentos: normalizarMomentos(corpo.momentos),
     });
+  });
+
+  /* Reordena as colunas do Kanban (a ordem dos status). Recebe a lista de ids
+     na ordem nova; so mexe nos status deste workspace. */
+  rotas.post('/api/status/ordenar', async ({ ctx, corpo }) => {
+    exigirConfiguracao(ctx);
+    const ids = Array.isArray(corpo.ordem) ? corpo.ordem : [];
+    reordenar('status', ctx.workspaceId, ids);
+    return { ok: true, status: listar('status', { workspaceId: ctx.workspaceId }) };
   });
 
   rotas.patch('/api/status/:id', async ({ ctx, params, corpo }) => {

@@ -170,6 +170,41 @@ export function removerOnde(colecao, filtro) {
   return removidos;
 }
 
+/**
+ * Reordena os registros de um workspace dentro da colecao, na ordem dos `ids`.
+ *
+ * A tabela guarda os registros de todos os workspaces na mesma lista, e a
+ * ordem dela e a ordem que a tela mostra (o Kanban e a lista de status leem
+ * `listar`, que preserva a ordem). Aqui so os registros DESTE workspace mudam
+ * de lugar, nas mesmas posicoes que ja ocupavam; os dos outros ficam intactos.
+ * Id que nao vier na lista mantem a ordem atual, no fim.
+ */
+export function reordenar(colecao, workspaceId, ids) {
+  const lista = tabela(colecao);
+  const posicoes = [];
+  const doWorkspace = [];
+  lista.forEach((registro, i) => {
+    if (registro.workspaceId === workspaceId) {
+      posicoes.push(i);
+      doWorkspace.push(registro);
+    }
+  });
+  const porId = new Map(doWorkspace.map((r) => [r.id, r]));
+  const ordenados = [];
+  for (const id of ids) {
+    if (porId.has(id)) {
+      ordenados.push(porId.get(id));
+      porId.delete(id);
+    }
+  }
+  for (const r of doWorkspace) if (porId.has(r.id)) ordenados.push(r);
+  posicoes.forEach((pos, k) => {
+    lista[pos] = ordenados[k];
+  });
+  marcarSuja(colecao);
+  return ordenados.length;
+}
+
 /* ------------------------------------------------------------------ */
 /* Mensagens, um arquivo por conversa                                  */
 /* ------------------------------------------------------------------ */

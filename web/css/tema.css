@@ -3000,6 +3000,21 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
  * Busca e filtros da fila, na cabeca da coluna: eles recortam a fila, entao
  * moram em cima dela.
  */
+/* Setas de reordenar status (as colunas do Kanban), na tela de Configuracoes. */
+.ordenar-setas {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: none;
+}
+.ordenar-setas .botao {
+  min-height: 20px;
+  padding: 0 var(--e2);
+}
+.ordenar-setas .seta-cima .botao svg {
+  transform: rotate(180deg);
+}
+
 /* Seletor de numero, no alto da fila de Conversas: escolher um numero mostra
    so as conversas dele. Fica em destaque discreto, com o dourado da acao. */
 .seletor-numero {

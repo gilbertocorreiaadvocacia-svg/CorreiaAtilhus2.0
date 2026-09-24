@@ -165,7 +165,7 @@ export async function testarEncadeamento({ base, anthropic }) {
   /* ---------------- Ligacao e reuniao dividem a agenda ---------------- */
 
   const status = (await api.get('/api/status')).dados || [];
-  const triagem = status.find((x) => x.nome === 'Em triagem');
+  const triagem = status.find((x) => x.nome === 'Em análise');
   if (triagem) await api.patch(`/api/contatos/${contatoId}`, { statusId: triagem.id });
 
   const dia = new Date(Date.now() + 9 * 86400000);

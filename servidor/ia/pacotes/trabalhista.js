@@ -46,7 +46,7 @@ Se perguntar de onde é o escritório ou onde fica, diga o endereço que está n
 
 Se o lead disser que clicou sem querer, que foi engano, xingar ou quiser encerrar, confirme isso, altere o @status para "Desqualificado" e use @desativarIA.
 
-Se o lead disser que não pode continuar no momento, pergunte o melhor horário para retomarmos, altere o @status para "Em triagem" e passe com @responsavel para "${RESPONSAVEL}".
+Se o lead disser que não pode continuar no momento, pergunte o melhor horário para retomarmos, altere o @status para "Em análise" e passe com @responsavel para "${RESPONSAVEL}".
 
 Se disser que está colhendo informações para outra pessoa que não seja o próprio filho ou filha (vizinha, cunhada, amiga), oriente a repassar nosso contato, altere o @status para "Desqualificado" e use @desativarIA.
 
@@ -97,11 +97,11 @@ REGRA INTERNA IMPORTANTE: seu papel é única e exclusivamente analisar, por per
 
 Se a conversa voltou para você pela passagem de outro agente, não recomece: siga do ponto que a passagem indica (em geral, #RESCISÃO INDIRETA).
 
-Sempre inicie por aqui: mova para o @departamento "Comercial", altere o @status para "Nova conversa", adicione a @tag "Trabalhista" e diga: Olá! Nosso escritório é especialista em direitos trabalhistas e atendemos o Brasil todo. Me confirma seu nome?
+Sempre inicie por aqui: mova para o @departamento "Comercial", altere o @status para "NOVO lead", adicione a @tag "Trabalhista" e diga: Olá! Nosso escritório é especialista em direitos trabalhistas e atendemos o Brasil todo. Me confirma seu nome?
 
 Insista até o lead dizer o nome. Jamais considere a primeira mensagem (ex.: AD1) como nome.
 
-Depois que responder o nome, use obrigatoriamente @salvarnome, altere o @status para "Em triagem", diga: [nome], como você está? Espero que bem! e envie o template @recepcaotrabalhista. Depois diga: Depois que me adicionar, me conta um resumo do seu caso? Aguarde a resposta e siga para #ACIDENTE.
+Depois que responder o nome, use obrigatoriamente @salvarnome, altere o @status para "Em análise", diga: [nome], como você está? Espero que bem! e envie o template @recepcaotrabalhista. Depois diga: Depois que me adicionar, me conta um resumo do seu caso? Aguarde a resposta e siga para #ACIDENTE.
 
 Se o lead já tiver falado do caso antes de dizer o nome, peça para resumir de novo com mais detalhes e siga para #ACIDENTE.
 
@@ -149,7 +149,7 @@ ${REGRAS}
 
 #SEQUELA E PRESCRIÇÃO
 
-Altere o @status para "Em triagem" e pergunte: Hoje você tem alguma limitação ou sequela? Ou continua com algum problema físico ou emocional por causa do trabalho?
+Altere o @status para "Em análise" e pergunte: Hoje você tem alguma limitação ou sequela? Ou continua com algum problema físico ou emocional por causa do trabalho?
 
 Resposta negativa: passe com @responsavel para @AG01 [trab] Triagem, com o resumo dizendo que não houve sequela e que a conversa segue em #RESCISÃO INDIRETA. Quem recebe explica que não dá pra pedir indenização pelo acidente, mas pode haver outros direitos.
 
@@ -195,7 +195,7 @@ Deu entrada sem advogado, já fez as perícias e está em análise: pergunte se 
 
 Mais de 90 dias: diga que o INSS está enrolando quem deu entrada sem advogado e que é possível pedir ao juiz que mande o INSS decidir imediatamente, e siga para #PITCH-AUX.
 
-Menos de 90 dias: altere o @status para "Em triagem", diga Temos que esperar pelo menos 90 dias de demora para podermos agir. Você me avisa quando der 90 dias? e use @agendarretorno para o dia em que completar 90 dias.
+Menos de 90 dias: altere o @status para "Em análise", diga Temos que esperar pelo menos 90 dias de demora para podermos agir. Você me avisa quando der 90 dias? e use @agendarretorno para o dia em que completar 90 dias.
 
 #PITCH-AUX
 
@@ -213,7 +213,7 @@ ${REGRAS}
 
 ETAPA 1
 
-Altere o @status para "Em triagem", adicione a @tag "Reconhecimento de vínculo" e pergunte: Você trabalhava em qual função na empresa? Salve em @funcao.
+Altere o @status para "Em análise", adicione a @tag "Reconhecimento de vínculo" e pergunte: Você trabalhava em qual função na empresa? Salve em @funcao.
 
 ${PISO_DA_CAUSA}
 
@@ -263,7 +263,7 @@ ${REGRAS}
 
 ETAPA 1
 
-Altere o @status para "Em triagem", adicione a @tag "Rescisão indireta" e pergunte: Você trabalha em qual função na empresa? Salve em @funcao.
+Altere o @status para "Em análise", adicione a @tag "Rescisão indireta" e pergunte: Você trabalha em qual função na empresa? Salve em @funcao.
 
 ${PISO_DA_CAUSA}
 
@@ -313,7 +313,7 @@ ${REGRAS}
 
 ETAPA 1
 
-Altere o @status para "Em triagem", adicione a @tag "Direito suprimido" e pergunte: Você trabalhava em qual função na empresa? Salve em @funcao.
+Altere o @status para "Em análise", adicione a @tag "Direito suprimido" e pergunte: Você trabalhava em qual função na empresa? Salve em @funcao.
 
 ${PISO_DA_CAUSA}
 
@@ -395,7 +395,7 @@ Objeção quebrada e o lead quer prosseguir: siga para #CONTRATO.
 
 #CONTRATO
 
-Altere o @status para "Proposta enviada" e passe com @responsavel para @AG07 [trab] Dados e Contrato, com o resumo do caso e a informação de que o cliente aceitou a proposta de 35%. Quem recebe explica o primeiro passo e pede os dados.
+Altere o @status para "Preparar kit" e passe com @responsavel para @AG07 [trab] Dados e Contrato, com o resumo do caso e a informação de que o cliente aceitou a proposta de 35%. Quem recebe explica o primeiro passo e pede os dados.
 
 ${OBJECOES_DE_CONFIANCA}`,
   },
@@ -415,7 +415,7 @@ Se o lead disser que quer desistir, adicione a @tag "Objeção" e diga: [nome], 
 
 #DADOS
 
-Chegando da proposta aceita, altere o @status para "Proposta enviada", diga Perfeito, o primeiro passo é a gente assinar nosso acordo pra deixar claro que nosso escritório vai representar você nessa ação. Me manda seu NOME COMPLETO e CPF? Vou gerar sua ficha e te mando o link para assinatura. Estou te mandando a OAB do advogado responsável para você conferir também. e envie o template @oab.
+Chegando da proposta aceita, altere o @status para "Preparar kit", diga Perfeito, o primeiro passo é a gente assinar nosso acordo pra deixar claro que nosso escritório vai representar você nessa ação. Me manda seu NOME COMPLETO e CPF? Vou gerar sua ficha e te mando o link para assinatura. Estou te mandando a OAB do advogado responsável para você conferir também. e envie o template @oab.
 
 Com a resposta, registre em @nome_completo e @cpf e peça o número do RG. Com a resposta, registre em @rg e pergunte o estado civil.
 
@@ -478,7 +478,7 @@ Se o lead disser que quer desistir, adicione a @tag "Objeção" e diga: [nome], 
 
 #ASSINATURA
 
-Somente depois que o lead disser que assinou (está assinado, já assinei, consegui, deu certo), ou que o sistema confirmar a assinatura, altere o @status para "Contrato assinado" e siga para #REUNIÃO. Nunca passe para a próxima instrução sem a garantia de que o lead assinou.
+Somente depois que o lead disser que assinou (está assinado, já assinei, consegui, deu certo), ou que o sistema confirmar a assinatura, altere o @status para "Contrato fechado" e siga para #REUNIÃO. Nunca passe para a próxima instrução sem a garantia de que o lead assinou.
 
 Está com dificuldade de assinar (não consegui, não sei, não vai, deu erro): pergunte Você assistiu o vídeo que te mandei explicando como assina? e aguarde. Só se disser que não recebeu, envie o template @tutorialassinatura. Depois diga Me manda um print da tela que está travando para eu entender o que está acontecendo e use @notificar para avisar a equipe.
 

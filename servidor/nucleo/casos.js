@@ -92,8 +92,8 @@ export const TIPOS_DE_CASO = [
  * pelo escritorio nasce sem momento, e ganha os que alguem escrever na tela.
  */
 export const MOMENTOS_POR_STATUS = {
-  'nova conversa': ['Identificando assunto'],
-  'em triagem': [
+  'novo lead': ['Identificando assunto'],
+  'em analise': [
     'Coletando dados',
     'Aguardando CTPS/laudo',
     'Aguardando humano',
@@ -101,9 +101,11 @@ export const MOMENTOS_POR_STATUS = {
     'Reuniao agendada',
   ],
   qualificado: ['Assistindo video', 'Tirando duvidas'],
-  'proposta enviada': ['Aguardando resposta', 'Negociando honorarios'],
+  'qualificado com objecao': ['Aguardando resposta', 'Negociando honorarios'],
+  'preparar kit': ['Aguardando resposta', 'Negociando honorarios'],
   'assinatura pendente': ['Contrato em conferencia', 'Link enviado', 'Link aberto', 'Recusado', 'Expirado'],
-  'contrato assinado': ['Enviado ao Juri', 'Aguardando pos-venda'],
+  'contrato fechado': ['Enviado ao Juri', 'Aguardando pos-venda'],
+  'follow up': ['Retorno combinado', 'Sem resposta'],
 };
 
 /** Lista de momentos limpa: nome aparado, id estavel pelo nome, sem repetidos. */

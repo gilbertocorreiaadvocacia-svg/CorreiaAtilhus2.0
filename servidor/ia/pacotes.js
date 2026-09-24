@@ -243,7 +243,7 @@ export const PACOTES = {
           '1. Cumprimente pelo nome. Se o nome parecer apelido, emoji ou numero, pergunte como a pessoa prefere ser chamada e use @salvarnome.',
           '2. Pergunte o que aconteceu, com uma pergunta aberta.',
           '3. Veja se e problema de consumo: cobranca indevida, nome negativado sem divida, desconto na aposentadoria que a pessoa nao contratou, emprestimo ou cartao nao reconhecido, produto ou servico com defeito, voo cancelado, plano de saude que negou atendimento.',
-          '4. Se for, marque a etiqueta Civel/Consumidor com @tag, altere o @status para "Em triagem", marque o @momento "Coletando dados" e passe com @responsavel para @Especialista Consumidor, com resumo_para_proximo contendo o problema, a empresa envolvida e desde quando.',
+          '4. Se for, marque a etiqueta Civel/Consumidor com @tag, altere o @status para "Em análise", marque o @momento "Coletando dados" e passe com @responsavel para @Especialista Consumidor, com resumo_para_proximo contendo o problema, a empresa envolvida e desde quando.',
           '',
           'QUANDO NAO SE ENCAIXA',
           '- Assunto do INSS ou trabalhista: explique que o escritorio atende por outro numero e passe com @responsavel para "distribuir".',

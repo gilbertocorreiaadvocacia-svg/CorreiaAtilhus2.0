@@ -590,7 +590,7 @@ export async function confirmarAssinatura(contratoId) {
   /* Sem status configurado, vale o "Contrato assinado" do funil, se existir. */
   const status = posAssinatura.statusId
     ? achar('status', posAssinatura.statusId)
-    : listar('status', { workspaceId: contrato.workspaceId }).find((s) => normalizar(s.nome) === 'contrato assinado');
+    : listar('status', { workspaceId: contrato.workspaceId }).find((s) => normalizar(s.nome) === 'contrato fechado');
   if (status) await aplicarStatus(contato, status, sistema);
   definirMomento(contato, 'Aguardando pos-venda', sistema);
 

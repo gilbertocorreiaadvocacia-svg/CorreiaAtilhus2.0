@@ -59,10 +59,10 @@ export async function testarCasos({ base }) {
   /* ---------------- Momento ---------------- */
 
   const status = (await api.get('/api/status')).dados || [];
-  const triagem = status.find((x) => x.nome === 'Em triagem');
+  const triagem = status.find((x) => x.nome === 'Em análise');
   const qualificado = status.find((x) => x.nome === 'Qualificado');
   s.ok(
-    'Em triagem traz os momentos da semeadura',
+    'Em análise traz os momentos da semeadura',
     (triagem?.momentos || []).some((m) => m.nome === 'Aguardando CTPS/laudo'),
     JSON.stringify(triagem?.momentos),
   );
