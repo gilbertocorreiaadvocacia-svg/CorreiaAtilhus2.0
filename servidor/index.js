@@ -26,6 +26,7 @@ import { registrarTarefas } from './rotas/tarefas.js';
 import { registrarIntegracoes } from './rotas/integracoes.js';
 import { autenticarChave, dentroDoLimite, registrarPublica } from './rotas/publica.js';
 import { retomarSincronizacoes } from './whatsapp/sincronizar-historico.js';
+import { retomarMidiaHistorico } from './whatsapp/midia-historico.js';
 import { iniciarRenovacaoDeTokens } from './whatsapp/renovar-tokens.js';
 
 iniciarBanco();
@@ -59,6 +60,9 @@ if (avaliadores) console.log(`Avaliacao do atendimento: agente instalado em ${av
 limparSessoesOrfas();
 /* Rodadas de importacao do celular que o reinicio interrompeu. */
 retomarSincronizacoes();
+/* E a fila de arquivos (audio, imagem, video, PDF) do historico: retoma de
+   onde parou, reencontrando o que ainda esta sem arquivo. */
+retomarMidiaHistorico();
 
 const MIMES = {
   '.jpg': 'image/jpeg',

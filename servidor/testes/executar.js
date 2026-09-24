@@ -156,6 +156,9 @@ async function principal() {
       CORREIA_SINCRONIA_ESPERAS: '150,300,450,600,750',
       /* A fila de fotos anda de 1,5 em 1,5 s no escritorio; aqui, de 30 ms. */
       CORREIA_FOTO_INTERVALO: '30',
+      /* A fila de arquivos do historico anda de 3 em 3 s no escritorio; aqui,
+         de 30 ms, para o download em segundo plano caber no teste. */
+      CORREIA_MIDIA_INTERVALO: '30',
       /* A Evolution desta maquina nao entra no teste: a conexao nova leria a
          chave real de windows/evolution/.env. O teste le um .env proprio,
          com chave de mentira, escrito logo abaixo. */

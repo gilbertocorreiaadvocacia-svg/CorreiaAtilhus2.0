@@ -336,17 +336,29 @@ export async function testarHistorico({ base, evolucao, chaveEvolucao }) {
   const rg = midiasDeE.find((m) => m.midia?.tipo === 'imagem');
   const laudo = midiasDeE.find((m) => m.midia?.tipo === 'documento');
   s.ok('a galeria lista os anexos do historico', Boolean(rg && laudo), JSON.stringify(midiasDeE.map((m) => m.midia?.tipo)));
-  s.ok('ainda sem o arquivo: so a chave foi guardada', !rg?.midia?.url && !laudo?.midia?.url);
 
-  const carregado = await api.post(`/api/contatos/${e?.id}/mensagens/${rg?.id}/midia`, {});
-  s.ok('carregar busca o anexo no WhatsApp', String(carregado.dados?.midia?.url || '').startsWith('/midia/'), JSON.stringify(carregado.dados));
-  const arquivoDoRg = carregado.dados?.midia?.url ? await fetch(`${base}${carregado.dados.midia.url}`) : null;
-  s.ok('e o arquivo abre', arquivoDoRg?.status === 200, String(arquivoDoRg?.status));
-  s.ok('a legenda da foto continua na mensagem', carregado.dados?.conteudo === 'RG frente', carregado.dados?.conteudo);
+  /* A fila de midia (midia-historico.js) baixa os arquivos do historico
+     sozinha, em segundo plano. Espera ela pegar o RG, que o celular ainda tem. */
+  let rgBaixado = null;
+  for (let i = 0; i < 40 && !rgBaixado?.midia?.url; i += 1) {
+    await esperar(150);
+    const lista = (await api.get(`/api/contatos/${e?.id}/midias`)).dados || [];
+    rgBaixado = lista.find((m) => m.id === rg?.id);
+  }
+  s.ok('a fila baixa o anexo do historico sozinha, sem ninguem clicar', String(rgBaixado?.midia?.url || '').startsWith('/midia/'), JSON.stringify(rgBaixado?.midia));
+  const arquivoDoRg = rgBaixado?.midia?.url ? await fetch(`${base}${rgBaixado.midia.url}`) : null;
+  s.ok('e o arquivo baixado abre', arquivoDoRg?.status === 200, String(arquivoDoRg?.status));
+  s.ok('a legenda da foto continua na mensagem', rgBaixado?.conteudo === 'RG frente', rgBaixado?.conteudo);
 
-  const semArquivo = await api.post(`/api/contatos/${e?.id}/mensagens/${laudo?.id}/midia`, {});
-  s.ok('anexo que o WhatsApp ja apagou da erro claro', semArquivo.status === 404, String(semArquivo.status));
-  s.ok('e o erro diz o que fazer', /mandar de novo/i.test(semArquivo.dados?.erro || ''), semArquivo.dados?.erro);
+  /* O laudo o WhatsApp ja nao tem (nao esta em `anexos`): a fila tenta, falha e
+     segue sem travar; o anexo fica sem arquivo (ainda da para carregar sob
+     demanda), e a fila nao fica insistindo nele em laco. */
+  const laudoDepois = ((await api.get(`/api/contatos/${e?.id}/midias`)).dados || []).find((m) => m.id === laudo?.id);
+  s.ok('anexo que o WhatsApp ja apagou fica sem arquivo, sem travar a fila', !laudoDepois?.midia?.url, JSON.stringify(laudoDepois?.midia));
+
+  /* O progresso da fila fica na conexao, para a tela mostrar. */
+  const conexaoDepois = ((await api.get('/api/conexoes')).dados || []).find((c) => c.id === id);
+  s.ok('o progresso do download de arquivos fica gravado na conexao', Boolean(conexaoDepois?.historico?.midia?.total >= 1), JSON.stringify(conexaoDepois?.historico?.midia));
 
   /* ---------------- Arquivos guardados na conversa ---------------- */
 

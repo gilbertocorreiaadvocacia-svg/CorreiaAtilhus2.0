@@ -2,6 +2,7 @@ import { achar, atualizar, listar, registrarLog } from '../nucleo/banco.js';
 import { emitir } from '../nucleo/eventos.js';
 import { agora } from '../nucleo/util.js';
 import { importarHistorico } from './importar-historico.js';
+import { enfileirarMidiaDaConexao } from './midia-historico.js';
 
 /**
  * Traz as conversas do celular sozinho, logo depois de o numero conectar.
@@ -136,6 +137,11 @@ async function executar(conexao, { rodada, responsavel, forcarFotos }) {
   anotar(conexaoId, { situacao: 'importando', ...(rodada !== null ? { rodada } : {}) });
   try {
     const relato = await importarHistorico({ conexao, responsavel, forcarFotos });
+
+    /* As mensagens chegaram registradas; a fila de midia baixa os arquivos
+       (audio, imagem, video, PDF) aos poucos, em segundo plano, sem derrubar o
+       numero. Roda a cada rodada: pega o que este lote acabou de trazer. */
+    enfileirarMidiaDaConexao(achar('conexoes', conexaoId));
 
     /* Fim da sincronizacao automatica: a ultima rodada, ou a calmaria depois
        das rodadas minimas. O clique manual encerra so se nao houver rodada
