@@ -182,7 +182,7 @@ export function diagnosticarGargalos({ cards, perdas, base }) {
   const RECEITA = {
     analise: {
       titulo: 'Muita conversa nova, pouca chegando em Analise',
-      acao: 'A conversa morre no primeiro contato. Confira o tempo de resposta e a primeira mensagem do agente de Recepcao.',
+      acao: 'A conversa morre no primeiro contato. Confira o tempo de resposta e a primeira mensagem do agente de Triagem.',
       onde: 'Agentes',
     },
     qualificado: {

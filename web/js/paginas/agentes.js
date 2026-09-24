@@ -144,10 +144,13 @@ export async function paginaAgentes({ parametros, definirAcoes, definirPrincipal
   let catalogoDeMencoes = [];
   const pastasFechadas = lerPastasFechadas();
 
-  /* A lista por pastas so ve o escritorio aberto. Aqui e so para ENXERGAR
-     todo mundo junto numa aba: abrir ou editar continua trocando de
-     escritorio (agentes-por-escritorio.js), como sempre foi. */
-  let verTodosOsEscritorios = false;
+  /* A tela de Agentes abre mostrando TODOS os escritorios juntos, para a
+     equipe ver todo mundo sem trocar de workspace. O botao "Este escritorio"
+     volta para so o aberto. Abrir ou editar um agente continua trocando de
+     escritorio por baixo (agentes-por-escritorio.js). So faz sentido com mais
+     de um escritorio; com um so, comeca nele mesmo. */
+  const escritoriosDaSessao = estado.sessao?.workspaces || [];
+  let verTodosOsEscritorios = escritoriosDaSessao.length > 1;
   let agentesDeTodos = null;
 
   /* id -> { nome, prompt } do que foi escrito e ainda nao salvo. */
@@ -202,6 +205,14 @@ export async function paginaAgentes({ parametros, definirAcoes, definirPrincipal
       /* sem catalogo o menu de mencoes fica vazio; a tela segue */
     }
     if (modoLista) {
+      /* Abrindo em "todos os escritorios": busca a lista cruzada antes de pintar. */
+      if (verTodosOsEscritorios && !agentesDeTodos) {
+        try {
+          agentesDeTodos = await api.get('/api/agentes/todos-escritorios');
+        } catch {
+          verTodosOsEscritorios = false;
+        }
+      }
       desenharPastas();
       return;
     }
@@ -1859,7 +1870,7 @@ function abrirGeracao(recarregarTela) {
       { valor: 'fechar', rotulo: 'Fechar contrato' },
       { valor: 'agendar', rotulo: 'Agendar reunião' },
       { valor: 'qualificar', rotulo: 'Qualificar e transferir para humano' },
-      { valor: 'recepcionar', rotulo: 'Recepcionar e rotear' },
+      { valor: 'recepcionar', rotulo: 'Triagem e roteamento' },
       { valor: 'atender', rotulo: 'Atender pós-venda' },
     ],
     'qualificar',

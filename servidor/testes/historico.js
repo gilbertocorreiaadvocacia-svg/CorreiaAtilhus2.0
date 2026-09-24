@@ -52,8 +52,9 @@ export async function testarHistorico({ base, evolucao, chaveEvolucao }) {
   /* H: cadastrada a mao ANTES de conectar. */
   const h = await api.post('/api/contatos', { conexaoId: id, telefone: '81 91111-0006', nome: 'Nome Escrito a Mao' });
 
-  /* Conversa nova, depois da importacao, tem de ir para a Recepcao como sempre. */
-  const recepcao = ((await api.get('/api/agentes')).dados || []).find((a) => /recep/i.test(a.nome));
+  /* Conversa nova, depois da importacao, tem de ir para a triagem como sempre.
+     Achada pelo objetivo, e nao pelo nome: o agente semeado se chama "Triagem". */
+  const recepcao = ((await api.get('/api/agentes')).dados || []).find((a) => a.objetivo === 'recepcionar');
   if (recepcao) {
     await api.patch(`/api/conexoes/${id}`, {
       responsavelPadrao: { tipo: 'agente', id: recepcao.id, nome: recepcao.nome },

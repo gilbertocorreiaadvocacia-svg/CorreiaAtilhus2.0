@@ -260,7 +260,7 @@ export function semearSePrecisar() {
   /* Agentes -------------------------------------------------------------- */
   const agentes = [
     {
-      nome: 'Recepcao',
+      nome: 'Triagem',
       objetivo: 'recepcionar',
       palavrasChave: [],
       prompt: [
@@ -399,7 +399,7 @@ export function semearSePrecisar() {
     estado: 'conectado',
     statusPadraoId: st.nova,
     departamentoPadraoId: dep.comercial,
-    responsavelPadrao: { tipo: 'agente', id: idsAgentes['Recepcao'] },
+    responsavelPadrao: { tipo: 'agente', id: idsAgentes['Triagem'] },
     oficial: { phoneNumberId: '', wabaId: '', token: '', verifyToken: '', appSecret: '' },
     conectadoEm: new Date().toISOString(),
   });
