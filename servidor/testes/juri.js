@@ -119,6 +119,19 @@ export async function testarJuri({ base, zapsign, juri }) {
   s.ok('a conversa fica com o momento Enviado ao Juri', depois?.momento?.nome === 'Enviado ao Juri', JSON.stringify(depois?.momento));
   s.ok('e o contrato guarda o caso aberto la', (await contratoDe(primeiro.contato.id))?.juri?.casoId === 'caso-1');
 
+  /* ---------------- Botao do cartao "Contrato fechado" ---------------- */
+
+  const cartao = (await api.get(`/api/contatos/${primeiro.contato.id}`)).dados;
+  s.ok('o cartao ja sabe que o contrato foi ao Juri (campo juri enviado)', cartao?.juri?.situacao === 'enviado', JSON.stringify(cartao?.juri));
+
+  const reContato = (await api.post(`/api/contatos/${primeiro.contato.id}/enviar-juri`, {})).dados;
+  s.ok('o botao do cartao reenvia pelo contato, sem duplicar', reContato?.ok && reContato.repetido === true, JSON.stringify(reContato));
+  s.ok('e o Juri segue com um caso so depois do botao', ((await falsoJuri.get('/__recebidos')).dados || []).length === 1);
+
+  const semContrato = (await api.post('/api/contatos', { conexaoId: simulador.id, telefone: TELEFONE(9), nome: 'Sem Contrato' })).dados;
+  const semEnvio = await api.post(`/api/contatos/${semContrato.id}/enviar-juri`, {});
+  s.ok('sem contrato assinado, o botao recusa com aviso claro', semEnvio.status === 400 && /assinado/i.test(semEnvio.dados?.erro || ''), JSON.stringify(semEnvio.dados));
+
   const reenvio = (await api.post(`/api/contratos/${primeiro.contratoId}/juri`, {})).dados;
   s.ok('reenviar nao abre outro caso: o Juri responde repetido', reenvio?.ok && reenvio.repetido === true, JSON.stringify(reenvio));
   s.ok('e o Juri continua com um caso so', ((await falsoJuri.get('/__recebidos')).dados || []).length === 1);

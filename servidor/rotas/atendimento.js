@@ -60,9 +60,24 @@ function enriquecer(contato) {
   const status = contato.statusId ? achar('status', contato.statusId) : null;
   const departamento = contato.departamentoId ? achar('departamentos', contato.departamentoId) : null;
   const origem = contato.origemId ? achar('origens', contato.origemId) : null;
+  /* Estado do envio ao Atilhus Juri, so quando a conversa esta na coluna de
+     sucesso (Contrato fechado) e tem contrato assinado: e o que o cartao do
+     kanban usa para mostrar o botao "Enviar ao Juri" e se ja foi. */
+  const contratoAssinado =
+    status?.tipo === 'sucesso'
+      ? listar('contratos', { contatoId: contato.id }).find((c) => c.situacao === 'assinado')
+      : null;
   return {
     ...contato,
     status: status ? { id: status.id, nome: status.nome, cor: status.cor, tipo: status.tipo } : null,
+    juri: contratoAssinado
+      ? {
+          contratoId: contratoAssinado.id,
+          situacao: contratoAssinado.juri?.situacao || 'nao_enviado',
+          enviadoEm: contratoAssinado.juri?.enviadoEm || null,
+          erro: contratoAssinado.juri?.erro || null,
+        }
+      : null,
     departamento: departamento ? { id: departamento.id, nome: departamento.nome, cor: departamento.cor } : null,
     /* Cor, canal e "pago" vao junto: a fila mostra a origem em cada linha, e
        uma origem criada agora pela marca do WhatsApp ainda nao esta na lista
@@ -651,6 +666,18 @@ export function registrarAtendimento(rotas) {
     }
     emitir(ctx.workspaceId, 'contato', { contatoId: contato.id });
     return enriquecer(achar('contatos', contato.id));
+  });
+
+  /* Botao do cartao "Contrato fechado": envia (ou reenvia) o contrato assinado
+     desta conversa ao Atilhus Juri, o sistema do outro repositorio. O envio ja
+     acontece sozinho na assinatura; aqui e o disparo manual, para quando o
+     automatico falhou ou a configuracao chegou depois. */
+  rotas.post('/api/contatos/:id/enviar-juri', async ({ ctx, params }) => {
+    const contato = conversaOu404(ctx, params.id);
+    const contrato = listar('contratos', { contatoId: contato.id }).find((c) => c.situacao === 'assinado');
+    if (!contrato) throw comCodigo('Esta conversa nao tem contrato assinado para enviar.', 400);
+    const { enviarAoJuri } = await import('../integracoes/atilhus-juri.js');
+    return enviarAoJuri(contrato.id, { manual: true });
   });
 
   /* ---------------- Acoes em massa ---------------- */

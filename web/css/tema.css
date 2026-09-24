@@ -6371,6 +6371,59 @@ select.chat-teste-escolha {
   font-weight: 600;
 }
 
+/* Botao "Enviar ao Atilhus Juri" no cartao de Contrato fechado. E um
+   role="button" (nao pode ser <button> dentro do <button> do cartao); por
+   padrao usa a acao dourada, e muda de tom conforme o envio: verde = ja foi,
+   vermelho = falhou, alerta = falta configurar. */
+.kanban-cartao-juri {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 26px;
+  margin-top: var(--e2);
+  border-radius: var(--raio-p);
+  border: 1px solid var(--ouro-linha);
+  background: var(--ouro-fraco);
+  color: var(--ouro-claro);
+  font-size: var(--t-nota);
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+}
+.kanban-cartao-juri:hover {
+  background: color-mix(in srgb, var(--ouro) 18%, transparent);
+}
+.kanban-cartao-juri:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: 2px;
+}
+.kanban-cartao-juri.enviando {
+  opacity: 0.7;
+  cursor: default;
+}
+.kanban-cartao-juri.ok {
+  border-color: color-mix(in srgb, var(--sucesso) 40%, transparent);
+  background: color-mix(in srgb, var(--sucesso) 12%, transparent);
+  color: var(--sucesso);
+}
+.kanban-cartao-juri.ok:hover {
+  background: color-mix(in srgb, var(--sucesso) 20%, transparent);
+}
+.kanban-cartao-juri.erro {
+  border-color: var(--erro-linha);
+  background: var(--erro-fraco);
+  color: var(--erro);
+}
+.kanban-cartao-juri.erro:hover {
+  background: color-mix(in srgb, var(--erro) 18%, transparent);
+}
+.kanban-cartao-juri.aviso {
+  border-color: var(--alerta-linha);
+  background: var(--alerta-fraco);
+  color: var(--alerta);
+}
+
 /* O rotulo do grupo de momento dentro da coluna: caixa alta pequena, sem
    moldura, para nao competir com os cartoes. */
 .kanban-grupo {

@@ -3637,6 +3637,67 @@ export async function paginaAtendimento({
 
   /* ---------------- Visualizacao: kanban ---------------- */
 
+  /**
+   * Botao "Enviar ao Atilhus Juri" no cartao da coluna Contrato fechado.
+   *
+   * O cartao inteiro e um <button> que abre a conversa, e botao dentro de botao
+   * nao vale — por isso este e um <span role="button"> que para o clique de
+   * subir (stopPropagation) antes de abrir a conversa. O envio ja e idempotente
+   * no Juri (pelo token da ZapSign): reenviar nao duplica, so confirma.
+   */
+  function acaoJuri(contato) {
+    const j = contato.juri;
+    const porEstado = {
+      enviado: { txt: 'Enviado ao Juri', cls: 'ok', title: 'Já está no Atilhus Juri. Clique para reenviar (não duplica).' },
+      recusado: { txt: 'Reenviar ao Juri', cls: 'erro', title: j.erro || 'O Atilhus Juri recusou o envio.' },
+      aguardando_configuracao: { txt: 'Enviar ao Juri', cls: 'aviso', title: 'Configure o Atilhus Juri em Integrações antes.' },
+    };
+    const e = porEstado[j.situacao] || { txt: 'Enviar ao Juri', cls: '', title: 'Enviar o contrato assinado ao Atilhus Juri.' };
+    const pinta = (cls, texto) => alvo.replaceChildren(icone('enviar', 13), document.createTextNode(texto));
+    const alvo = el('span', {
+      class: `kanban-cartao-juri ${e.cls}`.trim(),
+      role: 'button',
+      tabindex: '0',
+      title: e.title,
+    });
+    pinta(e.cls, e.txt);
+
+    const disparar = async (evento) => {
+      evento.preventDefault();
+      evento.stopPropagation();
+      if (alvo.dataset.enviando) return;
+      alvo.dataset.enviando = '1';
+      alvo.classList.add('enviando');
+      pinta('', 'Enviando…');
+      try {
+        const resposta = await api.post(`/api/contatos/${contato.id}/enviar-juri`, {});
+        const dados = resposta?.dados ?? resposta;
+        if (dados?.ok) {
+          aviso(dados.repetido ? 'Este contrato já estava no Atilhus Juri.' : 'Contrato enviado ao Atilhus Juri.', 'sucesso');
+          recarregar();
+        } else {
+          aviso(dados?.erro || 'Não foi possível enviar ao Atilhus Juri.', 'erro');
+          alvo.className = 'kanban-cartao-juri erro';
+          pinta('erro', 'Tentar de novo');
+        }
+      } catch (erro) {
+        aviso('Falha ao falar com o Atilhus Juri.', 'erro');
+        alvo.className = 'kanban-cartao-juri erro';
+        pinta('erro', 'Tentar de novo');
+      } finally {
+        delete alvo.dataset.enviando;
+        alvo.classList.remove('enviando');
+      }
+    };
+    alvo.addEventListener('click', disparar);
+    alvo.addEventListener('keydown', (evento) => {
+      if (evento.key === 'Enter' || evento.key === ' ') disparar(evento);
+    });
+    /* O arrasto do cartao nao deve comecar a partir do botao. */
+    alvo.addEventListener('dragstart', (evento) => evento.preventDefault());
+    return alvo;
+  }
+
   function montarKanban() {
     // .area-kanban e a coluna que empilha a faixa de aviso e o quadro. Ela
     // tambem cuida do respiro do aviso e da altura do quadro, que antes
@@ -3834,6 +3895,7 @@ export async function paginaAtendimento({
             }),
           ]),
           conferir ? el('div', { class: 'kanban-agir' }, [icone('contrato', 13), 'Contrato para conferir']) : null,
+          contato.juri ? acaoJuri(contato) : null,
         ]);
         /* A cor do caso vai na borda esquerda, nunca no texto: e a mesma
            cor nos dois temas, e texto colorido perde contraste num deles. */
