@@ -14,6 +14,7 @@ function integracoesDo(workspaceId) {
       zapsign: { chave: '', modelos: [], ativo: false },
       googleCalendar: { conectado: false },
       advbox: { chave: '', ativo: false, descricoesStatus: {} },
+      liderhub: { chave: '', ativo: false, ultimaImportacao: null },
       customTools: [],
       ia: { provedor: 'anthropic', chaveAnthropic: '', chaveOpenai: '' },
     });
@@ -50,6 +51,7 @@ function mascarar(registro) {
       segredoWebhook: mascara(registro.zapsign?.segredoWebhook),
     },
     advbox: { ...registro.advbox, chave: mascara(registro.advbox?.chave) },
+    liderhub: { ativo: false, ultimaImportacao: null, ...(registro.liderhub || {}), chave: mascara(registro.liderhub?.chave) },
     atilhusJuri: { url: '', ativo: false, ...(registro.atilhusJuri || {}), segredo: mascara(registro.atilhusJuri?.segredo) },
     googleCalendar: {
       ...registro.googleCalendar,
@@ -120,6 +122,13 @@ export function registrarIntegracoes(rotas) {
         ...atual.advbox,
         ...corpo.advbox,
         chave: preservarSegredo(corpo.advbox.chave, atual.advbox?.chave),
+      };
+    }
+    if (corpo.liderhub) {
+      mudancas.liderhub = {
+        ...atual.liderhub,
+        ...corpo.liderhub,
+        chave: preservarSegredo(corpo.liderhub.chave, atual.liderhub?.chave),
       };
     }
     if (corpo.googleCalendar) {
@@ -200,6 +209,17 @@ export function registrarIntegracoes(rotas) {
     exigirConfiguracao(ctx);
     const { sincronizarModelos } = await import('../integracoes/zapsign.js');
     return sincronizarModelos(ctx.workspaceId);
+  });
+
+  /**
+   * Importa da LiderHub a classificacao dos contatos: status, etiquetas e
+   * departamento. Com { simular: true } (padrao) so devolve o relatorio do que
+   * mudaria, sem gravar nada; a equipe confere e so entao importa de verdade.
+   */
+  rotas.post('/api/integracoes/liderhub/importar', async ({ ctx, corpo }) => {
+    exigirConfiguracao(ctx);
+    const { importarClassificacao } = await import('../integracoes/liderhub.js');
+    return importarClassificacao(ctx.workspaceId, { simular: corpo.simular !== false });
   });
 
   /**

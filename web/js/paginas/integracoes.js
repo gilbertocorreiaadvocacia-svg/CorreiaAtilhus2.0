@@ -47,6 +47,7 @@ export async function paginaIntegracoes() {
         blocoAtilhusJuri(integracoes, desenhar),
         blocoAgenda(integracoes, desenhar),
         blocoAndamento(integracoes, desenhar),
+        blocoLiderhub(integracoes, desenhar),
         blocoMetaConversoes(integracoes, desenhar),
         blocoTikTokEventos(integracoes, desenhar),
         blocoFerramentas(integracoes, desenhar),
@@ -598,6 +599,88 @@ function blocoAndamento(integracoes, recarregarTela) {
               });
               aviso('Integracao salva.', 'sucesso');
               await recarregarTela();
+            },
+          })
+        : null,
+    ),
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Migracao da LiderHub                                                 */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Traz da LiderHub a classificacao dos contatos: status (coluna), etiquetas e
+ * departamento. Primeira fase, sem mensagem nem historico.
+ *
+ * A previa (simular) nunca grava: mostra quantos contatos viriam, quais status
+ * e departamentos NAO tem par aqui (esses ficam sem classificacao) e quais
+ * etiquetas seriam criadas. So depois de conferir e que a importacao grava.
+ */
+function blocoLiderhub(integracoes, recarregarTela) {
+  const lh = integracoes.liderhub || {};
+  const chave = entradaTexto('', { type: 'password', placeholder: lh.chave ? 'ja configurada' : 'x-company-key da LiderHub' });
+  const resultado = el('div', { class: 'ajuste-ajuda mt-2' });
+
+  const lista = (nomes) => (nomes.length ? nomes.join(', ') : '—');
+  const mostrar = (r) => {
+    limpar(resultado);
+    const linhas = [
+      `${r.simulacao ? 'Prévia (nada gravado)' : 'Importado'}: ${r.totalLiderhub} contatos na LiderHub.`,
+      `${r.novos} novos, ${r.atualizados} já existiam aqui.`,
+      `Com status: ${r.comStatus}. Com departamento: ${r.comDepartamento}. Etiquetas aplicadas: ${r.etiquetasAplicadas}.`,
+      r.semTelefone ? `${r.semTelefone} sem telefone foram pulados.` : null,
+      r.etiquetasCriadas.length ? `Etiquetas ${r.simulacao ? 'a criar' : 'criadas'}: ${lista(r.etiquetasCriadas)}.` : null,
+      `Status sem coluna correspondente (ficam sem status): ${lista(r.statusSemPar)}.`,
+      `Departamentos sem par (ficam sem departamento): ${lista(r.departamentoSemPar)}.`,
+      r.erros.length ? `Erros: ${r.erros.length}. Primeiro: ${r.erros[0]}` : null,
+    ].filter(Boolean);
+    for (const linha of linhas) resultado.append(el('div', { texto: linha }));
+  };
+
+  const salvarChaveSePreciso = async () => {
+    if (chave.value.trim()) await api.patch('/api/integracoes', { liderhub: { chave: chave.value.trim() } });
+  };
+
+  const rodar = async (simular) => {
+    await salvarChaveSePreciso();
+    limpar(resultado);
+    resultado.append(el('div', { texto: simular ? 'Consultando a LiderHub…' : 'Importando…' }));
+    try {
+      const r = (await api.post('/api/integracoes/liderhub/importar', { simular })).dados;
+      mostrar(r);
+      if (!simular) {
+        aviso('Importação concluída.', 'sucesso');
+        await recarregarTela();
+      }
+    } catch (erro) {
+      limpar(resultado);
+      resultado.append(el('div', { class: 'alerta-caixa', texto: erro?.mensagem || erro?.message || 'Falha ao falar com a LiderHub.' }));
+    }
+  };
+
+  return cartaoAjustes(
+    'Migração da LiderHub',
+    'Traz a classificação dos contatos que já estavam na LiderHub: o status (coluna do funil), as etiquetas e o departamento (Comercial, Pós-venda...). Não traz mensagem nem histórico nesta fase. Faça a prévia primeiro: ela mostra o que mudaria sem gravar nada.',
+    linhaAjuste('Chave da API', lh.ultimaImportacao ? `Última importação em ${dataHora(lh.ultimaImportacao)}.` : null, chave, {
+      balao: 'A x-company-key gerada na plataforma da LiderHub. Fica guardada aqui e nunca volta em claro.',
+    }),
+    linhaAjuste('O que a importação faz', null, null, {
+      largo: true,
+      balao: 'Casa cada contato pelo telefone. Status sem coluna correspondente e departamento sem par ficam em branco e aparecem na lista abaixo; etiquetas novas são criadas.',
+    }),
+    el('div', { class: 'ajuste-linha larga' }, [el('div', {}, [resultado])]),
+    rodapeAjustes(
+      podeConfigurar()
+        ? botao('Prévia', { pequeno: true, aoClicar: () => rodar(true) })
+        : null,
+      podeConfigurar()
+        ? botao('Importar de verdade', {
+            tipo: 'principal',
+            pequeno: true,
+            aoClicar: async () => {
+              if (await confirmar('Importar a classificação da LiderHub agora? Faça a prévia antes se ainda não fez.')) await rodar(false);
             },
           })
         : null,

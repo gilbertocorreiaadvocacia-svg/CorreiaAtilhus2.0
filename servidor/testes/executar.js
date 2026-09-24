@@ -30,6 +30,8 @@ import { testarHospedagem } from './hospedagem.js';
 import { testarAvaliacao } from './avaliacao.js';
 import { subirRedesFalsas } from './redes-falsas.js';
 import { testarRedes } from './redes.js';
+import { subirLiderhubFalsa } from './liderhub-falsa.js';
+import { testarLiderhub } from './liderhub.js';
 
 /**
  * A suite do CorreiaAtilhus2.0. Rode com `npm test`.
@@ -115,6 +117,8 @@ async function principal() {
   const juri = `http://127.0.0.1:${portaJuri}`;
   const portaRedes = await portaLivre();
   const redes = `http://127.0.0.1:${portaRedes}`;
+  const portaLiderhub = await portaLivre();
+  const liderhub = `http://127.0.0.1:${portaLiderhub}`;
   const evolucao = `http://127.0.0.1:${portaEvolucao}`;
   const anthropic = `http://127.0.0.1:${portaAnthropic}`;
 
@@ -126,6 +130,7 @@ async function principal() {
   const zapsignFalsa = await subirZapsignFalsa(portaZapsign, 'zs-de-mentira');
   const juriFalso = await subirJuriFalso(portaJuri, 'segredo-do-juri');
   const redesFalsas = await subirRedesFalsas(portaRedes);
+  const liderhubFalsa = await subirLiderhubFalsa(portaLiderhub, 'lh-de-mentira');
   const sistema = spawn(process.execPath, [path.join(RAIZ, 'servidor/index.js')], {
     env: {
       ...process.env,
@@ -143,6 +148,9 @@ async function principal() {
          (o login do TikTok volta para ele). */
       CORREIA_INSTAGRAM_URL: `${redes}/ig`,
       CORREIA_TIKTOK_URL: `${redes}/tt`,
+      /* A LiderHub de mentira, para o teste de migracao. */
+      CORREIA_LIDERHUB_URL: liderhub,
+      CORREIA_LIDERHUB_INTERVALO: '10',
       CORREIA_ENDERECO_PUBLICO: base,
       /* A fila do Atilhus Juri, tambem em milissegundos. */
       CORREIA_JURI_INTERVALO: '150',
@@ -186,6 +194,7 @@ async function principal() {
     zapsignFalsa.close();
     juriFalso.close();
     redesFalsas.close();
+    liderhubFalsa.close();
     fs.rmSync(pastaDados, { recursive: true, force: true });
   }
 
@@ -219,6 +228,9 @@ async function principal() {
     /* Depois de todas as outras: acrescenta conversas em Ativos, e as suites
        de cima contam fila. */
     suites.push(await testarHistorico({ base, evolucao, chaveEvolucao: CHAVE_EVOLUCAO }));
+    /* Depois do historico: a migracao adiciona contatos na base, e as suites de
+       cima contam fila. */
+    suites.push(await testarLiderhub({ base }));
     /* Sobe processos proprios, em porta propria: nao encosta no servidor acima. */
     suites.push(await testarPortaOcupada({ raiz: RAIZ, portaLivre }));
     /* Tambem sobe processos proprios: o sistema como fica na VPS. */
