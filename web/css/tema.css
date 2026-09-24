@@ -3000,6 +3000,36 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
  * Busca e filtros da fila, na cabeca da coluna: eles recortam a fila, entao
  * moram em cima dela.
  */
+/* Seletor de numero, no alto da fila de Conversas: escolher um numero mostra
+   so as conversas dele. Fica em destaque discreto, com o dourado da acao. */
+.seletor-numero {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  padding: var(--e2) var(--e3);
+  border-bottom: 1px solid var(--borda);
+  color: var(--ouro);
+}
+.seletor-numero > svg {
+  flex: none;
+}
+.seletor-numero .seletor-numero-campo {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--controle);
+  padding: 0 var(--e3);
+  border-radius: var(--raio);
+  border: 1px solid var(--ouro-linha);
+  background: var(--ouro-fraco);
+  color: var(--texto);
+  font: 600 var(--t-base) / 1 var(--fonte);
+  cursor: pointer;
+}
+.seletor-numero .seletor-numero-campo:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: 1px;
+}
+
 .busca-fila {
   display: flex;
   align-items: center;

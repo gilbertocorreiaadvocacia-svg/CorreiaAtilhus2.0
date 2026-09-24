@@ -607,7 +607,39 @@ export async function paginaAtendimento({
     });
     botaoFiltros.classList.toggle('ativo', ligados.length > 0);
 
+    /*
+     * Seletor de numero, visivel no alto da fila.
+     *
+     * A troca de numero tambem mora no seletor de contexto (barra de cima), mas
+     * la ela fica escondida e a fila abre sempre em "Todos os numeros". Aqui, na
+     * propria tela de Conversas, a escolha fica a mao: escolher um numero mostra
+     * so as conversas dele; "Todos os numeros" volta a ver tudo. A escolha e
+     * lembrada (estado.js) e avisa o resto do sistema pelo evento 'numero'.
+     */
+    function seletorDeNumero() {
+      const conta = (id) => porConexao[id]?.naoLidas || 0;
+      const rotuloDe = (c) => {
+        const onde = c.tipo === 'simulador' ? 'teste' : c.numero ? telefone(c.numero) : 'sem número';
+        const n = conta(c.id);
+        return `${c.nome} · ${onde}${n ? ` (${n})` : ''}`;
+      };
+      const opcoes = [
+        { valor: '', rotulo: 'Todos os números' },
+        ...estado.conexoes.map((c) => ({ valor: c.id, rotulo: rotuloDe(c) })),
+      ];
+      const campo = selecao(opcoes, filtro.conexao || '', {
+        class: 'seletor-numero-campo',
+        'aria-label': 'Número de WhatsApp',
+      });
+      campo.addEventListener('change', () => escolherNumero(campo.value || ''));
+      return el('label', { class: 'seletor-numero', title: 'Ver as conversas de um número só' }, [
+        icone('conexoes', 15),
+        campo,
+      ]);
+    }
+
     const cabeca = el('div', { class: 'coluna-cabecalho sem-respiro' }, [
+      estado.conexoes.length ? seletorDeNumero() : null,
       abas,
       concluidos,
       el('div', { class: 'busca-fila' }, [el('label', { class: 'busca-fila-caixa' }, [icone('lupa', 14), busca]), botaoFiltros]),
