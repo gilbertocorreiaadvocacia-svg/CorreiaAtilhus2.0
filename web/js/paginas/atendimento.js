@@ -675,13 +675,29 @@ export async function paginaAtendimento({
       }
     }
 
+    /* A fila desenha em lotes: o primeiro lote sai na hora (a tela pinta rapido)
+       e o resto entra em quadros seguintes, sem travar o navegador com centenas
+       de linhas de uma vez. A "geracao" cancela um lote pendente quando a lista
+       e refeita (busca, troca de aba), para nao encavalar. */
+    const LOTE_FILA = 60;
+    let geracaoLista = 0;
     function atualizarLista() {
+      const geracao = ++geracaoLista;
       limpar(corpo);
       if (!contatos.length) {
         corpo.append(vazio('Nenhuma conversa aqui', 'Conecte um WhatsApp ou use o simulador.'));
         return;
       }
-      for (const contato of contatos) corpo.append(itemConversa(contato));
+      let i = 0;
+      const desenharLote = () => {
+        if (geracao !== geracaoLista) return;
+        const fim = Math.min(i + LOTE_FILA, contatos.length);
+        const fragmento = document.createDocumentFragment();
+        for (; i < fim; i += 1) fragmento.append(itemConversa(contatos[i]));
+        corpo.append(fragmento);
+        if (i < contatos.length) requestAnimationFrame(desenharLote);
+      };
+      desenharLote();
     }
 
     atualizarLista();
