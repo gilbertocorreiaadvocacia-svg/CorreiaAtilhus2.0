@@ -61,11 +61,11 @@
   --borda: #232830;
   --borda-forte: #2e343d;
 
-  --ouro: #c9a961;
-  --ouro-claro: #eadfb4;
-  --ouro-escuro: #8a6e3a;
-  --ouro-fraco: rgba(201, 169, 97, 0.14);
-  --ouro-linha: rgba(201, 169, 97, 0.28);
+  --ouro: #b8a05c;
+  --ouro-claro: #d0b978;
+  --ouro-escuro: #8a7440;
+  --ouro-fraco: rgba(184, 160, 92, 0.14);
+  --ouro-linha: rgba(184, 160, 92, 0.3);
 
   /* Superficies douradas que nao sao pilula nem borda: o halo da tela de
      entrada, a grade de pontos do painel de conversa, o balao da mensagem
@@ -151,8 +151,8 @@
      faixa e estreita de proposito: com as duas pontas na mesma altura, uma cor
      de texto so passa o contraste do comeco ao fim do gradiente. Com a faixa
      larga de antes, um rotulo longo chegava na ponta escura em 3,9:1. */
-  --ouro-acao-de: #d2b473;
-  --ouro-acao-ate: #a4854a;
+  --ouro-acao-de: #c2aa64;
+  --ouro-acao-ate: #947c40;
   --sobre-ouro: #191204;
 
   /* Uma escala so, aplicada sem excecao:
@@ -284,11 +284,11 @@
   --borda: #e7e6e0;
   --borda-forte: #d6d4cb;
 
-  --ouro: #7a5f2a;
-  --ouro-claro: #5c4720;
-  --ouro-escuro: #b99b57;
-  --ouro-fraco: rgba(122, 95, 42, 0.1);
-  --ouro-linha: rgba(122, 95, 42, 0.28);
+  --ouro: #806e33;
+  --ouro-claro: #6b5b2a;
+  --ouro-escuro: #a89151;
+  --ouro-fraco: rgba(128, 110, 51, 0.12);
+  --ouro-linha: rgba(128, 110, 51, 0.3);
 
   /* Mesmas superficies douradas do bloco escuro, sobre o ouro do tema claro
      (#846834) e com a opacidade subida: a mesma porcentagem que se enxerga
@@ -350,9 +350,9 @@
 
   /* No claro a faixa de acao inverte: fundo dourado escuro e texto quase
      branco, que e o unico jeito de o gradiente inteiro passar o contraste. */
-  --ouro-acao-de: #7a5f2e;
-  --ouro-acao-ate: #624b22;
-  --sobre-ouro: #fbf8f1;
+  --ouro-acao-de: #7a6830;
+  --ouro-acao-ate: #5f5126;
+  --sobre-ouro: #fbf8ee;
 
   --veu: rgba(22, 22, 26, 0.42);
   --sombra: 0 14px 32px rgba(25, 24, 30, 0.14);
@@ -463,13 +463,13 @@ a {
   --superficie-3: #1c1b17;
   --borda: #201e1a;
   --borda-forte: #2b2823;
-  --ouro: #c9a961;
-  --ouro-claro: #eadfb4;
-  --ouro-escuro: #8a6e3a;
-  --ouro-fraco: rgba(201, 169, 97, 0.14);
-  --ouro-linha: rgba(201, 169, 97, 0.28);
-  --ouro-acao-de: #d2b473;
-  --ouro-acao-ate: #a4854a;
+  --ouro: #b8a05c;
+  --ouro-claro: #d0b978;
+  --ouro-escuro: #8a7440;
+  --ouro-fraco: rgba(184, 160, 92, 0.14);
+  --ouro-linha: rgba(184, 160, 92, 0.3);
+  --ouro-acao-de: #c2aa64;
+  --ouro-acao-ate: #947c40;
   --sobre-ouro: #191204;
   --texto: #efeae0;
   --texto-suave: #a9a296;
@@ -871,8 +871,21 @@ a {
   width: 240px;
   min-height: 0;
   padding: var(--e3) var(--e2);
-  background: var(--preto);
-  border-right: 1px solid var(--borda);
+  /* Barra sempre PRETA (modelo 3, preta a pedido dele em 28/09), com os icones
+     numa cor so. Redefinir os tokens SO aqui dentro faz a barra inteira ficar
+     escura sem reescrever regra por regra; o conteudo ao lado nao e filho da
+     barra, entao continua no tema claro. */
+  --preto: #121216;
+  --superficie: #242429;
+  --superficie-2: #1b1b20;
+  --superficie-3: #2a2a30;
+  --borda: rgba(255, 255, 255, 0.08);
+  --borda-forte: rgba(255, 255, 255, 0.16);
+  --texto: #eee9de;
+  --texto-suave: #b4b0a8;
+  --texto-fraco: #97938a;
+  background: #121216;
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .rail-marca {
@@ -7432,11 +7445,11 @@ button.mencao-chip:focus-visible {
     --superficie-3: #f0efec;
     --borda: #e7e6e0;
     --borda-forte: #d6d4cb;
-    --ouro: #7a5f2a;
-    --ouro-claro: #5c4720;
-    --ouro-escuro: #b99b57;
-    --ouro-fraco: rgba(122, 95, 42, 0.1);
-    --ouro-linha: rgba(122, 95, 42, 0.28);
+    --ouro: #806e33;
+    --ouro-claro: #6b5b2a;
+    --ouro-escuro: #a89151;
+    --ouro-fraco: rgba(128, 110, 51, 0.12);
+    --ouro-linha: rgba(128, 110, 51, 0.3);
     --texto: #16161a;
     --texto-suave: #55555d;
     --texto-fraco: #5e5e66;
@@ -7481,9 +7494,9 @@ button.mencao-chip:focus-visible {
 
     /* No claro a faixa de acao inverte: fundo dourado escuro e texto quase
        branco, que e o unico jeito de o gradiente inteiro passar o contraste. */
-    --ouro-acao-de: #7a5f2e;
-    --ouro-acao-ate: #624b22;
-    --sobre-ouro: #fbf8f1;
+    --ouro-acao-de: #7a6830;
+    --ouro-acao-ate: #5f5126;
+    --sobre-ouro: #fbf8ee;
 
     --veu: rgba(22, 22, 26, 0.42);
     --sombra: 0 14px 32px rgba(25, 24, 30, 0.14);
@@ -10357,21 +10370,22 @@ img.avatar {
   box-shadow: none;
 }
 
-/* Barra de icones: cada icone no tom da area, apagado em repouso, aceso ao
-   passar o mouse e na area aberta. */
+/* Barra de icones em UMA cor so (modelo 3): cinza claro em repouso, off-white
+   ao passar o mouse e na area aberta. Sem cor por area. O unico toque dourado e
+   o fio da esquerda no item ativo, no ouro da logo. */
 .rail-item {
-  color: color-mix(in srgb, var(--area, var(--texto-fraco)) 58%, var(--texto-fraco));
+  color: var(--texto-fraco);
 }
 
 .rail-item:hover {
-  color: var(--area, var(--texto));
-  background: color-mix(in srgb, var(--area, var(--texto)) 12%, transparent);
+  color: var(--texto);
+  background: color-mix(in srgb, #ffffff 8%, transparent);
 }
 
 .rail-item.ativo {
-  color: var(--area, var(--ouro-claro));
-  background: color-mix(in srgb, var(--area, var(--ouro)) 18%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--area, var(--ouro)) 48%, transparent);
+  color: var(--texto);
+  background: color-mix(in srgb, #ffffff 10%, transparent);
+  box-shadow: inset 2px 0 0 #a89151;
 }
 
 /* A barra de cima acende de leve no tom da area aberta, vindo da esquerda. */
