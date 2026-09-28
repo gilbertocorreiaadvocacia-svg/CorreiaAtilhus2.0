@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import zlib from 'node:zlib';
 import { HOSPEDADO, LIMITE_CORPO, PASTA_WEB } from '../config.js';
 
 const TIPOS = {
@@ -137,6 +138,26 @@ export function criarRoteador() {
   return api;
 }
 
+/*
+ * Compressao gzip dos estaticos de texto.
+ *
+ * O tema.css passa de 260 KB e o JavaScript soma algumas centenas: crus, isso
+ * pesa o carregamento sobre a internet. Gzip corta ~80%. O buffer comprimido
+ * fica guardado por caminho + mtime, entao a compressao acontece uma vez por
+ * versao do arquivo, e nao a cada requisicao. zlib e nativo do Node, sem
+ * dependencia nova.
+ */
+const COMPRIMIVEL = new Set(['.html', '.css', '.js', '.json', '.svg', '.map', '.txt', '.webmanifest']);
+const gzipCache = new Map();
+
+function gzipDe(destino, mtimeMs) {
+  const guardado = gzipCache.get(destino);
+  if (guardado && guardado.mtime === mtimeMs) return guardado.buf;
+  const buf = zlib.gzipSync(fs.readFileSync(destino), { level: 6 });
+  gzipCache.set(destino, { mtime: mtimeMs, buf });
+  return buf;
+}
+
 /** Serve os arquivos da pasta web, barrando qualquer tentativa de subir de pasta. */
 export function servirEstatico(req, res, caminhoUrl) {
   let relativo = decodeURIComponent(caminhoUrl.split('?')[0]);
@@ -173,6 +194,23 @@ export function servirEstatico(req, res, caminhoUrl) {
   if (req.headers['if-none-match'] === etiqueta) {
     res.writeHead(304, { ETag: etiqueta, 'Cache-Control': 'no-cache' });
     res.end();
+    return true;
+  }
+
+  /* Texto vai comprimido quando o navegador aceita; o resto (imagem, fonte,
+     woff2) ja e comprimido e segue em stream. */
+  const aceitaGzip = /\bgzip\b/.test(req.headers['accept-encoding'] || '');
+  if (aceitaGzip && COMPRIMIVEL.has(extensao)) {
+    const buf = gzipDe(destino, info.mtimeMs);
+    res.writeHead(200, {
+      'Content-Type': TIPOS[extensao] || 'application/octet-stream',
+      'Content-Length': buf.length,
+      'Content-Encoding': 'gzip',
+      Vary: 'Accept-Encoding',
+      'Cache-Control': extensao === '.html' ? 'no-store' : 'no-cache',
+      ETag: etiqueta,
+    });
+    res.end(buf);
     return true;
   }
 
