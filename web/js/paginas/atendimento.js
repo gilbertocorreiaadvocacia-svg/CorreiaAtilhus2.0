@@ -3698,6 +3698,118 @@ export async function paginaAtendimento({
     return alvo;
   }
 
+  /* As cores que as colunas do Kanban podem usar: tokens vivos do tema, para a
+     mesma cor valer nos dois temas. */
+  const PALETA_COLUNA = [
+    'var(--serie-1)', 'var(--serie-2)', 'var(--serie-3)', 'var(--serie-4)',
+    'var(--serie-5)', 'var(--serie-6)', 'var(--serie-7)', 'var(--serie-8)',
+    'var(--sucesso)', 'var(--info)', 'var(--alerta)', 'var(--erro)', 'var(--ia)', 'var(--ouro)',
+  ];
+
+  /* Popover de cores ancorado num elemento. Escolhida uma cor, chama aoEscolher
+     e fecha. Fecha tambem ao clicar fora. */
+  function abrirPaletaCor(ancora, corAtual, aoEscolher) {
+    document.querySelector('.paleta-cor-popover')?.remove();
+    const pop = el(
+      'div',
+      { class: 'paleta-cor-popover', role: 'menu' },
+      PALETA_COLUNA.map((cor) =>
+        el('button', {
+          type: 'button',
+          class: `paleta-cor-opcao${cor === corAtual ? ' ativa' : ''}`,
+          estilo: { '--cor': cor },
+          title: cor,
+          'aria-label': `Usar a cor ${cor}`,
+          aoClick: (ev) => {
+            ev.stopPropagation();
+            pop.remove();
+            aoEscolher(cor);
+          },
+        }),
+      ),
+    );
+    document.body.append(pop);
+    const r = ancora.getBoundingClientRect();
+    pop.style.top = `${Math.round(r.bottom + 6 + window.scrollY)}px`;
+    pop.style.left = `${Math.round(Math.min(r.left + window.scrollX, window.innerWidth - 220))}px`;
+    const fechar = (ev) => {
+      if (pop.contains(ev.target) || ev.target === ancora) return;
+      pop.remove();
+      document.removeEventListener('mousedown', fechar);
+    };
+    setTimeout(() => document.addEventListener('mousedown', fechar), 0);
+  }
+
+  /* A coluna nova do quadro nasce "neutra" (tipo nenhum), para nao virar etapa
+     do funil nem entrar no dashboard como um estagio. Depois de criada, e
+     reposicionada para cair no segmento aberto (Venda/Pos-venda/Encerradas). */
+  async function posicionarNoSegmento(novoId) {
+    if (!novoId) return;
+    const ids = estado.status.map((s) => s.id).filter((id) => id !== novoId);
+    const sucesso = estado.status.find((s) => s.tipo === 'sucesso');
+    let alvo = ids.length;
+    if (sucesso && segmentoDoFunil === 'venda') alvo = Math.max(0, ids.indexOf(sucesso.id));
+    else if (sucesso && segmentoDoFunil === 'posvenda') alvo = ids.indexOf(sucesso.id) + 1;
+    ids.splice(alvo < 0 ? ids.length : alvo, 0, novoId);
+    await api.post('/api/status/ordenar', { ordem: ids });
+  }
+
+  /* O cartao "+ Nova coluna" no fim do quadro: abre um mini formulario com nome
+     e cor, e cria a coluna no segmento aberto. */
+  function tileNovaColuna() {
+    const tile = el('div', { class: 'kanban-coluna-nova' });
+    const abrir = () => {
+      limpar(tile);
+      let corEscolhida = 'var(--serie-6)';
+      const nome = entradaTexto('', { placeholder: 'Nome da coluna' });
+      const swatches = el(
+        'div',
+        { class: 'paleta-cor-inline' },
+        PALETA_COLUNA.map((cor) => {
+          const b = el('button', {
+            type: 'button',
+            class: `paleta-cor-opcao${cor === corEscolhida ? ' ativa' : ''}`,
+            estilo: { '--cor': cor },
+            title: cor,
+            'aria-label': `Cor ${cor}`,
+            aoClick: () => {
+              corEscolhida = cor;
+              swatches.querySelectorAll('.paleta-cor-opcao').forEach((x) => x.classList.remove('ativa'));
+              b.classList.add('ativa');
+            },
+          });
+          return b;
+        }),
+      );
+      const criar = async () => {
+        const n = nome.value.trim();
+        if (!n) return nome.focus();
+        const tipoNovo = segmentoDoFunil === 'encerradas' ? 'desistencia' : 'nenhum';
+        try {
+          const criado = (await api.post('/api/status', { nome: n, cor: corEscolhida, tipo: tipoNovo })).dados;
+          await posicionarNoSegmento(criado?.id);
+          aviso('Coluna criada.', 'sucesso');
+          await desenhar();
+        } catch (erro) {
+          aviso(`Não consegui criar a coluna: ${erro.message}`, 'erro');
+        }
+      };
+      tile.append(
+        el('div', { class: 'kanban-nova-form' }, [
+          nome,
+          swatches,
+          el('div', { class: 'kanban-nova-acoes' }, [
+            botao('Criar', { tipo: 'principal', pequeno: true, aoClicar: criar }),
+            botao('Cancelar', { pequeno: true, aoClicar: () => desenhar() }),
+          ]),
+        ]),
+      );
+      nome.focus();
+    };
+    tile.append(botao('Nova coluna', { icone: 'mais', aoClicar: abrir }));
+    return tile;
+  }
+
   function montarKanban() {
     // .area-kanban e a coluna que empilha a faixa de aviso e o quadro. Ela
     // tambem cuida do respiro do aviso e da altura do quadro, que antes
@@ -3749,28 +3861,6 @@ export async function paginaAtendimento({
         ),
       );
 
-      /* O tipo de caso e o recorte mais usado no quadro: fica a um clique, e
-         clicar de novo desliga. */
-      const chipsDeCaso = estado.etiquetas
-        .filter((etiqueta) => etiqueta.tipo === 'caso')
-        .map((caso) => {
-          const ligado = filtro.etiqueta === caso.id;
-          return el(
-            'button',
-            {
-              type: 'button',
-              class: `chip-filtro chip-caso${ligado ? ' ativo' : ''}`,
-              'aria-pressed': ligado ? 'true' : 'false',
-              title: ligado ? `Tirar o filtro ${caso.nome}` : `Mostrar só ${caso.nome}`,
-              aoClick: async () => {
-                filtro.etiqueta = ligado ? '' : caso.id;
-                await desenhar();
-              },
-            },
-            [el('span', { class: 'ponto', estilo: { background: caso.cor } }), document.createTextNode(caso.nome)],
-          );
-        });
-
       const conduz = filtrosLigados().find((ligado) => ligado.chave === 'responsavel');
       const quemConduz = el(
         'button',
@@ -3787,7 +3877,7 @@ export async function paginaAtendimento({
         ],
       );
 
-      return [partes, ...chipsDeCaso, quemConduz];
+      return [partes, quemConduz];
     }
 
     const quadro = el('div', { class: 'kanban' });
@@ -3944,9 +4034,32 @@ export async function paginaAtendimento({
             : 'Mensagens sem resposta somadas nesta coluna';
       }
 
+      /* O ponto da coluna vira botao: clicar troca a cor daquela coluna na hora.
+         "Sem status" nao tem id, entao segue como ponto simples. */
+      const pontoCor = coluna.id
+        ? el('button', {
+            type: 'button',
+            class: 'ponto ponto-botao',
+            estilo: { background: coluna.cor },
+            title: `Trocar a cor de ${coluna.nome}`,
+            'aria-label': `Trocar a cor de ${coluna.nome}`,
+            aoClick: (ev) => {
+              ev.stopPropagation();
+              abrirPaletaCor(ev.currentTarget, coluna.cor, async (cor) => {
+                try {
+                  await api.patch(`/api/status/${coluna.id}`, { cor });
+                  await desenhar();
+                } catch (erro) {
+                  aviso(`Não consegui trocar a cor: ${erro.message}`, 'erro');
+                }
+              });
+            },
+          })
+        : el('span', { class: 'ponto', estilo: { background: coluna.cor } });
+
       const colunaNo = el('div', { class: 'kanban-coluna', estilo: { '--cor-coluna': coluna.cor } }, [
         el('header', {}, [
-          el('span', { class: 'ponto', estilo: { background: coluna.cor } }),
+          pontoCor,
           el('span', { class: 'flexivel encolhe cortar', texto: coluna.nome }),
           contagem,
           somaNaoLidas,
@@ -3980,6 +4093,10 @@ export async function paginaAtendimento({
 
       quadro.append(colunaNo);
     }
+
+    /* Depois das colunas, o cartao de criar uma nova (so para quem pode mexer
+       na configuracao). */
+    if (podeConfigurar()) quadro.append(tileNovaColuna());
 
     /*
      * Solta o cartao na coluna.

@@ -315,38 +315,38 @@
      Os valores abaixo estao calculados sobre a etiqueta tingida, que e o pior
      caso: 5,2:1 nos tres. Sobre a superficie branca, onde eles tambem
      aparecem, sobra ainda mais. */
-  --sucesso: #005c37;
-  --alerta: #6a5403;
-  --alerta-fraco: rgba(129, 74, 8, 0.12);
-  --alerta-linha: rgba(129, 74, 8, 0.3);
-  --erro: #920030;
-  --erro-fraco: rgba(163, 47, 34, 0.12);
-  --erro-linha: rgba(163, 47, 34, 0.35);
-  --info: #274e88;
+  --sucesso: #078854;
+  --alerta: #8d7007;
+  --alerta-fraco: rgba(141, 112, 7, 0.12);
+  --alerta-linha: rgba(141, 112, 7, 0.3);
+  --erro: #e90c55;
+  --erro-fraco: rgba(233, 12, 85, 0.12);
+  --erro-linha: rgba(233, 12, 85, 0.35);
+  --info: #166ff3;
 
   /* Canal, envio e IA no claro. O balao enviado vira papel verde-agua: sobre
      branco, o verde escuro do tema escuro fecharia o texto. */
   --enviado: #e8f2ec;
   --enviado-linha: #b9d9c8;
   --enviado-texto: #17301f;
-  --enviado-nome: #14663f;
-  --canal: #007b49;
+  --enviado-nome: #07884b;
+  --canal: #078854;
   --sobre-canal: #ffffff;
-  --ia: #4801cd;
+  --ia: #7d3df5;
   --sobre-ia: #ffffff;
-  --ia-fraco: rgba(72, 1, 205, 0.09);
-  --ia-linha: rgba(72, 1, 205, 0.26);
+  --ia-fraco: rgba(125, 61, 245, 0.09);
+  --ia-linha: rgba(125, 61, 245, 0.26);
 
   /* Mesma ordem da paleta escura, escurecida para o traco de 2px continuar
      visivel sobre o cartao branco. */
-  --serie-1: #766a03;
-  --serie-2: #765302;
-  --serie-3: #763b01;
-  --serie-4: #722300;
-  --serie-5: #007778;
-  --serie-6: #056190;
-  --serie-7: #4801cd;
-  --serie-8: #6b0179;
+  --serie-1: #a0910d;
+  --serie-2: #b8850f;
+  --serie-3: #d97412;
+  --serie-4: #ed6326;
+  --serie-5: #0d9fa0;
+  --serie-6: #1296d9;
+  --serie-7: #7d3df5;
+  --serie-8: #db42f0;
 
   /* No claro a faixa de acao inverte: fundo dourado escuro e texto quase
      branco, que e o unico jeito de o gradiente inteiro passar o contraste. */
@@ -7508,38 +7508,38 @@ button.mencao-chip:focus-visible {
        cada um vem escurecido ate passar os 4,5:1 sobre --superficie e
        --superficie-2, mantendo o par forte/fraco: o forte e a cor do texto, o
        fraco continua sendo o fundo da pilula. */
-    --sucesso: #007b49;
-    --alerta: #826704;
-    --alerta-fraco: rgba(129, 74, 8, 0.12);
-    --alerta-linha: rgba(129, 74, 8, 0.3);
-    --erro: #920030;
-    --erro-fraco: rgba(163, 47, 34, 0.12);
-    --erro-linha: rgba(163, 47, 34, 0.35);
-    --info: #2f5fa6;
+    --sucesso: #078854;
+    --alerta: #8d7007;
+    --alerta-fraco: rgba(141, 112, 7, 0.12);
+    --alerta-linha: rgba(141, 112, 7, 0.3);
+    --erro: #e90c55;
+    --erro-fraco: rgba(233, 12, 85, 0.12);
+    --erro-linha: rgba(233, 12, 85, 0.35);
+    --info: #166ff3;
 
   /* Canal, envio e IA no claro. O balao enviado vira papel verde-agua: sobre
      branco, o verde escuro do tema escuro fecharia o texto. */
   --enviado: #e8f2ec;
   --enviado-linha: #b9d9c8;
   --enviado-texto: #17301f;
-  --enviado-nome: #14663f;
-  --canal: #007b49;
+  --enviado-nome: #07884b;
+  --canal: #078854;
   --sobre-canal: #ffffff;
-  --ia: #4801cd;
+  --ia: #7d3df5;
   --sobre-ia: #ffffff;
-  --ia-fraco: rgba(72, 1, 205, 0.09);
-  --ia-linha: rgba(72, 1, 205, 0.26);
+  --ia-fraco: rgba(125, 61, 245, 0.09);
+  --ia-linha: rgba(125, 61, 245, 0.26);
 
     /* Mesma ordem da paleta escura, escurecida para o traco de 2px continuar
        visivel sobre o cartao branco. */
-    --serie-1: #766a03;
-    --serie-2: #765302;
-    --serie-3: #763b01;
-    --serie-4: #722300;
-    --serie-5: #007778;
-    --serie-6: #056190;
-    --serie-7: #4801cd;
-    --serie-8: #6b0179;
+    --serie-1: #a0910d;
+    --serie-2: #b8850f;
+    --serie-3: #d97412;
+    --serie-4: #ed6326;
+    --serie-5: #0d9fa0;
+    --serie-6: #1296d9;
+    --serie-7: #7d3df5;
+    --serie-8: #db42f0;
 
     /* No claro a faixa de acao inverte: fundo dourado escuro e texto quase
        branco, que e o unico jeito de o gradiente inteiro passar o contraste. */
@@ -10373,26 +10373,26 @@ tbody tr:focus-within .conexao-alca {
 
 /* No claro os mesmos oito, escurecidos: sobre papel o tom claro some. */
 [data-tema='claro'] {
-  --tom-1: #0b5f94;
-  --tom-2: #0a6f47;
-  --tom-3: #845600;
-  --tom-4: #b03a18;
-  --tom-5: #a3195f;
-  --tom-6: #5b3cc4;
-  --tom-7: #086d70;
-  --tom-8: #566400;
+  --tom-1: #1395e7;
+  --tom-2: #0da066;
+  --tom-3: #c18310;
+  --tom-4: #ef6239;
+  --tom-5: #f0429a;
+  --tom-6: #6a42f0;
+  --tom-7: #0d9ca0;
+  --tom-8: #84970c;
 }
 
 @media (prefers-color-scheme: light) {
   :root:not([data-tema='escuro']) {
-    --tom-1: #0b5f94;
-    --tom-2: #0a6f47;
-    --tom-3: #845600;
-    --tom-4: #b03a18;
-    --tom-5: #a3195f;
-    --tom-6: #5b3cc4;
-    --tom-7: #086d70;
-    --tom-8: #566400;
+    --tom-1: #1395e7;
+    --tom-2: #0da066;
+    --tom-3: #c18310;
+    --tom-4: #ef6239;
+    --tom-5: #f0429a;
+    --tom-6: #6a42f0;
+    --tom-7: #0d9ca0;
+    --tom-8: #84970c;
   }
 }
 
@@ -10505,14 +10505,94 @@ img.avatar {
   border-color: color-mix(in srgb, var(--metrica-cor, var(--borda)) 24%, var(--borda));
 }
 
-/* Coluna do Kanban com o tom do status: filete em cima e o cabecalho tingido
-   (atendimento.js poe --cor-coluna). */
+/* Coluna do Kanban com o tom do status: filete grosso em cima, cabecalho
+   tingido e divisor na cor (atendimento.js poe --cor-coluna). */
 .kanban-coluna {
-  border-top: 3px solid var(--cor-coluna, var(--borda));
+  border-top: 4px solid var(--cor-coluna, var(--borda));
 }
 
 .kanban-coluna > header {
-  background: color-mix(in srgb, var(--cor-coluna, transparent) 11%, transparent);
+  background: color-mix(in srgb, var(--cor-coluna, transparent) 18%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--cor-coluna, var(--borda)) 38%, var(--borda));
+}
+
+.kanban-coluna > header .ponto {
+  width: 11px;
+  height: 11px;
+}
+
+/* O ponto vira botao para trocar a cor da coluna: um anel ao passar o mouse. */
+.ponto-botao {
+  flex: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  box-shadow: 0 0 0 0 transparent;
+  transition: box-shadow var(--transicao);
+}
+.ponto-botao:hover,
+.ponto-botao:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--superficie), 0 0 0 3.5px var(--cor-coluna, var(--ouro));
+}
+
+/* Paleta de cores: popover ancorado (recolorir) e a linha inline (nova coluna). */
+.paleta-cor-popover {
+  position: absolute;
+  z-index: 130;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  padding: 10px;
+  background: var(--superficie);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  box-shadow: var(--sombra);
+}
+.paleta-cor-inline {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+.paleta-cor-opcao {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: var(--cor);
+  cursor: pointer;
+  padding: 0;
+  transition: transform var(--transicao);
+}
+.paleta-cor-opcao:hover {
+  transform: scale(1.12);
+}
+.paleta-cor-opcao.ativa {
+  box-shadow: 0 0 0 2px var(--superficie), 0 0 0 3.5px var(--texto-suave);
+}
+
+/* O cartao de criar coluna, no fim do quadro. */
+.kanban-coluna-nova {
+  flex: none;
+  width: 232px;
+  padding-top: 4px;
+}
+.kanban-coluna-nova > .botao {
+  width: 100%;
+  border-style: dashed;
+}
+.kanban-nova-form {
+  background: var(--superficie);
+  border: 1px dashed var(--borda-forte);
+  border-radius: var(--raio-g);
+  padding: var(--e3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--e2);
+}
+.kanban-nova-acoes {
+  display: flex;
+  gap: var(--e2);
 }
 
 .kanban-cartao-topo {
