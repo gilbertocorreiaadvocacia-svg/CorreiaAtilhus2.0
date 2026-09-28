@@ -118,12 +118,6 @@ const MENU = [
       },
       { rota: 'contatos', rotulo: 'Contatos', icone: 'usuarios' },
       { rota: 'kanban', rotulo: 'Kanban', icone: 'filtros' },
-      {
-        rota: 'contratos',
-        rotulo: 'Contratos',
-        icone: 'contrato',
-        contador: { chave: 'conferir', tipo: 'ouro', rotulo: 'para conferir' },
-      },
     ],
   },
   {
