@@ -871,10 +871,10 @@ a {
   width: 240px;
   min-height: 0;
   padding: var(--e3) var(--e2);
-  /* Barra sempre PRETA (modelo 3, preta a pedido dele em 28/09), com os icones
-     numa cor so. Redefinir os tokens SO aqui dentro faz a barra inteira ficar
-     escura sem reescrever regra por regra; o conteudo ao lado nao e filho da
-     barra, entao continua no tema claro. */
+  /* Barra PRETA no tema escuro, e BRANCA com dourado no tema claro (a pedido
+     dele, 28/09). Redefinir os tokens SO aqui dentro faz a barra inteira mudar
+     sem reescrever regra por regra; o conteudo ao lado nao e filho da barra.
+     Este bloco e o padrao (escuro); o override do claro vem logo abaixo. */
   --preto: #121216;
   --superficie: #242429;
   --superficie-2: #1b1b20;
@@ -884,8 +884,54 @@ a {
   --texto: #eee9de;
   --texto-suave: #b4b0a8;
   --texto-fraco: #97938a;
+  --rail-realce: color-mix(in srgb, #ffffff 8%, transparent);
+  --rail-realce-forte: color-mix(in srgb, #ffffff 10%, transparent);
+  --rail-fio: #a89151;
   background: #121216;
   border-right: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* Tema claro (branco): barra BRANCA, icones e letras dourados. As duas formas
+   de "claro": escolha explicita e preferencia do sistema. */
+[data-tema='claro'] .rail,
+[data-tema='claro'] .rail-item {
+  --preto: #ffffff;
+  --superficie: color-mix(in srgb, var(--ouro) 8%, #ffffff);
+  --superficie-2: #faf8f2;
+  --superficie-3: #f1ece0;
+  --borda: var(--ouro-linha);
+  --borda-forte: var(--ouro-linha);
+  --texto: var(--ouro-claro);
+  --texto-suave: var(--ouro);
+  --texto-fraco: var(--ouro);
+  --rail-realce: var(--ouro-fraco);
+  --rail-realce-forte: color-mix(in srgb, var(--ouro) 16%, transparent);
+  --rail-fio: var(--ouro);
+}
+[data-tema='claro'] .rail {
+  background: #ffffff;
+  border-right: 1px solid var(--ouro-linha);
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-tema='escuro']) .rail,
+  :root:not([data-tema='escuro']) .rail-item {
+    --preto: #ffffff;
+    --superficie: color-mix(in srgb, var(--ouro) 8%, #ffffff);
+    --superficie-2: #faf8f2;
+    --superficie-3: #f1ece0;
+    --borda: var(--ouro-linha);
+    --borda-forte: var(--ouro-linha);
+    --texto: var(--ouro-claro);
+    --texto-suave: var(--ouro);
+    --texto-fraco: var(--ouro);
+    --rail-realce: var(--ouro-fraco);
+    --rail-realce-forte: color-mix(in srgb, var(--ouro) 16%, transparent);
+    --rail-fio: var(--ouro);
+  }
+  :root:not([data-tema='escuro']) .rail {
+    background: #ffffff;
+    border-right: 1px solid var(--ouro-linha);
+  }
 }
 
 .rail-marca {
@@ -906,6 +952,9 @@ a {
   width: 34px;
   height: 34px;
   object-fit: contain;
+  /* O logo tem fundo preto; arredondado ele vira um selo (some na barra preta,
+     e na barra branca fica um quadradinho preto proposital, nao um erro). */
+  border-radius: var(--raio);
 }
 
 .rail-marca-texto {
@@ -10379,13 +10428,13 @@ img.avatar {
 
 .rail-item:hover {
   color: var(--texto);
-  background: color-mix(in srgb, #ffffff 8%, transparent);
+  background: var(--rail-realce);
 }
 
 .rail-item.ativo {
   color: var(--texto);
-  background: color-mix(in srgb, #ffffff 10%, transparent);
-  box-shadow: inset 2px 0 0 #a89151;
+  background: var(--rail-realce-forte);
+  box-shadow: inset 2px 0 0 var(--rail-fio);
 }
 
 /* A barra de cima acende de leve no tom da area aberta, vindo da esquerda. */
