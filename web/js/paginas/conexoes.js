@@ -866,7 +866,7 @@ function abrirQrCode(conexao, recarregarTela) {
     ],
     aoFechar: () => {
       fechado = true;
-      if (sondagem) clearInterval(sondagem);
+      if (sondagem) clearTimeout(sondagem);
     },
   });
 
@@ -916,24 +916,58 @@ function abrirQrCode(conexao, recarregarTela) {
     }
   }
 
+  /*
+   * A sondagem, com freio e com prazo.
+   *
+   * Era um teste a cada tres segundos, para sempre, ate conectar ou fechar a
+   * gaveta. Quem abria a tela e ia atras do celular deixava o sistema batendo
+   * no servico indefinidamente, e cada batida gravava uma linha de evento: um
+   * diagnostico do sistema leu 34 "desconexoes" em 99 segundos e concluiu que
+   * o numero era instavel. Nao era — era esta funcao aparecendo no log dela
+   * mesma. O servidor agora so registra mudanca, e aqui a espera ganhou forma:
+   *
+   * - Comeca rapido, porque quando da certo a leitura leva poucos segundos.
+   * - Vai afrouxando, porque depois do vigesimo segundo a pressa nao ajuda.
+   * - E PARA no prazo do proprio codigo. Passado isso, o desenho na tela ja
+   *   venceu e insistir nele nao conecta ninguem; o que resolve e o botao de
+   *   gerar outro, que ja esta logo abaixo.
+   */
+  const PRIMEIRA_ESPERA = 2000;
+  const MAIOR_ESPERA = 8000;
+  const PRAZO_DO_CODIGO = 90000;
+
   function vigiar() {
-    if (sondagem) clearInterval(sondagem);
-    sondagem = setInterval(async () => {
-      if (fechado) return clearInterval(sondagem);
+    if (sondagem) clearTimeout(sondagem);
+    const comecou = Date.now();
+    let espera = PRIMEIRA_ESPERA;
+
+    const bater = async () => {
+      if (fechado) return;
+      if (Date.now() - comecou > PRAZO_DO_CODIGO) {
+        situacao.textContent = 'O código venceu. Gere outro para continuar.';
+        return;
+      }
       try {
         const teste = await api.post(`/api/conexoes/${conexao.id}/testar`);
-        if (!teste.ok || fechado) return;
-        clearInterval(sondagem);
-        limpar(area);
-        area.append(el('div', { class: 'alerta-caixa', texto: 'Conectado! O número ja esta atendendo.' }));
-        situacao.textContent = '';
-        aviso(`${conexao.nome} conectado.`, 'sucesso');
-        await recarregarTela();
+        if (fechado) return;
+        if (teste.ok) {
+          limpar(area);
+          area.append(el('div', { class: 'alerta-caixa', texto: 'Conectado! O número ja esta atendendo.' }));
+          situacao.textContent = '';
+          aviso(`${conexao.nome} conectado.`, 'sucesso');
+          await recarregarTela();
+          return;
+        }
       } catch {
         /* Sondagem que falha nao vira erro na tela: o servico pode estar
            demorando, e a pessoa esta olhando para o celular, nao para aqui. */
       }
-    }, 3000);
+      if (fechado) return;
+      espera = Math.min(Math.round(espera * 1.4), MAIOR_ESPERA);
+      sondagem = setTimeout(bater, espera);
+    };
+
+    sondagem = setTimeout(bater, espera);
   }
 
   gerar();

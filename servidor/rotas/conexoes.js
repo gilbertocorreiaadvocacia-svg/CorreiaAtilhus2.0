@@ -348,22 +348,52 @@ export function registrarConexoes(rotas) {
     /* O simulador nao tem estado de rede para gravar: ele esta sempre de pe, e
        reescrever o registro a cada teste so encheria a trilha de eventos. */
     if (conexao.tipo !== 'simulador') {
+      /*
+       * A trilha de eventos guarda MUDANCA, nao batimento.
+       *
+       * Antes, todo teste gravava uma linha. Como a tela do QR Code testa de
+       * poucos em poucos segundos enquanto espera a leitura do codigo, um
+       * numero que demorou um minuto e meio para conectar deixava dezenas de
+       * "Teste falhou" seguidos — e um diagnostico do sistema leu isso como 34
+       * desconexoes em 99 segundos, concluindo que o numero era instavel. Nao
+       * era: o log estava contando a propria espera.
+       *
+       * Agora a linha so entra quando o estado vira, ou quando o numero cai
+       * por um motivo diferente do anterior. Uma falha que se repete identica
+       * nao acrescenta informacao nenhuma; uma que muda de motivo, sim.
+       */
+      const estadoNovo = resultado.ok ? 'conectado' : 'desconectado';
+      const motivoNovo = resultado.ok ? null : resultado.erro || null;
+      const virouEstado = conexao.estado !== estadoNovo;
+      const virouMotivo = !resultado.ok && (conexao.ultimoErro || null) !== motivoNovo;
+      const virouIdentidade =
+        (Boolean(resultado.numero) && resultado.numero !== conexao.numero) ||
+        (resultado.qualidade !== undefined && resultado.qualidade !== (conexao.qualidade ?? null));
+
       atualizar('conexoes', params.id, {
-        estado: resultado.ok ? 'conectado' : 'desconectado',
+        estado: estadoNovo,
         numero: resultado.numero || conexao.numero,
         qualidade: resultado.qualidade ?? conexao.qualidade ?? null,
         nomeExibicao: resultado.nomeExibicao || conexao.nomeExibicao || null,
         conectadoEm: resultado.ok ? agora() : conexao.conectadoEm || null,
-        ultimoErro: resultado.ok ? null : resultado.erro || null,
+        ultimoErro: motivoNovo,
       });
-      registrarEvento(
-        conexao,
-        resultado.ok ? 'conectado' : 'desconectado',
-        resultado.ok
-          ? `Teste passou: ${resultado.numero || conexao.numero || 'numero'}${resultado.qualidade ? ` (qualidade ${resultado.qualidade})` : ''}.`
-          : `Teste falhou: ${resultado.erro}`,
-      );
-      emitir(ctx.workspaceId, 'conexao', { conexaoId: params.id });
+
+      if (virouEstado || virouMotivo) {
+        registrarEvento(
+          conexao,
+          estadoNovo,
+          resultado.ok
+            ? `Conectou: ${resultado.numero || conexao.numero || 'numero'}${resultado.qualidade ? ` (qualidade ${resultado.qualidade})` : ''}.`
+            : `Caiu: ${resultado.erro}`,
+        );
+      }
+      /* O aviso para as outras telas segue a mesma regra: nada mudou, ninguem
+         precisa redesenhar. A tela do QR Code le a resposta deste POST, e nao
+         o aviso, entao ela continua descobrindo a conexao na hora. */
+      if (virouEstado || virouMotivo || virouIdentidade) {
+        emitir(ctx.workspaceId, 'conexao', { conexaoId: params.id });
+      }
 
       /* A tela do QR Code descobre que a sessao abriu por aqui, a cada tres
          segundos. Se o aviso de sessao aberta da Evolution nao chegar (webhook
@@ -804,8 +834,17 @@ function aplicarEventoDeConexao(conexao, evento) {
     agendarSincronizacao(atual);
   }
 
-  const precisaAvisar = evento.estado === 'desconectado' || evento.qualidade;
-  if (precisaAvisar) {
+  /*
+   * Avisa a QUEDA, e nao o estado de estar caido.
+   *
+   * O provedor repete o aviso de sessao fechada enquanto o numero nao volta.
+   * Notificando todos eles, o sino enchia de linhas identicas sobre a mesma
+   * queda, e o aviso que importa — o instante em que o numero saiu do ar —
+   * ficava enterrado no meio. Um alarme que toca sozinho a noite inteira e um
+   * alarme que se aprende a desligar.
+   */
+  const caiuAgora = evento.estado === 'desconectado' && conexao.estado !== 'desconectado';
+  if (caiuAgora || evento.qualidade) {
     for (const membro of listar('membros', { workspaceId: conexao.workspaceId })) {
       if (membro.papel !== 'administrador') continue;
       notificar(
