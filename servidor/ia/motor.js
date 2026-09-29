@@ -4,6 +4,7 @@ import { achar, atualizar, listar, mensagensDe, registrarLog } from '../nucleo/b
 import { emitir } from '../nucleo/eventos.js';
 import { lancar } from '../nucleo/creditos.js';
 import { caminhoDaMidia } from '../nucleo/midia.js';
+import { avisarModoDegradado } from '../nucleo/diagnostico.js';
 import { agora, formatarTelefone } from '../nucleo/util.js';
 import { enviarMensagem } from '../whatsapp/envio.js';
 import { sintetizar, vozDisponivel } from './audio.js';
@@ -349,6 +350,14 @@ async function rodarAgente(contatoId, passo) {
     let textoFinal = null;
 
     if (!usaModelo) {
+      /*
+       * Um agente configurado para "regras" responde por roteiro de proposito.
+       * Ja um agente que pede um modelo de verdade e nao consegue esta FALHANDO,
+       * e ate hoje falhava calado: quem lia a conversa via uma resposta pronta
+       * sem saber que faltava a chave. Agora a conversa conta, e os
+       * administradores recebem um aviso por dia.
+       */
+      if (modelo.provedor !== 'regras') avisarModoDegradado(contato, agente);
       const resposta = responderPorRegras({
         agente,
         contato,

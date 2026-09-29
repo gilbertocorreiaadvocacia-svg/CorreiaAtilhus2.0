@@ -67,6 +67,13 @@ const GRUPOS = [
     rotulo: 'Escritório',
     itens: [
       {
+        id: 'saude',
+        rotulo: 'Saúde do sistema',
+        descricao:
+          'O sistema conferindo a si mesmo. Cada linha aqui e um defeito que hoje so apareceria depois, no atendimento: chave de IA faltando, número sem status padrão, agente citando um atalho que não existe.',
+        montar: secaoSaude,
+      },
+      {
         id: 'escritorio',
         rotulo: 'Dados do escritório',
         descricao: 'Os agentes consultam estes campos quando o lead pergunta endereço, OAB ou telefone. Campo em branco eles não usam, e não inventam.',
@@ -1471,6 +1478,85 @@ function secaoAparencia() {
   // o interruptor gemeo la em cima, estao inteiras na dica do titulo. Aqui
   // ficam as tres opcoes e as miniaturas, que e o que se vem fazer.
   return ajustes(...linhas);
+}
+
+/* ------------------------------------------------------------------ */
+/* Saude do sistema                                                    */
+/* ------------------------------------------------------------------ */
+
+/*
+ * O selo de "critica" e o mesmo de "alta" de proposito: os dois sao vermelhos
+ * porque os dois estragam atendimento hoje. O que os separa e a ordem na lista
+ * e a palavra, nao a cor — tres tons de urgencia viram decoracao e ninguem le.
+ */
+const SELO_SEVERIDADE = { critica: 'erro', alta: 'erro', media: 'alerta', baixa: 'info' };
+const NOME_SEVERIDADE = { critica: 'Crítico', alta: 'Grave', media: 'Atenção', baixa: 'Menor' };
+
+async function secaoSaude() {
+  const area = el('div');
+
+  async function carregar() {
+    const saude = await api.get('/api/diagnostico');
+    limpar(area);
+
+    if (!saude.achados.length) {
+      area.append(
+        vazio(
+          'Nada a corrigir',
+          'Todas as verificações passaram. Volte aqui depois de mexer em conexão, agente ou status.',
+        ),
+      );
+      return;
+    }
+
+    area.append(
+      el('div', { class: 'metricas mb-4' }, [
+        metricaSimples('Críticos', saude.resumo.critica, 'param o atendimento'),
+        metricaSimples('Graves', saude.resumo.alta, 'atrapalham hoje'),
+        metricaSimples('Ajustes', saude.resumo.media + saude.resumo.baixa, 'configuração torta'),
+      ]),
+    );
+
+    const lista = el(
+      'div',
+      { class: 'lista-simples' },
+      saude.achados.map((achado) =>
+        el('div', { class: 'lista-item' }, [
+          el('div', { class: 'corpo' }, [
+            el('div', { class: 'titulo' }, [
+              el('span', { texto: achado.titulo }),
+              ' ',
+              selo(NOME_SEVERIDADE[achado.severidade], SELO_SEVERIDADE[achado.severidade]),
+            ]),
+            el('div', { class: 'desc', texto: achado.detalhe }),
+          ]),
+          /* Link de verdade, e nao botao: cada achado ja sabe a tela onde se
+             resolve, e ficar procurando no indice era metade do trabalho. */
+          el('a', { class: 'botao pequeno', href: achado.onde, texto: 'Onde corrigir' }),
+        ]),
+      ),
+    );
+    area.append(cartao(null, null, lista));
+  }
+
+  await carregar();
+
+  return el('div', {}, [
+    el('div', { class: 'linha-botoes mb-4' }, [
+      botao('Verificar de novo', {
+        pequeno: true,
+        icone: 'atualizar',
+        aoClicar: async () => {
+          try {
+            await carregar();
+          } catch (erro) {
+            aviso(erro.message, 'erro');
+          }
+        },
+      }),
+    ]),
+    area,
+  ]);
 }
 
 /* ------------------------------------------------------------------ */

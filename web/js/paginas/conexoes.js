@@ -271,9 +271,11 @@ export async function paginaConexoes({ definirAcoes } = {}) {
           ]),
         ]),
       ]),
-      statusPadrao: el('td', {}, [status ? selo(status.nome, '', status.cor) : el('span', { class: 'c-fraco', texto: '-' })]),
+      /* Um traco cinza aqui parecia "nao preenchido ainda". E falha: numero sem
+         status padrao joga lead novo fora do funil. A tabela diz isso. */
+      statusPadrao: el('td', {}, [status ? selo(status.nome, '', status.cor) : selo('Sem status', 'alerta')]),
       departamento: el('td', {}, [
-        departamento ? selo(departamento.nome, '', departamento.cor) : el('span', { class: 'c-fraco', texto: '-' }),
+        departamento ? selo(departamento.nome, '', departamento.cor) : selo('Sem departamento', 'alerta'),
       ]),
       responsavel: el('td', {}, [
         responsavel
@@ -506,14 +508,26 @@ function abaGeral(conexao, irParaLogs, aoMudar) {
     el('div', { class: 'conexao-bloco' }, [
       el('div', { class: 'item' }, [
         icone('filtros', 14),
-        status ? selo(status.nome, '', status.cor) : el('span', { class: 'c-fraco', texto: 'Sem status padrão' }),
+        /*
+         * Em cinza claro, "Sem status padrao" lia-se como campo opcional em
+         * branco. Nao e: um numero sem status padrao acumula conversa fora do
+         * funil, e foi assim que a maior parte da base ficou sem coluna nenhuma
+         * sem ninguem perceber. O aviso agora tem a cor do que ele custa.
+         */
+        status ? selo(status.nome, '', status.cor) : selo('Sem status padrão', 'alerta'),
       ]),
       el('div', { class: 'item' }, [
         icone('pasta', 14),
-        departamento
-          ? selo(departamento.nome, '', departamento.cor)
-          : el('span', { class: 'c-fraco', texto: 'Sem departamento padrão' }),
+        departamento ? selo(departamento.nome, '', departamento.cor) : selo('Sem departamento padrão', 'alerta'),
       ]),
+      !status || !departamento
+        ? el('p', {
+            class: 'ajuda',
+            texto: !status
+              ? 'Sem status padrao, o lead novo deste numero nao entra em nenhuma coluna do Kanban: ele so aparece na fila de conversas e o funil nao conta com ele.'
+              : 'Sem departamento padrao, a conversa nova deste numero nasce sem area dona, e quem enxerga so um departamento nao vai ve-la.',
+          })
+        : null,
     ]),
 
     subtitulo('Responsavel padrao'),

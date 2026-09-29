@@ -32,6 +32,7 @@ import { subirRedesFalsas } from './redes-falsas.js';
 import { testarRedes } from './redes.js';
 import { subirLiderhubFalsa } from './liderhub-falsa.js';
 import { testarLiderhub } from './liderhub.js';
+import { testarDiagnostico } from './diagnostico.js';
 
 /**
  * A suite do CorreiaAtilhus2.0. Rode com `npm test`.
@@ -231,6 +232,9 @@ async function principal() {
     /* Depois do historico: a migracao adiciona contatos na base, e as suites de
        cima contam fila. */
     suites.push(await testarLiderhub({ base }));
+    /* Por ultimo no servidor compartilhado: cadastra um membro de suporte, e o
+       sorteio de responsavel das suites de cima conta quem existe. */
+    suites.push(await testarDiagnostico({ base }));
     /* Sobe processos proprios, em porta propria: nao encosta no servidor acima. */
     suites.push(await testarPortaOcupada({ raiz: RAIZ, portaLivre }));
     /* Tambem sobe processos proprios: o sistema como fica na VPS. */

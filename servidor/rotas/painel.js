@@ -2,6 +2,7 @@ import { TIPOS_STATUS } from '../config.js';
 import { achar, atualizar, listar, remover } from '../nucleo/banco.js';
 import { filtrarConversasVisiveis, podeVerConversa } from '../nucleo/auth.js';
 import { consumoDoWorkspace } from '../nucleo/creditos.js';
+import { diagnosticar } from '../nucleo/diagnostico.js';
 import { emitir } from '../nucleo/eventos.js';
 import { agora } from '../nucleo/util.js';
 import { saudeDoDia } from '../automacao/followup.js';
@@ -989,6 +990,18 @@ export function registrarPainel(rotas) {
     if (!notificacao || notificacao.usuarioId !== ctx.usuarioId) throw comCodigo('Notificacao nao encontrada.', 404);
     remover('notificacoes', params.id);
     return { ok: true };
+  });
+
+  /* ---------------- Saude do sistema ---------------- */
+
+  /*
+   * O sistema conferindo a si mesmo. Fica atras da permissao de configurar
+   * porque cada achado aponta uma tela de ajuste, e a lista descreve como o
+   * escritorio esta montado por dentro: nao e informacao de atendente.
+   */
+  rotas.get('/api/diagnostico', async ({ ctx }) => {
+    exigirConfiguracao(ctx);
+    return diagnosticar(ctx.workspaceId);
   });
 
   /* ---------------- Horario comercial ---------------- */
