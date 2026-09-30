@@ -12,7 +12,8 @@
     "conferir-whatsapp": "node servidor/ferramentas/conferir-whatsapp.js",
     "corrigir-historico": "node servidor/ferramentas/corrigir-historico.js",
     "higiene": "node servidor/ferramentas/higiene.js",
-    "backup": "node servidor/ferramentas/backup.js"
+    "backup": "node servidor/ferramentas/backup.js",
+    "consertar-mencoes": "node servidor/ferramentas/consertar-mencoes.js"
   },
   "engines": {
     "node": ">=18"
