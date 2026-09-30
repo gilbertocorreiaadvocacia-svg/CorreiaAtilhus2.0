@@ -164,14 +164,36 @@ export function diagnosticar(workspaceId) {
     anotar('baixa', 'origem-repetida', 'Origens de trafego repetidas', 'Ha origens com o mesmo nome; o custo por lead por canal fica impossivel de apurar.', '#/configuracoes/classes');
   }
 
-  /* 10. A IA promete passar para uma pessoa; precisa existir a pessoa. */
-  const atendentes = membros.filter((m) => m.papel !== 'administrador');
-  if (!atendentes.length) {
+  /*
+   * 10. A IA promete passar para uma pessoa. A pessoa existe?
+   *
+   * A primeira versao deste achado dizia que a transferencia "nao cai em
+   * ninguem". Estava errado: sortearResponsavel (ia/mencoes.js) distribui
+   * entre TODOS os membros ativos, inclusive administrador. Ou seja, cai —
+   * cai sempre no dono do escritorio.
+   *
+   * O problema real nao e a conversa se perder, e o funil inteiro desaguar em
+   * quem nao esta ali para atender. Vale dizer isso, e nao a outra coisa: um
+   * diagnostico que exagera e um diagnostico em que ninguem confia da segunda
+   * vez.
+   */
+  const atendentes = membros.filter((m) => m.papel !== 'administrador' && m.ativo !== false);
+  const ativos = membros.filter((m) => m.ativo !== false);
+  if (!atendentes.length && ativos.length) {
     anotar(
       'alta',
       'sem-atendente',
-      'Nao ha atendente humano cadastrado',
-      'O agente promete que "alguem do escritorio continua", mas so existem administradores: a transferencia nao cai em ninguem.',
+      'Toda transferencia cai no administrador',
+      `O agente promete que "alguem do escritorio continua", e a conversa e distribuida entre ${ativos.length === 1 ? 'o unico membro ativo, que e administrador' : `os ${ativos.length} membros ativos, todos administradores`}. Nao ha fila de atendimento: o funil inteiro desagua em quem administra o sistema.`,
+      '#/configuracoes/membros',
+    );
+  }
+  if (!ativos.length) {
+    anotar(
+      'critica',
+      'sem-membro',
+      'Nao ha nenhum membro ativo',
+      'A transferencia para uma pessoa nao tem em quem cair, e a conversa fica parada sem dono.',
       '#/configuracoes/membros',
     );
   }
@@ -225,6 +247,34 @@ export function diagnosticar(workspaceId) {
  * ruido que se aprende a ignorar.
  */
 const avisadoEm = new Map();
+
+/*
+ * O atalho quebrado, dito na conversa.
+ *
+ * Quando o prompt manda usar @videoproposta e o template nao existe, a
+ * ferramenta nem e oferecida ao modelo: ele segue a instrucao do texto, anuncia
+ * que enviou, e nao enviou nada. Quem abre a conversa depois le uma promessa
+ * cumprida pela metade sem nenhuma pista do porque.
+ *
+ * O aviso entra UMA vez por conversa. Repetir a cada mensagem afogaria a
+ * propria conversa naquilo que se quer que a pessoa leia.
+ */
+const mencaoAvisada = new Set();
+
+export function avisarMencaoInvalida(contato, agente, invalidas) {
+  if (!invalidas?.length) return;
+  const chave = `${contato.id}:${agente.id}`;
+  if (mencaoAvisada.has(chave)) return;
+  mencaoAvisada.add(chave);
+
+  registrarLog(
+    contato.workspaceId,
+    contato.id,
+    'ia',
+    `${agente.nome} cita ${invalidas.map((m) => `@${m}`).join(', ')}, que nao existe no workspace: essa parte das instrucoes nao e executada, e o agente pode anunciar que fez.`,
+    { tipo: 'sistema', nome: 'Sistema' },
+  );
+}
 
 export function avisarModoDegradado(contato, agente) {
   registrarLog(

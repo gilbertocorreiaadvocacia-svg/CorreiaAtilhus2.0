@@ -344,8 +344,21 @@ function seguroJson(texto) {
  * resposta do lead. Nao entende contexto, mas mantem o funil rodando e serve
  * para demonstrar o fluxo inteiro antes de plugar a IA de verdade.
  */
+/*
+ * A frase de encerramento do roteiro, e a unica coisa que o cliente ouve
+ * quando falta a chave da IA.
+ *
+ * Ela dizia "em instantes alguem do escritorio continua com voce". "Em
+ * instantes" e uma promessa de prazo que o sistema nao controla e nao mede:
+ * a conversa entra numa fila, e quanto tempo ela espera depende do escritorio.
+ * Prometer o que nao se pode cumprir custa mais caro do que nao prometer,
+ * porque o cliente para de cobrar e so volta bravo.
+ *
+ * O que o sistema PODE garantir e que a mensagem foi registrada e que a
+ * conversa esta na fila de alguem. E o que a frase diz agora.
+ */
 const ESPERA =
-  'Obrigado pela mensagem! Ja registrei aqui e em instantes alguem do escritorio continua com voce.';
+  'Obrigado pela mensagem! Ja registrei sua conversa aqui e a equipe do escritorio vai continuar o atendimento com voce.';
 
 export function responderPorRegras({ agente, contato, historico }) {
   // So vale como template o que existe mesmo: no prompt tambem ha @status,

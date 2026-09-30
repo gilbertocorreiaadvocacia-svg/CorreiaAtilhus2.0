@@ -24,6 +24,66 @@ function doWorkspace(ctx, colecao, id) {
 }
 
 /**
+ * Um agente no ar nao pode ser LIGADO com atalho quebrado.
+ *
+ * Quando o prompt manda usar @videoproposta e esse template nao existe mais, a
+ * ferramenta nem chega a ser oferecida ao modelo: a instrucao fica no texto, o
+ * modelo tenta cumprir, a acao nao acontece — e ele costuma ANUNCIAR que fez.
+ * "Ja te enviei o video", e o cliente fica esperando uma coisa que nunca saiu.
+ *
+ * A guarda pega so o momento de LIGAR um agente que estava desligado. Criar e
+ * editar seguem livres de proposito: agentes se chamam em cadeia, e quem monta
+ * a cadeia escreve no prompt da secretaria que ela passa para @Especialista
+ * antes de o especialista existir. Barrar isso tornaria impossivel construir a
+ * cadeia pela ordem natural, para impedir um estado que dura um minuto.
+ *
+ * O que impede o atalho de quebrar depois e a outra guarda, logo abaixo: nao
+ * deixar apagar o item de que um agente no ar depende.
+ */
+function conferirMencoes(ctx, antes, depois) {
+  const vaiLigar = antes && antes.ativo === false && depois.ativo === true;
+  if (!vaiLigar) return;
+
+  const quebradas = analisarPrompt(depois.prompt || '', ctx.workspaceId).invalidas;
+  if (!quebradas.length) return;
+
+  throw comCodigo(
+    `${quebradas.map((m) => `@${m}`).join(', ')} nao existe no workspace. Crie o item ou tire a mencao do prompt antes de ligar o agente: no ar, ele anuncia acoes que nao acontecem.`,
+    409,
+  );
+}
+
+/**
+ * Nao apagar o que um agente no ar esta usando.
+ *
+ * Foi assim que cinco agentes de producao ficaram citando templates que nao
+ * existem: alguem apagou @videoproposta, @bemvindo, @contratoassinado e
+ * @documentos, e o sistema limpou tudo o que apontava para eles — o passo de
+ * follow-up, o agendamento, a ZapSign (ver automacao/remover-template.js) —
+ * menos o prompt dos agentes, que ninguem olhava. Os agentes seguiram no ar
+ * mandando usar um template que nao existia mais.
+ *
+ * A limpeza automatica nao serve aqui: prompt e texto escrito por uma pessoa,
+ * com o raciocinio dela em volta da mencao. Recortar a palavra deixaria a
+ * frase sem sentido, e reescrever a frase nao e trabalho de um DELETE. Entao
+ * o sistema recusa e diz quem depende — quem apaga decide o que fazer com o
+ * texto.
+ */
+function conferirDependenciaDeAgente(ctx, registro) {
+  if (!registro) return;
+  const dependentes = listar('agentes', { workspaceId: ctx.workspaceId })
+    .filter((a) => a.ativo !== false)
+    .filter((a) => analisarPrompt(a.prompt || '', ctx.workspaceId).mencoes.some((m) => m.id === registro.id))
+    .map((a) => a.nome);
+
+  if (!dependentes.length) return;
+  throw comCodigo(
+    `"${registro.nome}" e usado no prompt de ${dependentes.join(', ')}. Tire a mencao do prompt, ou desligue o agente, antes de apagar.`,
+    409,
+  );
+}
+
+/**
  * Duas classificacoes com o mesmo nome nao sao duas coisas: sao a mesma coisa
  * contada duas vezes.
  *
@@ -116,7 +176,11 @@ export function registrarAutomacoes(rotas) {
   /* ---------------- Classes da conversa ---------------- */
 
   crud(rotas, 'departamentos', 'departamentos', { prefixo: 'dep', unico: true });
-  crud(rotas, 'etiquetas', 'etiquetas', { prefixo: 'etq', unico: true });
+  crud(rotas, 'etiquetas', 'etiquetas', {
+    prefixo: 'etq',
+    unico: true,
+    aoRemover: (id, ctx) => conferirDependenciaDeAgente(ctx, achar('etiquetas', id)),
+  });
   crud(rotas, 'origens', 'origens', { prefixo: 'org', unico: true });
   crud(rotas, 'variaveis', 'variaveis', {
     prefixo: 'var',
@@ -180,6 +244,7 @@ export function registrarAutomacoes(rotas) {
     doWorkspace(ctx, 'status', params.id);
     const emUso = listar('contatos', { workspaceId: ctx.workspaceId }).some((c) => c.statusId === params.id);
     if (emUso) throw comCodigo('Ha conversas neste status. Unifique-a com outra coluna, ou mova as conversas antes de excluir.', 409);
+    conferirDependenciaDeAgente(ctx, achar('status', params.id));
     remover('status', params.id);
     return { ok: true };
   });
@@ -266,7 +331,10 @@ export function registrarAutomacoes(rotas) {
     prefixo: 'tpl',
     /* Limpa follow-up, agendamento e ZapSign que apontavam para ele; o
        remover do crud, logo depois, nao acha mais nada e segue. */
-    aoRemover: (id) => removerTemplate(id),
+    aoRemover: (id, ctx) => {
+      conferirDependenciaDeAgente(ctx, achar('templates', id));
+      removerTemplate(id);
+    },
     aoCriar: (registro) => {
       if (!registro.atalho) atualizar('templates', registro.id, { atalho: slug(registro.nome) });
       if (!registro.aprovacaoMeta) {
@@ -506,8 +574,10 @@ export function registrarAutomacoes(rotas) {
 
   rotas.patch('/api/agentes/:id', async ({ ctx, params, corpo }) => {
     exigirConfiguracao(ctx);
-    doWorkspace(ctx, 'agentes', params.id);
-    return atualizar('agentes', params.id, apenasCamposDoAgente(corpo));
+    const antes = doWorkspace(ctx, 'agentes', params.id);
+    const campos = apenasCamposDoAgente(corpo);
+    conferirMencoes(ctx, antes, { ...antes, ...campos });
+    return atualizar('agentes', params.id, campos);
   });
 
   /**

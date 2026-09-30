@@ -4,12 +4,12 @@ import { achar, atualizar, listar, mensagensDe, registrarLog } from '../nucleo/b
 import { emitir } from '../nucleo/eventos.js';
 import { lancar } from '../nucleo/creditos.js';
 import { caminhoDaMidia } from '../nucleo/midia.js';
-import { avisarModoDegradado } from '../nucleo/diagnostico.js';
+import { avisarMencaoInvalida, avisarModoDegradado } from '../nucleo/diagnostico.js';
 import { agora, formatarTelefone } from '../nucleo/util.js';
 import { enviarMensagem } from '../whatsapp/envio.js';
 import { sintetizar, vozDisponivel } from './audio.js';
 import { membrosQuePodemVer } from '../nucleo/auth.js';
-import { executarFerramenta, ferramentasDoAgente, notificar, sortearResponsavel } from './mencoes.js';
+import { analisarPrompt, executarFerramenta, ferramentasDoAgente, notificar, sortearResponsavel } from './mencoes.js';
 import { conversar, modeloDe, provedorDisponivel, responderPorRegras } from './provedores.js';
 
 const MAX_VOLTAS = 6;
@@ -339,6 +339,10 @@ async function rodarAgente(contatoId, passo) {
 
     const sistema = montarSistema({ agente, contato, workspace });
     const ferramentas = ferramentasDoAgente(agente, contato.workspaceId);
+    /* O prompt manda usar um atalho que nao existe? A ferramenta nem chega a
+       ser oferecida, entao o modelo segue a instrucao no vazio. A conversa
+       passa a registrar isso uma vez, para quem ler depois entender. */
+    avisarMencaoInvalida(contato, agente, analisarPrompt(agente.prompt || '', contato.workspaceId).invalidas);
     const mensagens = montarHistorico(contato, { comImagens: usaModelo && modelo.visao !== false });
 
     const imagensLidas = mensagens.reduce((soma, m) => soma + (m.imagens?.length || 0), 0);
