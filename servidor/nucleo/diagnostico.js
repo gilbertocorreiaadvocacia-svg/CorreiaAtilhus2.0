@@ -29,6 +29,7 @@ export function diagnosticar(workspaceId) {
     achados.push({ id, titulo, detalhe, severidade, onde });
 
   const chaves = chavesDoWorkspace(workspaceId);
+  const integracoes = listar('integracoes', { workspaceId })[0];
   const conexoes = listar('conexoes', { workspaceId });
   const agentes = listar('agentes', { workspaceId });
   const status = listar('status', { workspaceId });
@@ -48,6 +49,44 @@ export function diagnosticar(workspaceId) {
       `${ligados.length} agentes estao ligados, mas sem a chave em Integracoes eles repetem frases fixas do roteiro em vez de ler o que o cliente escreveu. Enquanto isso, mover no funil, etiquetar, transferir e enviar template nao acontecem.`,
       '#/integracoes',
     );
+  }
+
+  /*
+   * 1b. A chave existe. Ela FUNCIONA?
+   *
+   * Este achado nasceu de um engano meu. Em 30/09/2026 o escritorio cadastrou
+   * a chave, o "sem inteligencia artificial" sumiu do painel e eu dei o
+   * problema critico por resolvido. Nao estava: a chave era de organizacao, e
+   * nao de workspace, e a Anthropic recusava toda chamada. No disco, chave boa
+   * e chave recusada sao identicas — as duas sao um texto que comeca com
+   * sk-ant-.
+   *
+   * Entao a pergunta certa nao e "ha chave", e sim "a chave ja respondeu
+   * alguma vez". Enquanto ninguem apertar Testar em Integracoes, o sistema
+   * admite que nao sabe, em vez de mostrar tela verde.
+   *
+   * Sem isso, o estrago aparece no pior lugar possivel: o agente tenta, falha,
+   * e o cliente fica sem resposta nenhuma esperando.
+   */
+  const ultimoTeste = integracoes?.ia?.ultimoTeste;
+  if (chaves.anthropic && ligados.length) {
+    if (!ultimoTeste) {
+      anotar(
+        'alta',
+        'ia-nao-testada',
+        'A chave de IA nunca foi testada',
+        'Ela esta gravada, mas ninguem confirmou que a Anthropic a aceita. Chave recusada tem exatamente a mesma aparencia de chave boa, e a diferenca so aparece quando um cliente escreve e o agente nao responde. Aperte Testar em Integracoes.',
+        '#/integracoes',
+      );
+    } else if (ultimoTeste.ok === false) {
+      anotar(
+        'critica',
+        'ia-teste-falhou',
+        'A chave de IA esta gravada, mas foi recusada',
+        `O ultimo teste falhou: ${ultimoTeste.erro || 'sem detalhe'}. Enquanto estiver assim, o agente tenta responder, nao consegue, e o cliente fica esperando sem resposta nenhuma.`,
+        '#/integracoes',
+      );
+    }
   }
 
   /* 2. Audio que chega e ignorado sem a chave de transcricao. */

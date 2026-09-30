@@ -241,7 +241,7 @@ async function principal() {
     suites.push(await testarEventosDeConexao({ base, evolucao, chaveEvolucao: CHAVE_EVOLUCAO }));
     suites.push(await testarHigiene({ base }));
     suites.push(await testarAtalhos({ base }));
-    suites.push(await testarDiagnostico({ base }));
+    suites.push(await testarDiagnostico({ base, anthropic }));
     /* Sobe processos proprios, em porta propria: nao encosta no servidor acima. */
     suites.push(await testarPortaOcupada({ raiz: RAIZ, portaLivre }));
     /* Tambem sobe processos proprios: o sistema como fica na VPS. */

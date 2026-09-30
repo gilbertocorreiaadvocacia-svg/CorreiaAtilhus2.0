@@ -11,7 +11,7 @@ import { cliente, suite } from './apoio.js';
  * E a lista descreve como o escritorio esta montado por dentro, entao quem nao
  * configura nao le: isso tambem e testado.
  */
-export async function testarDiagnostico({ base }) {
+export async function testarDiagnostico({ base, anthropic }) {
   const s = suite('Diagnostico do sistema');
   const api = cliente(base);
   await api.entrar();
@@ -40,6 +40,64 @@ export async function testarDiagnostico({ base }) {
     s.ok('o achado diz onde se resolve', achar(inicial, 'ia-sem-chave')?.onde === '#/integracoes');
     s.ok('o resumo conta o critico', inicial.resumo?.critica >= 1, JSON.stringify(inicial.resumo));
   }
+
+  /* --- Chave gravada nao e chave que funciona -------------------------- */
+
+  /*
+   * Este teste existe por causa de um engano de verdade: a chave foi
+   * cadastrada, o achado "sem inteligencia artificial" sumiu do painel, e o
+   * critico foi dado por resolvido. Nao estava — a Anthropic recusava toda
+   * chamada, e a diferenca so apareceria quando um cliente escrevesse e o
+   * agente nao respondesse. No disco, chave boa e chave recusada sao um texto
+   * que comeca com sk-ant-.
+   */
+  await api.patch('/api/integracoes', { ia: { chaveAnthropic: 'sk-ant-de-mentira-para-o-teste' } });
+  const soGravada = await diagnosticar();
+  s.ok(
+    'chave gravada e nunca testada vira achado proprio',
+    tem(soGravada, 'ia-nao-testada'),
+    JSON.stringify((soGravada.achados || []).map((a) => a.id)),
+  );
+  s.ok('e o critico de "sem IA" some, porque agora ha chave', !tem(soGravada, 'ia-sem-chave'));
+
+  /*
+   * Agora a recusa DE VERDADE. A Anthropic de mentira aceita qualquer chave,
+   * entao sem encomendar o erro este teste passaria pelo motivo errado — foi o
+   * que aconteceu na primeira versao dele.
+   *
+   * A mensagem e a que a Anthropic mandou de verdade no dia: chave de
+   * organizacao em vez de chave de workspace.
+   */
+  const RECUSA = 'This API key is not scoped to a workspace';
+  await cliente(anthropic).post('/__roteiro', {
+    roteiro: [{ status: 400, mensagem: `${RECUSA}, so this request must include the anthropic-workspace-id header.` }],
+  });
+
+  const testou = await api.post('/api/integracoes/ia/testar', {});
+  s.ok('o teste da chave responde', testou.status === 200, JSON.stringify(testou.dados));
+  s.ok('e reconhece a recusa em vez de dar por boa', testou.dados?.ok === false, JSON.stringify(testou.dados));
+
+  const recusada = await diagnosticar();
+  s.ok(
+    'chave recusada vira achado CRITICO, e nao some do painel',
+    achar(recusada, 'ia-teste-falhou')?.severidade === 'critica',
+    JSON.stringify((recusada.achados || []).map((a) => [a.id, a.severidade])),
+  );
+  s.ok(
+    'o achado carrega o motivo da recusa, para nao virar adivinhacao',
+    String(achar(recusada, 'ia-teste-falhou')?.detalhe || '').includes(RECUSA),
+    achar(recusada, 'ia-teste-falhou')?.detalhe,
+  );
+  s.ok('e o aviso de "nunca testada" da lugar ao de recusa', !tem(recusada, 'ia-nao-testada'));
+
+  /* Limpa a fila da Anthropic de mentira para as suites seguintes. */
+  await cliente(anthropic).post('/__roteiro', { roteiro: [] });
+
+  /* Tira a chave de mentira: as suites seguintes contam com o modo por regras. */
+  await api.patch('/api/integracoes', { ia: { chaveAnthropic: null } });
+  const semChave = await diagnosticar();
+  s.ok('tirada a chave, o painel volta a acusar a falta dela', tem(semChave, 'ia-sem-chave'));
+  s.ok('e para de falar em teste', !tem(semChave, 'ia-nao-testada') && !tem(semChave, 'ia-teste-falhou'));
 
   /* --- Conexao sem status/departamento padrao -------------------------- */
 
