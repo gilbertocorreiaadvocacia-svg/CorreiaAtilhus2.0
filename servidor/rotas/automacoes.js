@@ -1,5 +1,6 @@
 import { PROMPT, VOZES, areaValida } from '../config.js';
-import { achar, atualizar, inserir, listar, remover, reordenar } from '../nucleo/banco.js';
+import { achar, atualizar, inserir, listar, registrarLog, remover, reordenar } from '../nucleo/banco.js';
+import { emitir } from '../nucleo/eventos.js';
 import { normalizar, novoId, slug } from '../nucleo/util.js';
 import { PACOTES } from '../ia/pacotes.js';
 import { PASTA_PADRAO, instalarPacote, novoAgente as agenteNovo, separarPorEscritorio } from '../nucleo/agentes-por-escritorio.js';
@@ -23,6 +24,42 @@ function doWorkspace(ctx, colecao, id) {
 }
 
 /**
+ * Duas classificacoes com o mesmo nome nao sao duas coisas: sao a mesma coisa
+ * contada duas vezes.
+ *
+ * O escritorio acabou com TRES colunas "Nao Qualificado" no funil. Nenhuma
+ * delas foi criada por engano: quem precisava daquela coluna nao achava a que
+ * ja existia, ou nao tinha como juntar as duas, entao criava outra. Dali em
+ * diante o relatorio saiu partido em tres, e nenhuma das tres contava a
+ * verdade.
+ *
+ * A porta fecha aqui, e o recado diz onde esta a que ja existe — barrar sem
+ * dizer para onde ir so faz a pessoa tentar "Nao Qualificado 2".
+ */
+const NOME_DA_COLECAO = {
+  status: 'coluna',
+  departamentos: 'departamento',
+  etiquetas: 'etiqueta',
+  origens: 'origem',
+};
+
+function exigirNomeLivre(ctx, colecao, nome, exceto = null) {
+  const limpo = String(nome || '').trim();
+  if (!limpo) throw comCodigo('Informe o nome.', 400);
+
+  const igual = listar(colecao, { workspaceId: ctx.workspaceId }).find(
+    (r) => r.id !== exceto && normalizar(r.nome) === normalizar(limpo),
+  );
+  if (!igual) return limpo;
+
+  const que = NOME_DA_COLECAO[colecao] || 'registro';
+  throw comCodigo(
+    `Ja existe ${que === 'origem' || que === 'coluna' || que === 'etiqueta' ? 'uma' : 'um'} ${que} com o nome "${igual.nome}". Use ${que === 'origem' || que === 'coluna' || que === 'etiqueta' ? 'a' : 'o'} que ja existe, ou de outro nome a esta.`,
+    409,
+  );
+}
+
+/**
  * Previa de voz: a frase e sempre esta e o intervalo minimo entre dois testes
  * do mesmo usuario e de SEGUNDOS_ENTRE_TESTES. Cada teste e sintese paga e um
  * arquivo novo em disco, entao ele nao pode ser um botao de apertar em laco.
@@ -38,11 +75,14 @@ function esperarEntreTestesDeVoz(usuarioId) {
   ultimoTesteDeVoz.set(usuarioId, Date.now());
 }
 
-function crud(rotas, caminho, colecao, { prefixo, aoCriar, aoAtualizar, aoRemover } = {}) {
+function crud(rotas, caminho, colecao, { prefixo, aoCriar, aoAtualizar, aoRemover, unico = false } = {}) {
   rotas.get(`/api/${caminho}`, async ({ ctx }) => listar(colecao, { workspaceId: ctx.workspaceId }));
 
   rotas.post(`/api/${caminho}`, async ({ ctx, corpo }) => {
     exigirConfiguracao(ctx);
+    /* `unico` vale para o que CLASSIFICA conversa. Template e item de
+       conhecimento podem repetir nome sem partir relatorio nenhum. */
+    if (unico) corpo = { ...corpo, nome: exigirNomeLivre(ctx, colecao, corpo.nome) };
     const registro = inserir(colecao, {
       id: novoId(prefixo || caminho.slice(0, 3)),
       workspaceId: ctx.workspaceId,
@@ -55,6 +95,9 @@ function crud(rotas, caminho, colecao, { prefixo, aoCriar, aoAtualizar, aoRemove
   rotas.patch(`/api/${caminho}/:id`, async ({ ctx, params, corpo }) => {
     exigirConfiguracao(ctx);
     doWorkspace(ctx, colecao, params.id);
+    if (unico && corpo.nome !== undefined) {
+      corpo = { ...corpo, nome: exigirNomeLivre(ctx, colecao, corpo.nome, params.id) };
+    }
     const registro = atualizar(colecao, params.id, corpo);
     if (aoAtualizar) aoAtualizar(registro, ctx);
     return registro;
@@ -72,9 +115,9 @@ function crud(rotas, caminho, colecao, { prefixo, aoCriar, aoAtualizar, aoRemove
 export function registrarAutomacoes(rotas) {
   /* ---------------- Classes da conversa ---------------- */
 
-  crud(rotas, 'departamentos', 'departamentos', { prefixo: 'dep' });
-  crud(rotas, 'etiquetas', 'etiquetas', { prefixo: 'etq' });
-  crud(rotas, 'origens', 'origens', { prefixo: 'org' });
+  crud(rotas, 'departamentos', 'departamentos', { prefixo: 'dep', unico: true });
+  crud(rotas, 'etiquetas', 'etiquetas', { prefixo: 'etq', unico: true });
+  crud(rotas, 'origens', 'origens', { prefixo: 'org', unico: true });
   crud(rotas, 'variaveis', 'variaveis', {
     prefixo: 'var',
     aoCriar: (registro) => {
@@ -89,7 +132,7 @@ export function registrarAutomacoes(rotas) {
     return inserir('status', {
       id: novoId('sts'),
       workspaceId: ctx.workspaceId,
-      nome: corpo.nome,
+      nome: exigirNomeLivre(ctx, 'status', corpo.nome),
       cor: corpo.cor || 'var(--serie-2)',
       descricao: corpo.descricao || '',
       tipo: corpo.tipo || 'nenhum',
@@ -111,6 +154,8 @@ export function registrarAutomacoes(rotas) {
   rotas.patch('/api/status/:id', async ({ ctx, params, corpo }) => {
     exigirConfiguracao(ctx);
     doWorkspace(ctx, 'status', params.id);
+
+    if (corpo.nome !== undefined) corpo.nome = exigirNomeLivre(ctx, 'status', corpo.nome, params.id);
 
     if (corpo.followups) {
       const sequencia = corpo.followups.map((passo, indice) => ({
@@ -134,9 +179,85 @@ export function registrarAutomacoes(rotas) {
     exigirConfiguracao(ctx);
     doWorkspace(ctx, 'status', params.id);
     const emUso = listar('contatos', { workspaceId: ctx.workspaceId }).some((c) => c.statusId === params.id);
-    if (emUso) throw comCodigo('Ha conversas neste status. Mova-as antes de excluir.', 409);
+    if (emUso) throw comCodigo('Ha conversas neste status. Unifique-a com outra coluna, ou mova as conversas antes de excluir.', 409);
     remover('status', params.id);
     return { ok: true };
+  });
+
+  /**
+   * Unifica duas colunas: o que estava na de origem passa para a de destino, e
+   * a de origem deixa de existir.
+   *
+   * Esta operacao faltava, e a falta dela foi o que bagunçou o funil. Quem
+   * precisava juntar duas colunas parecidas encontrava so o excluir, que se
+   * recusa enquanto houver conversa dentro — e sem jeito de esvaziar em lote,
+   * a saida era deixar as duas de pe. Foi assim que o escritorio chegou a tres
+   * colunas com o mesmo nome, cada uma com um pedaco do relatorio.
+   *
+   * Move o vinculo, e NAO o funil: gravar direto, sem passar por aplicarStatus,
+   * e deliberado. Unificar e arrumacao de cadastro, nao e o lead andando de
+   * etapa; disparar a cadencia de follow-up de cada conversa movida mandaria
+   * mensagem de verdade para centenas de clientes por causa de uma faxina.
+   *
+   * O prompt dos agentes NAO e reescrito. Um agente que cita a coluna que
+   * sumiu passa a citar um atalho invalido, e isso aparece no Painel de Saude
+   * com nome e sobrenome — corrigir a instrucao de um agente e decisao de quem
+   * escreveu a instrucao, nao efeito colateral de uma faxina. A lista de quem
+   * cita vem na resposta, para nao ser surpresa.
+   */
+  rotas.post('/api/status/:id/unificar', async ({ ctx, params, corpo }) => {
+    exigirConfiguracao(ctx);
+    const origem = doWorkspace(ctx, 'status', params.id);
+    const destino = doWorkspace(ctx, 'status', String(corpo.destinoId || ''));
+    if (origem.id === destino.id) {
+      throw comCodigo('Escolha uma coluna diferente para receber as conversas.', 400);
+    }
+
+    const conversas = listar('contatos', { workspaceId: ctx.workspaceId }).filter((c) => c.statusId === origem.id);
+    const conexoes = listar('conexoes', { workspaceId: ctx.workspaceId }).filter((c) => c.statusPadraoId === origem.id);
+    /* Follow-up que desiste mandando o lead para a coluna que vai sumir: sem
+       reapontar, a desistencia joga a conversa num status que nao existe. */
+    const desistencias = listar('status', { workspaceId: ctx.workspaceId }).filter((s) =>
+      (s.followups || []).some((passo) => passo.desistir?.statusId === origem.id),
+    );
+    const agentesQueCitam = listar('agentes', { workspaceId: ctx.workspaceId })
+      .filter((a) => normalizar(a.prompt || '').includes(`@${normalizar(origem.nome)}`))
+      .map((a) => a.nome);
+
+    const relatorio = {
+      origem: { id: origem.id, nome: origem.nome },
+      destino: { id: destino.id, nome: destino.nome },
+      conversas: conversas.length,
+      conexoes: conexoes.map((c) => c.nome),
+      followups: desistencias.map((s) => s.nome),
+      agentesQueCitam,
+    };
+    if (corpo.simular) return { ...relatorio, simulado: true };
+
+    for (const contato of conversas) atualizar('contatos', contato.id, { statusId: destino.id });
+    for (const conexao of conexoes) atualizar('conexoes', conexao.id, { statusPadraoId: destino.id });
+    for (const status of desistencias) {
+      atualizar('status', status.id, {
+        followups: (status.followups || []).map((passo) =>
+          passo.desistir?.statusId === origem.id
+            ? { ...passo, desistir: { ...passo.desistir, statusId: destino.id } }
+            : passo,
+        ),
+      });
+    }
+
+    remover('status', origem.id);
+    registrarLog(
+      ctx.workspaceId,
+      null,
+      'status_unificado',
+      `Coluna "${origem.nome}" unificada com "${destino.nome}": ${conversas.length} conversas movidas.`,
+      { tipo: 'membro', id: ctx.membro?.id || null, nome: ctx.membro?.nome || 'Sistema' },
+      { origemId: origem.id, destinoId: destino.id },
+    );
+    emitir(ctx.workspaceId, 'status', { unificado: true, destinoId: destino.id });
+
+    return { ok: true, ...relatorio };
   });
 
   /* ---------------- Templates ---------------- */

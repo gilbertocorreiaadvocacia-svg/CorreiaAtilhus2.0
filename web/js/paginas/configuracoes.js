@@ -728,6 +728,14 @@ async function secaoStatus(recarregarTela) {
           : selo('limpa o departamento', 'alerta'),
         selo(plural((item.followups || []).length, 'follow-up', 'follow-ups'), (item.followups || []).length ? 'ouro' : ''),
         podeConfigurar() ? botao('Editar', { pequeno: true, aoClicar: () => editarStatus(item, recarregarTela) }) : null,
+        /* Unificar so faz sentido havendo com quem unificar. */
+        podeConfigurar() && status.length > 1
+          ? botao('Unificar', {
+              pequeno: true,
+              titulo: `Juntar ${item.nome} com outra coluna`,
+              aoClicar: () => unificarStatus(item, status, recarregarTela),
+            })
+          : null,
         podeConfigurar()
           ? botao('Excluir', {
               pequeno: true,
@@ -754,6 +762,73 @@ async function secaoStatus(recarregarTela) {
       : null,
     cartao(null, null, lista),
   ]);
+}
+
+/**
+ * Juntar duas colunas numa so.
+ *
+ * Mostra a conta ANTES de fazer: quantas conversas mudam de lugar, que numero
+ * perde o status padrao, que follow-up passa a desistir para outro lugar e que
+ * agente cita o nome que vai sumir. Unificar nao tem desfazer, e uma tela que
+ * pede confirmacao sem dizer o tamanho do estrago nao esta pedindo nada.
+ *
+ * A previa vem do proprio servidor, em modo simulacao: a conta que a tela
+ * mostra e feita pelo mesmo codigo que vai executar, e nao por uma segunda
+ * versao da regra escrita aqui, que envelheceria sozinha.
+ */
+function unificarStatus(origem, todos, recarregarTela) {
+  const destino = selecao(
+    todos.filter((s) => s.id !== origem.id).map((s) => ({ valor: s.id, rotulo: s.nome })),
+    todos.find((s) => s.id !== origem.id)?.id,
+  );
+  const previa = el('div', { class: 'mt-3' });
+
+  async function carregarPrevia() {
+    limpar(previa);
+    previa.append(el('div', { class: 'c-fraco', texto: 'Conferindo...' }));
+    try {
+      const r = await api.post(`/api/status/${origem.id}/unificar`, { destinoId: destino.value, simular: true });
+      const linhas = [
+        `${plural(r.conversas, 'conversa passa', 'conversas passam')} para "${r.destino.nome}".`,
+        r.conexoes.length ? `Passa a ser o status padrao de: ${r.conexoes.join(', ')}.` : null,
+        r.followups.length ? `O follow-up de ${r.followups.join(', ')} passa a desistir para "${r.destino.nome}".` : null,
+        `A coluna "${r.origem.nome}" deixa de existir.`,
+      ].filter(Boolean);
+
+      limpar(previa);
+      previa.append(
+        el('div', { class: 'lista-simples' }, linhas.map((t) => el('div', { class: 'lista-item' }, [el('div', { class: 'corpo' }, [el('div', { class: 'desc', texto: t })])]))),
+      );
+      if (r.agentesQueCitam.length) {
+        previa.append(
+          el('div', {
+            class: 'alerta-caixa mt-3',
+            texto: `${r.agentesQueCitam.join(', ')} ${r.agentesQueCitam.length > 1 ? 'citam' : 'cita'} "${r.origem.nome}" no prompt. A instrucao nao e reescrita: depois de unificar, ajuste o texto do agente. O Painel de Saude vai apontar enquanto estiver pendente.`,
+          }),
+        );
+      }
+    } catch (erro) {
+      limpar(previa);
+      previa.append(el('div', { class: 'alerta-caixa erro', texto: erro.message }));
+    }
+  }
+
+  destino.addEventListener('change', carregarPrevia);
+  carregarPrevia();
+
+  modal({
+    titulo: `Unificar ${origem.nome}`,
+    corpo: el('div', {}, [
+      campo('Receber as conversas em', destino),
+      previa,
+    ]),
+    confirmar: 'Unificar',
+    aoConfirmar: async () => {
+      const r = await api.post(`/api/status/${origem.id}/unificar`, { destinoId: destino.value });
+      aviso(`"${r.origem.nome}" unificada com "${r.destino.nome}": ${plural(r.conversas, 'conversa movida', 'conversas movidas')}.`, 'sucesso');
+      await recarregarTela();
+    },
+  });
 }
 
 function editarStatus(status, recarregarTela) {

@@ -34,6 +34,7 @@ import { subirLiderhubFalsa } from './liderhub-falsa.js';
 import { testarLiderhub } from './liderhub.js';
 import { testarDiagnostico } from './diagnostico.js';
 import { testarEventosDeConexao } from './eventos-conexao.js';
+import { testarHigiene } from './higiene.js';
 
 /**
  * A suite do CorreiaAtilhus2.0. Rode com `npm test`.
@@ -236,6 +237,7 @@ async function principal() {
     /* Por ultimo no servidor compartilhado: cadastra um membro de suporte, e o
        sorteio de responsavel das suites de cima conta quem existe. */
     suites.push(await testarEventosDeConexao({ base, evolucao, chaveEvolucao: CHAVE_EVOLUCAO }));
+    suites.push(await testarHigiene({ base }));
     suites.push(await testarDiagnostico({ base }));
     /* Sobe processos proprios, em porta propria: nao encosta no servidor acima. */
     suites.push(await testarPortaOcupada({ raiz: RAIZ, portaLivre }));
