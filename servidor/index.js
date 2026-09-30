@@ -26,6 +26,8 @@ import { registrarTarefas } from './rotas/tarefas.js';
 import { registrarIntegracoes } from './rotas/integracoes.js';
 import { autenticarChave, dentroDoLimite, registrarPublica } from './rotas/publica.js';
 import { retomarSincronizacoes } from './whatsapp/sincronizar-historico.js';
+import { iniciarBatimento, recuperarDaQueda } from './nucleo/batimento.js';
+import { iniciarBackup } from './nucleo/backup.js';
 import { retomarMidiaHistorico } from './whatsapp/midia-historico.js';
 import { iniciarRenovacaoDeTokens } from './whatsapp/renovar-tokens.js';
 
@@ -60,6 +62,20 @@ if (avaliadores) console.log(`Avaliacao do atendimento: agente instalado em ${av
 limparSessoesOrfas();
 /* Rodadas de importacao do celular que o reinicio interrompeu. */
 retomarSincronizacoes();
+/*
+ * O que chegou enquanto o sistema estava fora do ar.
+ *
+ * A Evolution chama o webhook uma vez e nao tenta de novo: mensagem que chega
+ * com o sistema parado fica so no celular. A conferencia le o ultimo pulso
+ * gravado em disco, e so vai atras se a parada passou do limiar.
+ *
+ * ANTES de iniciarBatimento(), enquanto o arquivo ainda guarda a hora da
+ * ultima vez que o sistema esteve vivo.
+ */
+recuperarDaQueda().catch((erro) => console.error('[batimento] recuperacao falhou:', erro.message));
+iniciarBatimento();
+/* E a copia de seguranca: uma agora, uma por dia. */
+iniciarBackup();
 /* E a fila de arquivos (audio, imagem, video, PDF) do historico: retoma de
    onde parou, reencontrando o que ainda esta sem arquivo. */
 retomarMidiaHistorico();

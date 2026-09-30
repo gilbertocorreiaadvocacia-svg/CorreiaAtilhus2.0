@@ -27,6 +27,7 @@ import { subirJuriFalso } from './juri-falso.js';
 import { testarJuri } from './juri.js';
 import { testarWorkspacesPorArea } from './workspaces.js';
 import { testarHospedagem } from './hospedagem.js';
+import { testarSobreviver } from './sobreviver.js';
 import { testarAvaliacao } from './avaliacao.js';
 import { subirRedesFalsas } from './redes-falsas.js';
 import { testarRedes } from './redes.js';
@@ -245,6 +246,8 @@ async function principal() {
     suites.push(await testarPortaOcupada({ raiz: RAIZ, portaLivre }));
     /* Tambem sobe processos proprios: o sistema como fica na VPS. */
     suites.push(await testarHospedagem({ raiz: RAIZ, portaLivre }));
+    /* Tambem processos proprios: sobe e derruba varias vezes a mesma base. */
+    suites.push(await testarSobreviver({ raiz: RAIZ, portaLivre }));
   } catch (erro) {
     console.error('\nA suite quebrou antes de terminar:', erro.message);
     console.error(erro.stack);

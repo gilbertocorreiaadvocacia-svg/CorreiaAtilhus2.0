@@ -1,4 +1,5 @@
 import { listar, registrarLog } from './banco.js';
+import { listarBackups } from './backup.js';
 import { normalizar } from './util.js';
 import { analisarPrompt, notificar } from '../ia/mencoes.js';
 import { chavesDoWorkspace } from '../ia/provedores.js';
@@ -221,6 +222,36 @@ export function diagnosticar(workspaceId) {
       'Coluna sem departamento',
       `${semDepartamento.map((s) => s.nome).join(', ')}: a conversa que cair nelas fica sem dono.`,
       '#/configuracoes/status',
+    );
+  }
+
+  /*
+   * 13. A copia de seguranca existe e e recente?
+   *
+   * Vale para a instalacao inteira, e nao para um workspace, mas aparece aqui
+   * porque e aqui que alguem olha. E e o achado com a pior relacao entre
+   * silencio e estrago: nada avisa que a copia parou de ser feita, e a hora em
+   * que se descobre e a hora em que ela era necessaria.
+   */
+  const copias = listarBackups();
+  const maisNova = copias[0] ? Date.parse(copias[0].em) : null;
+  const doisDias = 48 * 60 * 60 * 1000;
+  if (!maisNova) {
+    anotar(
+      'alta',
+      'sem-backup',
+      'Nao ha nenhuma copia de seguranca',
+      'As conversas, os telefones e o que cada cliente contou existem em um lugar so. Qualquer operacao que der errado e definitiva.',
+      '#/configuracoes/saude',
+    );
+  } else if (Date.now() - maisNova > doisDias) {
+    const dias = Math.floor((Date.now() - maisNova) / (24 * 60 * 60 * 1000));
+    anotar(
+      'alta',
+      'backup-parado',
+      'A copia de seguranca parou de ser feita',
+      `A mais recente tem ${dias} dias (${copias[0].nome}). O que entrou depois dela nao esta copiado em lugar nenhum.`,
+      '#/configuracoes/saude',
     );
   }
 

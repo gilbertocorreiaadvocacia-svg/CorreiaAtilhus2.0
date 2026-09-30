@@ -11,7 +11,8 @@
     "test": "node servidor/testes/executar.js",
     "conferir-whatsapp": "node servidor/ferramentas/conferir-whatsapp.js",
     "corrigir-historico": "node servidor/ferramentas/corrigir-historico.js",
-    "higiene": "node servidor/ferramentas/higiene.js"
+    "higiene": "node servidor/ferramentas/higiene.js",
+    "backup": "node servidor/ferramentas/backup.js"
   },
   "engines": {
     "node": ">=18"
