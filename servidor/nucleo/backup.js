@@ -3,6 +3,7 @@ import path from 'node:path';
 import { PASTA_DADOS } from '../config.js';
 import { salvarMensagensPendentes, salvarPendentes } from './banco.js';
 import { agora } from './util.js';
+import { FUSO } from '../automacao/horario.js';
 
 /**
  * A copia de seguranca que o sistema faz de si mesmo.
@@ -79,6 +80,32 @@ function copiarPasta(origem, destino, comLink) {
   return { arquivos, bytes };
 }
 
+/*
+ * O nome da pasta e lido por gente, e no horario de quem le.
+ *
+ * O servidor roda em UTC, e "2026-09-30_0910" para uma copia feita as 06:10 da
+ * manha em Recife manda a pessoa procurar a copia errada na hora de restaurar.
+ * O resto do sistema ja raciocina no calendario de Sao Paulo (ver
+ * automacao/horario.js); aqui e o mesmo fuso, escrito de um jeito que ordena
+ * sozinho em ordem alfabetica.
+ *
+ * O sueco nao e piada: 'sv-SE' e o unico local que o Intl formata como
+ * AAAA-MM-DD HH:MM, que e exatamente o que se quer.
+ */
+const CARIMBO = new Intl.DateTimeFormat('sv-SE', {
+  timeZone: FUSO,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
+});
+
+function carimboDeAgora() {
+  return CARIMBO.format(new Date()).replace(' ', '_').replace(':', '');
+}
+
 /** As copias existentes, da mais nova para a mais velha. */
 export function listarBackups() {
   if (!fs.existsSync(PASTA_BACKUPS)) return [];
@@ -106,8 +133,7 @@ export function fazerBackup({ motivo = 'diario', manter = 7 } = {}) {
   salvarPendentes();
   salvarMensagensPendentes();
 
-  const carimbo = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '').replace(/(\d{8})/, '$1_');
-  const nome = `${carimbo}_${motivo}`;
+  const nome = `${carimboDeAgora()}_${motivo}`;
   const destino = path.join(PASTA_BACKUPS, nome);
   fs.mkdirSync(destino, { recursive: true });
 
