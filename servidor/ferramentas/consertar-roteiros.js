@@ -32,12 +32,26 @@ import { atualizar, encerrarBanco, iniciarBanco, listar } from '../nucleo/banco.
  *    de satisfacao. O cliente pedia ajuda e recebeu "de 1 a 5, que nota voce
  *    da para o nosso atendimento?".
  *
+ * 4. O ASSUNTO JA DITO. A gestante que escreve "quero salario-maternidade"
+ *    ouvia "qual assunto voce precisa resolver?". Perguntar o que a pessoa
+ *    acabou de dizer e o jeito mais rapido de ela desistir de falar com a gente.
+ *
+ * 5. O DESTINO NOVO. Ganhou agente proprio para salario-maternidade (npm run
+ *    agente-maternidade), e a Recepcao so conhecia "previdenciario ou
+ *    trabalhista". Sem citar o agente, ela mandava a gestante para a triagem
+ *    de incapacidade — que avalia pelos criterios errados e foi de onde veio o
+ *    "voce nao tem direito".
+ *
  * O QUE ESTA FERRAMENTA NAO FAZ
  *
- * Nao escolhe para qual agente cada assunto vai. Isso e desenho do funil do
- * escritorio, nao conserto de defeito. Ela so impede a transferencia para
- * agente de avaliacao e pos-venda, que e errada em qualquer desenho: sao
- * agentes de DEPOIS do atendimento.
+ * Nao escolhe para qual agente vai cada assunto previdenciario ou trabalhista.
+ * Isso e desenho do funil do escritorio, nao conserto de defeito. Ela so
+ * impede a transferencia para agente de avaliacao e pos-venda, que e errada em
+ * qualquer desenho (sao agentes de DEPOIS do atendimento), e liga o assunto
+ * que o escritorio pediu de forma explicita: salario-maternidade.
+ *
+ * E pode rodar quantas vezes quiser: o que ja foi aplicado e reconhecido e
+ * pulado.
  */
 
 const APLICAR = process.argv.includes('--aplicar');
@@ -62,6 +76,10 @@ const CONSERTOS = [
   {
     agente: 'Recepcao',
     porque: 'o lead de atendimento nao pode cair na pesquisa de satisfacao',
+    /* Outro conserto, mais abaixo, reescreve a MESMA frase depois deste. Quando
+       ele ja rodou, o texto que este deixou nao existe mais — e sem isto a
+       segunda rodada acusaria "nao achei" sobre algo que foi feito. */
+    ouJaTem: ['agente de TRIAGEM da area (previdenciario, trabalhista ou salario-maternidade)'],
     de: '3. Conforme a resposta, transfira com @responsavel para o agente da area e ja envie a primeira pergunta dele, para o lead nao ficar esperando.',
     para:
       '3. Conforme a resposta, transfira com @responsavel para o agente de TRIAGEM da area (previdenciario ou trabalhista) ' +
@@ -75,6 +93,22 @@ const CONSERTOS = [
     para:
       '- Se o nome do contato estiver estranho (apelido, emoji, numero), pergunte UMA vez como prefere ser chamado e use @salvarnome. ' +
       'Se ele nao responder o nome, siga o roteiro sem ele: nao pergunte de novo e nao deixe de avancar por causa disso.',
+  },
+  {
+    agente: 'Recepcao',
+    porque: 'quem ja disse o assunto nao e perguntado de novo — a gestante que escreve "quero salario-maternidade" ouvia "qual assunto voce precisa resolver?"',
+    de: '2. Pergunte: "Qual assunto voce precisa resolver: beneficio do INSS, questao trabalhista ou outro?"',
+    para:
+      '2. Pergunte: "Qual assunto voce precisa resolver: beneficio do INSS, questao trabalhista ou outro?" ' +
+      'Se o lead ja disse o assunto na propria mensagem, NAO pergunte: va direto para a etapa 3.',
+  },
+  {
+    agente: 'Recepcao',
+    porque: 'o salario-maternidade tem agente proprio (Triagem Salario-Maternidade) e a Recepcao precisa saber que ele existe',
+    de: '(previdenciario ou trabalhista) e ja envie a primeira pergunta dele, para o lead nao ficar esperando.',
+    para:
+      '(previdenciario, trabalhista ou salario-maternidade) e ja envie a primeira pergunta dele, para o lead nao ficar esperando. ' +
+      'Se o assunto for salario-maternidade, gravidez, gestante ou bebe, o destino e sempre @Triagem Salario-Maternidade.',
   },
 ];
 
@@ -122,6 +156,14 @@ async function principal() {
     let novo = original;
 
     for (const conserto of CONSERTOS.filter((c) => c.agente === nomeAgente)) {
+      /* Ferramenta que cresce com o tempo precisa saber o que ja fez: sem isto,
+         rodar de novo reclamaria de cada conserto antigo — "nao achei", porque
+         o texto que ele procurava ja foi trocado — e enterraria o aviso que
+         importa no meio de ruido. */
+      if ([conserto.para, ...(conserto.ouJaTem || [])].some((texto) => novo.includes(texto))) {
+        console.log(`  [ja aplicado] ${conserto.porque.split(' — ')[0]}`);
+        continue;
+      }
       const vezes = contar(novo, conserto.de);
       if (vezes === 0) {
         console.log(`  [RECUSADO] nao achei: "${conserto.de.slice(0, 60)}..."`);
