@@ -13,7 +13,8 @@
     "corrigir-historico": "node servidor/ferramentas/corrigir-historico.js",
     "higiene": "node servidor/ferramentas/higiene.js",
     "backup": "node servidor/ferramentas/backup.js",
-    "consertar-mencoes": "node servidor/ferramentas/consertar-mencoes.js"
+    "consertar-mencoes": "node servidor/ferramentas/consertar-mencoes.js",
+    "consertar-roteiros": "node servidor/ferramentas/consertar-roteiros.js"
   },
   "engines": {
     "node": ">=18"
