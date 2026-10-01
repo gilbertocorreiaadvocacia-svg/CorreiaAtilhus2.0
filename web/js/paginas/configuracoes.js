@@ -11,6 +11,7 @@ import {
   dataHora,
   duracao,
   el,
+  entradaSegredo,
   entradaTexto,
   icone,
   limpar,
@@ -508,9 +509,9 @@ async function secaoMinhaConta(recarregarTela) {
 /* ------------------------------------------------------------------ */
 
 async function secaoSeguranca(recarregarTela) {
-  const senhaAtual = entradaTexto('', { type: 'password', autocomplete: 'current-password' });
-  const senhaNova = entradaTexto('', { type: 'password', autocomplete: 'new-password' });
-  const confirmacao = entradaTexto('', { type: 'password', autocomplete: 'new-password' });
+  const senhaAtual = entradaSegredo('', { autocomplete: 'current-password' });
+  const senhaNova = entradaSegredo('', { autocomplete: 'new-password' });
+  const confirmacao = entradaSegredo('', { autocomplete: 'new-password' });
 
   const trocar = botao('Trocar a senha', {
     tipo: 'principal',
@@ -1161,7 +1162,7 @@ function editarMembro(membro, recarregarTela) {
   const novo = !membro;
   const nome = entradaTexto(membro?.usuario?.nome || '');
   const email = entradaTexto(membro?.usuario?.email || '', { type: 'email' });
-  const senha = entradaTexto('', { type: 'password', placeholder: novo ? 'senha inicial' : 'deixe em branco para manter' });
+  const senha = entradaSegredo('', { placeholder: novo ? 'senha inicial' : 'deixe em branco para manter' });
   const whatsapp = entradaTexto(membro?.usuario?.whatsapp || '');
   const papel = selecao(
     Object.entries(estado.sessao.papeis).map(([id, p]) => ({ valor: id, rotulo: p.nome })),

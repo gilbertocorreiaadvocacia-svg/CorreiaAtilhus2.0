@@ -9,6 +9,7 @@ import {
   confirmar,
   dataHora,
   el,
+  entradaSegredo,
   entradaTexto,
   icone,
   limpar,
@@ -1166,13 +1167,10 @@ function formulario(conexao, { aoSalvar }) {
     conexao?.area || '',
   );
 
-  const phoneNumberId = entradaTexto(conexao?.oficial?.phoneNumberId || '');
+  const phoneNumberId = entradaSegredo(conexao?.oficial?.phoneNumberId || '');
   const wabaId = entradaTexto(conexao?.oficial?.wabaId || '');
-  const token = entradaTexto('', {
-    type: 'password',
-    placeholder: conexao?.oficial?.token ? 'guardado; deixe em branco para manter' : '',
-  });
-  const appSecret = entradaTexto(conexao?.oficial?.appSecret || '', { type: 'password' });
+  const token = entradaTexto('', { placeholder: conexao?.oficial?.token ? 'guardado; deixe em branco para manter' : '', });
+  const appSecret = entradaSegredo(conexao?.oficial?.appSecret || '');
   const verifyToken = entradaTexto(conexao?.oficial?.verifyToken || '');
 
   /* O display fica inline de proposito: ele acompanha o valor do campo Tipo em
@@ -1193,10 +1191,7 @@ function formulario(conexao, { aoSalvar }) {
   ]);
 
   const qrServidor = entradaTexto(conexao?.qrcode?.servidor || '', { placeholder: 'http://localhost:8080' });
-  const qrChave = entradaTexto('', {
-    type: 'password',
-    placeholder: conexao?.qrcode?.chave ? 'guardada; deixe em branco para manter' : '',
-  });
+  const qrChave = entradaSegredo('', { placeholder: conexao?.qrcode?.chave ? 'guardada; deixe em branco para manter' : '', });
   const qrInstancia = entradaTexto(conexao?.qrcode?.instancia || '');
   const qrUrlWebhook = entradaTexto(conexao?.qrcode?.urlWebhook || '', {
     placeholder: `${location.origin} (padrao)`,
@@ -1236,18 +1231,9 @@ function formulario(conexao, { aoSalvar }) {
     : el('div', { class: 'alerta-caixa mb-3', texto: 'Este canal precisa do sistema hospedado (VPS com domínio). No notebook, a rede não tem como entregar as mensagens.' });
 
   const igConta = entradaTexto(conexao?.instagram?.contaId || '', { placeholder: 'preenchido pelo Testar conexão' });
-  const igToken = entradaTexto('', {
-    type: 'password',
-    placeholder: conexao?.instagram?.token ? 'guardado; deixe em branco para manter' : 'token de acesso do Instagram',
-  });
-  const igSegredo = entradaTexto('', {
-    type: 'password',
-    placeholder: conexao?.instagram?.appSecret ? 'guardada; deixe em branco para manter' : 'chave secreta do app do Instagram',
-  });
-  const igSegredoMeta = entradaTexto('', {
-    type: 'password',
-    placeholder: conexao?.instagram?.appSecretMeta ? 'guardada; deixe em branco para manter' : 'chave secreta do app (Básico)',
-  });
+  const igToken = entradaSegredo('', { placeholder: conexao?.instagram?.token ? 'guardado; deixe em branco para manter' : 'token de acesso do Instagram', });
+  const igSegredo = entradaSegredo('', { placeholder: conexao?.instagram?.appSecret ? 'guardada; deixe em branco para manter' : 'chave secreta do app do Instagram', });
+  const igSegredoMeta = entradaSegredo('', { placeholder: conexao?.instagram?.appSecretMeta ? 'guardada; deixe em branco para manter' : 'chave secreta do app (Básico)', });
   const igVerificacao = entradaTexto(conexao?.instagram?.verifyToken || '');
 
   const blocoInstagram = el('div', { estilo: { display: tipo.value === 'instagram' ? 'block' : 'none' } }, [
@@ -1265,10 +1251,7 @@ function formulario(conexao, { aoSalvar }) {
   ]);
 
   const ttApp = entradaTexto(conexao?.tiktok?.appId || '', { placeholder: 'App ID do TikTok for Business' });
-  const ttSegredo = entradaTexto('', {
-    type: 'password',
-    placeholder: conexao?.tiktok?.appSecret ? 'guardada; deixe em branco para manter' : 'Secret do app',
-  });
+  const ttSegredo = entradaSegredo('', { placeholder: conexao?.tiktok?.appSecret ? 'guardada; deixe em branco para manter' : 'Secret do app', });
 
   const blocoTikTok = el('div', { estilo: { display: tipo.value === 'tiktok' ? 'block' : 'none' } }, [
     subtitulo(

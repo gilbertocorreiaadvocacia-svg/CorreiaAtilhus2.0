@@ -103,6 +103,38 @@ export function entradaTexto(valor = '', atributos = {}) {
   return el('input', { type: 'text', value: valor, ...atributos });
 }
 
+/**
+ * Campo de segredo: chave de API, token, senha de servico.
+ *
+ * Nao e so um input com type="password". Um campo mascarado sem nome e sem
+ * autocomplete e exatamente o que o gerenciador de senhas do navegador agarra:
+ * ele preenche sozinho com uma credencial salva, a pessoa clica em Salvar sem
+ * perceber, e o lixo entra no lugar da chave de verdade. Aconteceu com a chave
+ * da Anthropic em 01/10/2026 — o escritorio colava a chave e ela nao ficava.
+ *
+ * `autocomplete="off"` sozinho nao resolve: os navegadores ignoram isso em
+ * campo de senha, de proposito, para nao atrapalhar formulario de login. O que
+ * funciona e dizer que este campo NAO e login — pelo autocomplete de senha
+ * nova, pelo nome que nao parece de senha, e pelas marcas que 1Password,
+ * LastPass e Bitwarden leem para passar batido.
+ */
+export function entradaSegredo(valor = '', atributos = {}) {
+  return el('input', {
+    type: 'password',
+    value: valor,
+    autocomplete: 'new-password',
+    autocapitalize: 'off',
+    autocorrect: 'off',
+    spellcheck: 'false',
+    name: atributos.name || `segredo-${Math.random().toString(36).slice(2, 9)}`,
+    'data-1p-ignore': true,
+    'data-lpignore': 'true',
+    'data-bwignore': true,
+    'data-form-type': 'other',
+    ...atributos,
+  });
+}
+
 export function areaTexto(valor = '', atributos = {}) {
   const t = el('textarea', atributos);
   t.value = valor;
@@ -276,14 +308,45 @@ export function vazio(titulo, texto, acao, nomeIcone) {
  * A transicao de saida mora no CSS, dentro da guarda de movimento reduzido.
  * Aqui fica so a classe.
  */
+/**
+ * O aviso de canto da tela.
+ *
+ * ERRO NAO SOME SOZINHO. Ele some quando a pessoa fecha.
+ *
+ * Antes o erro ficava seis segundos e evaporava. Quem estava olhando para o
+ * campo, e nao para o canto, perdia a unica explicacao que o sistema deu — e
+ * ficava com um formulario que "nao salva" e nenhum motivo. Pior: nao da nem
+ * para contar a outra pessoa o que apareceu.
+ *
+ * Confirmacao continua passando sozinha: "Salvo" lido ou nao lido da no mesmo,
+ * e um canto cheio de avisos verdes para fechar e so trabalho.
+ */
 export function aviso(texto, tipo = '') {
   const caixa = document.getElementById('avisos');
-  const no = el('div', { class: `aviso ${tipo}`.trim(), texto, role: tipo === 'erro' ? 'alert' : null });
-  caixa.append(no);
-  setTimeout(() => {
+  const ehErro = tipo === 'erro';
+  const no = el('div', { class: `aviso ${tipo}`.trim(), role: ehErro ? 'alert' : null });
+  no.append(el('span', { class: 'aviso-texto', texto }));
+
+  const sair = () => {
     no.classList.add('saindo');
     setTimeout(() => no.remove(), 260);
-  }, tipo === 'erro' ? 6000 : 3400);
+  };
+
+  if (ehErro) {
+    no.append(
+      el('button', {
+        class: 'aviso-fechar',
+        type: 'button',
+        'aria-label': 'Fechar aviso',
+        texto: '×',
+        aoClick: sair,
+      }),
+    );
+  } else {
+    setTimeout(sair, 3400);
+  }
+
+  caixa.append(no);
 }
 
 /**

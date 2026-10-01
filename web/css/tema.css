@@ -7028,6 +7028,42 @@ a.metrica:focus-visible {
 
 .aviso.erro {
   border-left-color: var(--erro);
+  /* O erro fica ate alguem fechar (ver aviso() em web/js/ui.js), entao precisa
+     de lugar para o X e para o texto longo que um erro de verdade costuma ter. */
+  display: flex;
+  align-items: flex-start;
+  gap: var(--e3);
+  max-width: 34rem;
+}
+
+.aviso .aviso-texto {
+  flex: 1;
+  min-width: 0;
+  /* Mensagem de API vem com palavra longa e sem espaco; sem isso ela estoura a
+     caixa e o fim do erro — que e onde costuma estar a causa — some. */
+  overflow-wrap: anywhere;
+}
+
+.aviso-fechar {
+  flex: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: -2px 0 0;
+  color: var(--texto-suave);
+  font-size: var(--t-xl);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.aviso-fechar:hover {
+  color: var(--texto);
+}
+
+.aviso-fechar:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: 2px;
+  border-radius: var(--raio-p);
 }
 
 .aviso.saindo {

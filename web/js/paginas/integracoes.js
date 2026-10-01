@@ -9,6 +9,7 @@ import {
   confirmar,
   dataHora,
   el,
+  entradaSegredo,
   entradaTexto,
   limpar,
   selecao,
@@ -145,14 +146,8 @@ function blocoIa(integracoes, recarregarTela) {
   const temAudio = Boolean(ia.chaveOpenai);
   const teste = ia.ultimoTeste || null;
 
-  const chaveAnthropic = entradaTexto('', {
-    type: 'password',
-    placeholder: temClaude ? 'ja configurada (deixe em branco para manter)' : 'sk-ant-…',
-  });
-  const chaveOpenai = entradaTexto('', {
-    type: 'password',
-    placeholder: temAudio ? 'ja configurada (deixe em branco para manter)' : 'sk-…',
-  });
+  const chaveAnthropic = entradaSegredo('', { placeholder: temClaude ? 'ja configurada (deixe em branco para manter)' : 'sk-ant-…', });
+  const chaveOpenai = entradaSegredo('', { placeholder: temAudio ? 'ja configurada (deixe em branco para manter)' : 'sk-…', });
   /*
    * O workspace da Anthropic nao e segredo: e um identificador, e deixa-lo
    * visivel permite conferir se foi colado o id certo. Mascara-lo so faria
@@ -299,7 +294,7 @@ function blocoZapsign(integracoes, recarregarTela) {
     { valor: '', rotulo: rotuloVazio },
     ...(zs.modelos || []).map((m) => ({ valor: m.id, rotulo: m.nome })),
   ];
-  const chave = entradaTexto('', { type: 'password', placeholder: zs.chave ? 'ja configurada' : 'token da ZapSign' });
+  const chave = entradaSegredo('', { placeholder: zs.chave ? 'ja configurada' : 'token da ZapSign' });
   const modelo = selecao(opcoesModelo('Escolha o modelo de contrato'), zs.modeloPadraoId || '');
   const procuracao = selecao(opcoesModelo('Sem procuração'), zs.procuracaoPadraoId || '');
 
@@ -352,7 +347,7 @@ function blocoZapsign(integracoes, recarregarTela) {
   ]);
 
   const urlWebhook = entradaTexto(zs.urlWebhook || '', { placeholder: 'https://endereco-publico/v1/zapsign/webhook' });
-  const segredo = entradaTexto('', { type: 'password', placeholder: zs.segredoWebhook ? 'guardado' : 'um texto longo e aleatório' });
+  const segredo = entradaSegredo('', { placeholder: zs.segredoWebhook ? 'guardado' : 'um texto longo e aleatório' });
   const statusPos = selecao(
     [{ valor: '', rotulo: 'Não alterar' }, ...estado.status.map((s) => ({ valor: s.id, rotulo: s.nome }))],
     integracoes.zapsign?.posAssinatura?.statusId || '',
@@ -454,7 +449,7 @@ function blocoAtilhusJuri(integracoes, recarregarTela) {
   const url = entradaTexto(juri.url || '', {
     placeholder: 'https://<projeto>.supabase.co/functions/v1/receber-contrato-assinado',
   });
-  const segredo = entradaTexto('', { type: 'password', placeholder: juri.segredo ? 'guardado' : 'o mesmo CHAT_CONTRATO_SEGREDO do Juri' });
+  const segredo = entradaSegredo('', { placeholder: juri.segredo ? 'guardado' : 'o mesmo CHAT_CONTRATO_SEGREDO do Juri' });
   const ativo = el('input', { type: 'checkbox' });
   ativo.checked = Boolean(juri.ativo);
 
@@ -524,9 +519,9 @@ function blocoAgenda(integracoes, recarregarTela) {
   const faixa = el('div', { class: 'linha' }, [de, el('span', { class: 'c-suave t-sm', texto: 'até' }), ate]);
 
   const duracao = entradaTexto(String(integracoes.googleCalendar?.duracaoPadrao || 30), { type: 'number', min: '15', step: '15' });
-  const clientId = entradaTexto(integracoes.googleCalendar?.credenciais?.clientId || '');
-  const clientSecret = entradaTexto('', { type: 'password', placeholder: integracoes.googleCalendar?.credenciais?.clientSecret ? 'ja configurado' : '' });
-  const refreshToken = entradaTexto('', { type: 'password', placeholder: integracoes.googleCalendar?.credenciais?.refreshToken ? 'ja configurado' : '' });
+  const clientId = entradaSegredo(integracoes.googleCalendar?.credenciais?.clientId || '');
+  const clientSecret = entradaTexto('', { placeholder: integracoes.googleCalendar?.credenciais?.clientSecret ? 'ja configurado' : '' });
+  const refreshToken = entradaSegredo('', { placeholder: integracoes.googleCalendar?.credenciais?.refreshToken ? 'ja configurado' : '' });
 
   return cartaoAjustes(
     'Agenda de reunioes',
@@ -584,7 +579,7 @@ function blocoAgenda(integracoes, recarregarTela) {
 /* ------------------------------------------------------------------ */
 
 function blocoAndamento(integracoes, recarregarTela) {
-  const chave = entradaTexto('', { type: 'password', placeholder: integracoes.advbox?.chave ? 'ja configurada' : 'token da API' });
+  const chave = entradaSegredo('', { placeholder: integracoes.advbox?.chave ? 'ja configurada' : 'token da API' });
   const base = entradaTexto(integracoes.advbox?.base || 'https://app.advbox.com.br/api/v1');
   const descricoes = areaTexto(
     Object.entries(integracoes.advbox?.descricoesStatus || {})
@@ -646,7 +641,7 @@ function blocoAndamento(integracoes, recarregarTela) {
  */
 function blocoLiderhub(integracoes, recarregarTela) {
   const lh = integracoes.liderhub || {};
-  const chave = entradaTexto('', { type: 'password', placeholder: lh.chave ? 'ja configurada' : 'x-company-key da LiderHub' });
+  const chave = entradaSegredo('', { placeholder: lh.chave ? 'ja configurada' : 'x-company-key da LiderHub' });
   const resultado = el('div', { class: 'ajuste-ajuda mt-2' });
 
   const lista = (nomes) => (nomes.length ? nomes.join(', ') : '—');
@@ -724,7 +719,7 @@ function blocoMetaConversoes(integracoes, recarregarTela) {
   const ativo = el('input', { type: 'checkbox' });
   ativo.checked = Boolean(capi.ativo);
   const pixelId = entradaTexto(capi.pixelId || '', { placeholder: 'ID do conjunto de dados' });
-  const token = entradaTexto('', { type: 'password', placeholder: capi.token ? 'ja configurado' : 'token de acesso' });
+  const token = entradaSegredo('', { placeholder: capi.token ? 'ja configurado' : 'token de acesso' });
 
   const eventosPorTipo = {};
   const linhasEvento = [];
@@ -806,7 +801,7 @@ function blocoTikTokEventos(integracoes, recarregarTela) {
   const ativo = el('input', { type: 'checkbox' });
   ativo.checked = Boolean(cfg.ativo);
   const conjuntoId = entradaTexto(cfg.conjuntoId || '', { placeholder: 'ID do conjunto de eventos de CRM' });
-  const token = entradaTexto('', { type: 'password', placeholder: cfg.token ? 'ja configurado' : 'token de acesso' });
+  const token = entradaSegredo('', { placeholder: cfg.token ? 'ja configurado' : 'token de acesso' });
   const codigoDeTeste = entradaTexto(cfg.codigoDeTeste || '', { placeholder: 'so para testar; deixe vazio em uso normal' });
 
   const eventosPorTipo = {};

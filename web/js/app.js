@@ -13,7 +13,7 @@ import {
   podeConfigurar,
   tema,
 } from './estado.js';
-import { avatar, aviso, botao, campo, dataHora, el, entradaTexto, icone, limpar, modal, selo, telefone } from './ui.js';
+import { avatar, aviso, botao, campo, dataHora, el, entradaSegredo, entradaTexto, icone, limpar, modal, selo, telefone } from './ui.js';
 import {
   definirSistema,
   definirSom,
@@ -184,7 +184,7 @@ function telaEntrada(mensagemInicial) {
     placeholder: 'nome@correiadvogados.com.br',
     autocomplete: 'username',
   });
-  const senha = entradaTexto('', { type: 'password', id: 'entrada-senha', autocomplete: 'current-password' });
+  const senha = entradaSegredo('', { id: 'entrada-senha', autocomplete: 'current-password' });
   const mostrar = el('button', {
     type: 'button',
     class: 'entrada-mostrar',
