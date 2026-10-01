@@ -153,6 +153,12 @@ function blocoIa(integracoes, recarregarTela) {
     type: 'password',
     placeholder: temAudio ? 'ja configurada (deixe em branco para manter)' : 'sk-…',
   });
+  /*
+   * O workspace da Anthropic nao e segredo: e um identificador, e deixa-lo
+   * visivel permite conferir se foi colado o id certo. Mascara-lo so faria
+   * quem errou um caractere nunca descobrir.
+   */
+  const workspaceAnthropic = entradaTexto(ia.workspaceAnthropic || '', { placeholder: 'wrkspc_…' });
 
   /*
    * A frase do estado nao repete o selo, ela diz a consequencia.
@@ -198,6 +204,22 @@ function blocoIa(integracoes, recarregarTela) {
     ),
 
     /*
+     * A Anthropic tem hoje dois tipos de chave, e so um deles funciona
+     * sozinho.
+     *
+     * A chave de workspace carrega dentro de si onde ela vale. A chave ligada
+     * a identidade de quem a criou, nao: toda chamada precisa dizer em qual
+     * workspace age, e sem isso a API recusa com um erro que fala de
+     * "anthropic-workspace-id". Esse campo e onde esse id entra.
+     */
+    linhaAjuste(
+      'Workspace da Anthropic (só se a chave pedir)',
+      'Deixe em branco primeiro. Se o teste falhar dizendo que a chave "is not scoped to a workspace", abra o workspace no painel da Anthropic e copie o id que aparece no endereço (começa com wrkspc_).',
+      workspaceAnthropic,
+      { balao: 'Chave criada dentro de um workspace nao precisa disto. Chave ligada a sua identidade precisa.' },
+    ),
+
+    /*
      * O rotulo mudou de "Chave da OpenAI" para o que ela faz.
      *
      * O escritorio decidiu usar so o Claude, e o nome antigo fazia esta linha
@@ -221,7 +243,11 @@ function blocoIa(integracoes, recarregarTela) {
             pequeno: true,
             aoClicar: async () => {
               await api.patch('/api/integracoes', {
-                ia: { chaveAnthropic: chaveAnthropic.value.trim(), chaveOpenai: chaveOpenai.value.trim() },
+                ia: {
+                  chaveAnthropic: chaveAnthropic.value.trim(),
+                  chaveOpenai: chaveOpenai.value.trim(),
+                  workspaceAnthropic: workspaceAnthropic.value.trim(),
+                },
               });
               aviso('Chaves salvas.', 'sucesso');
               await recarregarTela();

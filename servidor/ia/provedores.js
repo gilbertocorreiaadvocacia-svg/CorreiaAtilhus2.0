@@ -128,6 +128,20 @@ export function chavesDoWorkspace(workspaceId) {
   return {
     anthropic: integracoes?.ia?.chaveAnthropic || process.env.ANTHROPIC_API_KEY || '',
     openai: integracoes?.ia?.chaveOpenai || process.env.OPENAI_API_KEY || '',
+    /*
+     * A Anthropic tem hoje dois tipos de chave, e eles pedem coisas
+     * diferentes.
+     *
+     * A antiga, de workspace, carrega o workspace dentro dela e funciona
+     * sozinha. A nova, ligada a identidade de quem a criou, nao carrega: toda
+     * chamada precisa dizer em qual workspace ela age, no cabecalho
+     * anthropic-workspace-id. Sem isso a API recusa com 400 — nem 401, porque
+     * a chave esta certa, so falta dizer onde ela vale.
+     *
+     * Isso custou uma manha ao escritorio: a chave foi cadastrada, o sistema
+     * deu por configurado, e todo cliente que escrevesse ficaria sem resposta.
+     */
+    anthropicWorkspace: integracoes?.ia?.workspaceAnthropic || process.env.ANTHROPIC_WORKSPACE_ID || '',
   };
 }
 
@@ -145,7 +159,14 @@ export async function conversar({ modeloId, workspaceId, sistema, mensagens, fer
 
   let resposta;
   if (modelo.provedor === 'anthropic' && chaves.anthropic) {
-    resposta = await conversarAnthropic({ modelo, chave: chaves.anthropic, sistema, mensagens, ferramentas });
+    resposta = await conversarAnthropic({
+      modelo,
+      chave: chaves.anthropic,
+      workspaceAnthropic: chaves.anthropicWorkspace,
+      sistema,
+      mensagens,
+      ferramentas,
+    });
   } else if (modelo.provedor === 'openai' && chaves.openai) {
     resposta = await conversarOpenai({ modelo, chave: chaves.openai, sistema, mensagens, ferramentas });
   } else {
@@ -179,7 +200,7 @@ function conferirSeTerminou(resposta) {
 
 /* ------------------------------------------------------------------ */
 
-async function conversarAnthropic({ modelo, chave, sistema, mensagens, ferramentas }) {
+async function conversarAnthropic({ modelo, chave, workspaceAnthropic, sistema, mensagens, ferramentas }) {
   const corpo = {
     model: modelo.id,
     max_tokens: MAX_TOKENS_ANTHROPIC,
@@ -202,6 +223,9 @@ async function conversarAnthropic({ modelo, chave, sistema, mensagens, ferrament
         'x-api-key': chave,
         'anthropic-version': '2023-06-01',
         'content-type': 'application/json',
+        /* So vai quando existe. Mandar vazio e pior do que nao mandar: a chave
+           de workspace, que ja carrega o seu, seria recusada por contradicao. */
+        ...(workspaceAnthropic ? { 'anthropic-workspace-id': workspaceAnthropic } : {}),
       },
       body: JSON.stringify(corpo),
     },

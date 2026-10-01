@@ -93,6 +93,50 @@ export async function testarDiagnostico({ base, anthropic }) {
   /* Limpa a fila da Anthropic de mentira para as suites seguintes. */
   await cliente(anthropic).post('/__roteiro', { roteiro: [] });
 
+  /* --- A chave ligada a identidade, e o cabecalho que ela exige ---------- */
+
+  /*
+   * Em 30/09/2026 o escritorio cadastrou a chave e a Anthropic recusou toda
+   * chamada: era uma chave ligada a identidade de quem a criou, e nao uma
+   * chave de workspace. Chave assim nao carrega onde ela vale — toda chamada
+   * precisa dizer, no cabecalho anthropic-workspace-id. Nem era 401: a chave
+   * estava certa, so faltava o endereco.
+   *
+   * O que nao pode falhar: o cabecalho vai quando ha workspace configurado, e
+   * NAO vai quando nao ha. Mandar vazio seria pior do que nao mandar — a chave
+   * de workspace, que ja carrega o seu, seria recusada por contradicao.
+   */
+  const falsa = cliente(anthropic);
+  const ultimaChamada = async () => {
+    const { chamadas } = (await falsa.get('/__chamadas')).dados;
+    return chamadas[chamadas.length - 1] || null;
+  };
+
+  await api.patch('/api/integracoes', { ia: { workspaceAnthropic: '' } });
+  await api.post('/api/integracoes/ia/testar', {});
+  s.ok(
+    'sem workspace configurado, o cabecalho NAO e mandado',
+    (await ultimaChamada())?.workspace === null,
+    JSON.stringify(await ultimaChamada()),
+  );
+
+  await api.patch('/api/integracoes', { ia: { workspaceAnthropic: 'wrkspc_de_teste' } });
+  await api.post('/api/integracoes/ia/testar', {});
+  s.ok(
+    'com workspace configurado, o cabecalho vai junto',
+    (await ultimaChamada())?.workspace === 'wrkspc_de_teste',
+    JSON.stringify(await ultimaChamada()),
+  );
+
+  const salvo = (await api.get('/api/integracoes')).dados;
+  s.ok(
+    'e o id do workspace volta visivel na tela, para conferir se foi colado certo',
+    salvo?.ia?.workspaceAnthropic === 'wrkspc_de_teste',
+    JSON.stringify(salvo?.ia?.workspaceAnthropic),
+  );
+
+  await api.patch('/api/integracoes', { ia: { workspaceAnthropic: '' } });
+
   /* Tira a chave de mentira: as suites seguintes contam com o modo por regras. */
   await api.patch('/api/integracoes', { ia: { chaveAnthropic: null } });
   const semChave = await diagnosticar();

@@ -131,6 +131,10 @@ export function subirAnthropicFalsa(porta) {
       const corpo = await lerCorpo(req);
       const registro = {
         chave: req.headers['x-api-key'] || '',
+        /* A chave ligada a identidade so funciona com este cabecalho. Guardar
+           o que chegou e a unica forma de provar que o sistema manda quando
+           deve, e NAO manda quando nao ha workspace configurado. */
+        workspace: req.headers['anthropic-workspace-id'] || null,
         modelo: corpo?.model || null,
         maxTokens: corpo?.max_tokens ?? null,
         sistema: String(corpo?.system || '').slice(0, 70),
