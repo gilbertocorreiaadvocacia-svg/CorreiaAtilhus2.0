@@ -209,7 +209,7 @@ function blocoIa(integracoes, recarregarTela) {
      */
     linhaAjuste(
       'Workspace da Anthropic (só se a chave pedir)',
-      'Deixe em branco primeiro. Se o teste falhar dizendo que a chave "is not scoped to a workspace", abra o workspace no painel da Anthropic e copie o id que aparece no endereço (começa com wrkspc_).',
+      'Não é o NOME do workspace — é o id, que começa com wrkspc_ e só aparece no endereço da página. Abra o workspace no painel da Anthropic e copie a barra de endereços inteira, que o sistema recorta o id. Deixe em branco se a chave foi criada dentro de um workspace.',
       workspaceAnthropic,
       { balao: 'Chave criada dentro de um workspace nao precisa disto. Chave ligada a sua identidade precisa.' },
     ),

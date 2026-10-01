@@ -83,6 +83,32 @@ function mascarar(registro) {
  * Sem o caso do null, uma chave errada ficaria presa para sempre: qualquer
  * tentativa de limpar o campo seria lida como "manter".
  */
+/**
+ * O id do workspace da Anthropic, conferido na hora de salvar.
+ *
+ * O escritorio colou "Atilhus Chat" — o NOME do workspace, que e o que esta
+ * escrito na tela da Anthropic. O id fica no endereco, e so ele serve. Sem
+ * esta conferencia o campo aceitava qualquer coisa, e o erro so aparecia
+ * quando um cliente escrevesse e o agente nao respondesse: o pior lugar
+ * possivel para descobrir um erro de digitacao.
+ *
+ * Quem cola o endereco inteiro tambem acerta: o id e recortado de dentro. Isso
+ * nao e esperteza gratuita — copiar a barra de enderecos e o gesto natural de
+ * quem esta olhando para a pagina do workspace.
+ */
+function conferirWorkspaceAnthropic(valor) {
+  const limpo = String(valor ?? '').trim();
+  if (!limpo) return '';
+
+  const achado = limpo.match(/wrkspc_[A-Za-z0-9]+/);
+  if (achado) return achado[0];
+
+  throw comCodigo(
+    `"${limpo}" nao e o id do workspace. O id comeca com wrkspc_ e aparece no ENDERECO da pagina do workspace na Anthropic, nao no nome dele. Abra o workspace no painel e copie da barra de enderecos — pode colar o endereco inteiro.`,
+    400,
+  );
+}
+
 function preservarSegredo(novo, atual) {
   if (novo === null) return '';
   return novo && novo !== '***' ? novo : atual || '';
@@ -154,6 +180,9 @@ export function registrarIntegracoes(rotas) {
         chaveAnthropic,
         chaveOpenai: preservarSegredo(corpo.ia.chaveOpenai, atual.ia?.chaveOpenai),
       };
+      if (corpo.ia.workspaceAnthropic !== undefined) {
+        mudancas.ia.workspaceAnthropic = conferirWorkspaceAnthropic(corpo.ia.workspaceAnthropic);
+      }
       // Chave trocada apaga o veredito da anterior. Dizer "respondeu ontem"
       // sobre uma chave que nao existe mais e pior que nao dizer nada.
       if (chaveAnthropic !== atual.ia?.chaveAnthropic) mudancas.ia.ultimoTeste = null;

@@ -120,19 +120,45 @@ export async function testarDiagnostico({ base, anthropic }) {
     JSON.stringify(await ultimaChamada()),
   );
 
-  await api.patch('/api/integracoes', { ia: { workspaceAnthropic: 'wrkspc_de_teste' } });
+  await api.patch('/api/integracoes', { ia: { workspaceAnthropic: 'wrkspc_01DeTeste' } });
   await api.post('/api/integracoes/ia/testar', {});
   s.ok(
     'com workspace configurado, o cabecalho vai junto',
-    (await ultimaChamada())?.workspace === 'wrkspc_de_teste',
+    (await ultimaChamada())?.workspace === 'wrkspc_01DeTeste',
     JSON.stringify(await ultimaChamada()),
   );
 
   const salvo = (await api.get('/api/integracoes')).dados;
   s.ok(
     'e o id do workspace volta visivel na tela, para conferir se foi colado certo',
-    salvo?.ia?.workspaceAnthropic === 'wrkspc_de_teste',
+    salvo?.ia?.workspaceAnthropic === 'wrkspc_01DeTeste',
     JSON.stringify(salvo?.ia?.workspaceAnthropic),
+  );
+
+  /*
+   * O escritorio colou "Atilhus Chat" — o NOME do workspace, que e o que esta
+   * escrito na tela da Anthropic. O id fica no endereco. Sem conferir na hora
+   * de salvar, o erro so apareceria quando um cliente escrevesse e o agente
+   * nao respondesse: o pior lugar possivel para descobrir um erro de colagem.
+   */
+  const comNome = await api.patch('/api/integracoes', { ia: { workspaceAnthropic: 'Atilhus Chat' } });
+  s.ok('o NOME do workspace no lugar do id e recusado', comNome.status === 400, `status ${comNome.status}`);
+  s.ok(
+    'e o recado explica a diferenca entre nome e id',
+    /wrkspc_/.test(String(comNome.dados?.erro || '')) && /nome/i.test(String(comNome.dados?.erro || '')),
+    JSON.stringify(comNome.dados),
+  );
+
+  /* Quem cola o endereco inteiro acerta: e o gesto natural de quem esta
+     olhando para a pagina do workspace. */
+  await api.patch('/api/integracoes', {
+    ia: { workspaceAnthropic: 'https://console.anthropic.com/settings/workspaces/wrkspc_01ABCdef/members' },
+  });
+  const recortado = (await api.get('/api/integracoes')).dados;
+  s.ok(
+    'colar o endereco inteiro funciona: o id e recortado de dentro',
+    recortado?.ia?.workspaceAnthropic === 'wrkspc_01ABCdef',
+    JSON.stringify(recortado?.ia?.workspaceAnthropic),
   );
 
   await api.patch('/api/integracoes', { ia: { workspaceAnthropic: '' } });
