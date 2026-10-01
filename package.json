@@ -14,7 +14,8 @@
     "higiene": "node servidor/ferramentas/higiene.js",
     "backup": "node servidor/ferramentas/backup.js",
     "consertar-mencoes": "node servidor/ferramentas/consertar-mencoes.js",
-    "consertar-roteiros": "node servidor/ferramentas/consertar-roteiros.js"
+    "consertar-roteiros": "node servidor/ferramentas/consertar-roteiros.js",
+    "agente-maternidade": "node servidor/ferramentas/agente-maternidade.js"
   },
   "engines": {
     "node": ">=18"

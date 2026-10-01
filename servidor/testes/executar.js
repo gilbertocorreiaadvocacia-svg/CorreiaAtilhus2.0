@@ -37,6 +37,7 @@ import { testarDiagnostico } from './diagnostico.js';
 import { testarEventosDeConexao } from './eventos-conexao.js';
 import { testarHigiene } from './higiene.js';
 import { testarAtalhos } from './atalhos.js';
+import { testarFalaEAcao } from './fala-e-acao.js';
 
 /**
  * A suite do CorreiaAtilhus2.0. Rode com `npm test`.
@@ -226,6 +227,8 @@ async function principal() {
     suites.push(await testarIa(base, anthropic));
     /* Depois da IA: poe a chave de mentira de volta e tira no fim. */
     suites.push(await testarEncadeamento({ base, anthropic }));
+    /* Mesmo esquema do encadeamento: roteiro na Anthropic de mentira, chave posta e tirada. */
+    suites.push(await testarFalaEAcao({ base, anthropic }));
     /* Tambem usa a Anthropic de mentira, e poe e tira a chave. */
     suites.push(await testarAvaliacao({ base, anthropic }));
     /* Cria workspaces novos: depois de quem conta agentes e etiquetas da origem. */
