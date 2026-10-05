@@ -16,7 +16,8 @@
     "consertar-mencoes": "node servidor/ferramentas/consertar-mencoes.js",
     "consertar-roteiros": "node servidor/ferramentas/consertar-roteiros.js",
     "agente-maternidade": "node servidor/ferramentas/agente-maternidade.js",
-    "video-template": "node servidor/ferramentas/video-template.js"
+    "video-template": "node servidor/ferramentas/video-template.js",
+    "base-e-status": "node servidor/ferramentas/base-e-status.js"
   },
   "engines": {
     "node": ">=18"

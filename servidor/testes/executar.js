@@ -36,6 +36,7 @@ import { testarLiderhub } from './liderhub.js';
 import { testarDiagnostico } from './diagnostico.js';
 import { testarEventosDeConexao } from './eventos-conexao.js';
 import { testarHigiene } from './higiene.js';
+import { testarBaseEStatus } from './base-e-status.js';
 import { testarAtalhos } from './atalhos.js';
 import { testarFalaEAcao } from './fala-e-acao.js';
 
@@ -251,6 +252,8 @@ async function principal() {
     suites.push(await testarHospedagem({ raiz: RAIZ, portaLivre }));
     /* Tambem processos proprios: sobe e derruba varias vezes a mesma base. */
     suites.push(await testarSobreviver({ raiz: RAIZ, portaLivre }));
+    /* Ferramenta de manutencao, com base descartavel propria. */
+    suites.push(await testarBaseEStatus({ raiz: RAIZ }));
   } catch (erro) {
     console.error('\nA suite quebrou antes de terminar:', erro.message);
     console.error(erro.stack);
