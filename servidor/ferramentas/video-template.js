@@ -1,9 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { LIMITE_MIDIA } from '../config.js';
-import { atualizar, encerrarBanco, iniciarBanco, listar } from '../nucleo/banco.js';
+import { atualizar, encerrarBanco, iniciarBanco, inserir, listar } from '../nucleo/banco.js';
 import { guardarBuffer } from '../nucleo/midia.js';
-import { normalizar } from '../nucleo/util.js';
+import { normalizar, novoId } from '../nucleo/util.js';
 
 /**
  * Poe um video (ou imagem) dentro de um template: `npm run video-template`.
@@ -27,6 +27,23 @@ import { normalizar } from '../nucleo/util.js';
  * mesmo formato de qualquer upload feito pela tela, e nada mais precisa saber
  * que ele veio daqui.
  *
+ * TEMPLATE QUE AINDA NAO EXISTE
+ *
+ * Quando o video e de um template que o escritorio so tinha na LiderHub (o
+ * video-escritorio, por exemplo), nao ha o que atualizar: ha o que criar.
+ *
+ *   node servidor/ferramentas/video-template.js --novos=/entrada/novos.json [--aplicar]
+ *
+ * O arquivo e uma lista em JSON, e nao argumentos de linha de comando, de
+ * proposito: o texto de um template tem acento, chave dupla e aspas, e passar
+ * isso por ssh e PowerShell corrompe um caractere de cada vez sem avisar.
+ *
+ *   [{ "atalho": "video-escritorio", "nome": "Video do escritorio",
+ *      "conteudo": "Olha, {{nome}}, ...", "arquivo": "/entrada/escritorio.mp4" }]
+ *
+ * Criar nunca sobrescreve: se o atalho ja existe, recusa e manda usar a forma
+ * atalho=arquivo, que so troca a midia e preserva o texto que alguem ajustou.
+ *
  * O QUE ELA RECUSA, E POR QUE
  *
  * - Arquivo acima de 16 MB: e o teto do sistema e do WhatsApp. Mandar assim
@@ -41,12 +58,29 @@ import { normalizar } from '../nucleo/util.js';
 
 const APLICAR = process.argv.includes('--aplicar');
 const pares = process.argv.slice(2).filter((a) => !a.startsWith('--') && a.includes('='));
+const arquivoDeNovos = (process.argv.find((a) => a.startsWith('--novos=')) || '').slice('--novos='.length);
 
 const MIME = { '.mp4': 'video/mp4', '.webm': 'video/webm', '.mov': 'video/quicktime', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png' };
 
+/** Le o arquivo e confere formato e tamanho. Devolve { erro } ou { dados, mime, mb }. */
+function lerArquivo(caminho) {
+  if (!fs.existsSync(caminho)) return { erro: `arquivo nao encontrado: ${caminho}` };
+  const mime = MIME[path.extname(caminho).toLowerCase()];
+  if (!mime) {
+    return { erro: `formato nao aceito: ${path.extname(caminho) || '(sem extensao)'}. Use .mp4, .webm, .mov, .jpg ou .png.` };
+  }
+  const dados = fs.readFileSync(caminho);
+  if (dados.length > LIMITE_MIDIA) {
+    return {
+      erro: `${(dados.length / 1048576).toFixed(1)} MB passa do limite de ${(LIMITE_MIDIA / 1048576).toFixed(0)} MB (o do WhatsApp). Comprima antes.`,
+    };
+  }
+  return { dados, mime, mb: (dados.length / 1048576).toFixed(1) };
+}
+
 async function principal() {
-  if (!pares.length) {
-    console.error('Uso: video-template.js atalho=/caminho/do/video.mp4 [outro=/caminho/b.mp4] [--aplicar]');
+  if (!pares.length && !arquivoDeNovos) {
+    console.error('Uso: video-template.js atalho=/caminho/do/video.mp4 [--novos=/caminho/novos.json] [--aplicar]');
     process.exit(1);
   }
 
@@ -80,24 +114,13 @@ async function principal() {
     }
     const template = doAtalho[0];
 
-    if (!fs.existsSync(caminho)) {
-      console.log(`  [RECUSADO] arquivo nao encontrado: ${caminho}`);
+    const lido = lerArquivo(caminho);
+    if (lido.erro) {
+      console.log(`  [RECUSADO] ${lido.erro}`);
       recusados += 1;
       continue;
     }
-    const mime = MIME[path.extname(caminho).toLowerCase()];
-    if (!mime) {
-      console.log(`  [RECUSADO] formato nao aceito: ${path.extname(caminho) || '(sem extensao)'}. Use .mp4, .webm, .mov, .jpg ou .png.`);
-      recusados += 1;
-      continue;
-    }
-    const dados = fs.readFileSync(caminho);
-    const mb = (dados.length / 1048576).toFixed(1);
-    if (dados.length > LIMITE_MIDIA) {
-      console.log(`  [RECUSADO] ${mb} MB passa do limite de ${(LIMITE_MIDIA / 1048576).toFixed(0)} MB (o do WhatsApp). Comprima antes.`);
-      recusados += 1;
-      continue;
-    }
+    const { dados, mime, mb } = lido;
 
     const antes = template.midia?.arquivo || template.midia?.url || template.midia?.nome || 'sem midia';
     console.log(`  antes:  ${antes}`);
@@ -111,8 +134,66 @@ async function principal() {
     feitos += 1;
   }
 
+  /* Templates que ainda nao existem. */
+  let criados = 0;
+  if (arquivoDeNovos) {
+    let novos;
+    try {
+      novos = JSON.parse(fs.readFileSync(arquivoDeNovos, 'utf8'));
+      if (!Array.isArray(novos)) throw new Error('o JSON precisa ser uma lista');
+    } catch (erro) {
+      console.error(`\nNao consegui ler ${arquivoDeNovos}: ${erro.message}`);
+      process.exit(1);
+    }
+
+    for (const novo of novos) {
+      const atalho = String(novo.atalho || '').replace(/^@/, '').trim();
+      console.log(`\n--- NOVO @${atalho} ---`);
+
+      if (!atalho || !String(novo.nome || '').trim() || !String(novo.conteudo || '').trim()) {
+        console.log('  [RECUSADO] faltam atalho, nome ou conteudo.');
+        recusados += 1;
+        continue;
+      }
+      if (templates.some((t) => normalizar(t.atalho) === normalizar(atalho))) {
+        console.log(`  [RECUSADO] @${atalho} ja existe. Criar nao sobrescreve: use atalho=arquivo para trocar so a midia.`);
+        recusados += 1;
+        continue;
+      }
+      const lido = lerArquivo(novo.arquivo);
+      if (lido.erro) {
+        console.log(`  [RECUSADO] ${lido.erro}`);
+        recusados += 1;
+        continue;
+      }
+
+      console.log(`  nome:     ${novo.nome}`);
+      console.log(`  conteudo: ${novo.conteudo}`);
+      console.log(`  midia:    ${path.basename(novo.arquivo)} (${lido.mb} MB, ${lido.mime})`);
+
+      if (APLICAR) {
+        const midia = guardarBuffer({ nome: path.basename(novo.arquivo), dados: lido.dados, mime: lido.mime });
+        /* Os mesmos campos que a tela de templates grava (POST /api/templates)
+           e que a rota completa depois (aprovacaoMeta). */
+        inserir('templates', {
+          id: novoId('tpl'),
+          workspaceId: w,
+          nome: String(novo.nome).trim(),
+          atalho,
+          conteudo: String(novo.conteudo),
+          categoriaMeta: novo.categoriaMeta || 'utilidade',
+          midia,
+          aprovacaoMeta: { solicitada: false, situacao: 'nao_solicitada' },
+        });
+        console.log(`  [feito] criado, com a midia guardada como ${midia.arquivo}`);
+      }
+      criados += 1;
+    }
+  }
+
   console.log('\n---------------------------------------------');
   console.log(`templates atualizados: ${feitos}${APLICAR ? '' : ' (simulado)'}`);
+  if (arquivoDeNovos) console.log(`templates criados: ${criados}${APLICAR ? '' : ' (simulado)'}`);
   if (recusados) console.log(`recusados (nao mexi): ${recusados}`);
 
   if (APLICAR) {
@@ -121,7 +202,7 @@ async function principal() {
   } else {
     console.log('\nNada foi gravado. Confira acima e rode de novo com --aplicar.');
   }
-  process.exit(recusados && !feitos ? 1 : 0);
+  process.exit(recusados && !feitos && !criados ? 1 : 0);
 }
 
 principal().catch((erro) => {
