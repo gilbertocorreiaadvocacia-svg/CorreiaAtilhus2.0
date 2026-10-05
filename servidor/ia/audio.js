@@ -16,6 +16,9 @@ import { caminhoDaMidia, guardarBuffer } from '../nucleo/midia.js';
  * caro e cansa quando vira padrao.
  */
 
+/* Endereco da OpenAI. So a suite de testes troca: ela fala com uma de mentira. */
+const BASE_OPENAI = process.env.CORREIA_OPENAI_URL || 'https://api.openai.com';
+
 function chaveOpenai(workspaceId) {
   const integracoes = achar('integracoes', { workspaceId });
   return integracoes?.ia?.chaveOpenai || process.env.OPENAI_API_KEY || '';
@@ -44,7 +47,7 @@ export async function transcrever({ workspaceId, contatoId, midia }) {
     formulario.append('model', 'whisper-1');
     formulario.append('language', 'pt');
 
-    const resposta = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+    const resposta = await fetch(`${BASE_OPENAI}/v1/audio/transcriptions`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${chave}` },
       body: formulario,
@@ -70,7 +73,7 @@ export async function sintetizar({ workspaceId, contatoId, texto, vozId }) {
   const nomeVoz = voz?.vozBase || (VOZES.some((v) => v.id === vozId) ? vozId : 'nova');
 
   try {
-    const resposta = await fetch('https://api.openai.com/v1/audio/speech', {
+    const resposta = await fetch(`${BASE_OPENAI}/v1/audio/speech`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${chave}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({

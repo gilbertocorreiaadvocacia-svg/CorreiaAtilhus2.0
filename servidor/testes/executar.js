@@ -37,6 +37,9 @@ import { testarDiagnostico } from './diagnostico.js';
 import { testarEventosDeConexao } from './eventos-conexao.js';
 import { testarHigiene } from './higiene.js';
 import { testarBaseEStatus } from './base-e-status.js';
+import { testarVoz } from './voz.js';
+import { testarVozDosAgentes } from './voz-dos-agentes.js';
+import { subirOpenaiFalsa } from './openai-falsa.js';
 import { testarAtalhos } from './atalhos.js';
 import { testarFalaEAcao } from './fala-e-acao.js';
 
@@ -134,6 +137,9 @@ async function principal() {
 
   const servicoFalso = await subirEvolucaoFalsa(portaEvolucao, CHAVE_EVOLUCAO);
   const anthropicFalsa = await subirAnthropicFalsa(portaAnthropic);
+  const portaOpenai = await portaLivre();
+  const openai = `http://127.0.0.1:${portaOpenai}`;
+  const openaiFalsa = await subirOpenaiFalsa(portaOpenai);
   const zapsignFalsa = await subirZapsignFalsa(portaZapsign, 'zs-de-mentira');
   const juriFalso = await subirJuriFalso(portaJuri, 'segredo-do-juri');
   const redesFalsas = await subirRedesFalsas(portaRedes);
@@ -146,6 +152,8 @@ async function principal() {
       /* O sistema fala com a Anthropic de mentira, e nao com a de verdade:
          a suite nao pode depender de internet nem gastar chave do escritorio. */
       CORREIA_ANTHROPIC_URL: anthropic,
+      /* A OpenAI de mentira: so o audio (voz do agente e transcricao). */
+      CORREIA_OPENAI_URL: openai,
       /* A ZapSign de mentira, e o acompanhamento em milissegundos: consulta a
          cada 150 ms, com espera de 100 ms entre consultas do mesmo documento. */
       CORREIA_ZAPSIGN_URL: zapsign,
@@ -198,6 +206,7 @@ async function principal() {
     }
     servicoFalso.close();
     anthropicFalsa.close();
+    openaiFalsa.close();
     zapsignFalsa.close();
     juriFalso.close();
     redesFalsas.close();
@@ -232,6 +241,7 @@ async function principal() {
     suites.push(await testarFalaEAcao({ base, anthropic }));
     /* Tambem usa a Anthropic de mentira, e poe e tira a chave. */
     suites.push(await testarAvaliacao({ base, anthropic }));
+    suites.push(await testarVoz({ base, anthropic, openai }));
     /* Cria workspaces novos: depois de quem conta agentes e etiquetas da origem. */
     suites.push(await testarWorkspacesPorArea({ base }));
     /* Depois de todas as outras: acrescenta conversas em Ativos, e as suites
@@ -254,6 +264,7 @@ async function principal() {
     suites.push(await testarSobreviver({ raiz: RAIZ, portaLivre }));
     /* Ferramenta de manutencao, com base descartavel propria. */
     suites.push(await testarBaseEStatus({ raiz: RAIZ }));
+    suites.push(await testarVozDosAgentes({ raiz: RAIZ }));
   } catch (erro) {
     console.error('\nA suite quebrou antes de terminar:', erro.message);
     console.error(erro.stack);
