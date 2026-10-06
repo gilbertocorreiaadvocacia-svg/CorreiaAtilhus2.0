@@ -1,5 +1,6 @@
 import { api, enviarArquivo } from '../api.js';
 import { abrirVisualizador, campoComDica, cartaoDeArquivo, dica, menuAcoes, paginacao, previaDaMidia } from '../componentes.js';
+import { editarStatus } from './configuracoes.js';
 import {
   acharConexao,
   acharEtiqueta,
@@ -3819,22 +3820,32 @@ export async function paginaAtendimento({
     }
   }
 
-  function renomearColuna(status) {
-    const campoNome = entradaTexto(status.nome, { placeholder: 'Nome da coluna' });
-    modal({
-      titulo: `Renomear “${status.nome}”`,
-      corpo: campo('Nome da coluna', campoNome),
-      confirmar: 'Salvar',
-      aoConfirmar: async () => {
-        const nome = campoNome.value.trim();
-        if (!nome) throw new Error('Dê um nome à coluna.');
-        if (nome === status.nome) return;
-        await api.patch(`/api/status/${status.id}`, { nome });
-        await recarregar('status');
-        aviso('Coluna renomeada.', 'sucesso');
-        await desenhar();
+  /* Recarrega o status e redesenha o quadro. Passado ao editor completo
+     (editarStatus) e usado depois de mover/excluir, para a tela refletir o que
+     mudou no servidor. */
+  const aposMexerNoStatus = async () => {
+    await recarregar('status');
+    await desenhar();
+  };
+
+  function excluirColuna(status) {
+    confirmar(
+      `Excluir a coluna “${status.nome}”?`,
+      'A coluna sai do funil para todos. Se houver conversas nela, o sistema recusa: mova ou unifique as conversas antes.',
+      async () => {
+        try {
+          await api.delete(`/api/status/${status.id}`);
+          await recarregar('status');
+          aviso('Coluna excluída.', 'sucesso');
+          await desenhar();
+        } catch (erro) {
+          /* A recusa mais comum e "ha conversas neste status": a mensagem do
+             servidor ja diz o que fazer. */
+          aviso(erro.message, 'erro');
+        }
       },
-    });
+      'Excluir',
+    );
   }
 
   /* O cartao "+ Nova coluna" no fim do quadro: abre um mini formulario com nome
@@ -4167,14 +4178,16 @@ export async function paginaAtendimento({
          mover mudam o funil para todos, entao so para quem pode configurar, e
          reusam as rotas que ja existem. "Sem status" nao tem menu: nao e uma
          coluna de verdade, e so aparece quando ha conversa sem status. */
+      const statusDaColuna = estado.status.find((s) => s.id === coluna.id);
       const menuColuna = coluna.id
         ? menuAcoes(
             [
-              podeConfigurar() ? { rotulo: 'Renomear', icone: 'pessoa', aoClicar: () => renomearColuna(estado.status.find((s) => s.id === coluna.id)) } : null,
+              podeConfigurar() ? { rotulo: 'Configurar coluna', icone: 'ajustes', aoClicar: () => editarStatus(statusDaColuna, aposMexerNoStatus) } : null,
               podeConfigurar() ? { rotulo: 'Mover para a esquerda', icone: 'voltar', aoClicar: () => moverColuna(coluna.id, -1) } : null,
               podeConfigurar() ? { rotulo: 'Mover para a direita', icone: 'abrir', aoClicar: () => moverColuna(coluna.id, +1) } : null,
-              podeConfigurar() ? { separador: true } : null,
               { rotulo: 'Esconder da minha vista', icone: 'arquivar', aoClicar: () => esconderColuna(coluna.id) },
+              podeConfigurar() ? { separador: true } : null,
+              podeConfigurar() ? { rotulo: 'Excluir coluna', icone: 'lixo', perigo: true, aoClicar: () => excluirColuna(statusDaColuna) } : null,
             ],
             { rotulo: `Opções da coluna ${coluna.nome}` },
           )

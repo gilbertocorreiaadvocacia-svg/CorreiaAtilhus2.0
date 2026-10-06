@@ -832,7 +832,9 @@ function unificarStatus(origem, todos, recarregarTela) {
   });
 }
 
-function editarStatus(status, recarregarTela) {
+/* Exportado para o quadro (web/js/paginas/atendimento.js) abrir o mesmo editor
+   completo de coluna pelo menu de tres pontinhos, sem duplicar o formulario. */
+export function editarStatus(status, recarregarTela) {
   const novo = !status;
   const nome = entradaTexto(status?.nome || '');
   const cor = seletorDeCor(status?.cor || COR_NOVA);
