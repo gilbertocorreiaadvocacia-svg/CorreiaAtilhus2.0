@@ -4497,7 +4497,29 @@ export async function paginaAtendimento({
     definirPrincipal(botao('Nova conversa', { tipo: 'principal', icone: 'mais', pequeno: true, aoClicar: abrirNovaConversa }));
   }
 
-  await escolherAbaInicial();
-  await desenhar();
+  /* A tela aparece JA: o contêiner recebe o esqueleto agora, e a lista chega
+     em segundo plano. Antes, a pagina so retornava depois da resposta de
+     400 conversas, e a troca de tela esperava a rede inteira. */
+  container.append(esqueletoDaFila());
+  const primeiraPintura = (async () => {
+    await escolherAbaInicial();
+    await desenhar();
+  })();
+  primeiraPintura.catch((erro) => {
+    container.replaceChildren(vazio('Nao consegui carregar as conversas', erro.message));
+  });
   return container;
+}
+
+/* O esqueleto da fila: a mesma forma da lista de conversas, sem esperar dados. */
+function esqueletoDaFila() {
+  return el('div', { class: 'atendimento sem-painel esqueleto-rota' }, [
+    el('div', { class: 'coluna' }, [
+      el('div', { class: 'esqueleto esqueleto-linha', estilo: { width: '60%' } }),
+      el('div', { class: 'esqueleto esqueleto-bloco' }),
+      el('div', { class: 'esqueleto esqueleto-bloco' }),
+      el('div', { class: 'esqueleto esqueleto-bloco' }),
+      el('div', { class: 'esqueleto esqueleto-bloco' }),
+    ]),
+  ]);
 }
