@@ -172,6 +172,25 @@ function saudacaoDaHora(data = new Date()) {
  * abrisse o endereco, e o sistema vai para a internet (HOSPEDAGEM.md); quem
  * instala le no README e no console do servidor.
  */
+/* Carrega a biblioteca de QR uma vez so, do cdnjs. Quem pede espera o mesmo
+   carregamento, sem baixar o script duas vezes. */
+let qrCarregando = null;
+function carregarQr() {
+  if (window.qrcode) return Promise.resolve();
+  if (qrCarregando) return qrCarregando;
+  qrCarregando = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js';
+    script.onload = () => resolve();
+    script.onerror = () => {
+      qrCarregando = null;
+      reject(new Error('sem rede para o QR'));
+    };
+    document.head.append(script);
+  });
+  return qrCarregando;
+}
+
 function telaEntrada(mensagemInicial) {
   limpar(raiz);
 
@@ -343,6 +362,17 @@ function telaEntrada(mensagemInicial) {
      colocar no app e confirma com o primeiro codigo. */
   function passoAdesao(dados) {
     const { entrada, avisoCodigo, mostrarErro, limparErro } = campoDeCodigo('entrada-2fa-adesao');
+    /* O QR code do app autenticador, desenhado a partir do endereco otpauth que
+       o servidor manda. A biblioteca so e carregada aqui, na tela de adesao. */
+    const areaQr = el('div', { class: 'entrada-qr', 'aria-label': 'QR code para o app autenticador' });
+    carregarQr().then(() => {
+      const gerador = window.qrcode(0, 'M');
+      gerador.addData(dados.otpauth);
+      gerador.make();
+      areaQr.innerHTML = gerador.createSvgTag({ cellSize: 4, margin: 2 });
+    }).catch(() => {
+      areaQr.replaceChildren(el('small', { class: 'c-suave', texto: 'Não consegui desenhar o QR. Use a chave abaixo.' }));
+    });
     const copiar = botao('Copiar chave', {
       aoClicar: async () => {
         try {
@@ -372,6 +402,7 @@ function telaEntrada(mensagemInicial) {
         el('li', { texto: 'No app, toque em + e escolha “Inserir chave de configuração”.' }),
         el('li', { texto: `Conta: ${dados.conta}. Cole a chave:` }),
       ]),
+      areaQr,
       el('div', { class: 'entrada-chave' }, [el('code', { texto: dados.segredoLegivel }), copiar]),
       el('p', { class: 'entrada-passo-texto', texto: 'Depois, digite aqui o código de 6 dígitos que o app mostrar, para confirmar.' }),
       campo('Código do app', entrada),
