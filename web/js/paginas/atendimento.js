@@ -3869,8 +3869,13 @@ export async function paginaAtendimento({
         if (!n) return nome.focus();
         const tipoNovo = segmentoDoFunil === 'encerradas' ? 'desistencia' : 'nenhum';
         try {
-          const criado = (await api.post('/api/status', { nome: n, cor: corEscolhida, tipo: tipoNovo })).dados;
+          /* api.post devolve o corpo direto; nao ha .dados aqui. Sem o id, o
+             posicionarNoSegmento saia cedo e a coluna nascia fora do segmento, e
+             sem recarregar o status a tela redesenhava a lista antiga — a coluna
+             era criada no servidor mas nunca aparecia. */
+          const criado = await api.post('/api/status', { nome: n, cor: corEscolhida, tipo: tipoNovo });
           await posicionarNoSegmento(criado?.id);
+          await recarregar('status');
           aviso('Coluna criada.', 'sucesso');
           await desenhar();
         } catch (erro) {
