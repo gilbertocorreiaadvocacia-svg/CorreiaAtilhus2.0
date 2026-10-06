@@ -644,7 +644,50 @@ async function secaoEscritorio(recarregarTela) {
 
   const nomeWorkspace = entradaTexto(workspace.nome || '');
 
+  /* Criar um workspace por area (Previdenciario, Trabalhista, Civel). So o
+     administrador, e so a partir do workspace de origem. O resultado aparece
+     logo abaixo do botao, e a sessao recarrega para os novos aparecerem no
+     seletor de escritorio la em cima. */
+  const resultadoAreas = el('div', { class: 'mt-3' });
+  const botaoAreas = botao('Criar workspaces por área', {
+    tipo: 'principal',
+    icone: 'predio',
+    aoClicar: () =>
+      confirmar(
+        'Criar um workspace para cada área?',
+        'Cria Previdenciário, Trabalhista e Cível — cada um com seu número de WhatsApp (por QR Code, esperando ser lido), seus agentes (desligados até você configurar) e sua própria fila. Não mexe neste workspace, e rodar de novo não duplica.',
+        async () => {
+          try {
+            const r = await api.post('/api/workspaces/por-area', {});
+            const criados = (r.workspaces || []).filter((w) => w.situacao === 'criado');
+            const jaHavia = (r.workspaces || []).filter((w) => w.situacao === 'ja existia');
+            limpar(resultadoAreas).append(
+              el('div', { class: 'lista-simples' }, [
+                ...criados.map((w) => el('div', { class: 'lista-item' }, [el('div', { class: 'corpo' }, [el('div', { class: 'titulo', texto: w.nome })]), selo('criado', 'sucesso')])),
+                ...jaHavia.map((w) => el('div', { class: 'lista-item' }, [el('div', { class: 'corpo' }, [el('div', { class: 'titulo c-suave', texto: w.nome })]), selo('já existia', '')])),
+              ]),
+            );
+            aviso(criados.length ? `${criados.length} workspace(s) criado(s).` : 'Nenhum novo: já existiam.', 'sucesso');
+            await carregarSessao();
+          } catch (erro) {
+            aviso(`Não consegui criar: ${erro.message}`, 'erro');
+          }
+        },
+        'Criar',
+      ),
+  });
+
+  const cartaoAreas =
+    estado.sessao.papel === 'administrador'
+      ? cartao(
+          'Workspaces por área',
+          'Separe o atendimento por área: um workspace para Previdenciário, um para Trabalhista e um para Cível. Cada um nasce com número, agentes e fila próprios, sem misturar com os outros.',
+          el('div', {}, [el('div', { class: 'linha-botoes' }, [botaoAreas]), resultadoAreas]),
+        )
+      : null;
+
   return el('div', {}, [
+    cartaoAreas,
     ajustes(
       // Sao doze campos numa tela so. Cada explicacao diz onde o dado vai parar
       // na conversa, que e conceito, entao todas vao para o balao do nome: como

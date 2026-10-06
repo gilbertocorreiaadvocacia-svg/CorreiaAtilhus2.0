@@ -7,7 +7,7 @@ import { completarComEvolutionLocal } from '../whatsapp/evolution-local.js';
 import { PACOTES, prepararEscritorio } from '../ia/pacotes.js';
 
 /**
- * Um workspace por area de atendimento: Previdenciario e Trabalhista.
+ * Um workspace por area de atendimento: Previdenciario, Trabalhista e Civel.
  *
  * Pedido do socio (14/09): cada area com o seu numero de WhatsApp, os seus
  * agentes e as suas conversas, sem uma misturar na fila da outra. O workspace
@@ -35,6 +35,7 @@ import { PACOTES, prepararEscritorio } from '../ia/pacotes.js';
 export const WORKSPACES_POR_AREA = [
   { area: 'previdenciario', nome: 'Previdenciário' },
   { area: 'trabalhista', nome: 'Trabalhista' },
+  { area: 'civel', nome: 'Cível / Consumidor' },
 ];
 
 const casosDaArea = (area) => new Set(TIPOS_DE_CASO.filter((t) => t.area === area).map((t) => t.caso));

@@ -30,8 +30,8 @@ export async function testarWorkspacesPorArea({ base }) {
 
   const criado = await api.post('/api/workspaces/por-area', {});
   s.ok(
-    'cria o Previdenciario e o Trabalhista',
-    criado.status === 200 && (criado.dados?.workspaces || []).filter((w) => w.situacao === 'criado').length === 2,
+    'cria os tres: Previdenciario, Trabalhista e Civel',
+    criado.status === 200 && (criado.dados?.workspaces || []).filter((w) => w.situacao === 'criado').length === 3,
     JSON.stringify(criado.dados),
   );
   const deNovo = (await api.post('/api/workspaces/por-area', {})).dados;
@@ -40,8 +40,9 @@ export async function testarWorkspacesPorArea({ base }) {
   const lista = (await api.get('/api/sessao/eu')).dados?.workspaces || [];
   const previdenciario = lista.find((w) => w.area === 'previdenciario');
   const trabalhista = lista.find((w) => w.area === 'trabalhista');
-  s.ok('os dois aparecem no seletor, junto do de origem', Boolean(previdenciario && trabalhista) && lista.some((w) => w.id === origem.id));
-  if (!previdenciario || !trabalhista) return s;
+  const civel = lista.find((w) => w.area === 'civel');
+  s.ok('os tres aparecem no seletor, junto do de origem', Boolean(previdenciario && trabalhista && civel) && lista.some((w) => w.id === origem.id));
+  if (!previdenciario || !trabalhista || !civel) return s;
 
   const entrar = (w) => api.post('/api/sessao/workspace', { workspaceId: w.id });
 
@@ -155,6 +156,22 @@ export async function testarWorkspacesPorArea({ base }) {
     ((await api.get('/api/conexoes')).dados || []).some((c) => c.tipo === 'qrcode' && c.area === 'previdenciario'),
   );
 
+  /* ---------------- Civel ---------------- */
+
+  await entrar(civel);
+  const agentesCivel = (await api.get('/api/agentes')).dados || [];
+  s.ok(
+    'Civel: os agentes da area, desligados e sem mencao invalida',
+    agentesCivel.length >= 3 && agentesCivel.every((a) => !a.ativo && !(a.mencoesInvalidas || []).length),
+    JSON.stringify(agentesCivel.map((a) => [a.nome, a.ativo, (a.mencoesInvalidas || []).join(',')])),
+  );
+  const casosCivel = ((await api.get('/api/etiquetas')).dados || []).filter((e) => e.tipo === 'caso').map((e) => e.caso);
+  s.ok('Civel: so o tipo de caso civel', JSON.stringify(casosCivel) === JSON.stringify(['civel']), JSON.stringify(casosCivel));
+  s.ok(
+    'Civel: numero proprio por QR Code',
+    ((await api.get('/api/conexoes')).dados || []).some((c) => c.tipo === 'qrcode' && c.area === 'civel'),
+  );
+
   /* ---------------- A origem nao mudou ---------------- */
 
   await entrar(origem);
@@ -168,11 +185,14 @@ export async function testarWorkspacesPorArea({ base }) {
 
   const trabalhistaNoGeral = (await api.post('/api/agentes', { nome: 'AG01 [trab] Triagem' })).dados;
   const separado = await api.post('/api/agentes-por-escritorio', {});
+  const agentesPorArea = Object.fromEntries((separado.dados?.escritorios || []).map((e) => [e.area, e.agentes]));
   s.ok(
     'Separar: cada escritorio fica com os agentes da sua area',
     separado.status === 200 &&
-      (separado.dados?.escritorios || []).length === 2 &&
-      separado.dados.escritorios.every((e) => e.agentes === (e.area === 'trabalhista' ? 9 : 16)),
+      (separado.dados?.escritorios || []).length === 3 &&
+      agentesPorArea.previdenciario === 16 &&
+      agentesPorArea.trabalhista === 9 &&
+      agentesPorArea.civel >= 3,
     JSON.stringify(separado.dados),
   );
   const noGeralDepois = (await api.get('/api/agentes')).dados || [];
