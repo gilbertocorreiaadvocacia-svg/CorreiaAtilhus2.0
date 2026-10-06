@@ -389,6 +389,22 @@ export async function paginaAtendimento({
     desenhar();
   }
 
+  /* O chevron que recolhe/mostra o painel de informacoes, no cabecalho da
+     conversa (como no LiderHub). Aberto, aponta para a borda (recolher);
+     recolhido, aponta para dentro (mostrar). */
+  function alternarPainelInfo() {
+    const recolhido = propriedadesRecolhidas();
+    const b = botao('', {
+      icone: 'voltar',
+      titulo: recolhido ? 'Mostrar as informações do contato' : 'Ocultar as informações do contato',
+      pequeno: true,
+      aoClicar: () => alternarPropriedades(!recolhido),
+    });
+    b.classList.add('botao-info-toggle');
+    if (!recolhido) b.classList.add('aberto');
+    return b;
+  }
+
   async function desenhar() {
     await buscar();
     limpar(container);
@@ -402,8 +418,15 @@ export async function paginaAtendimento({
          subiu para a barra de cima do sistema, a Nova conversa para o canto
          dela, e a busca e os filtros foram para a cabeca da fila, que e o que
          eles recortam. */
-      container.className = `atendimento${propriedadesRecolhidas() && selecionadoId ? ' props-recolhido' : ''}`;
-      container.append(colunaLista(), colunaConversa(), colunaPropriedades());
+      /* Recolhido (como no LiderHub): o painel de informacoes some e a conversa
+         fica com a largura toda. Reabre pelo chevron no cabecalho da conversa. */
+      if (propriedadesRecolhidas() && selecionadoId) {
+        container.className = 'atendimento sem-painel';
+        container.append(colunaLista(), colunaConversa());
+      } else {
+        container.className = 'atendimento';
+        container.append(colunaLista(), colunaConversa(), colunaPropriedades());
+      }
     } else {
       container.className = 'atendimento coluna-unica';
       container.append(visualizacao === 'kanban' ? montarKanban() : montarTabela());
@@ -1100,6 +1123,7 @@ export async function paginaAtendimento({
               ),
           })
         : null,
+      alternarPainelInfo(),
       ]),
       el('div', { class: 'conversa-linha' }, [
         el('div', { class: 'conversa-dados' }, [
@@ -2028,23 +2052,6 @@ export async function paginaAtendimento({
     const contato = contatos.find((c) => c.id === selecionadoId);
     if (!contato) return el('div', { class: 'coluna' });
 
-    /* Recolhido: um filete na borda com o botao de reabrir, de pe. */
-    if (propriedadesRecolhidas()) {
-      return el('div', { class: 'coluna painel-contato recolhido' }, [
-        el(
-          'button',
-          {
-            type: 'button',
-            class: 'painel-expandir',
-            title: 'Mostrar as informações da conversa',
-            'aria-label': 'Mostrar as informações da conversa',
-            aoClick: () => alternarPropriedades(false),
-          },
-          [icone('voltar', 16), el('span', { class: 'painel-expandir-rotulo', texto: 'Informações' })],
-        ),
-      ]);
-    }
-
     const salvar = async (mudancas) => {
       await api.patch(`/api/contatos/${contato.id}`, mudancas);
       await desenhar();
@@ -2487,23 +2494,9 @@ export async function paginaAtendimento({
     mostrarPainel(abaPainel);
 
     /* As abas no topo e a pessoa dentro de Dados: o cabecalho com nome e
-       telefone saiu, porque o rosto no centro ja diz os dois. O botao de
-       encolher fica ao lado das abas, na borda, e manda o painel para o filete. */
-    const recolher = el(
-      'button',
-      {
-        type: 'button',
-        class: 'painel-recolher',
-        title: 'Encolher as informações',
-        'aria-label': 'Encolher as informações da conversa',
-        aoClick: () => alternarPropriedades(true),
-      },
-      [icone('voltar', 16)],
-    );
-    return el('div', { class: 'coluna painel-contato' }, [
-      el('div', { class: 'painel-contato-topo' }, [abasPainel, recolher]),
-      corpo,
-    ]);
+       telefone saiu, porque o rosto no centro ja diz os dois. O controle de
+       recolher mora no cabecalho da conversa, como no LiderHub. */
+    return el('div', { class: 'coluna painel-contato' }, [abasPainel, corpo]);
   }
 
   /**
