@@ -26,6 +26,7 @@ import { testarContratos } from './contratos.js';
 import { testarRelatorios } from './relatorios.js';
 import { testarCopiarWorkspace } from './copiar-workspace.js';
 import { testarPapeis } from './papeis.js';
+import { testarConexoesWorkspace } from './conexoes-workspace.js';
 import { subirJuriFalso } from './juri-falso.js';
 import { testarJuri } from './juri.js';
 import { testarWorkspacesPorArea } from './workspaces.js';
@@ -270,6 +271,7 @@ async function principal() {
        importa com o que as suites de cima deixaram, e rodando no fim nao polui a
        contagem de ninguem. */
     suites.push(await testarPapeis({ base }));
+    suites.push(await testarConexoesWorkspace({ base }));
     suites.push(await testarCopiarWorkspace({ base }));
     suites.push(await testarRelatorios({ base, zapsign }));
     /* Sobe processos proprios, em porta propria: nao encosta no servidor acima. */

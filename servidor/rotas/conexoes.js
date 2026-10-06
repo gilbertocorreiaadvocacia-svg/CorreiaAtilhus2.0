@@ -3,7 +3,7 @@ import { ENDERECO_PUBLICO, PORTA, areaValida } from '../config.js';
 import { ESCOPOS_TIKTOK, concluirLoginTikTok, registrarWebhookTikTok } from '../whatsapp/drivers/tiktok.js';
 import { achar, atualizar, inserir, listar, registrarLog, remover } from '../nucleo/banco.js';
 import { emitir } from '../nucleo/eventos.js';
-import { agora, normalizarTelefone, novoId, ordenarPor } from '../nucleo/util.js';
+import { agora, normalizarTelefone, normalizarTelefoneDoWhatsApp, novoId, ordenarPor } from '../nucleo/util.js';
 import { acharOuCriarContato, atualizarSituacaoExterna, receberMensagem } from '../whatsapp/recebimento.js';
 import { driverDa, listarDrivers } from '../whatsapp/drivers/index.js';
 import { notificar } from '../ia/mencoes.js';
@@ -155,6 +155,15 @@ export function registrarConexoes(rotas) {
   rotas.post('/api/conexoes', async ({ ctx, corpo }) => {
     exigirConfiguracao(ctx);
     const existentes = listar('conexoes', { workspaceId: ctx.workspaceId });
+
+    /* Um numero so pode estar em um workspace. Conexao criada sem numero (ainda
+       esperando o QR Code) nao tem o que comparar, e passa. */
+    const numeroNovo = normalizarTelefoneDoWhatsApp(corpo.numero || '');
+    if (numeroNovo) {
+      const em = numeroEmOutroWorkspace(numeroNovo, null, ctx.workspaceId);
+      if (em) throw comCodigo(`Este número já está conectado no workspace “${em.nome}”. Um número só pode estar em um workspace.`, 409);
+    }
+
     const id = novoId('cnx');
     const conexao = inserir('conexoes', {
       id,
@@ -202,6 +211,22 @@ export function registrarConexoes(rotas) {
     exigirConfiguracao(ctx);
     const conexao = achar('conexoes', params.id);
     if (!conexao || conexao.workspaceId !== ctx.workspaceId) throw comCodigo('Conexao nao encontrada.', 404);
+
+    /* O dono do numero nao muda por esta rota: quem muda e POST .../mover, que
+       confere a permissao e o numero. Sem isto, qualquer edicao podia trocar o
+       workspaceId e levar o numero para outro escritorio sem trava. */
+    delete corpo.workspaceId;
+    delete corpo.id;
+
+    /* Trocar o numero passa pela mesma trava de unicidade da criacao. */
+    if (corpo.numero !== undefined) {
+      const novo = normalizarTelefoneDoWhatsApp(corpo.numero);
+      if (novo) {
+        const em = numeroEmOutroWorkspace(novo, conexao.id, conexao.workspaceId);
+        if (em) throw comCodigo(`Este número já está conectado no workspace “${em.nome}”. Um número só pode estar em um workspace.`, 409);
+      }
+      corpo.numero = novo;
+    }
 
     if (corpo.oficial) corpo.oficial = juntarSegredo(conexao.oficial, corpo.oficial, 'token');
     if (corpo.qrcode) corpo.qrcode = juntarSegredo(conexao.qrcode, corpo.qrcode, 'chave');
@@ -277,6 +302,40 @@ export function registrarConexoes(rotas) {
       if (erro.codigo) throw erro;
       throw comCodigo(erro.message, 502);
     }
+  });
+
+  /**
+   * Move o numero para outro workspace. So dono/admin (exigirConfiguracao) e a
+   * pessoa precisa participar do destino. As conversas historicas NAO se movem:
+   * ficam no workspace de origem, e o numero passa a receber so as novas. O
+   * numero continua unico: se o destino ja tiver este numero, a troca e recusada.
+   */
+  rotas.post('/api/conexoes/:id/mover', async ({ ctx, params, corpo }) => {
+    exigirConfiguracao(ctx);
+    const conexao = achar('conexoes', params.id);
+    if (!conexao || conexao.workspaceId !== ctx.workspaceId) throw comCodigo('Conexao nao encontrada.', 404);
+
+    const destinoId = String(corpo.workspaceId || '');
+    if (!destinoId || destinoId === conexao.workspaceId) throw comCodigo('Escolha outro workspace de destino.', 400);
+    if (!ctx.workspaces.some((w) => w.id === destinoId)) {
+      throw comCodigo('Voce nao participa do workspace de destino.', 403);
+    }
+
+    const numero = normalizarTelefoneDoWhatsApp(conexao.numero || '');
+    if (numero) {
+      const em = numeroEmOutroWorkspace(numero, conexao.id, destinoId);
+      if (em) throw comCodigo(`Este número já está no workspace “${em.nome}”. Não dá para mover para lá.`, 409);
+    }
+
+    const origem = achar('workspaces', conexao.workspaceId)?.nome || 'origem';
+    const destino = achar('workspaces', destinoId)?.nome || 'destino';
+    const movida = atualizar('conexoes', conexao.id, { workspaceId: destinoId, ordem: listar('conexoes', { workspaceId: destinoId }).length });
+    registrarEvento(movida, 'movida', `Numero movido de “${origem}” para “${destino}”. As conversas historicas ficam em “${origem}”.`, {
+      tipo: 'membro',
+      id: ctx.membro?.id || null,
+      nome: ctx.usuario?.nome || 'Equipe',
+    });
+    return paraTela(movida);
   });
 
   rotas.delete('/api/conexoes/:id', async ({ ctx, params }) => {
@@ -858,4 +917,20 @@ function aplicarEventoDeConexao(conexao, evento) {
   }
 
   emitir(conexao.workspaceId, 'conexao', { conexaoId: conexao.id });
+}
+
+/**
+ * Outro workspace que ja tem este numero? Compara so os digitos, porque e assim
+ * que o WhatsApp entrega o numero. `ignorarId` deixa a propria conexao de fora,
+ * para ela nao brigar consigo mesma ao ser editada.
+ */
+function numeroEmOutroWorkspace(numero, ignorarId, workspaceId) {
+  const achado = listar('conexoes').find(
+    (c) =>
+      c.workspaceId !== workspaceId &&
+      c.id !== ignorarId &&
+      normalizarTelefoneDoWhatsApp(c.numero || '') === numero,
+  );
+  if (!achado) return null;
+  return { id: achado.workspaceId, nome: achar('workspaces', achado.workspaceId)?.nome || 'outro workspace' };
 }

@@ -13,6 +13,7 @@ import {
   entradaTexto,
   icone,
   limpar,
+  modal,
   quando,
   selecao,
   selo,
@@ -821,6 +822,20 @@ function abaAcoes(conexao, painel, recarregarTela) {
           botao('Copiar', { icone: 'copiar', aoClicar: () => copiarWebhook(conexao) }),
         )
       : null,
+    /* Mover o numero para outro workspace: so dono/admin. As conversas historicas
+       ficam no workspace de origem, e isso e avisado antes de confirmar. */
+    podeConfigurar() && (estado.sessao.workspaces || []).length > 1
+      ? acao(
+          'Mover para outro workspace',
+          'O numero passa a receber as novas conversas do outro workspace. As conversas que ja existem ficam no workspace de origem.',
+          botao('Mover', {
+            aoClicar: () => moverConexao(conexao, async () => {
+              painel.fechar();
+              await recarregarTela();
+            }),
+          }),
+        )
+      : null,
     podeConfigurar()
       ? acao(
           'Excluir conexao',
@@ -1048,6 +1063,41 @@ async function cadastrarWebhookTikTok(conexao) {
   } catch (erro) {
     aviso(erro.message, 'erro');
   }
+}
+
+/*
+ * Mover o numero para outro workspace. So dono/admin chega aqui (o botao e
+ * condicionado). Escolhe o destino entre os workspaces que a pessoa participa,
+ * sem o atual, e confirma avisando que o historico fica na origem. O servidor
+ * recusa se o destino ja tiver este numero.
+ */
+function moverConexao(conexao, depois) {
+  const destinos = (estado.sessao.workspaces || []).filter((w) => w.id !== estado.sessao.workspace?.id);
+  if (!destinos.length) {
+    aviso('Você não participa de outro workspace para mover o número.', '');
+    return;
+  }
+  const escolha = selecao(
+    destinos.map((w) => ({ valor: w.id, rotulo: w.nome })),
+    destinos[0].id,
+  );
+  modal({
+    titulo: `Mover ${conexao.nome}`,
+    corpo: el('div', {}, [
+      campo('Workspace de destino', escolha),
+      el('p', {
+        class: 'c-suave mt-3',
+        texto:
+          'As conversas que já existem ficam no workspace de origem. Só as novas conversas deste número vão para o destino.',
+      }),
+    ]),
+    confirmar: 'Mover número',
+    aoConfirmar: async () => {
+      await api.post(`/api/conexoes/${conexao.id}/mover`, { workspaceId: escolha.value });
+      aviso('Número movido.', 'sucesso');
+      await depois();
+    },
+  });
 }
 
 function copiarWebhook(conexao) {
