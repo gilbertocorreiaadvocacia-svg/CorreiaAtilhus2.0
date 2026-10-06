@@ -567,3 +567,78 @@ function tomDe(pessoa) {
   for (const letra of chave) soma = (soma * 31 + letra.charCodeAt(0)) >>> 0;
   return String((soma % 8) + 1);
 }
+
+/*
+ * Preferencia de interface guardada neste navegador.
+ *
+ * Tudo aqui e cosmetico e por dispositivo: o modo compacto, uma secao
+ * recolhida, uma coluna do Kanban escondida. Quem usa num computador e noutro
+ * costuma querer o arranjo de cada um do seu jeito, e guardar no navegador
+ * mantem a resposta instantanea, sem ida ao servidor a cada clique.
+ *
+ * Todo acesso vai em try/catch: navegador sem armazenamento (aba anonima,
+ * cookies bloqueados) nao pode derrubar a tela — no pior caso, so nao lembra.
+ *
+ * O prefixo e o mesmo que o resto do app usa, para as chaves ficarem juntas.
+ */
+const PREFIXO_PREFERENCIA = 'correiatendimentos:pref:';
+
+export function preferencia(nome, padrao = null) {
+  try {
+    const bruto = localStorage.getItem(PREFIXO_PREFERENCIA + nome);
+    return bruto === null ? padrao : JSON.parse(bruto);
+  } catch {
+    return padrao;
+  }
+}
+
+export function salvarPreferencia(nome, valor) {
+  try {
+    if (valor === null || valor === undefined) localStorage.removeItem(PREFIXO_PREFERENCIA + nome);
+    else localStorage.setItem(PREFIXO_PREFERENCIA + nome, JSON.stringify(valor));
+  } catch {
+    /* navegador sem armazenamento: a preferencia so nao sobrevive ao recarregar */
+  }
+}
+
+/**
+ * Secao que recolhe, para tirar da frente o que a pessoa nao esta usando sem
+ * apagar nada: o conteudo continua a um clique de distancia.
+ *
+ * `chave` liga a secao a uma preferencia deste navegador (ver `preferencia`):
+ * com ela, a secao reabre no mesmo estado na proxima visita. Sem `chave`, o
+ * estado dura so enquanto a tela estiver montada — util para secao efemera.
+ *
+ * O cabecalho e um <button> de verdade, com aria-expanded, entao Tab e Enter
+ * alcancam e acionam a secao, e o leitor de tela anuncia aberto/fechado. O
+ * mesmo chevron do menu lateral (icone 'voltar') gira, para o gesto ser o
+ * mesmo em todo o sistema.
+ */
+export function secaoRecolhivel({ titulo, chave, aberto = true, aoAlternar, acao } = {}, ...filhos) {
+  const inicial = chave ? preferencia(`secao:${chave}`, aberto) : aberto;
+  const corpo = el('div', { class: 'secao-corpo', role: 'group' }, filhos);
+  const seta = icone('voltar', 14);
+  const gatilho = el(
+    'button',
+    {
+      type: 'button',
+      class: 'secao-gatilho',
+      'aria-expanded': inicial ? 'true' : 'false',
+    },
+    [el('span', { class: 'secao-titulo', texto: titulo }), seta],
+  );
+  const caixa = el('div', { class: `secao-recolhivel${inicial ? '' : ' fechada'}` }, [
+    el('div', { class: 'secao-cabeca' }, [gatilho, acao || null]),
+    corpo,
+  ]);
+
+  const alternar = () => {
+    const vai = caixa.classList.contains('fechada');
+    caixa.classList.toggle('fechada', !vai);
+    gatilho.setAttribute('aria-expanded', vai ? 'true' : 'false');
+    if (chave) salvarPreferencia(`secao:${chave}`, vai);
+    aoAlternar?.(vai);
+  };
+  gatilho.addEventListener('click', alternar);
+  return caixa;
+}

@@ -10815,6 +10815,86 @@ img.avatar {
 }
 
 /* ------------------------------------------------------------------
+   Secao recolhivel (ui.js: secaoRecolhivel)
+
+   Tira da frente o que a pessoa nao esta usando sem apagar: o corpo colapsa,
+   o cabecalho fica. Mesmo gesto do modulo do menu lateral (o chevron 'voltar'
+   que gira), para o recolher ser o mesmo em todo o sistema.
+   ------------------------------------------------------------------ */
+.secao-recolhivel {
+  border-top: 1px solid var(--borda);
+}
+
+.secao-cabeca {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+}
+
+.secao-gatilho {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e2);
+  min-height: var(--controle);
+  padding: var(--e2) 0;
+  background: none;
+  border: 0;
+  color: var(--texto);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.secao-gatilho:hover {
+  color: var(--texto);
+}
+
+.secao-titulo {
+  min-width: 0;
+}
+
+.secao-gatilho > svg {
+  flex: none;
+  transform: rotate(-90deg);
+  transition: transform var(--transicao);
+  opacity: 0.7;
+}
+
+.secao-recolhivel.fechada .secao-gatilho > svg {
+  transform: rotate(180deg);
+}
+
+.secao-corpo {
+  padding-bottom: var(--e3);
+}
+
+.secao-recolhivel.fechada .secao-corpo {
+  display: none;
+}
+
+/* ------------------------------------------------------------------
+   Modo compacto (preferencia do usuario; classe em <body>)
+
+   Aperta o respiro e as alturas de controle encolhendo os PROPRIOS tokens,
+   entao todo botao, campo e espacamento que ja le a variavel acompanha sem
+   uma regra por componente. Nada some: e a mesma tela, mais densa. Quem nao
+   liga o modo nunca ve diferenca.
+   ------------------------------------------------------------------ */
+body.compacto {
+  --e3: 10px;
+  --e4: 14px;
+  --e5: 18px;
+  --e6: 22px;
+  --controle-p: 26px;
+  --controle: 32px;
+  --controle-g: 38px;
+  --altura-metrica: 128px;
+}
+
+/* ------------------------------------------------------------------
    Tela estreita
 
    Fica no FIM do arquivo de proposito: o que ele sobrescreve e declarado
