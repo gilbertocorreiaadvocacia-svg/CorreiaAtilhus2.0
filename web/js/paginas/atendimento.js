@@ -379,6 +379,16 @@ export async function paginaAtendimento({
     }
   }
 
+  /* Encolher o painel de informações da conversa (o da direita: etiquetas,
+     status, departamento...). E preferencia de quem olha, por navegador: sobra
+     mais largura para a conversa, e um filete na borda reabre num clique. */
+  const CHAVE_PROPS_RECOLHIDA = 'propriedadesRecolhida';
+  const propriedadesRecolhidas = () => Boolean(preferencia(CHAVE_PROPS_RECOLHIDA, false));
+  function alternarPropriedades(recolher) {
+    salvarPreferencia(CHAVE_PROPS_RECOLHIDA, recolher);
+    desenhar();
+  }
+
   async function desenhar() {
     await buscar();
     limpar(container);
@@ -392,7 +402,7 @@ export async function paginaAtendimento({
          subiu para a barra de cima do sistema, a Nova conversa para o canto
          dela, e a busca e os filtros foram para a cabeca da fila, que e o que
          eles recortam. */
-      container.className = 'atendimento';
+      container.className = `atendimento${propriedadesRecolhidas() && selecionadoId ? ' props-recolhido' : ''}`;
       container.append(colunaLista(), colunaConversa(), colunaPropriedades());
     } else {
       container.className = 'atendimento coluna-unica';
@@ -2018,6 +2028,23 @@ export async function paginaAtendimento({
     const contato = contatos.find((c) => c.id === selecionadoId);
     if (!contato) return el('div', { class: 'coluna' });
 
+    /* Recolhido: um filete na borda com o botao de reabrir, de pe. */
+    if (propriedadesRecolhidas()) {
+      return el('div', { class: 'coluna painel-contato recolhido' }, [
+        el(
+          'button',
+          {
+            type: 'button',
+            class: 'painel-expandir',
+            title: 'Mostrar as informações da conversa',
+            'aria-label': 'Mostrar as informações da conversa',
+            aoClick: () => alternarPropriedades(false),
+          },
+          [icone('voltar', 16), el('span', { class: 'painel-expandir-rotulo', texto: 'Informações' })],
+        ),
+      ]);
+    }
+
     const salvar = async (mudancas) => {
       await api.patch(`/api/contatos/${contato.id}`, mudancas);
       await desenhar();
@@ -2460,8 +2487,23 @@ export async function paginaAtendimento({
     mostrarPainel(abaPainel);
 
     /* As abas no topo e a pessoa dentro de Dados: o cabecalho com nome e
-       telefone saiu, porque o rosto no centro ja diz os dois. */
-    return el('div', { class: 'coluna painel-contato' }, [abasPainel, corpo]);
+       telefone saiu, porque o rosto no centro ja diz os dois. O botao de
+       encolher fica ao lado das abas, na borda, e manda o painel para o filete. */
+    const recolher = el(
+      'button',
+      {
+        type: 'button',
+        class: 'painel-recolher',
+        title: 'Encolher as informações',
+        'aria-label': 'Encolher as informações da conversa',
+        aoClick: () => alternarPropriedades(true),
+      },
+      [icone('voltar', 16)],
+    );
+    return el('div', { class: 'coluna painel-contato' }, [
+      el('div', { class: 'painel-contato-topo' }, [abasPainel, recolher]),
+      corpo,
+    ]);
   }
 
   /**
@@ -4494,7 +4536,7 @@ export async function paginaAtendimento({
   /* A Nova conversa fica no canto da barra de cima do sistema, e nao dentro da
      tela: e o mesmo lugar em toda tela que tem uma acao principal. */
   if (visualizacao !== 'contatos') {
-    definirPrincipal(botao('Nova conversa', { tipo: 'principal', icone: 'mais', aoClicar: abrirNovaConversa }));
+    definirPrincipal(botao('Nova conversa', { tipo: 'principal', icone: 'mais', pequeno: true, aoClicar: abrirNovaConversa }));
   }
 
   await escolherAbaInicial();

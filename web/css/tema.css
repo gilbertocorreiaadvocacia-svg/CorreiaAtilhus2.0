@@ -3330,6 +3330,77 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
   grid-template-columns: 320px minmax(0, 1fr);
 }
 
+/* Painel de informações encolhido: vira um filete na borda, e a conversa fica
+   com a largura que sobra. */
+.atendimento.props-recolhido {
+  grid-template-columns: 320px minmax(0, 1fr) 46px;
+}
+
+/* A fileira de abas do painel, com o botao de encolher na ponta. */
+.painel-contato-topo {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--borda);
+}
+
+.painel-contato-topo .abas-icone {
+  flex: 1;
+  min-width: 0;
+  border-bottom: 0;
+}
+
+.painel-recolher {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--controle);
+  background: none;
+  border: 0;
+  border-left: 1px solid var(--borda);
+  color: var(--texto-fraco);
+  cursor: pointer;
+}
+
+.painel-recolher:hover {
+  color: var(--texto);
+  background: var(--superficie-2);
+}
+
+/* O chevron aponta para a borda (fora): encolher empurra o painel para la. */
+.painel-recolher > svg {
+  transform: rotate(180deg);
+}
+
+/* O filete: so o botao de reabrir, com o rotulo de pe. */
+.painel-contato.recolhido {
+  align-items: center;
+  padding-top: var(--e2);
+}
+
+.painel-expandir {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--e3);
+  width: 100%;
+  padding: var(--e3) 0;
+  background: none;
+  border: 0;
+  color: var(--texto-suave);
+  cursor: pointer;
+}
+
+.painel-expandir:hover {
+  color: var(--texto);
+}
+
+.painel-expandir-rotulo {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-size: var(--t-sm);
+  letter-spacing: 0.04em;
+}
+
 /* Contatos e kanban usam a grade inteira, sem coluna de lista. Vira classe, e
    nao um grid-template-columns escrito no atributo style a cada desenho:
    inline vence media query, e abaixo de 1230px a largura das colunas ficava
@@ -7468,6 +7539,11 @@ button.mencao-chip:focus-visible {
      duas que ficam repartem a largura como no atendimento. */
   .atendimento.sem-painel {
     grid-template-columns: 240px 1fr;
+  }
+  /* Abaixo de 1230px a terceira coluna some de qualquer jeito; o painel
+     encolhido acompanha as outras duas, em vez de reservar o filete. */
+  .atendimento.props-recolhido {
+    grid-template-columns: 280px 1fr;
   }
   .atendimento .coluna:last-child {
     display: none;
