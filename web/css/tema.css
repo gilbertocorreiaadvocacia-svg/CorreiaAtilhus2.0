@@ -55,11 +55,11 @@
      degraus de cinza na mesma tela, e cada degrau virava uma caixa a mais para
      o olho separar. Agora o que separa painel de painel e a linha de 1px, nao a
      diferenca de tom. */
-  --superficie: #12151a;
-  --superficie-2: #171b21;
-  --superficie-3: #1e232b;
-  --borda: #232830;
-  --borda-forte: #2e343d;
+  --superficie: #000000;
+  --superficie-2: #070707;
+  --superficie-3: #0e0e0e;
+  --borda: #1c1c1c;
+  --borda-forte: #2a2a2a;
 
   --ouro: #e6b325;
   --ouro-claro: #f4ce63;
