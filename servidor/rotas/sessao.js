@@ -17,8 +17,6 @@ import {
 import { definirCookie } from '../nucleo/http.js';
 import {
   conferirCodigo,
-  consumirCodigoReserva,
-  gerarCodigosReserva,
   gerarSegredo,
   segredoLegivel,
   uriOtpauth,
@@ -207,15 +205,6 @@ export function registrarSessao(rotas) {
       return concluirEntrada(res, usuario, workspaces);
     }
 
-    const restantes = consumirCodigoReserva(corpo.codigo, usuario.doisFatores.codigosReserva);
-    if (restantes) {
-      atualizar('usuarios', usuario.id, { doisFatores: { ...usuario.doisFatores, codigosReserva: restantes } });
-      desafios.delete(corpo.desafio);
-      registrarLog(desafio.workspaceId, null, 'seguranca', `Entrou com codigo de reserva (restam ${restantes.length})`, { tipo: 'usuario', id: usuario.id, nome: usuario.nome });
-      const workspaces = workspacesDoUsuario(usuario.id);
-      return concluirEntrada(res, usuario, workspaces, { reservaRestante: restantes.length });
-    }
-
     contarErroDeSenha(usuario.id);
     registrarLog(desafio.workspaceId, null, 'seguranca', 'Codigo de segundo fator incorreto', { tipo: 'usuario', id: usuario.id, nome: usuario.nome });
     const erro = new Error('Codigo incorreto.');
@@ -246,14 +235,15 @@ export function registrarSessao(rotas) {
       erro.codigo = 404;
       throw erro;
     }
-    const { emClaro, hashes } = gerarCodigosReserva();
+    /* So o segredo do app: sem codigos de reserva. Quem perder o celular pede
+       ao administrador para reiniciar o segundo fator. */
     atualizar('usuarios', usuario.id, {
-      doisFatores: { ativo: true, segredo: desafio.segredoPendente, codigosReserva: hashes, confirmadoEm: agora() },
+      doisFatores: { ativo: true, segredo: desafio.segredoPendente, confirmadoEm: agora() },
     });
     desafios.delete(corpo.desafio);
     registrarLog(desafio.workspaceId, null, 'seguranca', 'Ativou o segundo fator', { tipo: 'usuario', id: usuario.id, nome: usuario.nome });
     const workspaces = workspacesDoUsuario(usuario.id);
-    return concluirEntrada(res, achar('usuarios', usuario.id), workspaces, { codigosReserva: emClaro });
+    return concluirEntrada(res, achar('usuarios', usuario.id), workspaces);
   }, { publica: true });
 
   rotas.post('/api/sessao/sair', async ({ res, ctx }) => {

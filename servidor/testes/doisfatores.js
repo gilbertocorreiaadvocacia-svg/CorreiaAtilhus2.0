@@ -7,9 +7,9 @@ import { codigoDe } from '../nucleo/doisfatores.js';
  * O que nao pode falhar, porque e o que separa a conta de quem tem o celular de
  * quem so tem a senha:
  *  - a senha certa NAO abre sessao sozinha; leva ao codigo (ou a adesao);
- *  - adesao so vale com o codigo do app, e so entao nascem os codigos de reserva;
+ *  - adesao so vale com o codigo do app (sem codigos de reserva);
  *  - o segredo nunca volta para a tela depois de pareado;
- *  - codigo errado nao entra; codigo de reserva vale UMA vez;
+ *  - codigo errado nao entra;
  *  - desafio vencido/invalido nao entra;
  *  - o administrador reinicia o segundo fator de quem perdeu o celular.
  */
@@ -39,8 +39,7 @@ export async function testarDoisFatores({ base }) {
 
   const conf = await c.post('/api/sessao/2fa/confirmar', { desafio: p1.dados.desafio, codigo: codigoDe(segredo) });
   s.ok('adesao com o codigo do app ativa e entra', conf.status === 200, JSON.stringify(conf.dados));
-  s.ok('e devolve os codigos de reserva UMA vez', Array.isArray(conf.dados?.codigosReserva) && conf.dados.codigosReserva.length === 8, JSON.stringify(conf.dados?.codigosReserva?.length));
-  const reservas = conf.dados.codigosReserva;
+  s.ok('a adesao NAO devolve codigos de reserva (so o do app)', !('codigosReserva' in (conf.dados || {})), JSON.stringify(Object.keys(conf.dados || {})));
 
   /* --- O segredo nunca volta para a tela ------------------------------ */
   const eu = await c.get('/api/sessao/eu');
@@ -63,16 +62,11 @@ export async function testarDoisFatores({ base }) {
   const codCerto = await c2.post('/api/sessao/2fa/entrar', { desafio: p2b.dados.desafio, codigo: codigoDe(segredo) });
   s.ok('o codigo do app entra', codCerto.status === 200, JSON.stringify(codCerto.dados));
 
-  /* --- Codigo de reserva: vale uma vez -------------------------------- */
+  /* --- Sem codigo de reserva: um codigo tipo reserva nao entra -------- */
   const c3 = cliente(base);
   const p3 = await c3.post('/api/sessao/entrar', { email, senha });
-  const comReserva = await c3.post('/api/sessao/2fa/entrar', { desafio: p3.dados.desafio, codigo: reservas[0] });
-  s.ok('um codigo de reserva entra', comReserva.status === 200, JSON.stringify(comReserva.dados));
-
-  const c4 = cliente(base);
-  const p4 = await c4.post('/api/sessao/entrar', { email, senha });
-  const reservaRepetida = await c4.post('/api/sessao/2fa/entrar', { desafio: p4.dados.desafio, codigo: reservas[0] });
-  s.ok('o mesmo codigo de reserva nao vale de novo', reservaRepetida.status === 401, String(reservaRepetida.status));
+  const tentativaReserva = await c3.post('/api/sessao/2fa/entrar', { desafio: p3.dados.desafio, codigo: 'abcd-1234' });
+  s.ok('um codigo no formato de reserva nao entra (a reserva foi retirada)', tentativaReserva.status === 401, String(tentativaReserva.status));
 
   /* --- Desafio invalido/vencido --------------------------------------- */
   const semDesafio = await cliente(base).post('/api/sessao/2fa/entrar', { desafio: 'dsf_inexistente', codigo: codigoDe(segredo) });

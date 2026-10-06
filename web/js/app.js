@@ -388,8 +388,9 @@ function telaEntrada(mensagemInicial) {
       evento?.preventDefault();
       limparErro();
       try {
-        const r = await api.post('/api/sessao/2fa/confirmar', { desafio: dados.desafio, codigo: entrada.value.trim() });
-        trocar(passoReservas(r.codigosReserva || []));
+        /* Sem tela de codigos de reserva: confirmada a adesao, a pessoa entra. */
+        await api.post('/api/sessao/2fa/confirmar', { desafio: dados.desafio, codigo: entrada.value.trim() });
+        await concluir();
       } catch (falha) {
         mostrarErro(falha.message);
         entrada.select();
@@ -415,33 +416,6 @@ function telaEntrada(mensagemInicial) {
   /* Codigos de reserva: mostrados UMA vez. So libera o Entrar depois que a
      pessoa marca que guardou — perder os codigos e ficar sem a saida de
      emergencia. */
-  function passoReservas(codigos) {
-    const marca = el('input', { type: 'checkbox', id: 'entrada-guardei' });
-    const botaoEntrar = botao('Entrar', { tipo: 'principal', grande: true, aoClicar: () => concluir() });
-    botaoEntrar.disabled = true;
-    marca.addEventListener('change', () => {
-      botaoEntrar.disabled = !marca.checked;
-    });
-    const baixar = botao('Baixar', {
-      aoClicar: () => {
-        const texto = `Códigos de reserva - Atilhus Chat\nGuarde em lugar seguro. Cada código vale uma vez.\n\n${codigos.join('\n')}\n`;
-        const url = URL.createObjectURL(new Blob([texto], { type: 'text/plain' }));
-        const a = el('a', { href: url, download: 'codigos-de-reserva.txt' });
-        document.body.append(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
-      },
-    });
-    return el('div', { class: 'entrada-form' }, [
-      el('h2', { class: 'entrada-passo-titulo', texto: 'Guarde seus códigos de reserva' }),
-      el('p', { class: 'entrada-passo-texto', texto: 'Se um dia você ficar sem o celular, cada código abaixo entra uma vez no lugar do app. Guarde num lugar seguro — eles não serão mostrados de novo.' }),
-      el('ul', { class: 'entrada-reservas' }, codigos.map((c) => el('li', {}, [el('code', { texto: c })]))),
-      baixar,
-      el('label', { class: 'entrada-lembrar entrada-guardei' }, [marca, el('span', { texto: 'Guardei os meus códigos de reserva' })]),
-      botaoEntrar,
-    ]);
-  }
 
   raiz.append(
     el('div', { class: 'entrada' }, [
