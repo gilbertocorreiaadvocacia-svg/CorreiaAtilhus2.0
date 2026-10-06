@@ -1,6 +1,6 @@
 import { api, enviarArquivo } from '../api.js';
 import { campoComDica, cartaoComDica, dica, seletorDeCor, seletorPeriodo } from '../componentes.js';
-import { carregarSessao, definirTema, estado, podeConfigurar, recarregar } from '../estado.js';
+import { carregarSessao, definirTema, ehAdmin, ehOwner, estado, podeConfigurar, recarregar } from '../estado.js';
 import {
   avatar,
   aviso,
@@ -677,17 +677,47 @@ async function secaoEscritorio(recarregarTela) {
       ),
   });
 
-  const cartaoAreas =
-    estado.sessao.papel === 'administrador'
-      ? cartao(
-          'Workspaces por área',
-          'Separe o atendimento por área: um workspace para Previdenciário, um para Trabalhista e um para Cível. Cada um nasce com número, agentes e fila próprios, sem misturar com os outros.',
-          el('div', {}, [el('div', { class: 'linha-botoes' }, [botaoAreas]), resultadoAreas]),
-        )
-      : null;
+  const cartaoAreas = ehAdmin()
+    ? cartao(
+        'Workspaces por área',
+        'Separe o atendimento por área: um workspace para Previdenciário, um para Trabalhista e um para Cível. Cada um nasce com número, agentes e fila próprios, sem misturar com os outros.',
+        el('div', {}, [el('div', { class: 'linha-botoes' }, [botaoAreas]), resultadoAreas]),
+      )
+    : null;
+
+  /* Arquivar este workspace: so dono ou administrador; o servidor recusa
+     arquivar o unico ativo da pessoa. Marcado como arquivado, ele fica de lado
+     no seletor; os dados continuam guardados, e da para desarquivar. */
+  const arquivado = Boolean(workspace.arquivado);
+  const cartaoArquivar = ehAdmin()
+    ? cartao(
+        arquivado ? 'Workspace arquivado' : 'Arquivar workspace',
+        arquivado
+          ? 'Este workspace está arquivado — fica de lado no seletor. Os dados continuam guardados. Desarquive para voltar a usá-lo no dia a dia.'
+          : 'Tira este workspace do uso do dia a dia (fica marcado como arquivado no seletor). Nada é apagado: as conversas e os dados continuam guardados, e dá para desarquivar quando quiser.',
+        el('div', { class: 'linha-botoes' }, [
+          botao(arquivado ? 'Desarquivar' : 'Arquivar workspace', {
+            tipo: arquivado ? 'principal' : 'perigo',
+            aoClicar: () =>
+              confirmar(
+                arquivado ? `Desarquivar “${workspace.nome}”?` : `Arquivar “${workspace.nome}”?`,
+                arquivado ? 'Ele volta a aparecer normalmente no seletor.' : 'Ele sai do uso do dia a dia (fica marcado como arquivado). Nada é apagado, e você pode desarquivar depois.',
+                async () => {
+                  await api.patch(`/api/workspaces/${workspace.id}`, { arquivado: !arquivado });
+                  await carregarSessao();
+                  aviso(arquivado ? 'Workspace desarquivado.' : 'Workspace arquivado.', 'sucesso');
+                  await recarregarTela();
+                },
+                arquivado ? 'Desarquivar' : 'Arquivar',
+              ),
+          }),
+        ]),
+      )
+    : null;
 
   return el('div', {}, [
     cartaoAreas,
+    cartaoArquivar,
     ajustes(
       // Sao doze campos numa tela so. Cada explicacao diz onde o dado vai parar
       // na conversa, que e conceito, entao todas vao para o balao do nome: como
@@ -1155,7 +1185,7 @@ async function secaoMembros(recarregarTela) {
           el('div', { class: 'desc', texto: [membro.usuario?.email, departamentos].filter(Boolean).join(' · ') }),
         ]),
         membro.modoFoco ? selo('modo foco', 'alerta') : null,
-        selo(papeis[membro.papel]?.nome || membro.papel, membro.papel === 'administrador' ? 'ouro' : ''),
+        selo(papeis[membro.papel]?.nome || membro.papel, membro.papel === 'owner' ? 'ouro' : ''),
         podeConfigurar() ? botao('Editar', { pequeno: true, aoClicar: () => editarMembro(membro, recarregarTela) }) : null,
         !podeConfigurar() || membro.usuarioId === estado.sessao.usuario.id
           ? null
@@ -1177,7 +1207,7 @@ async function secaoMembros(recarregarTela) {
   for (const [id, papel] of Object.entries(papeis)) {
     explicacao.append(
       el('div', { class: 'lista-item' }, [
-        selo(papel.nome, id === 'administrador' ? 'ouro' : ''),
+        selo(papel.nome, id === 'owner' ? 'ouro' : ''),
         el('div', { class: 'corpo' }, [el('div', { class: 'desc', texto: papel.descricao })]),
       ]),
     );
@@ -1211,17 +1241,17 @@ function editarMembro(membro, recarregarTela) {
   const whatsapp = entradaTexto(membro?.usuario?.whatsapp || '');
   const papel = selecao(
     Object.entries(estado.sessao.papeis).map(([id, p]) => ({ valor: id, rotulo: p.nome })),
-    membro?.papel || 'suporte',
+    membro?.papel || 'atendente',
   );
 
   // O servidor recusa mudanca do proprio nivel de acesso e recusa promover a
-  // administrador quem nao e administrador. O campo acompanha a regra, para
-  // ninguem preencher o formulario inteiro e so descobrir no Salvar.
+  // DONO quem nao e dono. O campo acompanha a regra, para ninguem preencher o
+  // formulario inteiro e so descobrir no Salvar.
   const oProprio = Boolean(membro) && membro.usuarioId === estado.sessao.usuario.id;
   if (oProprio) papel.disabled = true;
-  else if (estado.sessao.papel !== 'administrador') {
-    const opcaoAdmin = [...papel.options].find((opcao) => opcao.value === 'administrador');
-    if (opcaoAdmin && membro?.papel !== 'administrador') opcaoAdmin.disabled = true;
+  else if (!ehOwner()) {
+    const opcaoDono = [...papel.options].find((opcao) => opcao.value === 'owner');
+    if (opcaoDono && membro?.papel !== 'owner') opcaoDono.disabled = true;
   }
   const modoFoco = marcador(membro?.modoFoco);
 
@@ -1274,7 +1304,7 @@ function editarMembro(membro, recarregarTela) {
       /* Segundo fator: o administrador ve o estado e reinicia para quem perdeu o
          celular. Reiniciar nao desliga a trava — a conta pareia um app novo no
          proximo login. So aparece em membro que ja existe e so para o admin. */
-      !novo && estado.sessao.papel === 'administrador'
+      !novo && ehAdmin()
         ? el('div', { class: 'campo' }, [
             el('span', { texto: 'Verificação em duas etapas' }),
             el('div', { class: 'linha-botoes', estilo: { alignItems: 'center' } }, [

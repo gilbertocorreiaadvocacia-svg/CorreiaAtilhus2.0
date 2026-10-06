@@ -8,6 +8,7 @@ import {
   encerrarOutrasSessoes,
   encerrarSessao,
   ehAdministrador,
+  ehOwner,
   podeConfigurar,
   sessoesDoUsuario,
   trocarWorkspaceDaSessao,
@@ -434,7 +435,7 @@ export function registrarSessao(rotas) {
       id: novoId('mbr'),
       workspaceId: workspace.id,
       usuarioId: ctx.usuarioId,
-      papel: 'administrador',
+      papel: 'owner',
       departamentos: ['*'],
       conexoes: ['*'],
       modoFoco: false,
@@ -490,8 +491,18 @@ export function registrarSessao(rotas) {
       if (!nome) throw comCodigo('Informe o nome do workspace.', 400);
       mudancas.nome = nome;
     }
+    if (corpo.descricao !== undefined) mudancas.descricao = String(corpo.descricao).trim();
     if (corpo.empresa && typeof corpo.empresa === 'object') mudancas.empresa = corpo.empresa;
     if (corpo.onboarding && typeof corpo.onboarding === 'object') mudancas.onboarding = corpo.onboarding;
+    /* Arquivar/desarquivar: so o dono ou administrador, e nunca o ultimo
+       workspace ativo da pessoa (senao ela ficaria sem nenhum para abrir). */
+    if (corpo.arquivado !== undefined) {
+      exigirAdministrador(ctx);
+      if (corpo.arquivado && ctx.workspaces.filter((w) => !achar('workspaces', w.id)?.arquivado).length <= 1) {
+        throw comCodigo('Este é o seu único workspace ativo. Não dá para arquivar o último.', 409);
+      }
+      mudancas.arquivado = Boolean(corpo.arquivado);
+    }
 
     if (!Object.keys(mudancas).length) return achar('workspaces', params.id);
     return atualizar('workspaces', params.id, mudancas);
@@ -526,10 +537,9 @@ export function registrarSessao(rotas) {
     const email = String(corpo.email || '').trim();
     if (!email) throw comCodigo('Informe o e-mail do membro.', 400);
 
-    // A mesma trava do PATCH: sem ela o gerente contornava a regra criando um
-    // administrador novo em vez de promover alguem.
-    if (corpo.papel === 'administrador' && !ehAdministrador(ctx)) {
-      throw comCodigo('Somente administrador cria outro administrador.', 403);
+    // Dono so o dono cria: um administrador nao se promove criando um dono novo.
+    if (corpo.papel === 'owner' && !ehOwner(ctx)) {
+      throw comCodigo('Somente o dono cria outro dono.', 403);
     }
     if (corpo.papel && !PAPEIS[corpo.papel]) throw comCodigo('Permissao desconhecida.', 400);
 
@@ -552,7 +562,7 @@ export function registrarSessao(rotas) {
       id: novoId('mbr'),
       workspaceId: ctx.workspaceId,
       usuarioId: usuario.id,
-      papel: corpo.papel || 'suporte',
+      papel: corpo.papel || 'atendente',
       departamentos: corpo.departamentos || [],
       conexoes: corpo.conexoes || [],
       modoFoco: Boolean(corpo.modoFoco),
@@ -586,11 +596,15 @@ export function registrarSessao(rotas) {
     if (!soPreferencias || !ehOProprio) {
       exigirConfiguracao(ctx);
 
-      if (membro.papel === 'administrador' && !ehAdministrador(ctx)) {
-        throw comCodigo('Somente administrador altera um administrador.', 403);
+      if (membro.papel === 'owner' && !ehOwner(ctx)) {
+        throw comCodigo('Somente o dono altera outro dono.', 403);
       }
-      if (corpo.papel === 'administrador' && !ehAdministrador(ctx)) {
-        throw comCodigo('Somente administrador promove alguem a administrador.', 403);
+      if (corpo.papel === 'owner' && !ehOwner(ctx)) {
+        throw comCodigo('Somente o dono promove alguem a dono.', 403);
+      }
+      /* Nunca deixar o workspace sem dono: rebaixar o ultimo dono e recusado. */
+      if (membro.papel === 'owner' && corpo.papel && corpo.papel !== 'owner' && ehUltimoOwner(ctx.workspaceId, membro.id)) {
+        throw comCodigo('Este é o único dono do workspace. Promova outra pessoa a dono antes.', 409);
       }
       if (corpo.papel && corpo.papel !== membro.papel && ehOProprio) {
         throw comCodigo('Ninguem muda o proprio nivel de acesso por aqui.', 403);
@@ -644,13 +658,22 @@ export function registrarSessao(rotas) {
     exigirConfiguracao(ctx);
     const membro = achar('membros', params.id);
     if (!membro || membro.workspaceId !== ctx.workspaceId) throw comCodigo('Membro nao encontrado.', 404);
-    if (membro.papel === 'administrador' && !ehAdministrador(ctx)) {
-      throw comCodigo('Gerente nao remove administrador.', 403);
+    if (membro.papel === 'owner' && !ehOwner(ctx)) {
+      throw comCodigo('O dono só é removido por outro dono.', 403);
+    }
+    if (membro.papel === 'owner' && ehUltimoOwner(ctx.workspaceId, membro.id)) {
+      throw comCodigo('Este é o único dono do workspace. Promova outra pessoa a dono antes.', 409);
     }
     if (membro.usuarioId === ctx.usuarioId) throw comCodigo('Voce nao pode remover a si mesmo.', 400);
     remover('membros', params.id);
     return { ok: true };
   });
+}
+
+/** O membro e o unico dono do workspace? (Para nao deixar o workspace sem dono.) */
+function ehUltimoOwner(workspaceId, membroId) {
+  const donos = listar('membros', { workspaceId }).filter((m) => m.papel === 'owner');
+  return donos.length <= 1 && donos.some((m) => m.id === membroId);
 }
 
 export function comCodigo(mensagem, codigo) {

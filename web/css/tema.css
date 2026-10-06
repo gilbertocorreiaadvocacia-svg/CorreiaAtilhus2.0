@@ -1738,6 +1738,11 @@ img.avatar {
   background: var(--ouro-fraco);
 }
 
+/* Workspace arquivado: fica de lado, apagado, mas ainda alcancavel para reabrir. */
+.contexto-opcao.arquivado {
+  opacity: 0.55;
+}
+
 .contexto-opcao > svg {
   flex: none;
   color: var(--ouro);

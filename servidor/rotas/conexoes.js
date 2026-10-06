@@ -846,7 +846,7 @@ function aplicarEventoDeConexao(conexao, evento) {
   const caiuAgora = evento.estado === 'desconectado' && conexao.estado !== 'desconectado';
   if (caiuAgora || evento.qualidade) {
     for (const membro of listar('membros', { workspaceId: conexao.workspaceId })) {
-      if (membro.papel !== 'administrador') continue;
+      if (!['owner', 'admin'].includes(membro.papel)) continue;
       notificar(
         conexao.workspaceId,
         membro.id,

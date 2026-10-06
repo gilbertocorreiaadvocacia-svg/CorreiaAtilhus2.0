@@ -6,6 +6,7 @@ import {
   carregarSessao,
   conectarEventos,
   definirTema,
+  ehAdmin,
   escolherNumero,
   estado,
   numeroEscolhido,
@@ -883,9 +884,10 @@ function seletorDeContexto() {
   const opcaoDeEscritorio = (workspace) => {
     const atual = workspace.id === estado.sessao.workspace?.id;
     const resumo = resumoPorId[workspace.id];
-    const detalhe = resumo
+    const contagens = resumo
       ? `${resumo.membros} ${resumo.membros === 1 ? 'membro' : 'membros'} · ${resumo.conexoes} ${resumo.conexoes === 1 ? 'número' : 'números'}`
       : '…';
+    const detalhe = workspace.arquivado ? `arquivado · ${contagens}` : contagens;
     const copiarId = el(
       'button',
       {
@@ -911,7 +913,7 @@ function seletorDeContexto() {
         type: 'button',
         role: 'option',
         'aria-selected': atual ? 'true' : 'false',
-        class: `contexto-opcao${atual ? ' ativo' : ''}`,
+        class: `contexto-opcao${atual ? ' ativo' : ''}${workspace.arquivado ? ' arquivado' : ''}`,
         dataset: { busca: (workspace.nome || '').toLowerCase() },
         aoClick: async () => {
           fechar();
@@ -977,7 +979,7 @@ function seletorDeContexto() {
     );
     /* Criar workspace e acao de administrador (o servidor cobra em
        POST /api/workspaces). Fica no rodape, como na referencia. */
-    if (estado.sessao.papel === 'administrador') {
+    if (ehAdmin()) {
       lista.append(
         el(
           'button',

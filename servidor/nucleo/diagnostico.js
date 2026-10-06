@@ -217,7 +217,7 @@ export function diagnosticar(workspaceId) {
    * diagnostico que exagera e um diagnostico em que ninguem confia da segunda
    * vez.
    */
-  const atendentes = membros.filter((m) => m.papel !== 'administrador' && m.ativo !== false);
+  const atendentes = membros.filter((m) => !['owner', 'admin'].includes(m.papel) && m.ativo !== false);
   const ativos = membros.filter((m) => m.ativo !== false);
   if (!atendentes.length && ativos.length) {
     anotar(
@@ -360,7 +360,7 @@ export function avisarModoDegradado(contato, agente) {
   avisadoEm.set(contato.workspaceId, hoje);
 
   for (const membro of listar('membros', { workspaceId: contato.workspaceId })) {
-    if (membro.papel !== 'administrador') continue;
+    if (!['owner', 'admin'].includes(membro.papel)) continue;
     notificar(
       contato.workspaceId,
       membro.id,

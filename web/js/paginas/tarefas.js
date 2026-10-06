@@ -295,7 +295,7 @@ function linhaDaTarefa(tarefa, contexto) {
   // pela tarefa. Quem so enxerga nao recebe o botao, senao o clique voltaria em
   // erro depois de a pessoa achar que tinha concluido.
   const meuMembro = estado.sessao?.membro?.id || null;
-  const ehAdministrador = estado.sessao?.papel === 'administrador';
+  const ehAdministrador = ['owner', 'admin'].includes(estado.sessao?.papel);
   const criouATarefa = Boolean(meuMembro) && tarefa.criadoPor?.id === meuMembro;
   const podeEditar = ehAdministrador || criouATarefa || (meuMembro && tarefa.responsavelId === meuMembro);
 

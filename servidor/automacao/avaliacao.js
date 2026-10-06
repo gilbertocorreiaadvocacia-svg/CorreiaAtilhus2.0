@@ -138,7 +138,9 @@ function avisarNotaBaixa(contato, atendeu, nota, comentario) {
   const destinos =
     atendeu?.tipo === 'membro' && achar('membros', atendeu.id)
       ? [atendeu.id]
-      : listar('membros', { workspaceId: contato.workspaceId, papel: 'administrador' }).map((m) => m.id);
+      : listar('membros', { workspaceId: contato.workspaceId })
+          .filter((m) => m.papel === 'owner' || m.papel === 'admin')
+          .map((m) => m.id);
   for (const membroId of destinos) {
     notificar(
       contato.workspaceId,

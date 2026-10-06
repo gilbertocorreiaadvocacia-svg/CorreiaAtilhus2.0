@@ -10,7 +10,7 @@ import { atualizar, encerrarBanco, iniciarBanco, listar } from './nucleo/banco.j
 import { migrarCoresParaTokens } from './nucleo/paleta.js';
 import { migrarTiposDeCaso } from './nucleo/casos.js';
 import { migrarCanaisDeOrigem } from './nucleo/origens.js';
-import { contextoDaSessao, limparSessoesOrfas } from './nucleo/auth.js';
+import { contextoDaSessao, limparSessoesOrfas, migrarPapeis } from './nucleo/auth.js';
 import { criarRoteador, lerCookies, lerCorpo, responderErro, responderJson, servirEstatico } from './nucleo/http.js';
 import { inscrever } from './nucleo/eventos.js';
 import { semearSePrecisar } from './nucleo/seed.js';
@@ -51,6 +51,9 @@ if (HOSPEDADO) {
 /* Depois de semear, para pegar tambem a base que acabou de nascer. */
 const coresTrocadas = migrarCoresParaTokens({ listar, atualizar });
 if (coresTrocadas) console.log(`Paleta: ${coresTrocadas} cores da semeadura antiga viraram token de tema.`);
+/* Papeis para o modelo novo (owner/admin/atendente/somente_leitura). */
+const papeisAcertados = migrarPapeis();
+if (papeisAcertados) console.log(`Papeis dos membros: ${papeisAcertados} migrados para o modelo novo.`);
 /* Depois das cores: a migracao dos tipos compara com a cor ja em token. */
 const casosAcertados = migrarTiposDeCaso();
 if (casosAcertados) console.log(`Tipos de caso e momentos: ${casosAcertados} acertos.`);
@@ -288,6 +291,16 @@ const servidor = http.createServer(async (req, res) => {
     } else {
       const cookies = lerCookies(req);
       ctx = contextoDaSessao(cookies[COOKIE_SESSAO]);
+    }
+
+    /* Somente leitura ve, mas nao grava: toda escrita e barrada, menos a propria
+       sessao (trocar de workspace, sair) e o proprio perfil (nome, senha, 2FA). */
+    if (ctx?.papel === 'somente_leitura' && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+      const liberado = caminho.startsWith('/api/sessao/') || caminho.startsWith('/api/perfil');
+      if (!liberado) {
+        responderErro(res, 403, 'Seu acesso é somente leitura: você pode ver, mas não alterar.');
+        return;
+      }
     }
 
     let corpo = {};

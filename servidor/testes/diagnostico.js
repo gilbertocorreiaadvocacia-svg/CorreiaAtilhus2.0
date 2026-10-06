@@ -242,7 +242,7 @@ export async function testarDiagnostico({ base, anthropic }) {
     nome: 'Atendente do diagnostico',
     email: 'diagnostico@correia.adv.br',
     senha: 'diagnostico2026',
-    papel: 'suporte',
+    papel: 'atendente',
   });
 
   const comAtendente = await diagnosticar();

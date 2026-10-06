@@ -22,7 +22,7 @@ export async function testarDoisFatores({ base }) {
      admin (que a semente ja deixou pareado). */
   const email = 'duas-etapas@correia.adv.br';
   const senha = 'senha-comprida-de-teste';
-  const criado = await admin.post('/api/membros', { email, nome: 'Duas Etapas', senha, papel: 'suporte' });
+  const criado = await admin.post('/api/membros', { email, nome: 'Duas Etapas', senha, papel: 'atendente' });
   const membroId = criado.dados?.id;
   if (!s.ok('o membro de teste foi criado', Boolean(membroId), JSON.stringify(criado.dados))) return s;
 

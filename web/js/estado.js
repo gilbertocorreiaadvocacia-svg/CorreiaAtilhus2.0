@@ -148,8 +148,18 @@ export function opcoesResponsavel() {
   ];
 }
 
+/* Quem gere o workspace: dono ou administrador. */
+export function ehAdmin() {
+  return ['owner', 'admin'].includes(estado.sessao?.papel);
+}
+
+/* So o dono: protege o que so o dono mexe (criar/editar/remover outro dono). */
+export function ehOwner() {
+  return estado.sessao?.papel === 'owner';
+}
+
 export function podeConfigurar() {
-  return ['administrador', 'gerente'].includes(estado.sessao?.papel);
+  return ehAdmin();
 }
 
 /* Tempo real --------------------------------------------------------- */

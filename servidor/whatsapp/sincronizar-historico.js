@@ -56,7 +56,7 @@ export function responsavelDaImportacao(conexao) {
   const doWorkspace = listar('membros', { workspaceId: conexao.workspaceId });
   const membro =
     doWorkspace.find((m) => m.id === conexao.conectadaPor) ||
-    doWorkspace.find((m) => m.papel === 'administrador') ||
+    doWorkspace.find((m) => (m.papel === 'owner' || m.papel === 'admin')) ||
     null;
   if (!membro) return null;
   const usuario = achar('usuarios', membro.usuarioId);

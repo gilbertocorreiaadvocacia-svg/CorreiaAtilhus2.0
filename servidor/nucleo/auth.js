@@ -34,22 +34,47 @@ function gravarSessoes() {
 }
 
 export const PAPEIS = {
-  administrador: {
+  owner: {
+    nome: 'Dono',
+    descricao: 'Dono do workspace: acesso total e nao pode ser removido. Cria, edita e arquiva o workspace, gerencia membros e conexoes.',
+    nivel: 4,
+  },
+  admin: {
     nome: 'Administrador',
-    descricao: 'Acesso total: configuracoes, agentes, membros e conversas de todos os departamentos.',
+    descricao: 'Acesso total: configuracoes, agentes, membros, conexoes e conversas de todos os departamentos.',
     nivel: 3,
   },
-  gerente: {
-    nome: 'Gerente',
-    descricao: 'Gerencia conversas e membros dos departamentos autorizados. Nao remove administradores.',
+  atendente: {
+    nome: 'Atendente',
+    descricao: 'Opera as conversas dos departamentos e conexoes designados. Sem acesso as configuracoes gerais.',
     nivel: 2,
   },
-  suporte: {
-    nome: 'Suporte',
-    descricao: 'Atende apenas os departamentos e conexoes designados. Sem acesso as configuracoes gerais.',
+  somente_leitura: {
+    nome: 'Somente leitura',
+    descricao: 'So visualiza conversas e relatorios dos departamentos autorizados. Nao envia mensagem nem altera nada.',
     nivel: 1,
   },
 };
+
+/* Os nomes antigos, para a migracao mapear o que ja existe. */
+const PAPEL_ANTIGO = { administrador: 'owner', gerente: 'admin', suporte: 'atendente' };
+
+/**
+ * Renomeia os papeis dos membros para o modelo novo (owner/admin/atendente/
+ * somente_leitura). Roda na subida do servidor, idempotente: membro que ja tem
+ * papel novo nao e tocado.
+ */
+export function migrarPapeis() {
+  let mudancas = 0;
+  for (const membro of listar('membros')) {
+    const novo = PAPEL_ANTIGO[membro.papel];
+    if (novo) {
+      atualizar('membros', membro.id, { papel: novo });
+      mudancas += 1;
+    }
+  }
+  return mudancas;
+}
 
 export function criarSessao(usuarioId, workspaceId) {
   const token = crypto.randomBytes(32).toString('hex');
@@ -193,17 +218,30 @@ export function contextoDaSessao(token) {
     workspaceId,
     workspace: achar('workspaces', workspaceId),
     membro,
-    papel: membro?.papel || 'suporte',
+    papel: membro?.papel || 'atendente',
     workspaces,
   };
 }
 
+/* "Administrador" aqui quer dizer quem gere o workspace: dono ou administrador.
+   O nome da funcao fica, porque e usado em dezenas de rotas; o que mudou e quem
+   passa. */
 export function ehAdministrador(ctx) {
-  return ctx?.papel === 'administrador';
+  return ctx?.papel === 'owner' || ctx?.papel === 'admin';
+}
+
+/** So o dono: protege o que so o dono mexe (criar/editar/remover outro dono). */
+export function ehOwner(ctx) {
+  return ctx?.papel === 'owner';
+}
+
+/** Somente leitura: ve, mas nao grava. O servidor barra as escritas dele. */
+export function ehSomenteLeitura(ctx) {
+  return ctx?.papel === 'somente_leitura';
 }
 
 export function podeConfigurar(ctx) {
-  return ctx?.papel === 'administrador' || ctx?.papel === 'gerente';
+  return ehAdministrador(ctx);
 }
 
 /**

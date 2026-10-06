@@ -431,7 +431,7 @@ export function semearSePrecisar() {
     id: novoId('mbr'),
     workspaceId,
     usuarioId: usuario.id,
-    papel: 'administrador',
+    papel: 'owner',
     departamentos: ['*'],
     conexoes: ['*'],
     modoFoco: false,
