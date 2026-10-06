@@ -23,6 +23,7 @@ import { testarEncadeamento } from './encadeamento.js';
 import { testarPacotes } from './pacotes.js';
 import { subirZapsignFalsa } from './zapsign-falsa.js';
 import { testarContratos } from './contratos.js';
+import { testarRelatorios } from './relatorios.js';
 import { subirJuriFalso } from './juri-falso.js';
 import { testarJuri } from './juri.js';
 import { testarWorkspacesPorArea } from './workspaces.js';
@@ -262,6 +263,11 @@ async function principal() {
     suites.push(await testarHigiene({ base }));
     suites.push(await testarAtalhos({ base }));
     suites.push(await testarDiagnostico({ base, anthropic }));
+    /* Por ultimo na base compartilhada: assina um contrato, o que dispara envio
+       ao Juri e cria uma conversa. Usa delta (antes/depois), entao nao se
+       importa com o que as suites de cima deixaram, e rodando no fim nao polui a
+       contagem de ninguem. */
+    suites.push(await testarRelatorios({ base, zapsign }));
     /* Sobe processos proprios, em porta propria: nao encosta no servidor acima. */
     suites.push(await testarPortaOcupada({ raiz: RAIZ, portaLivre }));
     /* Tambem sobe processos proprios: o sistema como fica na VPS. */

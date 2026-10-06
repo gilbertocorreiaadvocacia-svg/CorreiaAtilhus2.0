@@ -24,6 +24,7 @@ import { registrarConexoes } from './rotas/conexoes.js';
 import { registrarPainel } from './rotas/painel.js';
 import { registrarTarefas } from './rotas/tarefas.js';
 import { registrarIntegracoes } from './rotas/integracoes.js';
+import { registrarRelatorios } from './rotas/relatorios.js';
 import { autenticarChave, dentroDoLimite, registrarPublica } from './rotas/publica.js';
 import { retomarSincronizacoes } from './whatsapp/sincronizar-historico.js';
 import { iniciarBatimento, recuperarDaQueda } from './nucleo/batimento.js';
@@ -123,6 +124,7 @@ registrarConexoes(rotas);
 registrarPainel(rotas);
 registrarTarefas(rotas);
 registrarIntegracoes(rotas);
+registrarRelatorios(rotas);
 registrarPublica(rotas);
 
 /* Canal de tempo real ------------------------------------------------- */

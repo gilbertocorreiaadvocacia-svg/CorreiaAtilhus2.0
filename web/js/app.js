@@ -37,6 +37,7 @@ import { paginaConhecimento } from './paginas/conhecimento.js';
 import { paginaVozes } from './paginas/vozes.js';
 import { paginaIntegracoes } from './paginas/integracoes.js';
 import { paginaDashboard } from './paginas/dashboard.js';
+import { paginaRelatorios } from './paginas/relatorios.js';
 import { paginaAgendamentos } from './paginas/agendamentos.js';
 import { paginaTarefas } from './paginas/tarefas.js';
 import { paginaConexoes } from './paginas/conexoes.js';
@@ -53,6 +54,7 @@ const raiz = document.getElementById('raiz');
  */
 const PAGINAS = {
   dashboard: { titulo: 'Dashboard', montar: paginaDashboard },
+  relatorios: { titulo: 'Relatórios', subtitulo: 'Quantos contratos cada pessoa e a IA fecharam.', montar: paginaRelatorios },
   conexoes: { titulo: 'Conexões', subtitulo: 'Gerencie suas conexões com canais de comunicação.', montar: paginaConexoes },
 
   /* Conversas nao tem cabeca de tela: a fila comeca logo abaixo da barra de cima. */
@@ -104,6 +106,7 @@ const PAGINAS = {
  */
 const MENU = [
   { rota: 'dashboard', rotulo: 'Dashboard', icone: 'painel' },
+  { rota: 'relatorios', rotulo: 'Relatórios', icone: 'contrato' },
   { rota: 'conexoes', rotulo: 'Conexões', icone: 'conexoes' },
   {
     modulo: 'atendimento',
