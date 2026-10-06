@@ -4500,7 +4500,7 @@ export async function paginaAtendimento({
   /* A tela aparece JA: o contêiner recebe o esqueleto agora, e a lista chega
      em segundo plano. Antes, a pagina so retornava depois da resposta de
      400 conversas, e a troca de tela esperava a rede inteira. */
-  container.append(esqueletoDaFila());
+  container.append(esqueletoDaVisao(visualizacao));
   const primeiraPintura = (async () => {
     await escolherAbaInicial();
     await desenhar();
@@ -4511,15 +4511,28 @@ export async function paginaAtendimento({
   return container;
 }
 
-/* O esqueleto da fila: a mesma forma da lista de conversas, sem esperar dados. */
-function esqueletoDaFila() {
+/*
+ * O esqueleto de cada visao: a mesma forma que a tela vai ter, para ela nao
+ * mudar de cara quando os dados chegam. Conversas e fila, Kanban e colunas,
+ * Contatos e tabela.
+ */
+function esqueletoDaVisao(visualizacao) {
+  const linha = (largura) => el('div', { class: 'esqueleto esqueleto-linha', estilo: { width: largura } });
+  const bloco = () => el('div', { class: 'esqueleto esqueleto-bloco' });
+
+  if (visualizacao === 'kanban') {
+    return el(
+      'div',
+      { class: 'esqueleto-colunas' },
+      Array.from({ length: 4 }, () => el('div', { class: 'flexivel encolhe' }, [linha('55%'), bloco(), bloco(), bloco()])),
+    );
+  }
+
+  if (visualizacao === 'contatos') {
+    return el('div', { class: 'esqueleto-rota' }, [linha('40%'), bloco(), bloco(), bloco(), bloco(), bloco()]);
+  }
+
   return el('div', { class: 'atendimento sem-painel esqueleto-rota' }, [
-    el('div', { class: 'coluna' }, [
-      el('div', { class: 'esqueleto esqueleto-linha', estilo: { width: '60%' } }),
-      el('div', { class: 'esqueleto esqueleto-bloco' }),
-      el('div', { class: 'esqueleto esqueleto-bloco' }),
-      el('div', { class: 'esqueleto esqueleto-bloco' }),
-      el('div', { class: 'esqueleto esqueleto-bloco' }),
-    ]),
+    el('div', { class: 'coluna' }, [linha('60%'), bloco(), bloco(), bloco(), bloco()]),
   ]);
 }
