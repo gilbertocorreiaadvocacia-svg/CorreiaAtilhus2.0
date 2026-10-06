@@ -1072,26 +1072,10 @@ export async function paginaAtendimento({
             },
           })
         : null,
-      botao('', { icone: 'atualizar', titulo: 'Reiniciar a conversa (/restart)', pequeno: true, aoClicar: () =>
-        confirmar(
-          'Reiniciar esta conversa?',
-          'Apaga o historico, zera as variaveis e devolve a conversa ao agente padrao da conexao.',
-          async () => {
-            await api.post(`/api/contatos/${contato.id}/restart`);
-            aviso('Conversa reiniciada.', 'sucesso');
-            await desenhar();
-          },
-          'Reiniciar',
-        ) }),
-      botao('', { icone: 'contrato', titulo: 'Gerar resumo', pequeno: true, aoClicar: () => abrirResumo(contato) }),
-      botao('', { icone: 'conexoes', titulo: 'Unificar conversas', pequeno: true, aoClicar: () => abrirUnificar(contato) }),
       /*
-       * O unico botao com palavra escrita no cabecalho.
-       *
-       * Os outros quatro sao acoes de manutencao e sobrevivem como icone.
-       * Este e o fim do atendimento: e a acao que mais se usa aqui e a unica
-       * cujo icone sozinho (um certo) nao diz o que vai acontecer — podia ser
-       * "marcar como lida" tanto quanto "encerrar".
+       * Concluir e a unica acao do cabecalho: o fim do atendimento, a que mais
+       * se usa aqui. Os icones de manutencao sairam para o topo ficar limpo
+       * (reiniciar continua pelo comando /restart no campo de texto).
        */
       botao(contato.estado === 'arquivado' ? 'Reabrir' : 'Concluir', {
         icone: contato.estado === 'arquivado' ? 'atualizar' : 'ok',
@@ -1104,25 +1088,6 @@ export async function paginaAtendimento({
           await desenhar();
         },
       }),
-      estado.sessao.papel === 'administrador'
-        ? botao('', {
-            icone: 'lixo',
-            titulo: 'Excluir a conversa definitivamente (LGPD)',
-            pequeno: true,
-            aoClicar: () =>
-              confirmar(
-                `Excluir a conversa de ${contato.nome}?`,
-                'Some tudo: mensagens, arquivos, agendamentos, contratos e registros de consumo. Nao tem como desfazer. Para tirar da fila sem apagar, use Concluir.',
-                async () => {
-                  await api.delete(`/api/contatos/${contato.id}`);
-                  selecionadoId = null;
-                  aviso('Conversa excluida.', 'sucesso');
-                  await desenhar();
-                },
-                'Excluir definitivamente',
-              ),
-          })
-        : null,
       alternarPainelInfo(),
       ]),
       el('div', { class: 'conversa-linha' }, [
