@@ -49,8 +49,8 @@
      quente para um grafite frio, no espirito da LiderHub. O dourado continua
      sendo a cor da acao do escritorio (botao, selecao, avatar) e o verde
      continua sendo a fala (balao enviado) — so o fundo mudou de tom. */
-  --preto: #060709;
-  --fundo: #0e1014;
+  --preto: #000000;
+  --fundo: #000000;
   /* As superficies encostaram no fundo. A distancia de antes desenhava quatro
      degraus de cinza na mesma tela, e cada degrau virava uma caixa a mais para
      o olho separar. Agora o que separa painel de painel e a linha de 1px, nao a
@@ -61,11 +61,11 @@
   --borda: #232830;
   --borda-forte: #2e343d;
 
-  --ouro: #b8a05c;
-  --ouro-claro: #d0b978;
-  --ouro-escuro: #8a7440;
-  --ouro-fraco: rgba(184, 160, 92, 0.14);
-  --ouro-linha: rgba(184, 160, 92, 0.3);
+  --ouro: #e6b325;
+  --ouro-claro: #f4ce63;
+  --ouro-escuro: #b2871a;
+  --ouro-fraco: rgba(230, 179, 37, 0.16);
+  --ouro-linha: rgba(230, 179, 37, 0.36);
 
   /* Superficies douradas que nao sao pilula nem borda: o halo da tela de
      entrada, a grade de pontos do painel de conversa, o balao da mensagem
@@ -151,8 +151,8 @@
      faixa e estreita de proposito: com as duas pontas na mesma altura, uma cor
      de texto so passa o contraste do comeco ao fim do gradiente. Com a faixa
      larga de antes, um rotulo longo chegava na ponta escura em 3,9:1. */
-  --ouro-acao-de: #c2aa64;
-  --ouro-acao-ate: #947c40;
+  --ouro-acao-de: #f0c445;
+  --ouro-acao-ate: #cc9a1e;
   --sobre-ouro: #191204;
 
   /* Uma escala so, aplicada sem excecao:
@@ -463,13 +463,13 @@ a {
   --superficie-3: #1c1b17;
   --borda: #201e1a;
   --borda-forte: #2b2823;
-  --ouro: #b8a05c;
-  --ouro-claro: #d0b978;
-  --ouro-escuro: #8a7440;
-  --ouro-fraco: rgba(184, 160, 92, 0.14);
-  --ouro-linha: rgba(184, 160, 92, 0.3);
-  --ouro-acao-de: #c2aa64;
-  --ouro-acao-ate: #947c40;
+  --ouro: #e6b325;
+  --ouro-claro: #f4ce63;
+  --ouro-escuro: #b2871a;
+  --ouro-fraco: rgba(230, 179, 37, 0.16);
+  --ouro-linha: rgba(230, 179, 37, 0.36);
+  --ouro-acao-de: #f0c445;
+  --ouro-acao-ate: #cc9a1e;
   --sobre-ouro: #191204;
   --texto: #efeae0;
   --texto-suave: #a9a296;
