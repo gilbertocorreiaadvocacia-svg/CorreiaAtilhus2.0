@@ -1750,6 +1750,43 @@ img.avatar {
   color: var(--texto-suave);
 }
 
+/* Copiar o ID do workspace: botao discreto no fim da linha, acende no hover. */
+.contexto-copiar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--raio);
+  background: none;
+  color: var(--texto-fraco);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--transicao);
+}
+
+.contexto-copiar > svg {
+  color: inherit;
+}
+
+.contexto-opcao:hover .contexto-copiar,
+.contexto-copiar:focus-visible {
+  opacity: 1;
+}
+
+.contexto-copiar:hover {
+  color: var(--texto);
+}
+
+/* Campo de busca de workspace, quando ha muitos. */
+.contexto-busca {
+  margin: 0 var(--e2) var(--e2);
+  width: auto;
+  min-height: var(--controle-p);
+}
+
 /* Cabeca de tela: titulo e, na mesma linha, os controles que valem para a tela
    inteira. Tela de trabalho (Conversas) nao tem cabeca: la a barra de cima e a
    fila ja dizem onde se esta. */

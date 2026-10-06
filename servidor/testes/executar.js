@@ -24,6 +24,7 @@ import { testarPacotes } from './pacotes.js';
 import { subirZapsignFalsa } from './zapsign-falsa.js';
 import { testarContratos } from './contratos.js';
 import { testarRelatorios } from './relatorios.js';
+import { testarCopiarWorkspace } from './copiar-workspace.js';
 import { subirJuriFalso } from './juri-falso.js';
 import { testarJuri } from './juri.js';
 import { testarWorkspacesPorArea } from './workspaces.js';
@@ -267,6 +268,7 @@ async function principal() {
        ao Juri e cria uma conversa. Usa delta (antes/depois), entao nao se
        importa com o que as suites de cima deixaram, e rodando no fim nao polui a
        contagem de ninguem. */
+    suites.push(await testarCopiarWorkspace({ base }));
     suites.push(await testarRelatorios({ base, zapsign }));
     /* Sobe processos proprios, em porta propria: nao encosta no servidor acima. */
     suites.push(await testarPortaOcupada({ raiz: RAIZ, portaLivre }));

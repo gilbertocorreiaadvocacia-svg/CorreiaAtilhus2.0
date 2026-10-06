@@ -25,6 +25,9 @@ import {
 import { agora, conferirSenha, hashSenha, normalizar, normalizarTelefone, novoId } from '../nucleo/util.js';
 import { semearWorkspace } from '../nucleo/seed.js';
 import { criarWorkspacesPorArea } from '../nucleo/workspaces-por-area.js';
+import { SELECIONAVEIS, copiarConfiguracoes } from '../nucleo/copiar-workspace.js';
+import { migrarTiposDeCaso } from '../nucleo/casos.js';
+import { migrarCanaisDeOrigem } from '../nucleo/origens.js';
 import { AREAS, MODELOS, PROMPT, TIPOS_STATUS } from '../config.js';
 
 export const COOKIE_SESSAO = 'correiatendimentos';
@@ -128,7 +131,10 @@ function lerDesafio(token) {
 /** A sessao de verdade, o cookie e o corpo de resposta: um lugar so, tres portas. */
 function concluirEntrada(res, usuario, workspaces, extra = {}) {
   limparErrosDeSenha(usuario.id);
-  const token = criarSessao(usuario.id, workspaces[0].id);
+  /* Abre no ultimo workspace que a pessoa usou, se ainda participa dele; senao,
+     no primeiro. */
+  const inicial = workspaces.find((w) => w.id === usuario.ultimoWorkspaceId) || workspaces[0];
+  const token = criarSessao(usuario.id, inicial.id);
   definirCookie(res, COOKIE_SESSAO, token, { maxIdade: 60 * 60 * 24 * 30 });
   return { usuario: limpar(usuario), workspaces, ...extra };
 }
@@ -278,8 +284,24 @@ export function registrarSessao(rotas) {
       throw erro;
     }
     trocarWorkspaceDaSessao(ctx.token, alvo.id);
+    /* Lembra o ultimo workspace de cada pessoa, para o proximo login abrir nele. */
+    atualizar('usuarios', ctx.usuarioId, { ultimoWorkspaceId: alvo.id });
     return { ok: true, workspaceId: alvo.id };
   });
+
+  /* Resumo dos workspaces da pessoa, para o seletor: quantos membros e quantos
+     numeros de WhatsApp cada um tem. So os que ela participa. */
+  rotas.get('/api/workspaces/resumo', async ({ ctx }) =>
+    ctx.workspaces.map((w) => ({
+      id: w.id,
+      nome: w.nome,
+      descricao: achar('workspaces', w.id)?.descricao || '',
+      papel: w.papel,
+      arquivado: Boolean(achar('workspaces', w.id)?.arquivado),
+      membros: listar('membros', { workspaceId: w.id }).length,
+      conexoes: listar('conexoes', { workspaceId: w.id }).filter((c) => c.tipo !== 'simulador').length,
+    })),
+  );
 
   /* ---------------- Perfil ---------------- */
 
@@ -382,16 +404,32 @@ export function registrarSessao(rotas) {
 
   /* ---------------- Workspaces ---------------- */
 
+  /**
+   * Novo workspace, do zero ou copiando a configuracao de outro que a pessoa
+   * participa. A copia duplica registros e midia no storage do proprio sistema,
+   * com as referencias refeitas (ver nucleo/copiar-workspace.js); nunca partilha
+   * referencia nem aponta para fora. Nao vem conversa, numero, membro nem chave:
+   * isso e isolamento, nao configuracao.
+   */
   rotas.post('/api/workspaces', async ({ ctx, corpo }) => {
     exigirAdministrador(ctx);
+
+    /* So da para copiar de um workspace que a pessoa participa. */
+    const origem = corpo.copiarDe ? ctx.workspaces.find((w) => w.id === corpo.copiarDe) : null;
+    if (corpo.copiarDe && !origem) throw comCodigo('Você não participa do workspace de origem da cópia.', 403);
+    const origemCompleta = origem ? achar('workspaces', origem.id) : null;
+    const copiar = Array.isArray(corpo.copiar) ? corpo.copiar.filter((x) => SELECIONAVEIS.includes(x)) : [];
+
     const workspace = inserir('workspaces', {
       id: novoId('wks'),
-      nome: corpo.nome || 'Novo workspace',
-      empresa: corpo.clonarDe ? { ...(ctx.workspace?.empresa || {}) } : {},
-      horarioComercial: ctx.workspace?.horarioComercial || null,
+      nome: String(corpo.nome || '').trim() || 'Novo workspace',
+      descricao: String(corpo.descricao || '').trim(),
+      empresa: origemCompleta ? { ...(origemCompleta.empresa || {}) } : {},
+      horarioComercial: origemCompleta?.horarioComercial || null,
+      arquivado: false,
       onboarding: {},
     });
-    semearWorkspace(workspace.id, { clonarDe: corpo.clonarDe ? ctx.workspaceId : null });
+
     inserir('membros', {
       id: novoId('mbr'),
       workspaceId: workspace.id,
@@ -410,7 +448,23 @@ export function registrarSessao(rotas) {
       customTools: [],
       ia: { provedor: 'anthropic', chaveAnthropic: '', chaveOpenai: '' },
     });
-    return workspace;
+
+    let copiado = null;
+    if (origem && copiar.length) {
+      copiado = copiarConfiguracoes(workspace.id, origem.id, copiar);
+    }
+    /* Tipos de caso e origens de anuncio entram para todo workspace (idempotente). */
+    migrarTiposDeCaso();
+    migrarCanaisDeOrigem();
+    /* Sem funil (nao copiou status), nasce com o minimo para nao abrir vazio. */
+    if (!listar('status', { workspaceId: workspace.id }).length) semearWorkspace(workspace.id, {});
+
+    registrarLog(workspace.id, null, 'workspace', `Workspace "${workspace.nome}" criado${origem ? ` copiando de ${origem.nome}` : ''}`, {
+      tipo: 'membro',
+      id: ctx.membro?.id,
+      nome: ctx.usuario?.nome,
+    });
+    return { ...workspace, copiado };
   });
 
   /* Previdenciario e Trabalhista a partir deste workspace, que fica como esta

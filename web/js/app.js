@@ -13,7 +13,7 @@ import {
   podeConfigurar,
   tema,
 } from './estado.js';
-import { avatar, aviso, botao, campo, dataHora, el, entradaSegredo, entradaTexto, icone, interruptor, limpar, modal, preferencia, salvarPreferencia, selo, telefone } from './ui.js';
+import { areaTexto, avatar, aviso, botao, campo, dataHora, el, entradaSegredo, entradaTexto, icone, interruptor, limpar, modal, preferencia, salvarPreferencia, selecao, selo, telefone } from './ui.js';
 import {
   definirSistema,
   definirSom,
@@ -876,8 +876,35 @@ function seletorDeContexto() {
     );
   };
 
+  /* Preenchido ao abrir o seletor (GET /api/workspaces/resumo): quantos membros
+     e quantos numeros cada workspace tem. */
+  let resumoPorId = {};
+
   const opcaoDeEscritorio = (workspace) => {
     const atual = workspace.id === estado.sessao.workspace?.id;
+    const resumo = resumoPorId[workspace.id];
+    const detalhe = resumo
+      ? `${resumo.membros} ${resumo.membros === 1 ? 'membro' : 'membros'} · ${resumo.conexoes} ${resumo.conexoes === 1 ? 'número' : 'números'}`
+      : '…';
+    const copiarId = el(
+      'button',
+      {
+        type: 'button',
+        class: 'contexto-copiar',
+        title: 'Copiar o ID deste workspace',
+        'aria-label': 'Copiar o ID do workspace',
+        aoClick: async (ev) => {
+          ev.stopPropagation();
+          try {
+            await navigator.clipboard.writeText(workspace.id);
+            aviso('ID do workspace copiado.', 'sucesso');
+          } catch {
+            /* sem permissao de area de transferencia: nada a fazer */
+          }
+        },
+      },
+      [icone('copiar', 13)],
+    );
     return el(
       'button',
       {
@@ -885,6 +912,7 @@ function seletorDeContexto() {
         role: 'option',
         'aria-selected': atual ? 'true' : 'false',
         class: `contexto-opcao${atual ? ' ativo' : ''}`,
+        dataset: { busca: (workspace.nome || '').toLowerCase() },
         aoClick: async () => {
           fechar();
           if (atual) return;
@@ -894,7 +922,8 @@ function seletorDeContexto() {
       },
       [
         el('span', { class: 'contexto-icone' }, [icone('predio', 14)]),
-        el('span', { class: 'contexto-texto' }, [el('strong', { texto: workspace.nome })]),
+        el('span', { class: 'contexto-texto' }, [el('strong', { texto: workspace.nome }), el('span', { texto: detalhe })]),
+        copiarId,
         atual ? icone('ok', 14) : null,
       ],
     );
@@ -915,17 +944,55 @@ function seletorDeContexto() {
     document.removeEventListener('keydown', teclas);
   }
 
-  gatilho.addEventListener('click', () => {
+  gatilho.addEventListener('click', async () => {
     if (!lista.hidden) return fechar();
     limpar(lista);
+
+    /* Os contadores de membros e numeros de cada workspace, para o seletor. */
+    try {
+      const resumo = await api.get('/api/workspaces/resumo');
+      resumoPorId = Object.fromEntries((resumo || []).map((r) => [r.id, r]));
+    } catch {
+      resumoPorId = {};
+    }
+
     if (estado.sessao.workspaces.length > 1) {
-      lista.append(el('div', { class: 'contexto-grupo', texto: 'Escritório' }), ...estado.sessao.workspaces.map(opcaoDeEscritorio));
+      lista.append(el('div', { class: 'contexto-grupo', texto: 'Escritório' }));
+      const itens = estado.sessao.workspaces.map(opcaoDeEscritorio);
+      /* Com muitos workspaces, um campo de busca filtra a lista pelo nome. */
+      if (estado.sessao.workspaces.length > 6) {
+        const busca = entradaTexto('', { placeholder: 'Buscar workspace...', class: 'contexto-busca' });
+        busca.addEventListener('input', () => {
+          const termo = busca.value.trim().toLowerCase();
+          for (const item of itens) item.hidden = Boolean(termo) && !item.dataset.busca.includes(termo);
+        });
+        lista.append(busca);
+      }
+      lista.append(...itens);
     }
     lista.append(
       el('div', { class: 'contexto-grupo', texto: 'Número de WhatsApp' }),
       opcaoDeNumero(null),
       ...estado.conexoes.map(opcaoDeNumero),
     );
+    /* Criar workspace e acao de administrador (o servidor cobra em
+       POST /api/workspaces). Fica no rodape, como na referencia. */
+    if (estado.sessao.papel === 'administrador') {
+      lista.append(
+        el(
+          'button',
+          {
+            type: 'button',
+            class: 'contexto-rodape',
+            aoClick: () => {
+              fechar();
+              abrirNovoWorkspace();
+            },
+          },
+          [icone('mais', 14), 'Novo workspace'],
+        ),
+      );
+    }
     if (podeConfigurar()) {
       lista.append(
         el(
@@ -952,6 +1019,72 @@ function seletorDeContexto() {
   repintarContexto = pintarGatilho;
   pintarGatilho();
   return caixa;
+}
+
+/*
+ * Novo workspace: do zero, ou copiando a configuracao de um que a pessoa ja tem.
+ * A copia duplica registros e midia no proprio sistema, sem conversa, numero,
+ * membro nem chave (ver servidor/rotas/sessao.js e nucleo/copiar-workspace.js).
+ * Criado, o sistema ja entra nele, para a pessoa configurar.
+ */
+function abrirNovoWorkspace() {
+  const nome = entradaTexto('', { placeholder: 'Ex.: Filial Carpina' });
+  const descricao = areaTexto('', { rows: '2', placeholder: 'Opcional' });
+  const fontes = [
+    { valor: '', rotulo: 'Começar vazio (não copiar)' },
+    ...estado.sessao.workspaces.map((w) => ({ valor: w.id, rotulo: `Copiar de: ${w.nome}` })),
+  ];
+  const copiarDe = selecao(fontes, estado.sessao.workspace?.id || '');
+
+  const itensCopia = [
+    ['agentes', 'Agentes de IA'],
+    ['templates', 'Templates (com mídia)'],
+    ['etiquetas', 'Etiquetas'],
+    ['departamentos', 'Departamentos'],
+    ['status', 'Funil / status (com follow-up)'],
+    ['conhecimento', 'Base de conhecimento'],
+  ];
+  const marcas = {};
+  const grupoCopia = el(
+    'div',
+    { class: 'grade g2' },
+    itensCopia.map(([id, rotulo]) => {
+      const caixa = el('input', { type: 'checkbox' });
+      caixa.checked = true;
+      marcas[id] = caixa;
+      return el('label', { class: 'marcador' }, [caixa, el('span', { texto: rotulo })]);
+    }),
+  );
+  const blocoCopia = el('div', { class: 'mt-3' }, [campo('O que copiar', grupoCopia)]);
+  const ajustarCopia = () => {
+    blocoCopia.style.display = copiarDe.value ? 'block' : 'none';
+  };
+  copiarDe.addEventListener('change', ajustarCopia);
+  ajustarCopia();
+
+  modal({
+    titulo: 'Novo workspace',
+    largo: true,
+    corpo: el('div', {}, [
+      el('div', { class: 'grade g2' }, [campo('Nome', nome), campo('Descrição', descricao)]),
+      campo('Copiar configurações', copiarDe, 'Começa igual a outro workspace que você já tem — sem copiar conversas, números nem chaves.'),
+      blocoCopia,
+    ]),
+    confirmar: 'Criar workspace',
+    aoConfirmar: async () => {
+      if (!nome.value.trim()) throw new Error('Dê um nome ao workspace.');
+      const copiar = copiarDe.value ? Object.entries(marcas).filter(([, c]) => c.checked).map(([id]) => id) : [];
+      const novo = await api.post('/api/workspaces', {
+        nome: nome.value.trim(),
+        descricao: descricao.value.trim(),
+        copiarDe: copiarDe.value || null,
+        copiar,
+      });
+      await api.post('/api/sessao/workspace', { workspaceId: novo.id });
+      aviso('Workspace criado.', 'sucesso');
+      await iniciarApp();
+    },
+  });
 }
 
 /* Funcoes com nome, e nao closures novas a cada montagem: ouvir() guarda num
