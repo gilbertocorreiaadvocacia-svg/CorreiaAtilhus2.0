@@ -974,21 +974,23 @@ a {
   /* Barra PRETA no tema escuro, e BRANCA com dourado no tema claro (a pedido
      dele, 28/09). Redefinir os tokens SO aqui dentro faz a barra inteira mudar
      sem reescrever regra por regra; o conteudo ao lado nao e filho da barra.
-     Este bloco e o padrao (escuro); o override do claro vem logo abaixo. */
-  --preto: #121216;
-  --superficie: #242429;
-  --superficie-2: #1b1b20;
-  --superficie-3: #2a2a30;
-  --borda: rgba(255, 255, 255, 0.08);
-  --borda-forte: rgba(255, 255, 255, 0.16);
+     Este bloco e o padrao (escuro); o override do claro vem logo abaixo.
+     24/10: preto de verdade, igual ao fundo e ao LiderHub. As superficies da
+     barra ficam pretas tambem, e so a linha fina separa a barra do conteudo. */
+  --preto: #000000;
+  --superficie: #000000;
+  --superficie-2: #0a0a0a;
+  --superficie-3: #111111;
+  --borda: rgba(255, 255, 255, 0.07);
+  --borda-forte: rgba(255, 255, 255, 0.14);
   --texto: #eee9de;
   --texto-suave: #b4b0a8;
   --texto-fraco: #97938a;
   --rail-realce: color-mix(in srgb, #ffffff 8%, transparent);
   --rail-realce-forte: color-mix(in srgb, #ffffff 10%, transparent);
-  --rail-fio: #a89151;
-  background: #121216;
-  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  --rail-fio: #e6b325;
+  background: #000000;
+  border-right: 1px solid rgba(255, 255, 255, 0.07);
 }
 
 /* Tema claro (branco): barra BRANCA, icones e letras dourados. As duas formas
