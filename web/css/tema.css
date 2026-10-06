@@ -1308,6 +1308,19 @@ a {
   outline: none;
 }
 
+/* A linha do interruptor nao e um botao: o proprio interruptor recebe o clique,
+   entao a linha nao finge ser clicavel nem acende no hover da linha toda. */
+.rail-eu-ajuste,
+.rail-eu-ajuste:hover {
+  cursor: default;
+  background: none;
+}
+
+.rail-eu-ajuste .campo-interruptor {
+  width: 100%;
+  margin: 0;
+}
+
 /* O nome do icone. Fixo no documento, posicionado pelo JavaScript a partir da
    caixa do icone: dentro da barra ele seria cortado pela rolagem dela. */
 .dica-barra {
@@ -7937,6 +7950,57 @@ button.mencao-chip:focus-visible {
 .secao-painel > h2 .selo {
   margin-left: var(--e2);
   vertical-align: middle;
+}
+
+/* Secao do painel que recolhe: o titulo vira botao, o chevron gira, o corpo
+   some. O h2 vira uma linha para o botao (titulo + seta) conviver com o extra
+   (selo/dica) a sua direita. Mesmo gesto da secaoRecolhivel e do menu lateral. */
+.secao-painel-r > h2 {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0 var(--e3);
+}
+
+.secao-painel-gatilho {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e2);
+  min-width: 0;
+  padding: 0;
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* A nota/selo a direita acompanha o titulo quando ha espaco e cai para a linha
+   de baixo quando a tela aperta, em vez de brigar com o titulo por largura. */
+.secao-painel-r > h2 > :not(.secao-painel-gatilho) {
+  margin-left: auto;
+}
+
+.secao-painel-titulo {
+  min-width: 0;
+}
+
+.secao-painel-gatilho > svg {
+  flex: none;
+  transform: rotate(-90deg);
+  transition: transform var(--transicao);
+  opacity: 0.6;
+}
+
+.secao-painel-r.fechada .secao-painel-gatilho > svg {
+  transform: rotate(180deg);
+}
+
+.secao-painel-r.fechada .secao-painel-corpo {
+  display: none;
 }
 
 /* ------------------------------------------------------------------

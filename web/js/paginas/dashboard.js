@@ -2,7 +2,7 @@ import { api } from '../api.js';
 import { estado, ouvir } from '../estado.js';
 import { cartaoComDica, dica, seletorPeriodo } from '../componentes.js';
 import { funilBarras, graficoEvolucao, legenda, miniLinha, rosca, sankeyPorOrigem } from '../graficos.js';
-import { aviso, botao, campo, cartao, el, icone, limpar, modal, numero, selecao, selo, vazio } from '../ui.js';
+import { aviso, botao, campo, cartao, el, icone, limpar, modal, numero, preferencia, salvarPreferencia, selecao, selo, vazio } from '../ui.js';
 
 /**
  * Dashboard. A tela responde tres perguntas, nesta ordem: quanto
@@ -703,11 +703,44 @@ function comoSairDoVazio(filtro) {
 
 /* Secao A e F -------------------------------------------------------- */
 
+/*
+ * Uma secao do painel. Com titulo, ela RECOLHE: o cabecalho vira um botao que
+ * esconde o corpo, e o estado fica lembrado por navegador (preferencia). Serve
+ * para tirar da frente o bloco que a pessoa nao acompanha hoje sem apagar nada
+ * nem mexer no de ninguem. Comeca sempre aberta, entao a tela de quem nunca
+ * recolher continua igual a de hoje.
+ *
+ * O `extra` (o selo de contagem, a dica) fica FORA do botao: clicar nele abre a
+ * ajuda, nao recolhe a secao. Sem titulo (a secao de evolucao passa null), nada
+ * recolhe: volta a ser a secao simples de sempre.
+ */
 function secao(titulo, extra, ...filhos) {
-  return el('section', { class: 'secao-painel' }, [
-    titulo ? el('h2', {}, [titulo, extra || null]) : null,
-    ...filhos,
+  if (!titulo) {
+    return el('section', { class: 'secao-painel' }, [...filhos]);
+  }
+
+  const chave = typeof titulo === 'string' ? `painel:${titulo}` : null;
+  const aberto = chave ? preferencia(chave, true) : true;
+
+  const seta = icone('voltar', 14);
+  const gatilho = el('button', { type: 'button', class: 'secao-painel-gatilho', 'aria-expanded': aberto ? 'true' : 'false' }, [
+    el('span', { class: 'secao-painel-titulo', texto: typeof titulo === 'string' ? titulo : '' }),
+    typeof titulo === 'string' ? null : titulo,
+    seta,
   ]);
+  const corpo = el('div', { class: 'secao-painel-corpo' }, [...filhos]);
+  const bloco = el('section', { class: `secao-painel secao-painel-r${aberto ? '' : ' fechada'}` }, [
+    el('h2', {}, [gatilho, extra || null]),
+    corpo,
+  ]);
+
+  gatilho.addEventListener('click', () => {
+    const vai = bloco.classList.contains('fechada');
+    bloco.classList.toggle('fechada', !vai);
+    gatilho.setAttribute('aria-expanded', vai ? 'true' : 'false');
+    if (chave) salvarPreferencia(chave, vai);
+  });
+  return bloco;
 }
 
 function avisoDeTipos(dados) {

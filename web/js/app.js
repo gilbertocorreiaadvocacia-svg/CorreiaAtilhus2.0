@@ -13,7 +13,7 @@ import {
   podeConfigurar,
   tema,
 } from './estado.js';
-import { avatar, aviso, botao, campo, dataHora, el, entradaSegredo, entradaTexto, icone, limpar, modal, selo, telefone } from './ui.js';
+import { avatar, aviso, botao, campo, dataHora, el, entradaSegredo, entradaTexto, icone, interruptor, limpar, modal, preferencia, salvarPreferencia, selo, telefone } from './ui.js';
 import {
   definirSistema,
   definirSom,
@@ -372,6 +372,15 @@ function itemDaBarra(item, { subitem = false } = {}) {
  * resto abre num painel ao lado: sair do sistema e gesto de fim de dia, e nao
  * precisa de lugar fixo na tela.
  */
+/*
+ * Modo compacto: a mesma tela, mais densa. Guardado por navegador (ver
+ * `preferencia` em ui.js), aplicado como uma classe em <body> que aperta os
+ * tokens de respiro e de altura. Nada some; quem nao liga nunca ve diferenca.
+ */
+export function aplicarCompacto() {
+  document.body.classList.toggle('compacto', Boolean(preferencia('compacto', false)));
+}
+
 function menuDaPessoa() {
   const usuario = estado.sessao.usuario;
   const papel = estado.sessao.papeis[estado.sessao.papel]?.nome || estado.sessao.papel;
@@ -391,8 +400,17 @@ function menuDaPessoa() {
     ],
   );
 
+  /* Preferencia de quem olha, ao lado do "Sair": liga a tela densa para este
+     navegador. Fica no menu da pessoa, e nao numa engrenagem de ajustes, porque
+     e gosto de cada um, como o tema. */
+  const chaveCompacto = interruptor('Modo compacto', Boolean(preferencia('compacto', false)), (ligado) => {
+    salvarPreferencia('compacto', ligado);
+    aplicarCompacto();
+  });
+
   const painel = el('div', { class: 'rail-eu-painel', role: 'menu', hidden: true }, [
     el('div', { class: 'rail-eu-quem' }, [el('strong', { texto: usuario.nome }), el('span', { texto: papel })]),
+    el('div', { class: 'rail-eu-opcao rail-eu-ajuste' }, [chaveCompacto]),
     el(
       'button',
       {
@@ -805,6 +823,7 @@ function montarEstrutura() {
   limpar(raiz);
   const escolhido = tema();
   if (escolhido) document.documentElement.dataset.tema = escolhido;
+  aplicarCompacto();
 
   barraNo = el('nav', { class: 'rail', 'aria-label': 'Áreas do sistema' });
 
