@@ -804,6 +804,106 @@ a {
   margin-top: var(--e2);
 }
 
+/* O link discreto (Voltar) nao e um botao de acao: sem largura total nem a
+   altura de destaque. */
+.entrada-form > .entrada-link {
+  justify-self: center;
+  width: auto;
+  margin-top: var(--e2);
+}
+
+/* ------------------------------------------------------------------
+   Passos do segundo fator na tela de entrada
+   ------------------------------------------------------------------ */
+.entrada-passo-titulo {
+  margin: 0 0 var(--e2);
+  font-size: var(--t-leitura);
+  font-weight: 600;
+  color: var(--texto);
+}
+
+.entrada-passo-texto {
+  margin: 0 0 var(--e3);
+  color: var(--texto-suave);
+  font-size: var(--t-sm);
+  line-height: 1.5;
+}
+
+.entrada-passos {
+  margin: 0 0 var(--e3);
+  padding-left: var(--e4);
+  color: var(--texto-suave);
+  font-size: var(--t-sm);
+  line-height: 1.6;
+}
+
+.entrada-passos li {
+  margin-bottom: var(--e1);
+}
+
+/* A chave do app: monoespacada, grande o bastante para ler de longe, com o
+   botao de copiar ao lado. Quebra sozinha se nao couber. */
+.entrada-chave {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  margin-bottom: var(--e3);
+  flex-wrap: wrap;
+}
+
+.entrada-chave code {
+  flex: 1;
+  min-width: 0;
+  padding: var(--e2) var(--e3);
+  border: 1px solid var(--borda-forte);
+  border-radius: var(--raio);
+  background: rgba(5, 5, 4, 0.6);
+  font-family: var(--fonte-mono, monospace);
+  font-size: var(--t-leitura);
+  letter-spacing: 0.08em;
+  word-break: break-all;
+}
+
+.entrada-chave .botao {
+  flex: none;
+  width: auto;
+  margin: 0;
+  min-height: var(--controle);
+}
+
+.entrada-codigo-campo {
+  font-family: var(--fonte-mono, monospace);
+  font-size: 1.3rem;
+  letter-spacing: 0.4em;
+  text-align: center;
+}
+
+/* Os codigos de reserva: uma grade de dois, monoespacados, grandes de ler. */
+.entrada-reservas {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--e2);
+  margin: 0 0 var(--e3);
+  padding: 0;
+  list-style: none;
+}
+
+.entrada-reservas code {
+  display: block;
+  padding: var(--e2);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  background: rgba(5, 5, 4, 0.5);
+  font-family: var(--fonte-mono, monospace);
+  font-size: var(--t-leitura);
+  letter-spacing: 0.1em;
+  text-align: center;
+}
+
+.entrada-guardei {
+  margin: var(--e2) 0;
+}
+
 /* Tela estreita: a frase sai, o cartao vem para o centro e as luzes ficam. */
 @media (max-width: 1000px) {
   .entrada-apresentacao {

@@ -232,18 +232,29 @@ function telaEntrada(mensagemInicial) {
     estilo: { display: 'none' },
   });
 
+  /* Guarda o e-mail (se pedido) e abre o sistema. Chamado so quando a sessao
+     nasce de verdade: depois do codigo, ou depois da adesao. */
+  const concluir = async () => {
+    try {
+      if (lembrar.checked) localStorage.setItem(CHAVE_EMAIL_LEMBRADO, email.value.trim());
+      else localStorage.removeItem(CHAVE_EMAIL_LEMBRADO);
+    } catch {
+      /* sem armazenamento, so nao lembra */
+    }
+    await iniciarApp();
+  };
+
   const entrar = async (evento) => {
     evento?.preventDefault();
     erro.style.display = 'none';
     try {
-      await api.post('/api/sessao/entrar', { email: email.value.trim(), senha: senha.value });
-      try {
-        if (lembrar.checked) localStorage.setItem(CHAVE_EMAIL_LEMBRADO, email.value.trim());
-        else localStorage.removeItem(CHAVE_EMAIL_LEMBRADO);
-      } catch {
-        /* sem armazenamento, so nao lembra */
-      }
-      await iniciarApp();
+      const r = await api.post('/api/sessao/entrar', { email: email.value.trim(), senha: senha.value });
+      /* A senha certa nao abre sessao: o segundo fator e obrigatorio. Quem ja
+         tem o app pareado digita o codigo; quem nao tem pareia agora. */
+      if (r?.etapa === 'codigo') return trocar(passoCodigo(r.desafio));
+      if (r?.etapa === 'adesao') return trocar(passoAdesao(r));
+      /* Sem etapa (um dia o segundo fator pode ser desligado): entra direto. */
+      await concluir();
     } catch (falha) {
       erro.textContent = falha.message;
       erro.style.display = 'inline-flex';
@@ -264,6 +275,138 @@ function telaEntrada(mensagemInicial) {
     erro,
     botao('Entrar', { tipo: 'principal', submeter: true, grande: true }),
   ]);
+
+  /* O painel troca de conteudo entre os passos (senha -> codigo/adesao ->
+     codigos de reserva) sem recarregar a tela nem perder a aurora de fundo. */
+  const painel = el('div', { class: 'entrada-passo' }, [formulario]);
+  const trocar = (...nos) => {
+    limpar(painel);
+    painel.append(...nos);
+    painel.querySelector('input, button')?.focus();
+  };
+  const voltarAoLogin = () => {
+    trocar(formulario);
+    senha.value = '';
+    email.focus();
+  };
+
+  /* Campo de codigo: 6 digitos, teclado numerico, e um aviso proprio. */
+  function campoDeCodigo(idCampo) {
+    const entrada = entradaTexto('', {
+      id: idCampo,
+      inputmode: 'numeric',
+      autocomplete: 'one-time-code',
+      placeholder: '000000',
+      class: 'entrada-codigo-campo',
+    });
+    const avisoCodigo = el('div', { class: 'selo erro mb-3', role: 'alert', 'aria-live': 'assertive', estilo: { display: 'none' } });
+    const mostrarErro = (texto) => {
+      avisoCodigo.textContent = texto;
+      avisoCodigo.style.display = 'inline-flex';
+    };
+    const limparErro = () => {
+      avisoCodigo.style.display = 'none';
+    };
+    return { entrada, avisoCodigo, mostrarErro, limparErro };
+  }
+
+  /* Passo do codigo: para quem ja tem o app pareado. Aceita o codigo de 6
+     digitos ou um codigo de reserva. */
+  function passoCodigo(desafio) {
+    const { entrada, avisoCodigo, mostrarErro, limparErro } = campoDeCodigo('entrada-2fa-codigo');
+    const enviar = async (evento) => {
+      evento?.preventDefault();
+      limparErro();
+      try {
+        await api.post('/api/sessao/2fa/entrar', { desafio, codigo: entrada.value.trim() });
+        await concluir();
+      } catch (falha) {
+        mostrarErro(falha.message);
+        entrada.select();
+      }
+    };
+    return el('form', { class: 'entrada-form', aoSubmit: enviar }, [
+      el('h2', { class: 'entrada-passo-titulo', texto: 'Verificação em duas etapas' }),
+      el('p', { class: 'entrada-passo-texto', texto: 'Abra o app autenticador e digite o código de 6 dígitos de “Correia Advogados”. Sem o celular? Digite aqui um dos seus códigos de reserva.' }),
+      campo('Código', entrada),
+      avisoCodigo,
+      botao('Entrar', { tipo: 'principal', submeter: true, grande: true }),
+      el('button', { type: 'button', class: 'entrada-link', texto: 'Voltar', aoClick: voltarAoLogin }),
+    ]);
+  }
+
+  /* Passo da adesao: a conta ainda nao tem app pareado. Mostra a chave para
+     colocar no app e confirma com o primeiro codigo. */
+  function passoAdesao(dados) {
+    const { entrada, avisoCodigo, mostrarErro, limparErro } = campoDeCodigo('entrada-2fa-adesao');
+    const copiar = botao('Copiar chave', {
+      aoClicar: async () => {
+        try {
+          await navigator.clipboard.writeText(dados.segredo);
+          copiar.textContent = 'Copiada';
+          setTimeout(() => (copiar.textContent = 'Copiar chave'), 1500);
+        } catch {
+          /* sem permissao de area de transferencia: a chave esta a vista para digitar */
+        }
+      },
+    });
+    const enviar = async (evento) => {
+      evento?.preventDefault();
+      limparErro();
+      try {
+        const r = await api.post('/api/sessao/2fa/confirmar', { desafio: dados.desafio, codigo: entrada.value.trim() });
+        trocar(passoReservas(r.codigosReserva || []));
+      } catch (falha) {
+        mostrarErro(falha.message);
+        entrada.select();
+      }
+    };
+    return el('form', { class: 'entrada-form', aoSubmit: enviar }, [
+      el('h2', { class: 'entrada-passo-titulo', texto: 'Proteja seu acesso' }),
+      el('p', { class: 'entrada-passo-texto', texto: 'O escritório exige verificação em duas etapas. Instale um app autenticador (Google Authenticator, Authy, Microsoft Authenticator) e cadastre a chave abaixo.' }),
+      el('ol', { class: 'entrada-passos' }, [
+        el('li', { texto: 'No app, toque em + e escolha “Inserir chave de configuração”.' }),
+        el('li', { texto: `Conta: ${dados.conta}. Cole a chave:` }),
+      ]),
+      el('div', { class: 'entrada-chave' }, [el('code', { texto: dados.segredoLegivel }), copiar]),
+      el('p', { class: 'entrada-passo-texto', texto: 'Depois, digite aqui o código de 6 dígitos que o app mostrar, para confirmar.' }),
+      campo('Código do app', entrada),
+      avisoCodigo,
+      botao('Confirmar e entrar', { tipo: 'principal', submeter: true, grande: true }),
+      el('button', { type: 'button', class: 'entrada-link', texto: 'Voltar', aoClick: voltarAoLogin }),
+    ]);
+  }
+
+  /* Codigos de reserva: mostrados UMA vez. So libera o Entrar depois que a
+     pessoa marca que guardou — perder os codigos e ficar sem a saida de
+     emergencia. */
+  function passoReservas(codigos) {
+    const marca = el('input', { type: 'checkbox', id: 'entrada-guardei' });
+    const botaoEntrar = botao('Entrar', { tipo: 'principal', grande: true, aoClicar: () => concluir() });
+    botaoEntrar.disabled = true;
+    marca.addEventListener('change', () => {
+      botaoEntrar.disabled = !marca.checked;
+    });
+    const baixar = botao('Baixar', {
+      aoClicar: () => {
+        const texto = `Códigos de reserva - Atilhus Chat\nGuarde em lugar seguro. Cada código vale uma vez.\n\n${codigos.join('\n')}\n`;
+        const url = URL.createObjectURL(new Blob([texto], { type: 'text/plain' }));
+        const a = el('a', { href: url, download: 'codigos-de-reserva.txt' });
+        document.body.append(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      },
+    });
+    return el('div', { class: 'entrada-form' }, [
+      el('h2', { class: 'entrada-passo-titulo', texto: 'Guarde seus códigos de reserva' }),
+      el('p', { class: 'entrada-passo-texto', texto: 'Se um dia você ficar sem o celular, cada código abaixo entra uma vez no lugar do app. Guarde num lugar seguro — eles não serão mostrados de novo.' }),
+      el('ul', { class: 'entrada-reservas' }, codigos.map((c) => el('li', {}, [el('code', { texto: c })]))),
+      baixar,
+      el('label', { class: 'entrada-lembrar entrada-guardei' }, [marca, el('span', { texto: 'Guardei os meus códigos de reserva' })]),
+      botaoEntrar,
+    ]);
+  }
 
   raiz.append(
     el('div', { class: 'entrada' }, [
@@ -290,7 +433,7 @@ function telaEntrada(mensagemInicial) {
           el('h1', { class: 'entrada-saudacao', texto: saudacaoDaHora() }),
           el('p', { class: 'entrada-sub', texto: 'Entre para ver as conversas de hoje.' }),
           mensagemInicial ? el('div', { class: 'entrada-aviso', role: 'status', html: mensagemInicial }) : null,
-          formulario,
+          painel,
         ]),
       ]),
     ]),

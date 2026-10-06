@@ -1226,6 +1226,32 @@ function editarMembro(membro, recarregarTela) {
         modoFoco,
         el('span', { texto: 'Modo foco (so enxerga as conversas em que e responsável)' }),
       ]),
+      /* Segundo fator: o administrador ve o estado e reinicia para quem perdeu o
+         celular. Reiniciar nao desliga a trava — a conta pareia um app novo no
+         proximo login. So aparece em membro que ja existe e so para o admin. */
+      !novo && estado.sessao.papel === 'administrador'
+        ? el('div', { class: 'campo' }, [
+            el('span', { texto: 'Verificação em duas etapas' }),
+            el('div', { class: 'linha-botoes', estilo: { alignItems: 'center' } }, [
+              selo(membro.usuario?.doisFatoresAtivo ? 'ativa' : 'não configurada', membro.usuario?.doisFatoresAtivo ? 'sucesso' : 'alerta'),
+              membro.usuario?.doisFatoresAtivo
+                ? botao('Reiniciar', {
+                    pequeno: true,
+                    aoClicar: () =>
+                      confirmar(
+                        'Reiniciar verificação em duas etapas?',
+                        `${membro.usuario?.nome} terá de cadastrar o app autenticador de novo no próximo login. Use quando a pessoa perder o celular.`,
+                        async () => {
+                          await api.patch(`/api/membros/${membro.id}`, { resetar2fa: true });
+                          aviso('Verificação em duas etapas reiniciada. A pessoa cadastra o app no próximo login.', 'sucesso');
+                        },
+                        'Reiniciar',
+                      ),
+                  })
+                : null,
+            ]),
+          ])
+        : null,
     ]),
     confirmar: 'Salvar',
     aoConfirmar: async () => {

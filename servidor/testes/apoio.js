@@ -1,3 +1,5 @@
+import { codigoDe } from '../nucleo/doisfatores.js';
+
 /**
  * O minimo para escrever um teste aqui.
  *
@@ -7,6 +9,17 @@
  * precisa de verdade sao tres coisas: um cliente HTTP que guarde o cookie da
  * sessao, um jeito de afirmar, e um jeito de esperar.
  */
+
+/*
+ * O segredo de segundo fator do admin de teste.
+ *
+ * O segundo fator e obrigatorio, entao entrar() precisa completar o passo do
+ * codigo. Em vez de desligar a trava nos testes (o que deixaria o caminho real
+ * sem prova), a semente liga o admin com ESTE segredo (ver CORREIA_2FA_SEMENTE
+ * em seed.js), e entrar() calcula o codigo a partir dele, como o app faria.
+ * executar.js passa o mesmo valor ao servidor pelo ambiente.
+ */
+export const SEGREDO_2FA_TESTE = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP';
 
 /** Cliente HTTP com sessao. Uma instancia por suite, para nao dividirem cookie. */
 export function cliente(base) {
@@ -39,12 +52,42 @@ export function cliente(base) {
     return { status: resposta.status, dados, texto };
   }
 
+  /*
+   * Entra completando o segundo fator.
+   *
+   * O admin de teste ja nasce pareado (seed.js), entao a senha certa leva ao
+   * passo do codigo: calculamos o codigo do segredo conhecido e concluimos. A
+   * assinatura antiga (so email/senha) continua valendo para quem chama, e um
+   * segredo diferente cobre o caso de testar outra conta ja pareada.
+   */
+  async function entrar(email = 'admin@correia.adv.br', senha = 'correia2026', segredo = SEGREDO_2FA_TESTE) {
+    const r = await chamar('/api/sessao/entrar', { metodo: 'POST', corpo: { email, senha } });
+    if (r.dados?.etapa === 'codigo') {
+      return chamar('/api/sessao/2fa/entrar', {
+        metodo: 'POST',
+        corpo: { desafio: r.dados.desafio, codigo: codigoDe(segredo) },
+      });
+    }
+    if (r.dados?.etapa === 'adesao') {
+      /* Conta ainda sem app pareado: conclui a adesao com o segredo que o
+         servidor acabou de propor. */
+      return chamar('/api/sessao/2fa/confirmar', {
+        metodo: 'POST',
+        corpo: { desafio: r.dados.desafio, codigo: codigoDe(r.dados.segredo) },
+      });
+    }
+    return r;
+  }
+
   return {
     get: (c, o) => chamar(c, o),
     post: (c, corpo, o) => chamar(c, { ...o, metodo: 'POST', corpo }),
     patch: (c, corpo, o) => chamar(c, { ...o, metodo: 'PATCH', corpo }),
     delete: (c, o) => chamar(c, { ...o, metodo: 'DELETE' }),
-    entrar: (email = 'admin@correia.adv.br', senha = 'correia2026') =>
+    entrar,
+    /* O passo cru do login, para o teste do proprio segundo fator afirmar o que
+       vem antes do codigo. */
+    entrarSenha: (email = 'admin@correia.adv.br', senha = 'correia2026') =>
       chamar('/api/sessao/entrar', { metodo: 'POST', corpo: { email, senha } }),
   };
 }

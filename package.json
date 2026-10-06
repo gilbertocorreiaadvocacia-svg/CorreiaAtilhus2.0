@@ -18,7 +18,8 @@
     "agente-maternidade": "node servidor/ferramentas/agente-maternidade.js",
     "video-template": "node servidor/ferramentas/video-template.js",
     "base-e-status": "node servidor/ferramentas/base-e-status.js",
-    "voz-dos-agentes": "node servidor/ferramentas/voz-dos-agentes.js"
+    "voz-dos-agentes": "node servidor/ferramentas/voz-dos-agentes.js",
+    "resetar-2fa": "node servidor/ferramentas/resetar-2fa.js"
   },
   "engines": {
     "node": ">=18"

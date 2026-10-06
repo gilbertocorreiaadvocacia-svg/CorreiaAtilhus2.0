@@ -14,6 +14,14 @@ import {
   workspacesDoUsuario,
 } from '../nucleo/auth.js';
 import { definirCookie } from '../nucleo/http.js';
+import {
+  conferirCodigo,
+  consumirCodigoReserva,
+  gerarCodigosReserva,
+  gerarSegredo,
+  segredoLegivel,
+  uriOtpauth,
+} from '../nucleo/doisfatores.js';
 import { agora, conferirSenha, hashSenha, normalizar, normalizarTelefone, novoId } from '../nucleo/util.js';
 import { semearWorkspace } from '../nucleo/seed.js';
 import { criarWorkspacesPorArea } from '../nucleo/workspaces-por-area.js';
@@ -21,10 +29,15 @@ import { AREAS, MODELOS, PROMPT, TIPOS_STATUS } from '../config.js';
 
 export const COOKIE_SESSAO = 'correiatendimentos';
 
+/*
+ * O usuario que sai para a tela nunca leva o que abre a conta: nem a senha, nem
+ * o segredo do segundo fator, nem os codigos de reserva. No lugar vai so o
+ * ESTADO do segundo fator (ligado ou nao), que a tela de perfil precisa mostrar.
+ */
 function limpar(usuario) {
   if (!usuario) return null;
-  const { senha, ...resto } = usuario;
-  return resto;
+  const { senha, doisFatores, ...resto } = usuario;
+  return { ...resto, doisFatoresAtivo: Boolean(doisFatores?.ativo) };
 }
 
 /* ------------------------------------------------------------------ */
@@ -69,6 +82,57 @@ function limparErrosDeSenha(usuarioId) {
   tentativasDeSenha.delete(usuarioId);
 }
 
+/* ------------------------------------------------------------------ */
+/* Segundo fator: o passo entre a senha certa e a sessao               */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Desafios de segundo fator, em memoria.
+ *
+ * A senha certa NAO cria sessao sozinha: cria um desafio curto, que so vale
+ * para digitar o codigo do app (ou aderir, se a conta ainda nao tem segundo
+ * fator). Dura DEZ MINUTOS e some ao ser usado. Vive so na memoria de proposito,
+ * como as outras travas daqui: reiniciar o servidor derruba os desafios em
+ * aberto, e no maximo a pessoa entra a senha de novo.
+ *
+ * Na adesao, o desafio guarda o `segredoPendente`: o segredo so vai para o
+ * usuario DEPOIS que o primeiro codigo confirmar que o celular foi pareado.
+ * Assim um pareamento que a pessoa comecou e nao terminou nao deixa a conta com
+ * um segredo que ninguem tem no telefone.
+ */
+const DESAFIO_MINUTOS = 10;
+const desafios = new Map();
+
+function criarDesafio(dados) {
+  /* Limpa os vencidos nesta hora mesmo: sem um varredor em separado, a memoria
+     nao cresce com tentativa que ninguem terminou. */
+  const agoraMs = Date.now();
+  for (const [t, d] of desafios) {
+    if (agoraMs - d.criadoEm > DESAFIO_MINUTOS * 60000) desafios.delete(t);
+  }
+  const token = novoId('dsf');
+  desafios.set(token, { ...dados, criadoEm: agoraMs });
+  return token;
+}
+
+function lerDesafio(token) {
+  const d = desafios.get(token);
+  if (!d) return null;
+  if (Date.now() - d.criadoEm > DESAFIO_MINUTOS * 60000) {
+    desafios.delete(token);
+    return null;
+  }
+  return d;
+}
+
+/** A sessao de verdade, o cookie e o corpo de resposta: um lugar so, tres portas. */
+function concluirEntrada(res, usuario, workspaces, extra = {}) {
+  limparErrosDeSenha(usuario.id);
+  const token = criarSessao(usuario.id, workspaces[0].id);
+  definirCookie(res, COOKIE_SESSAO, token, { maxIdade: 60 * 60 * 24 * 30 });
+  return { usuario: limpar(usuario), workspaces, ...extra };
+}
+
 export function registrarSessao(rotas) {
   rotas.post('/api/sessao/entrar', async ({ res, corpo }) => {
     const usuario = autenticar(corpo.email, corpo.senha);
@@ -83,9 +147,106 @@ export function registrarSessao(rotas) {
       erro.codigo = 403;
       throw erro;
     }
-    const token = criarSessao(usuario.id, workspaces[0].id);
-    definirCookie(res, COOKIE_SESSAO, token, { maxIdade: 60 * 60 * 24 * 30 });
-    return { usuario: limpar(usuario), workspaces };
+
+    /* Segundo fator obrigatorio: a senha certa nunca entra direto. Quem ja tem
+       o app pareado passa pelo codigo; quem ainda nao tem e levado a parear
+       agora, antes de entrar pela primeira vez. */
+    if (usuario.doisFatores?.ativo) {
+      const desafio = criarDesafio({ usuarioId: usuario.id, workspaceId: workspaces[0].id });
+      return { etapa: 'codigo', desafio };
+    }
+
+    const segredo = gerarSegredo();
+    const desafio = criarDesafio({ usuarioId: usuario.id, workspaceId: workspaces[0].id, segredoPendente: segredo });
+    return {
+      etapa: 'adesao',
+      desafio,
+      segredo,
+      segredoLegivel: segredoLegivel(segredo),
+      otpauth: uriOtpauth({ segredo, conta: usuario.email }),
+      conta: usuario.email,
+    };
+  }, { publica: true });
+
+  /**
+   * Passo do codigo, para quem JA tem segundo fator. Aceita o codigo de 6
+   * digitos do app ou um codigo de reserva. O codigo de reserva usado some da
+   * lista aqui mesmo, para nao valer duas vezes.
+   */
+  rotas.post('/api/sessao/2fa/entrar', async ({ res, corpo }) => {
+    const desafio = lerDesafio(corpo.desafio);
+    if (!desafio) {
+      const erro = new Error('O tempo para digitar o codigo acabou. Entre com a senha de novo.');
+      erro.codigo = 401;
+      throw erro;
+    }
+    const usuario = achar('usuarios', desafio.usuarioId);
+    if (!usuario?.doisFatores?.ativo) {
+      const erro = new Error('Esta conta nao tem segundo fator. Entre de novo.');
+      erro.codigo = 409;
+      throw erro;
+    }
+    const preso = bloqueioDeSenha(usuario.id);
+    if (preso) {
+      const erro = new Error(`Muitas tentativas. Espere ${preso} minuto(s) e tente de novo.`);
+      erro.codigo = 429;
+      throw erro;
+    }
+
+    if (conferirCodigo(usuario.doisFatores.segredo, corpo.codigo)) {
+      desafios.delete(corpo.desafio);
+      registrarLog(desafio.workspaceId, null, 'seguranca', 'Entrou com segundo fator (app)', { tipo: 'usuario', id: usuario.id, nome: usuario.nome });
+      const workspaces = workspacesDoUsuario(usuario.id);
+      return concluirEntrada(res, usuario, workspaces);
+    }
+
+    const restantes = consumirCodigoReserva(corpo.codigo, usuario.doisFatores.codigosReserva);
+    if (restantes) {
+      atualizar('usuarios', usuario.id, { doisFatores: { ...usuario.doisFatores, codigosReserva: restantes } });
+      desafios.delete(corpo.desafio);
+      registrarLog(desafio.workspaceId, null, 'seguranca', `Entrou com codigo de reserva (restam ${restantes.length})`, { tipo: 'usuario', id: usuario.id, nome: usuario.nome });
+      const workspaces = workspacesDoUsuario(usuario.id);
+      return concluirEntrada(res, usuario, workspaces, { reservaRestante: restantes.length });
+    }
+
+    contarErroDeSenha(usuario.id);
+    registrarLog(desafio.workspaceId, null, 'seguranca', 'Codigo de segundo fator incorreto', { tipo: 'usuario', id: usuario.id, nome: usuario.nome });
+    const erro = new Error('Codigo incorreto.');
+    erro.codigo = 401;
+    throw erro;
+  }, { publica: true });
+
+  /**
+   * Passo da adesao: o primeiro codigo confirma que o app foi pareado. So
+   * entao o segredo passa a valer na conta e os codigos de reserva nascem —
+   * mostrados UMA vez, aqui, para a pessoa guardar.
+   */
+  rotas.post('/api/sessao/2fa/confirmar', async ({ res, corpo }) => {
+    const desafio = lerDesafio(corpo.desafio);
+    if (!desafio?.segredoPendente) {
+      const erro = new Error('A configuracao expirou. Entre com a senha de novo.');
+      erro.codigo = 401;
+      throw erro;
+    }
+    if (!conferirCodigo(desafio.segredoPendente, corpo.codigo)) {
+      const erro = new Error('O codigo nao confere. Confira a hora do celular e tente o codigo atual do app.');
+      erro.codigo = 401;
+      throw erro;
+    }
+    const usuario = achar('usuarios', desafio.usuarioId);
+    if (!usuario) {
+      const erro = new Error('Conta nao encontrada.');
+      erro.codigo = 404;
+      throw erro;
+    }
+    const { emClaro, hashes } = gerarCodigosReserva();
+    atualizar('usuarios', usuario.id, {
+      doisFatores: { ativo: true, segredo: desafio.segredoPendente, codigosReserva: hashes, confirmadoEm: agora() },
+    });
+    desafios.delete(corpo.desafio);
+    registrarLog(desafio.workspaceId, null, 'seguranca', 'Ativou o segundo fator', { tipo: 'usuario', id: usuario.id, nome: usuario.nome });
+    const workspaces = workspacesDoUsuario(usuario.id);
+    return concluirEntrada(res, achar('usuarios', usuario.id), workspaces, { codigosReserva: emClaro });
   }, { publica: true });
 
   rotas.post('/api/sessao/sair', async ({ res, ctx }) => {
@@ -397,6 +558,19 @@ export function registrarSessao(rotas) {
         mudancas.senha = hashSenha(senha);
       }
       if (Object.keys(mudancas).length) atualizar('usuarios', membro.usuarioId, mudancas);
+    }
+
+    /* Reiniciar o segundo fator: a saida para quem perdeu o celular. So o
+       administrador faz, e a conta volta a ter de parear um app no proximo
+       login (o segundo fator continua obrigatorio, so o aparelho muda). */
+    if (corpo.resetar2fa) {
+      exigirAdministrador(ctx);
+      atualizar('usuarios', membro.usuarioId, { doisFatores: null });
+      registrarLog(ctx.workspaceId, null, 'seguranca', `Segundo fator reiniciado para ${achar('usuarios', membro.usuarioId)?.nome || membro.usuarioId}`, {
+        tipo: 'membro',
+        id: ctx.membro?.id,
+        nome: ctx.usuario?.nome,
+      });
     }
 
     const mudancasDoMembro = {};

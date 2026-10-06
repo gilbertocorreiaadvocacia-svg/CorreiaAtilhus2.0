@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { esperarNoAr, suite } from './apoio.js';
+import { SEGREDO_2FA_TESTE, esperarNoAr, suite } from './apoio.js';
 import { subirEvolucaoFalsa } from './evolution-falsa.js';
 import { subirAnthropicFalsa } from './anthropic-falsa.js';
 import { testarQrCode } from './conexoes-qrcode.js';
@@ -38,6 +38,7 @@ import { testarEventosDeConexao } from './eventos-conexao.js';
 import { testarHigiene } from './higiene.js';
 import { testarBaseEStatus } from './base-e-status.js';
 import { testarVoz } from './voz.js';
+import { testarDoisFatores } from './doisfatores.js';
 import { testarVozDosAgentes } from './voz-dos-agentes.js';
 import { subirOpenaiFalsa } from './openai-falsa.js';
 import { testarAtalhos } from './atalhos.js';
@@ -149,6 +150,10 @@ async function principal() {
       ...process.env,
       PORTA: String(portaSistema),
       CORREIA_DADOS: pastaDados,
+      /* So em teste: o admin semeado ja nasce com o segundo fator pareado neste
+         segredo, para entrar() (apoio.js) calcular o codigo. Em producao esta
+         variavel nunca existe, e o admin pareia o proprio app no primeiro login. */
+      CORREIA_2FA_SEMENTE: SEGREDO_2FA_TESTE,
       /* O sistema fala com a Anthropic de mentira, e nao com a de verdade:
          a suite nao pode depender de internet nem gastar chave do escritorio. */
       CORREIA_ANTHROPIC_URL: anthropic,
@@ -242,6 +247,7 @@ async function principal() {
     /* Tambem usa a Anthropic de mentira, e poe e tira a chave. */
     suites.push(await testarAvaliacao({ base, anthropic }));
     suites.push(await testarVoz({ base, anthropic, openai }));
+    suites.push(await testarDoisFatores({ base }));
     /* Cria workspaces novos: depois de quem conta agentes e etiquetas da origem. */
     suites.push(await testarWorkspacesPorArea({ base }));
     /* Depois de todas as outras: acrescenta conversas em Ativos, e as suites

@@ -1,4 +1,4 @@
-import { achar, inserir, listar, tabela } from './banco.js';
+import { achar, atualizar, inserir, listar, tabela } from './banco.js';
 import { criarUsuario } from './auth.js';
 import { novoId } from './util.js';
 import { migrarTiposDeCaso } from './casos.js';
@@ -416,6 +416,16 @@ export function semearSePrecisar() {
     email: 'admin@correia.adv.br',
     senha: 'correia2026',
   });
+
+  /* So nos testes: o segundo fator ja nasce pareado com um segredo conhecido,
+     para a suite poder calcular o codigo e entrar. CORREIA_2FA_SEMENTE nunca e
+     definida em producao — la o administrador pareia o proprio app no primeiro
+     login, como todo mundo. */
+  if (process.env.CORREIA_2FA_SEMENTE) {
+    atualizar('usuarios', usuario.id, {
+      doisFatores: { ativo: true, segredo: process.env.CORREIA_2FA_SEMENTE, codigosReserva: [], confirmadoEm: new Date().toISOString() },
+    });
+  }
 
   inserir('membros', {
     id: novoId('mbr'),

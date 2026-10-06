@@ -3,7 +3,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { cliente, esperar, esperarNoAr, suite } from './apoio.js';
+import { SEGREDO_2FA_TESTE, cliente, esperar, esperarNoAr, suite } from './apoio.js';
+import { codigoDe } from '../nucleo/doisfatores.js';
 
 /**
  * O sistema hospedado (CORREIA_HOSPEDADO=1, hospedagem/docker-compose.yml).
@@ -43,6 +44,9 @@ export async function testarHospedagem({ raiz, portaLivre }) {
         CORREIA_EVOLUTION_ENV: path.join(dados, 'sem-evolution.env'),
         ANTHROPIC_API_KEY: '',
         OPENAI_API_KEY: '',
+        /* Admin ja pareado com o segredo conhecido, para a suite completar o
+           segundo fator. A adesao em si e exercida na suite doisfatores. */
+        CORREIA_2FA_SEMENTE: SEGREDO_2FA_TESTE,
         ...extra,
       },
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -82,15 +86,29 @@ export async function testarHospedagem({ raiz, portaLivre }) {
     );
     if (!s.ok('com a senha no ambiente, sobe', await esperarNoAr(`${base}/api/saude`))) return s;
 
-    s.ok('a senha padrao nao entra', (await cliente(base).entrar()).status !== 200);
+    s.ok('a senha padrao nao entra', (await cliente(base).entrarSenha()).status !== 200);
 
+    /* A senha certa nao abre sessao direto: o segundo fator e obrigatorio. O
+       admin ja esta pareado (semente), entao o passo da senha devolve o DESAFIO
+       do codigo, sem cookie ainda. */
     const entrada = await fetch(`${base}/api/sessao/entrar`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: 'admin@correia.adv.br', senha }),
     });
-    const cookies = entrada.headers.getSetCookie?.() || [entrada.headers.get('set-cookie')].filter(Boolean);
-    s.ok('a senha do ambiente entra', entrada.status === 200, String(entrada.status));
+    const dadosEntrada = await entrada.json();
+    s.ok('a senha do ambiente passa para o segundo fator', entrada.status === 200 && dadosEntrada.etapa === 'codigo', `${entrada.status} ${dadosEntrada.etapa}`);
+    s.ok('o passo da senha ainda nao cria sessao', !(entrada.headers.getSetCookie?.() || [entrada.headers.get('set-cookie')].filter(Boolean)).length);
+
+    /* Dado o codigo do app, AI nasce a sessao — e e esse cookie que precisa ser
+       Secure na internet. */
+    const conclusao = await fetch(`${base}/api/sessao/2fa/entrar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ desafio: dadosEntrada.desafio, codigo: codigoDe(SEGREDO_2FA_TESTE) }),
+    });
+    const cookies = conclusao.headers.getSetCookie?.() || [conclusao.headers.get('set-cookie')].filter(Boolean);
+    s.ok('concluir o segundo fator entra', conclusao.status === 200, String(conclusao.status));
     s.ok('o cookie da sessao so anda por HTTPS (Secure)', cookies.some((c) => /;\s*Secure/i.test(c)), cookies.join(' | '));
 
     const api = cliente(base);
