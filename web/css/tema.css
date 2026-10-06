@@ -6389,6 +6389,29 @@ select.chat-teste-escolha {
   font-weight: 600;
 }
 
+/* O menu de opcoes da coluna (reticencias) fica discreto no canto do cabecalho
+   e so acende no hover/foco da coluna, para nao competir com o nome. */
+.kanban-coluna > header .menu-acoes {
+  flex: none;
+  margin-left: calc(-1 * var(--e1));
+  opacity: 0.55;
+  transition: opacity var(--transicao);
+}
+
+.kanban-coluna:hover > header .menu-acoes,
+.kanban-coluna > header .menu-acoes:focus-within {
+  opacity: 1;
+}
+
+/* A barra das colunas que o usuario escondeu: fica entre o aviso e o quadro. */
+.kanban-escondidas {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--e2);
+  padding: var(--e2) 0;
+}
+
 /* minmax(0, 1fr): sem ele o cartao cresce ate o tamanho do nome e da ultima
    fala, que nao quebram linha, e passa da largura da coluna em vez de cortar
    com reticencia. */

@@ -1,5 +1,5 @@
 import { api, enviarArquivo } from '../api.js';
-import { abrirVisualizador, campoComDica, cartaoDeArquivo, dica, paginacao, previaDaMidia } from '../componentes.js';
+import { abrirVisualizador, campoComDica, cartaoDeArquivo, dica, menuAcoes, paginacao, previaDaMidia } from '../componentes.js';
 import {
   acharConexao,
   acharEtiqueta,
@@ -27,7 +27,9 @@ import {
   modal,
   numero,
   plural,
+  preferencia,
   quando,
+  salvarPreferencia,
   selecao,
   selo,
   telefone,
@@ -3770,6 +3772,71 @@ export async function paginaAtendimento({
     await api.post('/api/status/ordenar', { ordem: ids });
   }
 
+  /* ---------------- Colunas do quadro: esconder e mover ----------------
+   *
+   * Esconder e preferencia de quem olha, guardada neste navegador (ver
+   * `preferencia` em ui.js): tira a coluna da MINHA vista, sem mexer no funil do
+   * escritorio nem na vista de ninguem. Mover e renomear, ao contrario, mudam o
+   * funil para todos, entao so quem pode configurar faz, e reaproveitam as rotas
+   * que ja existem (PATCH /api/status/:id e POST /api/status/ordenar). */
+  const CHAVE_OCULTAS = 'kanbanOcultas';
+  const colunasOcultas = () => new Set(preferencia(CHAVE_OCULTAS, []));
+
+  function esconderColuna(id) {
+    const conjunto = colunasOcultas();
+    conjunto.add(id);
+    salvarPreferencia(CHAVE_OCULTAS, [...conjunto]);
+    desenhar();
+  }
+
+  function mostrarColuna(id) {
+    const conjunto = colunasOcultas();
+    conjunto.delete(id);
+    salvarPreferencia(CHAVE_OCULTAS, [...conjunto]);
+    desenhar();
+  }
+
+  /* Move a coluna para o outro lado do vizinho VISIVEL (pulando as escondidas),
+     e grava a ordem inteira — a mesma que as Configuracoes usam. */
+  async function moverColuna(statusId, direcao) {
+    const ocultas = colunasOcultas();
+    const visiveis = estado.status
+      .filter((s) => segmentoDoStatus(s) === segmentoDoFunil && !ocultas.has(s.id))
+      .map((s) => s.id);
+    const i = visiveis.indexOf(statusId);
+    const j = i + direcao;
+    if (i < 0 || j < 0 || j >= visiveis.length) return;
+    const vizinho = visiveis[j];
+    const ordem = estado.status.map((s) => s.id).filter((id) => id !== statusId);
+    const pos = ordem.indexOf(vizinho);
+    ordem.splice(direcao < 0 ? pos : pos + 1, 0, statusId);
+    try {
+      await api.post('/api/status/ordenar', { ordem });
+      await recarregar('status');
+      await desenhar();
+    } catch (erro) {
+      aviso(`Não consegui mover a coluna: ${erro.message}`, 'erro');
+    }
+  }
+
+  function renomearColuna(status) {
+    const campoNome = entradaTexto(status.nome, { placeholder: 'Nome da coluna' });
+    modal({
+      titulo: `Renomear “${status.nome}”`,
+      corpo: campo('Nome da coluna', campoNome),
+      confirmar: 'Salvar',
+      aoConfirmar: async () => {
+        const nome = campoNome.value.trim();
+        if (!nome) throw new Error('Dê um nome à coluna.');
+        if (nome === status.nome) return;
+        await api.patch(`/api/status/${status.id}`, { nome });
+        await recarregar('status');
+        aviso('Coluna renomeada.', 'sucesso');
+        await desenhar();
+      },
+    });
+  }
+
   /* O cartao "+ Nova coluna" no fim do quadro: abre um mini formulario com nome
      e cor, e cria a coluna no segmento aberto. */
   function tileNovaColuna() {
@@ -3901,14 +3968,32 @@ export async function paginaAtendimento({
     /* So as colunas da parte aberta do funil. "Sem status" entra na Venda, e so
        quando tem alguem: vazia, ela e largura perdida no comeco do quadro. */
     const semStatus = totalPorStatus[''] ?? contatos.filter((c) => !c.statusId).length;
+    const ocultas = colunasOcultas();
     const colunas = [
       ...(segmentoDoFunil === 'venda' && semStatus ? [{ id: '', nome: 'Sem status', cor: 'var(--texto-fraco)' }] : []),
       ...estado.status
-        .filter((s) => segmentoDoStatus(s) === segmentoDoFunil)
+        .filter((s) => segmentoDoStatus(s) === segmentoDoFunil && !ocultas.has(s.id))
         .map((s) => ({ id: s.id, nome: s.nome, cor: s.cor })),
     ];
     quadro.style.setProperty('--colunas', String(Math.max(colunas.length, 1)));
     definirAcoes(acoesDoFunil());
+
+    /* Barra das colunas escondidas DESTE segmento: cada uma volta num clique. So
+       minha vista, entao o aviso usa "você". */
+    const escondidasAqui = estado.status.filter((s) => segmentoDoStatus(s) === segmentoDoFunil && ocultas.has(s.id));
+    if (escondidasAqui.length) {
+      area.append(
+        el('div', { class: 'kanban-escondidas' }, [
+          el('span', { class: 'c-suave t-sm', texto: `Você escondeu ${plural(escondidasAqui.length, 'coluna', 'colunas')}:` }),
+          ...escondidasAqui.map((s) =>
+            el('button', { type: 'button', class: 'selo selo-clicavel', title: `Mostrar ${s.nome}`, aoClick: () => mostrarColuna(s.id) }, [
+              icone('mais', 12),
+              el('span', { texto: s.nome }),
+            ]),
+          ),
+        ]),
+      );
+    }
 
     for (const coluna of colunas) {
       const daColuna = contatos.filter((c) => (c.statusId || '') === coluna.id);
@@ -4073,12 +4158,30 @@ export async function paginaAtendimento({
           })
         : el('span', { class: 'ponto', estilo: { background: coluna.cor } });
 
+      /* Menu da coluna. Esconder e de quem olha (todo mundo pode). Renomear e
+         mover mudam o funil para todos, entao so para quem pode configurar, e
+         reusam as rotas que ja existem. "Sem status" nao tem menu: nao e uma
+         coluna de verdade, e so aparece quando ha conversa sem status. */
+      const menuColuna = coluna.id
+        ? menuAcoes(
+            [
+              podeConfigurar() ? { rotulo: 'Renomear', icone: 'pessoa', aoClicar: () => renomearColuna(estado.status.find((s) => s.id === coluna.id)) } : null,
+              podeConfigurar() ? { rotulo: 'Mover para a esquerda', icone: 'voltar', aoClicar: () => moverColuna(coluna.id, -1) } : null,
+              podeConfigurar() ? { rotulo: 'Mover para a direita', icone: 'abrir', aoClicar: () => moverColuna(coluna.id, +1) } : null,
+              podeConfigurar() ? { separador: true } : null,
+              { rotulo: 'Esconder da minha vista', icone: 'arquivar', aoClicar: () => esconderColuna(coluna.id) },
+            ],
+            { rotulo: `Opções da coluna ${coluna.nome}` },
+          )
+        : null;
+
       const colunaNo = el('div', { class: 'kanban-coluna', estilo: { '--cor-coluna': coluna.cor } }, [
         el('header', {}, [
           pontoCor,
           el('span', { class: 'flexivel encolhe cortar', texto: coluna.nome }),
           contagem,
           somaNaoLidas,
+          menuColuna,
         ]),
         lista,
       ]);
