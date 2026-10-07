@@ -1,5 +1,5 @@
 import { api, enviarArquivo } from '../api.js';
-import { abrirVisualizador, campoComDica, cartaoDeArquivo, dica, menuAcoes, paginacao, previaDaMidia } from '../componentes.js';
+import { abrirVisualizador, campoComDica, cartaoDeArquivo, dica, menuAcoes, paginacao, previaDaMidia, seletorDeWorkspace } from '../componentes.js';
 import { editarStatus } from './configuracoes.js';
 import {
   acharConexao,
@@ -610,6 +610,7 @@ export async function paginaAtendimento({
     botaoFiltros.classList.toggle('ativo', ligados.length > 0);
 
     const cabeca = el('div', { class: 'coluna-cabecalho sem-respiro' }, [
+      estado.sessao.workspaces.length > 1 ? seletorDeWorkspace() : null,
       abas,
       concluidos,
       el('div', { class: 'busca-fila' }, [el('label', { class: 'busca-fila-caixa' }, [icone('lupa', 14), busca]), botaoFiltros]),
