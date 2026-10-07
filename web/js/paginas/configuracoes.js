@@ -2,6 +2,7 @@ import { api, enviarArquivo } from '../api.js';
 import { campoComDica, cartaoComDica, dica, seletorDeCor, seletorPeriodo } from '../componentes.js';
 import { carregarSessao, definirTema, ehAdmin, ehOwner, estado, podeConfigurar, recarregar } from '../estado.js';
 import {
+  areaTexto,
   avatar,
   aviso,
   botao,
@@ -9,6 +10,7 @@ import {
   cartao,
   confirmar,
   dataHora,
+  desenharQrOtpauth,
   duracao,
   el,
   entradaSegredo,
@@ -508,6 +510,59 @@ async function secaoMinhaConta(recarregarTela) {
 /* Seguranca                                                           */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Troca o aparelho do segundo fator sem depender do administrador: comeca o
+ * cadastro (o servidor guarda o segredo novo como pendente, sem tocar no
+ * ativo), mostra o QR e so sobe o novo a "ativo" quando o primeiro codigo
+ * confere. Fechar sem confirmar cancela — o aparelho antigo nunca para de
+ * valer no meio do caminho.
+ */
+async function abrirTrocaDeAparelho() {
+  let dados;
+  try {
+    dados = await api.post('/api/perfil/2fa/trocar/iniciar', {});
+  } catch (erro) {
+    aviso(erro.message, 'erro');
+    return;
+  }
+
+  let confirmado = false;
+  const areaQr = el('div', { class: 'entrada-qr', 'aria-label': 'QR code para o app autenticador' });
+  desenharQrOtpauth(areaQr, dados.otpauth);
+  const codigo = entradaTexto('', { inputmode: 'numeric', autocomplete: 'one-time-code', placeholder: '000000' });
+  const copiar = botao('Copiar chave', {
+    pequeno: true,
+    aoClicar: async () => {
+      try {
+        await navigator.clipboard.writeText(dados.segredo);
+        copiar.textContent = 'Copiada';
+        setTimeout(() => (copiar.textContent = 'Copiar chave'), 1500);
+      } catch {
+        /* sem permissao de area de transferencia: a chave esta a vista para digitar */
+      }
+    },
+  });
+
+  modal({
+    titulo: 'Trocar aparelho',
+    corpo: el('div', {}, [
+      el('p', { class: 'sem-margem c-suave', texto: `Conta: ${dados.conta}. No app novo, escaneie o QR ou cole a chave abaixo.` }),
+      areaQr,
+      el('div', { class: 'entrada-chave' }, [el('code', { texto: dados.segredoLegivel }), copiar]),
+      campo('Código do app novo', codigo, 'O aparelho antigo continua valendo até você confirmar aqui.'),
+    ]),
+    confirmar: 'Confirmar troca',
+    aoConfirmar: async () => {
+      await api.post('/api/perfil/2fa/trocar/confirmar', { codigo: codigo.value.trim() });
+      confirmado = true;
+      aviso('Aparelho trocado. O antigo não abre mais a conta.', 'sucesso');
+    },
+    aoFechar: () => {
+      if (!confirmado) api.post('/api/perfil/2fa/trocar/cancelar', {}).catch(() => {});
+    },
+  });
+}
+
 async function secaoSeguranca(recarregarTela) {
   const senhaAtual = entradaSegredo('', { autocomplete: 'current-password' });
   const senhaNova = entradaSegredo('', { autocomplete: 'new-password' });
@@ -566,6 +621,28 @@ async function secaoSeguranca(recarregarTela) {
       rodapeAjustes(trocar),
     ),
   ];
+
+  /* Verificacao em duas etapas ----------------------------------------- */
+  // So aparece com o segundo fator ja ativo: quem ainda nao pareou faz isso no
+  // proximo login (e obrigatorio). Trocar de aparelho aqui nunca deixa a
+  // conta sem protecao no meio do caminho — o aparelho velho continua valendo
+  // ate o novo confirmar o primeiro codigo.
+  if (estado.sessao.usuario?.doisFatoresAtivo) {
+    partes.push(
+      subsecao(
+        'Verificação em duas etapas',
+        'Trocou de celular? Cadastre o aparelho novo sem perder o acesso: o antigo continua valendo até o novo confirmar.',
+        cartao(
+          null,
+          null,
+          el('div', { class: 'linha-botoes', estilo: { alignItems: 'center' } }, [
+            selo('ativa', 'sucesso'),
+            botao('Trocar aparelho', { pequeno: true, aoClicar: abrirTrocaDeAparelho }),
+          ]),
+        ),
+      ),
+    );
+  }
 
   /* Sessoes ativas ---------------------------------------------------- */
   // O bloco so aparece se o servidor souber responder. A rota devolve quando
@@ -1304,25 +1381,16 @@ function editarMembro(membro, recarregarTela) {
       /* Segundo fator: o administrador ve o estado e reinicia para quem perdeu o
          celular. Reiniciar nao desliga a trava — a conta pareia um app novo no
          proximo login. So aparece em membro que ja existe e so para o admin. */
-      !novo && ehAdmin()
+      // So para quem administra, e nunca para o proprio: quem ainda tem o
+      // celular troca de aparelho sozinho em Configuracoes > Seguranca, sem
+      // nunca ficar sem protecao no meio do caminho.
+      !novo && ehAdmin() && !oProprio
         ? el('div', { class: 'campo' }, [
             el('span', { texto: 'Verificação em duas etapas' }),
             el('div', { class: 'linha-botoes', estilo: { alignItems: 'center' } }, [
               selo(membro.usuario?.doisFatoresAtivo ? 'ativa' : 'não configurada', membro.usuario?.doisFatoresAtivo ? 'sucesso' : 'alerta'),
               membro.usuario?.doisFatoresAtivo
-                ? botao('Reiniciar', {
-                    pequeno: true,
-                    aoClicar: () =>
-                      confirmar(
-                        'Reiniciar verificação em duas etapas?',
-                        `${membro.usuario?.nome} terá de cadastrar o app autenticador de novo no próximo login. Use quando a pessoa perder o celular.`,
-                        async () => {
-                          await api.patch(`/api/membros/${membro.id}`, { resetar2fa: true });
-                          aviso('Verificação em duas etapas reiniciada. A pessoa cadastra o app no próximo login.', 'sucesso');
-                        },
-                        'Reiniciar',
-                      ),
-                  })
+                ? botao('Reiniciar', { pequeno: true, aoClicar: () => pedirMotivoEReiniciar2fa(membro, recarregarTela) })
                 : null,
             ]),
           ])
@@ -1345,6 +1413,30 @@ function editarMembro(membro, recarregarTela) {
         await api.patch(`/api/membros/${membro.id}`, dados);
       }
       aviso('Membro salvo.', 'sucesso');
+      await recarregarTela();
+    },
+  });
+}
+
+/**
+ * Reiniciar o segundo fator de outra pessoa tira a protecao dela por um
+ * tempo — ate ela cadastrar o aparelho novo no proximo login. Por isso o
+ * motivo e obrigatorio e fica gravado na trilha de seguranca (o servidor
+ * recusa sem ele); nao e so mais um clique de confirmar.
+ */
+function pedirMotivoEReiniciar2fa(membro, recarregarTela) {
+  const motivo = areaTexto('', { rows: 2, placeholder: 'Ex.: perdeu o celular, aparelho roubado...' });
+  modal({
+    titulo: 'Reiniciar verificação em duas etapas?',
+    corpo: el('div', {}, [
+      el('p', { class: 'sem-margem c-suave', texto: `${membro.usuario?.nome} terá de cadastrar o app autenticador de novo no próximo login. Use quando a pessoa perder o celular.` }),
+      campo('Motivo', motivo, 'Fica registrado na trilha de segurança.'),
+    ]),
+    confirmar: 'Reiniciar',
+    aoConfirmar: async () => {
+      if (motivo.value.trim().length < 5) throw new Error('Diga por que — o motivo fica registrado.');
+      await api.patch(`/api/membros/${membro.id}`, { resetar2fa: true, motivoReset2fa: motivo.value.trim() });
+      aviso('Verificação em duas etapas reiniciada. A pessoa cadastra o app no próximo login.', 'sucesso');
       await recarregarTela();
     },
   });

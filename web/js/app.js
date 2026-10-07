@@ -14,7 +14,7 @@ import {
   podeConfigurar,
   tema,
 } from './estado.js';
-import { areaTexto, avatar, aviso, botao, campo, dataHora, el, entradaSegredo, entradaTexto, icone, interruptor, limpar, modal, preferencia, salvarPreferencia, selecao, selo, telefone } from './ui.js';
+import { areaTexto, avatar, aviso, botao, campo, dataHora, desenharQrOtpauth, el, entradaSegredo, entradaTexto, icone, interruptor, limpar, modal, preferencia, salvarPreferencia, selecao, selo, telefone } from './ui.js';
 import {
   definirSistema,
   definirSom,
@@ -172,25 +172,6 @@ function saudacaoDaHora(data = new Date()) {
  * abrisse o endereco, e o sistema vai para a internet (HOSPEDAGEM.md); quem
  * instala le no README e no console do servidor.
  */
-/* Carrega a biblioteca de QR uma vez so, do cdnjs. Quem pede espera o mesmo
-   carregamento, sem baixar o script duas vezes. */
-let qrCarregando = null;
-function carregarQr() {
-  if (window.qrcode) return Promise.resolve();
-  if (qrCarregando) return qrCarregando;
-  qrCarregando = new Promise((resolve, reject) => {
-    const script = document.createElement('script');
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js';
-    script.onload = () => resolve();
-    script.onerror = () => {
-      qrCarregando = null;
-      reject(new Error('sem rede para o QR'));
-    };
-    document.head.append(script);
-  });
-  return qrCarregando;
-}
-
 function telaEntrada(mensagemInicial) {
   limpar(raiz);
 
@@ -365,14 +346,7 @@ function telaEntrada(mensagemInicial) {
     /* O QR code do app autenticador, desenhado a partir do endereco otpauth que
        o servidor manda. A biblioteca so e carregada aqui, na tela de adesao. */
     const areaQr = el('div', { class: 'entrada-qr', 'aria-label': 'QR code para o app autenticador' });
-    carregarQr().then(() => {
-      const gerador = window.qrcode(0, 'M');
-      gerador.addData(dados.otpauth);
-      gerador.make();
-      areaQr.innerHTML = gerador.createSvgTag({ cellSize: 4, margin: 2 });
-    }).catch(() => {
-      areaQr.replaceChildren(el('small', { class: 'c-suave', texto: 'Não consegui desenhar o QR. Use a chave abaixo.' }));
-    });
+    desenharQrOtpauth(areaQr, dados.otpauth);
     const copiar = botao('Copiar chave', {
       aoClicar: async () => {
         try {

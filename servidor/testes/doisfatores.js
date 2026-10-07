@@ -11,7 +11,11 @@ import { codigoDe } from '../nucleo/doisfatores.js';
  *  - o segredo nunca volta para a tela depois de pareado;
  *  - codigo errado nao entra;
  *  - desafio vencido/invalido nao entra;
- *  - o administrador reinicia o segundo fator de quem perdeu o celular;
+ *  - o administrador reinicia o segundo fator de quem perdeu o celular, mas
+ *    nunca sem motivo (fica na trilha) e nunca o PROPRIO, por aqui;
+ *  - quem ainda tem o aparelho troca por um novo sozinho, sem o administrador,
+ *    e nunca fica sem protecao no meio do caminho: o antigo so para de valer
+ *    quando o novo confirma o primeiro codigo; desistir mantem o atual;
  *  - SENHA errada trava depois de 5 tentativas, e so a troca certa nao basta
  *    mais ate passar o tempo — sem isso, a senha podia ser tentada sem fim;
  *  - o codigo da ADESAO (parear o app pela primeira vez) trava do mesmo jeito.
@@ -76,15 +80,79 @@ export async function testarDoisFatores({ base }) {
   s.ok('desafio que nao existe nao entra', semDesafio.status === 401, String(semDesafio.status));
 
   /* --- Administrador reinicia o segundo fator ------------------------- */
-  const resetPorSuporte = await c.patch(`/api/membros/${membroId}`, { resetar2fa: true });
+  const resetPorSuporte = await c.patch(`/api/membros/${membroId}`, { resetar2fa: true, motivoReset2fa: 'perdeu o celular' });
   s.ok('quem nao e administrador nao reinicia segundo fator', resetPorSuporte.status === 403, String(resetPorSuporte.status));
 
-  const reset = await admin.patch(`/api/membros/${membroId}`, { resetar2fa: true });
-  s.ok('o administrador reinicia o segundo fator', reset.status === 200, JSON.stringify(reset.dados));
+  const resetSemMotivo = await admin.patch(`/api/membros/${membroId}`, { resetar2fa: true });
+  s.ok('reiniciar sem motivo e recusado', resetSemMotivo.status === 400, String(resetSemMotivo.status));
+
+  const resetMotivoCurto = await admin.patch(`/api/membros/${membroId}`, { resetar2fa: true, motivoReset2fa: 'ab' });
+  s.ok('motivo muito curto e recusado', resetMotivoCurto.status === 400, String(resetMotivoCurto.status));
+
+  const reset = await admin.patch(`/api/membros/${membroId}`, { resetar2fa: true, motivoReset2fa: 'perdeu o celular' });
+  s.ok('o administrador reinicia o segundo fator, com motivo', reset.status === 200, JSON.stringify(reset.dados));
 
   const c5 = cliente(base);
   const p5 = await c5.post('/api/sessao/entrar', { email, senha });
   s.ok('reiniciado, a conta volta a pedir adesao', p5.dados?.etapa === 'adesao', JSON.stringify(p5.dados?.etapa));
+  // Conclui a adesao de novo, so para o membro de teste sair com conta normal.
+  await c5.post('/api/sessao/2fa/confirmar', { desafio: p5.dados.desafio, codigo: codigoDe(p5.dados.segredo) });
+
+  /* --- O administrador nao reinicia o PROPRIO segundo fator por aqui --- */
+  const membroDoAdmin = (await admin.get('/api/membros')).dados?.find((m) => m.usuario?.email === 'admin@correia.adv.br');
+  if (membroDoAdmin) {
+    const autoReset = await admin.patch(`/api/membros/${membroDoAdmin.id}`, { resetar2fa: true, motivoReset2fa: 'teste' });
+    s.ok('o administrador nao reinicia o proprio segundo fator por aqui', autoReset.status === 400, String(autoReset.status));
+  }
+
+  /* --- Troca de aparelho (self-service), sem perder a protecao -------- */
+  const emailTroca = 'troca-aparelho@correia.adv.br';
+  const senhaTroca = 'senha-correta-da-troca';
+  const membroTroca = (await admin.post('/api/membros', { email: emailTroca, nome: 'Troca Aparelho', senha: senhaTroca, papel: 'atendente' })).dados;
+
+  const cTroca = cliente(base);
+  const p6 = await cTroca.post('/api/sessao/entrar', { email: emailTroca, senha: senhaTroca });
+  const segredoAntigo = p6.dados.segredo;
+  await cTroca.post('/api/sessao/2fa/confirmar', { desafio: p6.dados.desafio, codigo: codigoDe(segredoAntigo) });
+
+  const semSessao = await cliente(base).post('/api/perfil/2fa/trocar/iniciar', {});
+  s.ok('trocar aparelho exige sessao', semSessao.status === 401 || semSessao.status === 403, String(semSessao.status));
+
+  const iniciarTroca = await cTroca.post('/api/perfil/2fa/trocar/iniciar', {});
+  s.ok(
+    'comeca a troca e devolve um segredo novo, diferente do atual',
+    Boolean(iniciarTroca.dados?.segredo) && iniciarTroca.dados.segredo !== segredoAntigo,
+    JSON.stringify(Object.keys(iniciarTroca.dados || {})),
+  );
+  const segredoNovo = iniciarTroca.dados.segredo;
+
+  const p6b = await cliente(base).post('/api/sessao/entrar', { email: emailTroca, senha: senhaTroca });
+  const aindaComOAntigo = await cliente(base).post('/api/sessao/2fa/entrar', { desafio: p6b.dados.desafio, codigo: codigoDe(segredoAntigo) });
+  s.ok('o aparelho antigo continua valendo enquanto a troca nao confirma', aindaComOAntigo.status === 200, String(aindaComOAntigo.status));
+
+  const confirmarComCodigoErrado = await cTroca.post('/api/perfil/2fa/trocar/confirmar', { codigo: '000000' });
+  s.ok('confirmar a troca com codigo errado nao troca nada', confirmarComCodigoErrado.status === 401, String(confirmarComCodigoErrado.status));
+
+  const confirmarTroca = await cTroca.post('/api/perfil/2fa/trocar/confirmar', { codigo: codigoDe(segredoNovo) });
+  s.ok('confirma a troca com o codigo do aparelho novo', confirmarTroca.status === 200, JSON.stringify(confirmarTroca.dados));
+
+  const p6c = await cliente(base).post('/api/sessao/entrar', { email: emailTroca, senha: senhaTroca });
+  const antigoNaoEntraMais = await cliente(base).post('/api/sessao/2fa/entrar', { desafio: p6c.dados.desafio, codigo: codigoDe(segredoAntigo) });
+  s.ok('depois da troca, o aparelho antigo nao entra mais', antigoNaoEntraMais.status === 401, String(antigoNaoEntraMais.status));
+
+  const p6d = await cliente(base).post('/api/sessao/entrar', { email: emailTroca, senha: senhaTroca });
+  const novoEntraNormalmente = await cliente(base).post('/api/sessao/2fa/entrar', { desafio: p6d.dados.desafio, codigo: codigoDe(segredoNovo) });
+  s.ok('o aparelho novo entra normalmente', novoEntraNormalmente.status === 200, String(novoEntraNormalmente.status));
+
+  /* Cancelar no meio do caminho: o aparelho atual continua valendo. */
+  const cTroca2 = cliente(base);
+  const p7 = await cTroca2.post('/api/sessao/entrar', { email: emailTroca, senha: senhaTroca });
+  await cTroca2.post('/api/sessao/2fa/entrar', { desafio: p7.dados.desafio, codigo: codigoDe(segredoNovo) });
+  await cTroca2.post('/api/perfil/2fa/trocar/iniciar', {});
+  await cTroca2.post('/api/perfil/2fa/trocar/cancelar', {});
+  const p7b = await cliente(base).post('/api/sessao/entrar', { email: emailTroca, senha: senhaTroca });
+  const aindaComOAtualDepoisDeCancelar = await cliente(base).post('/api/sessao/2fa/entrar', { desafio: p7b.dados.desafio, codigo: codigoDe(segredoNovo) });
+  s.ok('cancelar a troca mantem o aparelho atual valendo', aindaComOAtualDepoisDeCancelar.status === 200, String(aindaComOAtualDepoisDeCancelar.status));
 
   /* --- Freio na SENHA: trava depois de 5 erros seguidos ---------------- */
   const emailFreioSenha = 'freio-senha@correia.adv.br';
@@ -132,6 +200,7 @@ export async function testarDoisFatores({ base }) {
   /* Limpeza: tira os membros de teste para as suites seguintes nao contarem com eles. */
   await admin.delete(`/api/membros/${membroId}`);
   await admin.delete(`/api/membros/${membroFreioSenha.id}`);
+  await admin.delete(`/api/membros/${membroTroca.id}`);
   const membrosFinal = (await admin.get('/api/membros')).dados || [];
   const membroFreioAdesaoFinal = membrosFinal.find((m) => m.usuario?.email === emailFreioAdesao);
   if (membroFreioAdesaoFinal) await admin.delete(`/api/membros/${membroFreioAdesaoFinal.id}`);

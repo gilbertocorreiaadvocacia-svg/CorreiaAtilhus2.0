@@ -1,6 +1,38 @@
 import { ICONES, VIEWBOX } from './icones.js';
 /** Pecas de interface reaproveitadas em todas as telas. */
 
+/* Carrega a biblioteca de QR uma vez so, do cdnjs. Quem pede espera o mesmo
+   carregamento, sem baixar o script duas vezes. Compartilhada entre a tela de
+   entrada (adesao) e Configuracoes > Seguranca (trocar aparelho). */
+let qrCarregando = null;
+export function carregarQr() {
+  if (window.qrcode) return Promise.resolve();
+  if (qrCarregando) return qrCarregando;
+  qrCarregando = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js';
+    script.onload = () => resolve();
+    script.onerror = () => {
+      qrCarregando = null;
+      reject(new Error('sem rede para o QR'));
+    };
+    document.head.append(script);
+  });
+  return qrCarregando;
+}
+
+/** Desenha o otpauth:// recebido do servidor dentro de `area`. */
+export function desenharQrOtpauth(area, otpauth) {
+  carregarQr().then(() => {
+    const gerador = window.qrcode(0, 'M');
+    gerador.addData(otpauth);
+    gerador.make();
+    area.innerHTML = gerador.createSvgTag({ cellSize: 4, margin: 2 });
+  }).catch(() => {
+    area.replaceChildren(el('small', { class: 'c-suave', texto: 'Não consegui desenhar o QR. Use a chave abaixo.' }));
+  });
+}
+
 export function el(etiqueta, atributos = {}, filhos = []) {
   const no = document.createElement(etiqueta);
   for (const [chave, valor] of Object.entries(atributos)) {

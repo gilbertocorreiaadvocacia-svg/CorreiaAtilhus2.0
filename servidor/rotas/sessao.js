@@ -419,6 +419,66 @@ export function registrarSessao(rotas) {
     };
   });
 
+  /**
+   * Troca de aparelho do segundo fator, sem passar pelo administrador: quem JA
+   * tem o app pareado cadastra um novo sem nunca ficar sem protecao no meio do
+   * caminho. O segredo novo so entra no lugar do antigo depois que o primeiro
+   * codigo do aparelho novo confirma — o aparelho velho continua abrindo a
+   * conta normalmente at'e la. Cadastro pela metade (desistiu, trocou de ideia)
+   * nunca vira o segredo de verdade: o `pendente` so sobe para `ativo` na
+   * confirmacao.
+   */
+  rotas.post('/api/perfil/2fa/trocar/iniciar', async ({ ctx }) => {
+    if (!ctx.usuario.doisFatores?.ativo) {
+      throw comCodigo('Esta conta ainda nao tem verificacao em duas etapas ativa.', 409);
+    }
+    const segredo = gerarSegredo();
+    atualizar('usuarios', ctx.usuarioId, {
+      doisFatores: { ...ctx.usuario.doisFatores, pendente: { segredo, criadoEm: agora() } },
+    });
+    return {
+      segredo,
+      segredoLegivel: segredoLegivel(segredo),
+      otpauth: uriOtpauth({ segredo, conta: ctx.usuario.email }),
+      conta: ctx.usuario.email,
+    };
+  });
+
+  /** Confirma o aparelho novo com o primeiro codigo: so entao ele passa a valer, e o antigo sai. */
+  rotas.post('/api/perfil/2fa/trocar/confirmar', async ({ ctx, corpo }) => {
+    const pendente = ctx.usuario.doisFatores?.pendente;
+    if (!pendente) throw comCodigo('Nenhuma troca de aparelho em andamento. Comece de novo.', 409);
+
+    // O mesmo freio dos outros passos do segundo fator: sem ele, quem tivesse a
+    // sessao aberta podia tentar os seis digitos sem limite ate acertar.
+    const preso = bloqueioDeSenha(ctx.usuarioId);
+    if (preso) throw comCodigo(`Muitas tentativas. Espere ${preso} minuto(s) e tente de novo.`, 429);
+
+    if (!conferirCodigo(pendente.segredo, corpo.codigo)) {
+      contarErroDeSenha(ctx.usuarioId);
+      throw comCodigo('O codigo nao confere. Confira a hora do celular e tente o codigo atual do app.', 401);
+    }
+    limparErrosDeSenha(ctx.usuarioId);
+    atualizar('usuarios', ctx.usuarioId, {
+      doisFatores: { ativo: true, segredo: pendente.segredo, confirmadoEm: agora() },
+    });
+    registrarLog(ctx.workspaceId, null, 'seguranca', 'Trocou o aparelho da verificacao em duas etapas.', {
+      tipo: 'membro',
+      id: ctx.membro?.id,
+      nome: ctx.usuario.nome,
+    });
+    return { ok: true };
+  });
+
+  /** Desiste no meio da troca: o aparelho velho continua valendo, nada muda. */
+  rotas.post('/api/perfil/2fa/trocar/cancelar', async ({ ctx }) => {
+    if (ctx.usuario.doisFatores?.pendente) {
+      const { pendente, ...resto } = ctx.usuario.doisFatores;
+      atualizar('usuarios', ctx.usuarioId, { doisFatores: resto });
+    }
+    return { ok: true };
+  });
+
   /* ---------------- Workspaces ---------------- */
 
   /**
@@ -649,8 +709,21 @@ export function registrarSessao(rotas) {
        login (o segundo fator continua obrigatorio, so o aparelho muda). */
     if (corpo.resetar2fa) {
       exigirAdministrador(ctx);
+      // O proprio nunca reinicia por aqui: quem ainda tem o celular troca de
+      // aparelho sozinho em Configuracoes > Seguranca, sem perder a protecao
+      // no meio do caminho (ver /api/perfil/2fa/trocar/iniciar).
+      if (ehOProprio) {
+        throw comCodigo('O seu segundo fator se troca em Configuracoes > Segurança, com o código do aparelho atual.', 400);
+      }
+      // O motivo fica na trilha de auditoria: reiniciar o segundo fator de
+      // outra pessoa e tirar a protecao dela por um tempo, e isso precisa de um
+      // porque registrado, nao so um clique.
+      const motivo = String(corpo.motivoReset2fa || '').trim();
+      if (motivo.length < 5) {
+        throw comCodigo('Diga por que está reiniciando o segundo fator — o motivo fica registrado.', 400);
+      }
       atualizar('usuarios', membro.usuarioId, { doisFatores: null });
-      registrarLog(ctx.workspaceId, null, 'seguranca', `Segundo fator reiniciado para ${achar('usuarios', membro.usuarioId)?.nome || membro.usuarioId}`, {
+      registrarLog(ctx.workspaceId, null, 'seguranca', `Segundo fator reiniciado para ${achar('usuarios', membro.usuarioId)?.nome || membro.usuarioId}: ${motivo}`, {
         tipo: 'membro',
         id: ctx.membro?.id,
         nome: ctx.usuario?.nome,
