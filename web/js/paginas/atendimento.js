@@ -111,40 +111,6 @@ function etapaDoStatus(status) {
   return sucesso >= 0 && posicao > sucesso ? ETAPAS_DA_VENDA.length - 1 : -1;
 }
 
-function etapasDaVenda(contato) {
-  const status = estado.status.find((s) => s.id === contato.statusId) || null;
-  if (TIPOS_DE_PERDA.includes(status?.tipo)) {
-    return el('span', { class: 'etapas selo erro', title: 'Fora da venda', texto: status.nome });
-  }
-
-  const atual = etapaDoStatus(status);
-  const trilha = el('div', {
-    class: 'etapas',
-    role: 'list',
-    'aria-label': status ? `Etapa da venda: ${status.nome}` : 'Ainda sem etapa da venda',
-  });
-  ETAPAS_DA_VENDA.forEach((etapa, indice) => {
-    if (indice) trilha.append(el('span', { class: 'etapa-traco', 'aria-hidden': 'true' }));
-    const situacao = atual < 0 ? '' : indice < atual ? 'feita' : indice === atual ? 'agora' : '';
-    trilha.append(
-      el(
-        'span',
-        {
-          class: `etapa ${situacao}`.trim(),
-          role: 'listitem',
-          estilo: { '--etapa': etapa.cor },
-          title: indice === atual ? `${etapa.rotulo}: ${status.nome}` : etapa.rotulo,
-        },
-        [
-          el('span', { class: 'etapa-bola' }, [situacao === 'feita' ? icone('ok', 11) : null]),
-          el('span', { class: 'etapa-nome', texto: etapa.rotulo }),
-        ],
-      ),
-    );
-  });
-  return trilha;
-}
-
 /*
  * As tres partes do funil no quadro, tambem pelo tipo do status.
  *
@@ -1102,7 +1068,6 @@ export async function paginaAtendimento({
           seloDeOrigem(contato),
           contato.momento ? el('span', { class: 'cortar', title: 'Momento do lead', texto: contato.momento.nome }) : null,
         ]),
-        etapasDaVenda(contato),
       ]),
     ]);
 
