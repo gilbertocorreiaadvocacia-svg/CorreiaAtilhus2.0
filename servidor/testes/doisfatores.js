@@ -11,7 +11,10 @@ import { codigoDe } from '../nucleo/doisfatores.js';
  *  - o segredo nunca volta para a tela depois de pareado;
  *  - codigo errado nao entra;
  *  - desafio vencido/invalido nao entra;
- *  - o administrador reinicia o segundo fator de quem perdeu o celular.
+ *  - o administrador reinicia o segundo fator de quem perdeu o celular;
+ *  - SENHA errada trava depois de 5 tentativas, e so a troca certa nao basta
+ *    mais ate passar o tempo — sem isso, a senha podia ser tentada sem fim;
+ *  - o codigo da ADESAO (parear o app pela primeira vez) trava do mesmo jeito.
  */
 export async function testarDoisFatores({ base }) {
   const s = suite('Segundo fator (2FA)');
@@ -83,7 +86,54 @@ export async function testarDoisFatores({ base }) {
   const p5 = await c5.post('/api/sessao/entrar', { email, senha });
   s.ok('reiniciado, a conta volta a pedir adesao', p5.dados?.etapa === 'adesao', JSON.stringify(p5.dados?.etapa));
 
-  /* Limpeza: tira o membro de teste para as suites seguintes nao contarem com ele. */
+  /* --- Freio na SENHA: trava depois de 5 erros seguidos ---------------- */
+  const emailFreioSenha = 'freio-senha@correia.adv.br';
+  const senhaFreio = 'senha-correta-do-freio';
+  const membroFreioSenha = (await admin.post('/api/membros', { email: emailFreioSenha, nome: 'Freio Senha', senha: senhaFreio, papel: 'atendente' })).dados;
+
+  let travouNaSenha = null;
+  for (let tentativa = 1; tentativa <= 6; tentativa += 1) {
+    const r = await cliente(base).post('/api/sessao/entrar', { email: emailFreioSenha, senha: 'senha-errada-' + tentativa });
+    if (r.status === 429) {
+      travouNaSenha = tentativa;
+      break;
+    }
+    s.ok(`senha errada (tentativa ${tentativa}) nao trava sozinha`, r.status === 401, String(r.status));
+  }
+  s.ok('a senha trava depois de 5 erros seguidos', travouNaSenha === 6, `travou na tentativa ${travouNaSenha}`);
+
+  const comSenhaCertaTravado = await cliente(base).post('/api/sessao/entrar', { email: emailFreioSenha, senha: senhaFreio });
+  s.ok('travado, nem a senha CERTA entra ate passar o tempo', comSenhaCertaTravado.status === 429, String(comSenhaCertaTravado.status));
+
+  /* --- Freio no CODIGO DA ADESAO: trava depois de 5 erros seguidos ----- */
+  const emailFreioAdesao = 'freio-adesao@correia.adv.br';
+  const senhaFreioAdesao = 'senha-correta-da-adesao';
+  await admin.post('/api/membros', { email: emailFreioAdesao, nome: 'Freio Adesao', senha: senhaFreioAdesao, papel: 'atendente' });
+  const pFreioAdesao = await cliente(base).post('/api/sessao/entrar', { email: emailFreioAdesao, senha: senhaFreioAdesao });
+  const desafioFreioAdesao = pFreioAdesao.dados.desafio;
+  const segredoFreioAdesao = pFreioAdesao.dados.segredo;
+
+  let travouNaAdesao = null;
+  for (let tentativa = 1; tentativa <= 6; tentativa += 1) {
+    const r = await cliente(base).post('/api/sessao/2fa/confirmar', { desafio: desafioFreioAdesao, codigo: '000000' });
+    if (r.status === 429) {
+      travouNaAdesao = tentativa;
+      break;
+    }
+  }
+  s.ok('o codigo da adesao trava depois de 5 erros seguidos', travouNaAdesao === 6, `travou na tentativa ${travouNaAdesao}`);
+
+  const adesaoComCodigoCertoTravada = await cliente(base).post('/api/sessao/2fa/confirmar', {
+    desafio: desafioFreioAdesao,
+    codigo: codigoDe(segredoFreioAdesao),
+  });
+  s.ok('travado, nem o codigo CERTO da adesao entra ate passar o tempo', adesaoComCodigoCertoTravada.status === 429, String(adesaoComCodigoCertoTravada.status));
+
+  /* Limpeza: tira os membros de teste para as suites seguintes nao contarem com eles. */
   await admin.delete(`/api/membros/${membroId}`);
+  await admin.delete(`/api/membros/${membroFreioSenha.id}`);
+  const membrosFinal = (await admin.get('/api/membros')).dados || [];
+  const membroFreioAdesaoFinal = membrosFinal.find((m) => m.usuario?.email === emailFreioAdesao);
+  if (membroFreioAdesaoFinal) await admin.delete(`/api/membros/${membroFreioAdesaoFinal.id}`);
   return s;
 }

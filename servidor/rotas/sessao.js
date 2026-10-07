@@ -32,9 +32,9 @@ import { AREAS, MODELOS, PROMPT, TIPOS_STATUS } from '../config.js';
 export const COOKIE_SESSAO = 'correiatendimentos';
 
 /*
- * O usuario que sai para a tela nunca leva o que abre a conta: nem a senha, nem
- * o segredo do segundo fator, nem os codigos de reserva. No lugar vai so o
- * ESTADO do segundo fator (ligado ou nao), que a tela de perfil precisa mostrar.
+ * O usuario que sai para a tela nunca leva o que abre a conta: nem a senha,
+ * nem o segredo do segundo fator. No lugar vai so o ESTADO do segundo fator
+ * (ligado ou nao), que a tela de perfil precisa mostrar.
  */
 function limpar(usuario) {
   if (!usuario) return null;
@@ -49,12 +49,13 @@ function limpar(usuario) {
 /**
  * Contador de tentativas erradas por usuario, em memoria.
  *
- * A troca de senha cobra a senha atual, o que so vale enquanto nao der para
- * chutar a senha atual em laco: alguem sentado na maquina destravada de um
- * colega na hora do almoco rodava fetch em cima de /api/perfil/senha ate
- * acertar, e nada limitava nem registrava. Depois de TENTATIVAS_ATE_BLOQUEIO
- * erros a conta para de aceitar a troca por alguns minutos, e cada tentativa
- * entra no log.
+ * Um freio so, usado em TODA porta que pede uma senha ou um codigo de uma
+ * conta que ja existe: o login (senha), o segundo fator (codigo do app, na
+ * entrada e na adesao) e a troca de senha (senha atual). Sem ele, alguem
+ * sentado na maquina destravada de um colega — ou um script de fora — tentava
+ * sem parar ate acertar, e nada limitava nem registrava. Depois de
+ * TENTATIVAS_ATE_BLOQUEIO erros a conta para de aceitar por alguns minutos, e
+ * cada tentativa entra no log.
  *
  * Em memoria de proposito: reiniciar o servidor limpa a contagem, e o custo
  * disso e menor que gravar tentativa de senha em disco.
@@ -140,8 +141,31 @@ function concluirEntrada(res, usuario, workspaces, extra = {}) {
 
 export function registrarSessao(rotas) {
   rotas.post('/api/sessao/entrar', async ({ res, corpo }) => {
+    /*
+     * O mesmo freio da troca de senha e do codigo do app, agora tambem aqui:
+     * sem ele, a senha podia ser tentada sem limite nenhum, por mais que o
+     * segundo fator exigisse o celular depois — e e a porta mais obvia para um
+     * script tentar.
+     *
+     * O e-mail e procurado so para saber EM QUAL CONTA travar, antes de
+     * conferir a senha. Sem usuario encontrado nao ha o que travar, e a
+     * resposta de erro continua identica a de senha errada: tentar e-mails ao
+     * acaso nao diz a ninguem se a conta existe.
+     */
+    const alvo = normalizar(corpo.email || '');
+    const usuarioPeloEmail = alvo ? listar('usuarios').find((u) => normalizar(u.email) === alvo) : null;
+    if (usuarioPeloEmail) {
+      const espera = bloqueioDeSenha(usuarioPeloEmail.id);
+      if (espera) {
+        const erro = new Error(`Muitas tentativas. Espere ${espera} minuto(s) e tente de novo.`);
+        erro.codigo = 429;
+        throw erro;
+      }
+    }
+
     const usuario = autenticar(corpo.email, corpo.senha);
     if (!usuario) {
+      if (usuarioPeloEmail) contarErroDeSenha(usuarioPeloEmail.id);
       const erro = new Error('E-mail ou senha incorretos.');
       erro.codigo = 401;
       throw erro;
@@ -173,11 +197,7 @@ export function registrarSessao(rotas) {
     };
   }, { publica: true });
 
-  /**
-   * Passo do codigo, para quem JA tem segundo fator. Aceita o codigo de 6
-   * digitos do app ou um codigo de reserva. O codigo de reserva usado some da
-   * lista aqui mesmo, para nao valer duas vezes.
-   */
+  /** Passo do codigo, para quem JA tem segundo fator pareado. */
   rotas.post('/api/sessao/2fa/entrar', async ({ res, corpo }) => {
     const desafio = lerDesafio(corpo.desafio);
     if (!desafio) {
@@ -212,11 +232,7 @@ export function registrarSessao(rotas) {
     throw erro;
   }, { publica: true });
 
-  /**
-   * Passo da adesao: o primeiro codigo confirma que o app foi pareado. So
-   * entao o segredo passa a valer na conta e os codigos de reserva nascem —
-   * mostrados UMA vez, aqui, para a pessoa guardar.
-   */
+  /** Passo da adesao: o primeiro codigo confirma que o app foi pareado, e so entao o segredo passa a valer na conta. */
   rotas.post('/api/sessao/2fa/confirmar', async ({ res, corpo }) => {
     const desafio = lerDesafio(corpo.desafio);
     if (!desafio?.segredoPendente) {
@@ -224,7 +240,17 @@ export function registrarSessao(rotas) {
       erro.codigo = 401;
       throw erro;
     }
+    /* O mesmo freio do passo de login com o app ja pareado: sem ele, quem
+       tivesse a senha e um desafio em aberto podia tentar os seis digitos sem
+       limite nenhum ate acertar. */
+    const preso = bloqueioDeSenha(desafio.usuarioId);
+    if (preso) {
+      const erro = new Error(`Muitas tentativas. Espere ${preso} minuto(s) e tente de novo.`);
+      erro.codigo = 429;
+      throw erro;
+    }
     if (!conferirCodigo(desafio.segredoPendente, corpo.codigo)) {
+      contarErroDeSenha(desafio.usuarioId);
       const erro = new Error('O codigo nao confere. Confira a hora do celular e tente o codigo atual do app.');
       erro.codigo = 401;
       throw erro;
