@@ -1,16 +1,19 @@
-import { atualizar, encerrarBanco, iniciarBanco, listar, remover } from '../nucleo/banco.js';
+import { encerrarBanco, iniciarBanco, listar } from '../nucleo/banco.js';
 import { analisarPrompt } from '../ia/mencoes.js';
+import { PASTA_TRABALHISTA_DE, PASTA_TRABALHISTA_PARA, migrarNomesDeAgentes, planoDeReorganizacao } from '../nucleo/migrar-agentes.js';
 
 /**
  * Reorganiza os agentes ja instalados para acompanhar os pacotes
  * (servidor/ia/pacotes/*.js), depois do ajuste de nomes de 07/10/2026.
  *
- * Rode `npm run reorganizar-agentes` (simula) e depois
- * `npm run reorganizar-agentes -- --aplicar`. SEMPRE COM O SISTEMA PARADO: ela
- * mexe nos arquivos de dados, e o servidor no ar sobrescreveria a correcao no
- * primeiro salvamento.
+ * Desde essa data a MESMA correcao roda sozinha toda vez que o sistema sobe
+ * (servidor/index.js chama nucleo/migrar-agentes.js no boot): clicar em
+ * Implantar no EasyPanel ja basta, sem precisar deste comando. Esta ferramenta
+ * fica para quem quer ver o simular/aplicar na mao, ou rodar sem reiniciar o
+ * servico. SEMPRE COM O SISTEMA PARADO: ela mexe nos arquivos de dados, e o
+ * servidor no ar sobrescreveria a correcao no primeiro salvamento.
  *
- * O QUE MUDOU, E POR QUE
+ * O QUE MUDA, E POR QUE
  *
  * - "#01 Triagem [aux acidente]" vira "Beatriz (Triagem)": o prompt dela ja diz
  *   "seu nome e Beatriz" para o cliente, so o nome administrativo nao mostrava
@@ -26,37 +29,12 @@ import { analisarPrompt } from '../ia/mencoes.js';
  *   conteudo, que ficou para tras em mais de um escritorio.
  *
  * O nome do agente e a chave que os prompts usam para passar a conversa de um
- * para o outro (@responsavel para @Nome). Por isso cada renome aqui tambem
- * troca "@NomeAntigo" por "@NomeNovo" em TODOS os prompts do mesmo escritorio
- * — sem isso a passagem de bastao quebraria silenciosamente.
+ * para o outro (@responsavel para @Nome). Por isso cada renome tambem troca
+ * "@NomeAntigo" por "@NomeNovo" em TODOS os prompts do mesmo escritorio — sem
+ * isso a passagem de bastao quebraria silenciosamente.
  */
 
 const APLICAR = process.argv.includes('--aplicar');
-
-const RENOMES = [
-  { de: '#01 Triagem [aux acidente]', para: 'Beatriz (Triagem)' },
-  { de: 'AG01 [trab] Triagem', para: 'Triagem Trabalhista' },
-  { de: 'AG02 [trab] Acidente e Doenças', para: 'Acidente e Doenças' },
-  { de: 'AG03 [trab] Vínculo', para: 'Vínculo' },
-  { de: 'AG04 [trab] Rescisão Indireta', para: 'Rescisão Indireta' },
-  { de: 'AG05 [trab] Direito Suprimido', para: 'Direito Suprimido' },
-  { de: 'AG06 [trab] Proposta e Objeções', para: 'Proposta e Objeções' },
-  { de: 'AG07 [trab] Dados e Contrato', para: 'Dados e Contrato' },
-  { de: 'AG08 [trab] Assinatura e Reunião', para: 'Assinatura e Reunião' },
-];
-
-const PASTA_DE = 'Agentes Trabalhista + Auxilio acidente';
-const PASTA_PARA = 'Trabalhista';
-
-function contar(texto, agulha) {
-  let n = 0;
-  let de = texto.indexOf(agulha);
-  while (de >= 0) {
-    n += 1;
-    de = texto.indexOf(agulha, de + agulha.length);
-  }
-  return n;
-}
 
 async function principal() {
   await iniciarBanco();
@@ -67,67 +45,35 @@ async function principal() {
       : 'MODO SIMULACAO: nada sera gravado. Use --aplicar depois de conferir.',
   );
 
-  let renomeados = 0;
-  let referenciasTrocadas = 0;
-  let pastasCorrigidas = 0;
+  const { porWorkspace, sobras } = planoDeReorganizacao();
 
-  for (const workspace of listar('workspaces')) {
-    const agentes = listar('agentes', { workspaceId: workspace.id });
-    if (!agentes.length) continue;
-
-    const renomesDesteWorkspace = RENOMES.filter((r) => agentes.some((a) => a.nome === r.de));
-    const pastaAqui = agentes.some((a) => a.pasta === PASTA_DE);
-    if (!renomesDesteWorkspace.length && !pastaAqui) continue;
-
+  for (const { workspace, renomeiam, pastaAqui, agentes } of porWorkspace) {
     console.log(`\n--- ${workspace.nome} ---`);
-
-    for (const { de, para } of renomesDesteWorkspace) {
-      const agente = agentes.find((a) => a.nome === de);
-      console.log(`  [renomeia] "${de}" -> "${para}"`);
-      if (APLICAR) atualizar('agentes', agente.id, { nome: para });
-      renomeados += 1;
-    }
-
-    /* As referencias (@NomeAntigo) podem estar no prompt de QUALQUER agente
-       deste escritorio, inclusive o que acabou de ser renomeado (auto-bounce) —
-       por isso a troca roda sobre todos, depois dos renomes decididos acima. */
-    for (const agente of agentes) {
-      const original = String(agente.prompt || '');
-      let novo = original;
-      for (const { de, para } of RENOMES) {
-        const vezes = contar(novo, `@${de}`);
-        if (!vezes) continue;
-        novo = novo.split(`@${de}`).join(`@${para}`);
-        referenciasTrocadas += vezes;
-      }
-      if (novo !== original) {
-        console.log(`  [prompt] ${agente.nome}: referencias atualizadas`);
-        if (APLICAR) atualizar('agentes', agente.id, { prompt: novo });
-      }
-    }
-
+    for (const { de, para } of renomeiam) console.log(`  [renomeia] "${de}" -> "${para}"`);
     if (pastaAqui) {
-      for (const agente of agentes.filter((a) => a.pasta === PASTA_DE)) {
-        console.log(`  [pasta] ${agente.nome}: "${PASTA_DE}" -> "${PASTA_PARA}"`);
-        if (APLICAR) atualizar('agentes', agente.id, { pasta: PASTA_PARA });
-        pastasCorrigidas += 1;
+      for (const agente of agentes.filter((a) => a.pasta === PASTA_TRABALHISTA_DE)) {
+        console.log(`  [pasta] ${agente.nome}: "${PASTA_TRABALHISTA_DE}" -> "${PASTA_TRABALHISTA_PARA}"`);
       }
     }
   }
-
-  /* Agente 26: sobra de teste, desligada e sem pasta, em mais de um escritorio. */
-  const sobras = listar('agentes').filter((a) => a.nome === 'Agente 26' && a.ativo === false && a.pasta === 'Sem pasta');
   for (const agente of sobras) {
     const workspace = listar('workspaces').find((w) => w.id === agente.workspaceId);
     console.log(`\n[remove] "Agente 26" (${workspace?.nome || agente.workspaceId})`);
-    if (APLICAR) remover('agentes', agente.id);
   }
 
+  const resultado = APLICAR ? migrarNomesDeAgentes() : null;
+
   console.log('\n---------------------------------------------');
-  console.log(`agentes renomeados: ${renomeados}`);
-  console.log(`referencias @ atualizadas: ${referenciasTrocadas}`);
-  console.log(`pastas corrigidas: ${pastasCorrigidas}`);
-  console.log(`"Agente 26" removidos: ${sobras.length}`);
+  if (resultado) {
+    console.log(`agentes renomeados: ${resultado.renomeados}`);
+    console.log(`referencias @ atualizadas: ${resultado.referencias}`);
+    console.log(`pastas corrigidas: ${resultado.pastas}`);
+    console.log(`"Agente 26" removidos: ${resultado.removidos}`);
+  } else {
+    const totalRenomeiam = porWorkspace.reduce((soma, w) => soma + w.renomeiam.length, 0);
+    console.log(`agentes a renomear: ${totalRenomeiam}`);
+    console.log(`"Agente 26" a remover: ${sobras.length}`);
+  }
 
   /* A mesma pergunta do Painel de Saude, feita pelo mesmo codigo: nenhum
      agente no ar pode citar um atalho que nao existe mais. */

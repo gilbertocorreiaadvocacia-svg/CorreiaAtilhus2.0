@@ -11,6 +11,7 @@ import { migrarCoresParaTokens } from './nucleo/paleta.js';
 import { migrarTiposDeCaso } from './nucleo/casos.js';
 import { migrarCanaisDeOrigem } from './nucleo/origens.js';
 import { contextoDaSessao, limparSessoesOrfas, migrarPapeis } from './nucleo/auth.js';
+import { migrarNomesDeAgentes } from './nucleo/migrar-agentes.js';
 import { criarRoteador, lerCookies, lerCorpo, responderErro, responderJson, servirEstatico } from './nucleo/http.js';
 import { inscrever } from './nucleo/eventos.js';
 import { semearSePrecisar } from './nucleo/seed.js';
@@ -63,6 +64,13 @@ if (origensAcertadas) console.log(`Origens de anuncio e Instagram: ${origensAcer
 /* O agente de avaliacao do atendimento, uma vez em cada escritorio. */
 const avaliadores = garantirAvaliacaoNosEscritorios();
 if (avaliadores) console.log(`Avaliacao do atendimento: agente instalado em ${avaliadores} escritorio(s).`);
+/* Beatriz destravada, nomes e pasta do Trabalhista limpos, "Agente 26" repetido fora (07/10/2026). */
+const reorganizacaoDeAgentes = migrarNomesDeAgentes();
+if (reorganizacaoDeAgentes.renomeados || reorganizacaoDeAgentes.removidos) {
+  console.log(
+    `Agentes: ${reorganizacaoDeAgentes.renomeados} renomeado(s), ${reorganizacaoDeAgentes.pastas} pasta(s) corrigida(s), ${reorganizacaoDeAgentes.removidos} sobra(s) removida(s).`,
+  );
+}
 limparSessoesOrfas();
 /* Rodadas de importacao do celular que o reinicio interrompeu. */
 retomarSincronizacoes();
