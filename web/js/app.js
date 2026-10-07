@@ -923,10 +923,18 @@ function seletorDeContexto() {
     gatilho.setAttribute('aria-expanded', 'false');
     document.removeEventListener('mousedown', fora);
     document.removeEventListener('keydown', teclas);
+    abrindo = false;
   }
 
+  /* Abrir busca a contagem no servidor (await), e so no fim poe o conteudo na
+     tela. Um segundo clique nesse meio-tempo (duplo-clique, ou dedo rapido no
+     celular) via o menu ainda fechado — a trava abaixo evita que a segunda
+     chamada monte tudo de novo por cima, duplicando cada secao na lista. */
+  let abrindo = false;
   gatilho.addEventListener('click', async () => {
     if (!lista.hidden) return fechar();
+    if (abrindo) return;
+    abrindo = true;
     limpar(lista);
 
     /* Os contadores de membros e numeros de cada workspace, para o seletor. */
@@ -995,6 +1003,7 @@ function seletorDeContexto() {
     lista.querySelector('[aria-selected="true"]')?.focus();
     document.addEventListener('mousedown', fora);
     document.addEventListener('keydown', teclas);
+    abrindo = false;
   });
 
   repintarContexto = pintarGatilho;
