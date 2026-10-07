@@ -183,7 +183,7 @@ export async function testarWorkspacesPorArea({ base }) {
 
   /* ---------------- Separar por escritorio ---------------- */
 
-  const trabalhistaNoGeral = (await api.post('/api/agentes', { nome: 'AG01 [trab] Triagem' })).dados;
+  const trabalhistaNoGeral = (await api.post('/api/agentes', { nome: 'Triagem Trabalhista' })).dados;
   const separado = await api.post('/api/agentes-por-escritorio', {});
   const agentesPorArea = Object.fromEntries((separado.dados?.escritorios || []).map((e) => [e.area, e.agentes]));
   s.ok(
@@ -220,7 +220,7 @@ export async function testarWorkspacesPorArea({ base }) {
   const numerosTrabalhista = ((await api.get('/api/conexoes')).dados || []).filter((c) => c.tipo !== 'simulador');
   s.ok(
     'Separar: o numero da area passa a ser atendido pelo agente de entrada dela',
-    numerosTrabalhista.length > 0 && numerosTrabalhista.every((c) => c.responsavelPadrao?.tipo === 'agente' && /AG01/.test(c.responsavelPadrao?.nome || '')),
+    numerosTrabalhista.length > 0 && numerosTrabalhista.every((c) => c.responsavelPadrao?.tipo === 'agente' && c.responsavelPadrao?.nome === 'Triagem Trabalhista'),
     JSON.stringify(numerosTrabalhista.map((c) => [c.nome, c.responsavelPadrao])),
   );
   s.ok('Separar: de dentro de um escritorio de area, e recusado', (await api.post('/api/agentes-por-escritorio', {})).status === 409);

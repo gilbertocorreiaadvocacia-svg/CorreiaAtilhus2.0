@@ -13,9 +13,10 @@ import { TRABALHISTA } from './pacotes/trabalhista.js';
  *
  * Previdenciario e Trabalhista sao os squads que o escritorio usava na LiderHub
  * (prompts extraidos em 15/09/2026), cada um no seu escritorio: no
- * Previdenciario, a Eduarda recebe e passa para os squads de auxilio-acidente,
- * BPC/LOAS e salario-maternidade; no Trabalhista, o AG01 recebe e passa para os
- * membros AG02 a AG08. O Civel continua com o pacote proprio.
+ * Previdenciario, a Eduarda recebe e passa para os squads de auxilio-acidente
+ * (a Beatriz), BPC/LOAS e salario-maternidade; no Trabalhista, a Triagem
+ * recebe e passa pelas etapas ate a Assinatura e Reunião. O Civel continua com
+ * o pacote proprio.
  *
  * As mencoes da LiderHub foram trocadas pelas deste sistema:
  *   status "#01 Novo Lead" ... "#14"   -> @status com os nomes do funil daqui
@@ -210,7 +211,7 @@ export const PACOTES = {
       ['doc_reclamada', 'CNPJ da empresa', 'CNPJ da empresa, se o cliente souber.'],
     ],
     agentes: [
-      ...TRABALHISTA.map((agente) => ({ ...agente, pasta: 'Agentes Trabalhista + Auxilio acidente' })),
+      ...TRABALHISTA.map((agente) => ({ ...agente, pasta: 'Trabalhista' })),
       avaliadorDoEscritorio('Trabalhista'),
     ],
   },

@@ -47,9 +47,11 @@ export async function testarPacotes({ base }) {
   );
   s.ok(
     'cada squad fica na area dele',
-    doPacote.filter((a) => /\[trab\]/.test(a.nome)).every((a) => a.area === 'trabalhista') &&
-      doPacote.filter((a) => /Eduarda|BPC|Materno|aux acidente/.test(a.nome)).every((a) => a.area === 'previdenciario'),
-    JSON.stringify(doPacote.map((a) => [a.nome, a.area])),
+    doPacote.filter((a) => a.pasta === 'Trabalhista').every((a) => a.area === 'trabalhista') &&
+      doPacote
+        .filter((a) => ['Triagem', 'Auxílio-Acidente FER MAR26', 'BPC Loas', 'Salário Maternidade'].includes(a.pasta))
+        .every((a) => a.area === 'previdenciario'),
+    JSON.stringify(doPacote.map((a) => [a.nome, a.pasta, a.area])),
   );
   const secretaria = doPacote.find((a) => a.nome === 'Eduarda (Triagem)');
   s.ok(
@@ -57,9 +59,9 @@ export async function testarPacotes({ base }) {
     ['transferir_conversa', 'adicionar_etiqueta'].every((f) => (secretaria?.ferramentas || []).includes(f)),
     (secretaria?.ferramentas || []).join(', '),
   );
-  const dados = doPacote.find((a) => a.nome === 'AG07 [trab] Dados e Contrato');
+  const dados = doPacote.find((a) => a.nome === 'Dados e Contrato' && a.pasta === 'Trabalhista');
   s.ok(
-    'o AG07 recebe variaveis e a lista do que coletar',
+    'o agente de Dados e Contrato recebe variaveis e a lista do que coletar',
     (dados?.ferramentas || []).includes('salvar_variavel') && (dados?.requisitos || []).includes('rg'),
     `${(dados?.ferramentas || []).join(', ')} | ${JSON.stringify(dados?.requisitos)}`,
   );

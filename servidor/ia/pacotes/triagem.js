@@ -66,7 +66,7 @@ MATERNIDADE - vence todas. Gatilhos: maternidade, salário-maternidade, grávida
 
 TRABALHISTA - contra o empregador. Gatilhos: patrão, empresa, chefe, demitido, justa causa, rescisão, verbas, FGTS, horas extras, assédio, carteira não assinada. Este número é do atendimento previdenciário: diga Isso quem cuida é a nossa equipe trabalhista, já vou te encaminhar. Adicione a @tag "Trabalhista" e passe com @responsavel para "distribuir".
 
-AUXÍLIO-ACIDENTE - benefício do INSS por sequela. Gatilhos: auxílio-acidente, acidente, fratura, amputação, sequela, LER, hérnia de disco, doença do trabalho, doença ocupacional, auxílio-doença, encostado, INSS cortou, CAT. Passe com @responsavel para @#01 Triagem [aux acidente].
+AUXÍLIO-ACIDENTE - benefício do INSS por sequela. Gatilhos: auxílio-acidente, acidente, fratura, amputação, sequela, LER, hérnia de disco, doença do trabalho, doença ocupacional, auxílio-doença, encostado, INSS cortou, CAT. Passe com @responsavel para @Beatriz (Triagem).
 
 BPC/LOAS - benefício assistencial. Gatilhos: BPC, LOAS, benefício assistencial, deficiência, autismo, CadÚnico, CRAS, Bolsa Família, idoso, nunca contribuiu. Passe com @responsavel para @Andreia (BPC 1) Triagem.
 
@@ -78,9 +78,9 @@ ACIDENTE com EMPRESA é ambíguo. Pergunte uma vez: Só pra te direcionar certo:
 
 Contra a empresa: siga o item TRABALHISTA.
 
-Benefício do INSS: passe com @responsavel para @#01 Triagem [aux acidente].
+Benefício do INSS: passe com @responsavel para @Beatriz (Triagem).
 
-As duas frentes: adicione a @tag "Trabalhista" e passe com @responsavel para @#01 Triagem [aux acidente], dizendo no resumo que também há o lado trabalhista para a equipe ver.
+As duas frentes: adicione a @tag "Trabalhista" e passe com @responsavel para @Beatriz (Triagem), dizendo no resumo que também há o lado trabalhista para a equipe ver.
 
 Auxílio-doença anterior ou sequela com carteira assinada é AUXÍLIO-ACIDENTE, não BPC. Nunca contribuiu ou Bolsa Família é BPC. Vários assuntos: siga o principal.
 

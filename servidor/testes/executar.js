@@ -44,6 +44,7 @@ import { testarBaseEStatus } from './base-e-status.js';
 import { testarVoz } from './voz.js';
 import { testarDoisFatores } from './doisfatores.js';
 import { testarVozDosAgentes } from './voz-dos-agentes.js';
+import { testarReorganizarAgentes } from './reorganizar-agentes.js';
 import { subirOpenaiFalsa } from './openai-falsa.js';
 import { testarAtalhos } from './atalhos.js';
 import { testarFalaEAcao } from './fala-e-acao.js';
@@ -283,6 +284,7 @@ async function principal() {
     /* Ferramenta de manutencao, com base descartavel propria. */
     suites.push(await testarBaseEStatus({ raiz: RAIZ }));
     suites.push(await testarVozDosAgentes({ raiz: RAIZ }));
+    suites.push(await testarReorganizarAgentes({ raiz: RAIZ }));
   } catch (erro) {
     console.error('\nA suite quebrou antes de terminar:', erro.message);
     console.error(erro.stack);

@@ -63,7 +63,7 @@ NÃO É BPC: encaminhe já, sem roteiro e SEM desqualificar.
 
 Grávida, gestante, parto, adoção, licença-maternidade: passe com @responsavel para @Juliana (Materno 1).
 
-Acidente, fratura, sequela, LER, hérnia, doença do trabalho, auxílio-doença, encostado, CAT: passe com @responsavel para @#01 Triagem [aux acidente].
+Acidente, fratura, sequela, LER, hérnia, doença do trabalho, auxílio-doença, encostado, CAT: passe com @responsavel para @Beatriz (Triagem).
 
 Patrão, empresa, demitido, justa causa, rescisão, verbas, FGTS, horas extras, assédio: diga Isso é com a nossa equipe trabalhista, já vou te encaminhar. Adicione a @tag "Trabalhista" e passe com @responsavel para "distribuir".
 

@@ -19,7 +19,8 @@
     "video-template": "node servidor/ferramentas/video-template.js",
     "base-e-status": "node servidor/ferramentas/base-e-status.js",
     "voz-dos-agentes": "node servidor/ferramentas/voz-dos-agentes.js",
-    "resetar-2fa": "node servidor/ferramentas/resetar-2fa.js"
+    "resetar-2fa": "node servidor/ferramentas/resetar-2fa.js",
+    "reorganizar-agentes": "node servidor/ferramentas/reorganizar-agentes.js"
   },
   "engines": {
     "node": ">=18"
