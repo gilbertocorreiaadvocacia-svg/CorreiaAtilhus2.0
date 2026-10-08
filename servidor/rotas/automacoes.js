@@ -615,6 +615,28 @@ export function registrarAutomacoes(rotas) {
     return { ok: true, movidos: daPasta.length, juntou: daPasta.length !== listar('agentes', { workspaceId: ctx.workspaceId }).filter((a) => (a.pasta || PASTA_PADRAO) === para).length };
   });
 
+  /**
+   * Desliga de uma vez todo agente ligado deste escritorio — a saida de
+   * emergencia para quando a equipe precisa assumir todas as conversas na
+   * mao. Um laco so, sincrono, pelo mesmo motivo do renomear pasta acima: ou
+   * desliga todos, ou nao desliga nenhum, nunca parte no meio. So mexe no
+   * workspace atual, igual a tudo o mais aqui — para as outras areas, a
+   * pessoa troca de workspace e repete.
+   */
+  rotas.post('/api/agentes-desligar-todos', async ({ ctx }) => {
+    exigirConfiguracao(ctx);
+    const ligados = listar('agentes', { workspaceId: ctx.workspaceId }).filter((a) => a.ativo);
+    for (const agente of ligados) atualizar('agentes', agente.id, { ativo: false });
+    if (ligados.length) {
+      registrarLog(ctx.workspaceId, null, 'seguranca', `Desligou todos os agentes de IA (${ligados.length})`, {
+        tipo: 'membro',
+        id: ctx.membro?.id,
+        nome: ctx.usuario?.nome,
+      });
+    }
+    return { ok: true, desligados: ligados.length };
+  });
+
   rotas.delete('/api/agentes/:id', async ({ ctx, params }) => {
     exigirConfiguracao(ctx);
     doWorkspace(ctx, 'agentes', params.id);

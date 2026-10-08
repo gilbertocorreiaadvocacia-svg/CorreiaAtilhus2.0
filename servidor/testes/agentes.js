@@ -202,5 +202,34 @@ export async function testarAgentes({ base }) {
     s.ok('a cobaia foi removida e a base ficou como estava', !sumiu);
   }
 
+  /*
+   * Desligar todos: a saida de emergencia. Este workspace e compartilhado com
+   * as outras suites da bateria, entao o teste guarda quem estava ligado
+   * ANTES e religa tudo no final — sem isso, as suites que rodam depois
+   * herdavam um escritorio com todo agente desligado.
+   */
+  const ligadosAntes = (await api.get('/api/agentes')).dados?.filter((a) => a.ativo).map((a) => a.id) || [];
+  const ligado1 = (await api.post('/api/agentes', { nome: 'Desligar Teste 1', ativo: true })).dados;
+  const ligado2 = (await api.post('/api/agentes', { nome: 'Desligar Teste 2', ativo: true })).dados;
+  const jaDesligado = (await api.post('/api/agentes', { nome: 'Desligar Teste 3', ativo: false })).dados;
+  try {
+    const r = await api.post('/api/agentes-desligar-todos', {});
+    s.ok('desligar todos responde com o total desligado', r.status === 200 && r.dados?.desligados >= 2, JSON.stringify(r.dados));
+
+    const depois = (await api.get('/api/agentes')).dados || [];
+    const por = (id) => depois.find((a) => a.id === id);
+    s.ok('quem estava ligado foi desligado', por(ligado1.id)?.ativo === false && por(ligado2.id)?.ativo === false);
+    s.ok('quem ja estava desligado nao mudou', por(jaDesligado.id)?.ativo === false);
+    s.ok('ninguem do escritorio ficou ligado', depois.every((a) => !a.ativo), JSON.stringify(depois.filter((a) => a.ativo).map((a) => a.nome)));
+
+    const denovo = await api.post('/api/agentes-desligar-todos', {});
+    s.ok('rodar de novo com tudo ja desligado nao acusa ninguem', denovo.dados?.desligados === 0, String(denovo.dados?.desligados));
+  } finally {
+    await api.delete(`/api/agentes/${ligado1.id}`);
+    await api.delete(`/api/agentes/${ligado2.id}`);
+    await api.delete(`/api/agentes/${jaDesligado.id}`);
+    for (const id of ligadosAntes) await api.patch(`/api/agentes/${id}`, { ativo: true });
+  }
+
   return s;
 }

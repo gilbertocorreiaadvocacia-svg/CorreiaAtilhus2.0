@@ -172,6 +172,27 @@ export async function paginaAgentes({ parametros, definirAcoes, definirPrincipal
 
   definirAcoes?.(
     podeConfigurar()
+      ? botao('Desligar todos', {
+          pequeno: true,
+          icone: 'alerta',
+          titulo: 'Desliga todo agente de IA deste workspace — a equipe assume as conversas na mão',
+          aoClicar: () =>
+            confirmar(
+              'Desligar todos os agentes de IA?',
+              'Nenhum agente deste workspace vai responder sozinho até você religar um por um (ou instalar um pacote de novo). Isso não afeta outros workspaces.',
+              async () => {
+                const r = await api.post('/api/agentes-desligar-todos', {});
+                aviso(r.desligados ? `${r.desligados} agente(s) desligado(s).` : 'Nenhum agente estava ligado.', 'sucesso');
+                /* agentesDeTodos so busca uma vez (em modoLista); sem isso, o
+                   resumo "todos os escritorios" ficava com a contagem antiga. */
+                agentesDeTodos = null;
+                await recarregarTudo();
+              },
+              'Desligar todos',
+            ),
+        })
+      : null,
+    podeConfigurar()
       ? botao('Agentes por área', { pequeno: true, icone: 'usuarios', aoClicar: () => abrirPacotes() })
       : null,
     podeConfigurar()
