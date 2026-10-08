@@ -1572,6 +1572,117 @@ export async function paginaAtendimento({
       seletorArquivo.value = '';
     });
 
+    /*
+     * Gravar e mandar audio: o mesmo microfone que o WhatsApp usa.
+     *
+     * O envio em si (anexo do tipo audio) ja existia para quem escolhia um
+     * .mp3/.ogg do disco pelo Anexar — chega no cliente como nota de voz
+     * tocavel (ver drivers/qrcode.js, sendWhatsAppAudio). O que faltava era
+     * so a gravacao: clicar, falar, clicar de novo, e o blob gravado sobe pelo
+     * mesmo /api/midia de sempre, como se fosse um arquivo escolhido.
+     *
+     * Um teto de 5 minutos existe para nao estourar o limite de 16 MB do
+     * WhatsApp com uma gravacao esquecida ligada.
+     */
+    const TETO_GRAVACAO_SEGUNDOS = 300;
+    let gravando = false;
+    let gravador = null;
+    let streamDoMicrofone = null;
+    let pedacosDeAudio = [];
+    let cancelandoGravacao = false;
+    let inicioDaGravacao = 0;
+    let cronometroGravacao = null;
+
+    const formatarTempo = (segundos) => `${Math.floor(segundos / 60)}:${String(segundos % 60).padStart(2, '0')}`;
+
+    const indicadorGravando = el('span', { class: 't-xs c-erro indicador-gravando', estilo: { display: 'none' } });
+
+    const pararFluxo = () => {
+      streamDoMicrofone?.getTracks().forEach((faixa) => faixa.stop());
+      streamDoMicrofone = null;
+      clearInterval(cronometroGravacao);
+      cronometroGravacao = null;
+    };
+
+    const atualizarUiDeGravacao = (ativa) => {
+      gravando = ativa;
+      botaoMicrofone.classList.toggle('gravando', ativa);
+      botaoMicrofone.title = ativa ? 'Parar e anexar a gravação' : 'Gravar áudio';
+      botaoCancelarGravacao.style.display = ativa ? 'inline-flex' : 'none';
+      indicadorGravando.style.display = ativa ? 'inline-flex' : 'none';
+    };
+
+    async function iniciarGravacao() {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        aviso('Este navegador não grava áudio.', 'erro');
+        return;
+      }
+      try {
+        streamDoMicrofone = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch {
+        aviso('Não consegui acessar o microfone. Permita o uso nas configurações do navegador.', 'erro');
+        return;
+      }
+      pedacosDeAudio = [];
+      cancelandoGravacao = false;
+      gravador = new MediaRecorder(streamDoMicrofone);
+      gravador.addEventListener('dataavailable', (evento) => {
+        if (evento.data.size) pedacosDeAudio.push(evento.data);
+      });
+      gravador.addEventListener('stop', async () => {
+        const mimeGravado = gravador.mimeType || 'audio/webm';
+        pararFluxo();
+        if (cancelandoGravacao || !pedacosDeAudio.length) return;
+        const blob = new Blob(pedacosDeAudio, { type: mimeGravado });
+        if (!blob.size) return;
+        const extensao = mimeGravado.includes('ogg') ? 'ogg' : 'webm';
+        const arquivo = new File([blob], `mensagem-de-voz.${extensao}`, { type: mimeGravado });
+        try {
+          anexo = await enviarArquivo(arquivo);
+          rotuloAnexo.textContent = `áudio gravado · ${formatarTempo(Math.round((Date.now() - inicioDaGravacao) / 1000))}`;
+          rotuloAnexo.style.display = 'inline-flex';
+        } catch (erro) {
+          aviso(erro.message, 'erro');
+        }
+      });
+      gravador.start();
+      inicioDaGravacao = Date.now();
+      atualizarUiDeGravacao(true);
+      indicadorGravando.textContent = '● 0:00';
+      cronometroGravacao = setInterval(() => {
+        const passados = Math.floor((Date.now() - inicioDaGravacao) / 1000);
+        indicadorGravando.textContent = `● ${formatarTempo(passados)}`;
+        if (passados >= TETO_GRAVACAO_SEGUNDOS) pararGravacao();
+      }, 500);
+    }
+
+    function pararGravacao() {
+      if (gravador && gravador.state !== 'inactive') gravador.stop();
+      atualizarUiDeGravacao(false);
+    }
+
+    function cancelarGravacao() {
+      cancelandoGravacao = true;
+      if (gravador && gravador.state !== 'inactive') gravador.stop();
+      else pararFluxo();
+      atualizarUiDeGravacao(false);
+    }
+
+    const botaoMicrofone = botao('', {
+      pequeno: true,
+      icone: 'microfone',
+      titulo: 'Gravar áudio',
+      aoClicar: () => (gravando ? pararGravacao() : iniciarGravacao()),
+    });
+    botaoMicrofone.setAttribute('aria-label', 'Gravar áudio');
+    const botaoCancelarGravacao = botao('', {
+      pequeno: true,
+      icone: 'fechar',
+      titulo: 'Cancelar gravação',
+      aoClicar: cancelarGravacao,
+    });
+    botaoCancelarGravacao.style.display = 'none';
+
     const enviar = async () => {
       const conteudo = texto.value.trim();
       if (!conteudo && !anexo) return;
@@ -1712,6 +1823,9 @@ export async function paginaAtendimento({
       el('div', { class: 'linha-botoes mt-2' }, [
         alternarNota,
         botao('Anexar', { pequeno: true, icone: 'anexar', titulo: 'Imagem, vídeo, áudio ou PDF (até 16 MB)', aoClicar: () => seletorArquivo.click() }),
+        botaoMicrofone,
+        botaoCancelarGravacao,
+        indicadorGravando,
         botao('Template', { pequeno: true, icone: 'templates', aoClicar: () => abrirSeletorTemplate(contato, texto) }),
         botao('Agendar', {
           pequeno: true,

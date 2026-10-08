@@ -1,9 +1,15 @@
-import { atualizar, encerrarBanco, iniciarBanco, inserir, listar } from '../nucleo/banco.js';
-import { normalizar, novoId } from '../nucleo/util.js';
+import { encerrarBanco, iniciarBanco, listar } from '../nucleo/banco.js';
+import { processarVozes } from '../nucleo/vozes-dos-agentes.js';
 
 /**
  * Poe a voz para funcionar nos agentes: `npm run voz-dos-agentes` simula, e
  * `-- --aplicar` grava. COM O SISTEMA PARADO.
+ *
+ * Desde 08/10/2026 o mesmo ajuste (processarVozes, em nucleo/vozes-dos-
+ * agentes.js) tambem roda sozinho a cada vez que o servidor sobe (ver
+ * servidor/index.js) — um "Implantar" comum ja basta, sem precisar de
+ * terminal na VPS. Esta ferramenta continua util para conferir antes
+ * (simulacao) ou para forcar fora do boot.
  *
  * O QUE JA EXISTIA
  *
@@ -39,16 +45,6 @@ import { normalizar, novoId } from '../nucleo/util.js';
 
 const APLICAR = process.argv.includes('--aplicar');
 
-const REGRA_COMPLETA = `CANAL DE VOZ: se o cliente disser que não sabe ler, que não consegue ler mensagens ou que tem dificuldade para ler, use @ativaraudio e passe a falar com frases curtas e palavras simples; se pedir para voltar a escrever, use @desativaraudio. Não ofereça nem incentive áudio a quem escreve normalmente.`;
-const REGRA_VOLTAR = `Se o cliente pedir para voltar ao texto, use @desativaraudio.`;
-
-const VOZES_PADRAO = [
-  { nome: 'Acolhedora', descricao: 'Feminina, suave e um pouco mais devagar. Para quem escuta com mais atencao.', vozBase: 'shimmer', velocidade: 0.95 },
-  { nome: 'Clara', descricao: 'Feminina, jovem e clara.', vozBase: 'nova', velocidade: 1 },
-];
-
-const ehAvaliacao = (a) => normalizar(a.nome).startsWith('avaliacao');
-
 async function principal() {
   await iniciarBanco();
   const workspaces = listar('workspaces');
@@ -63,63 +59,7 @@ async function principal() {
      A versao antiga so olhava listar('workspaces')[0] — o workspace geral,
      quase sem agente de atendimento — e nunca chegava nos agentes reais de
      Previdenciario, Trabalhista e Civel, cada um no seu proprio workspace. */
-  let totalCriadas = 0;
-  let totalComVoz = 0;
-  let totalComRegra = 0;
-
-  for (const workspace of workspaces) {
-    const w = workspace.id;
-    const agentesDoEscritorio = listar('agentes', { workspaceId: w }).filter((a) => a.ativo !== false && !ehAvaliacao(a));
-    if (!agentesDoEscritorio.length) continue;
-
-    console.log(`\n--- ${workspace.nome} ---`);
-
-    /* 1. Vozes --------------------------------------------------------- */
-    let vozes = listar('vozes', { workspaceId: w });
-    if (vozes.length) {
-      console.log(`  ja tem ${vozes.length} voz(es) (${vozes.map((v) => v.nome).join(', ')}): nao cadastro nenhuma.`);
-    } else {
-      for (const v of VOZES_PADRAO) {
-        console.log(`  [${APLICAR ? 'feito' : 'simulado'}] cadastrar "${v.nome}" (${v.vozBase}, velocidade ${v.velocidade})`);
-        if (APLICAR) inserir('vozes', { id: novoId('voz'), workspaceId: w, ...v });
-        totalCriadas += 1;
-      }
-      vozes = listar('vozes', { workspaceId: w });
-    }
-    const padrao = vozes.find((v) => normalizar(v.nome) === 'acolhedora') || vozes[0] || null;
-
-    /* 2 e 3. Agentes ----------------------------------------------------- */
-    let semAjuste = true;
-    for (const agente of agentesDoEscritorio) {
-      const mudancas = {};
-      const acoes = [];
-
-      if (!agente.vozId && (padrao || !APLICAR)) {
-        acoes.push(`voz ${padrao?.nome || 'Acolhedora'}`);
-        if (padrao) mudancas.vozId = padrao.id;
-        totalComVoz += 1;
-      }
-
-      const prompt = String(agente.prompt || '');
-      const temLigar = /@ativaraudio/i.test(prompt);
-      const temDesligar = /@desativaraudio/i.test(prompt);
-      if (!temLigar) {
-        mudancas.prompt = `${prompt.trimEnd()}\n\n${REGRA_COMPLETA}`;
-        acoes.push('regra de voz');
-        totalComRegra += 1;
-      } else if (!temDesligar) {
-        mudancas.prompt = `${prompt.trimEnd()}\n\n${REGRA_VOLTAR}`;
-        acoes.push('regra de voltar ao texto');
-        totalComRegra += 1;
-      }
-
-      if (!acoes.length) continue;
-      semAjuste = false;
-      console.log(`  [${APLICAR ? 'feito' : 'simulado'}] ${agente.nome}: ${acoes.join(' + ')}`);
-      if (APLICAR && Object.keys(mudancas).length) atualizar('agentes', agente.id, mudancas);
-    }
-    if (semAjuste) console.log('  nenhum agente precisa de ajuste: ja estava feito.');
-  }
+  const { totalCriadas, totalComVoz, totalComRegra } = processarVozes({ aplicar: APLICAR, log: console.log });
 
   console.log('\n---------------------------------------------');
   console.log(`vozes cadastradas: ${totalCriadas} | agentes com voz escolhida: ${totalComVoz} | prompts com regra acrescentada: ${totalComRegra}`);

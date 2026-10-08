@@ -5689,6 +5689,31 @@ select.chat-teste-escolha {
   min-width: 0;
 }
 
+/* Gravando audio: o microfone vira vermelho e pulsa, igual ao "ao vivo" que
+   qualquer app de mensagem usa — sem isso, nada na tela diz que o microfone
+   do computador esta ligado. */
+.compositor .linha-botoes .botao.gravando {
+  color: var(--erro);
+  background: color-mix(in srgb, var(--erro) 14%, transparent);
+  animation: gravando-pulsa 1.4s ease-in-out infinite;
+}
+
+.indicador-gravando {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  animation: gravando-pulsa 1.4s ease-in-out infinite;
+}
+
+@keyframes gravando-pulsa {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
 /*
  * O contrato que espera conferencia, no fim da conversa.
  *
