@@ -20,6 +20,7 @@ import { testarIa } from './ia.js';
 import { testarHistorico } from './historico.js';
 import { testarCasos } from './casos.js';
 import { testarEncadeamento } from './encadeamento.js';
+import { testarPromptAoVivo } from './prompt-ao-vivo.js';
 import { testarPacotes } from './pacotes.js';
 import { subirZapsignFalsa } from './zapsign-falsa.js';
 import { testarContratos } from './contratos.js';
@@ -249,6 +250,8 @@ async function principal() {
     suites.push(await testarEncadeamento({ base, anthropic }));
     /* Mesmo esquema do encadeamento: roteiro na Anthropic de mentira, chave posta e tirada. */
     suites.push(await testarFalaEAcao({ base, anthropic }));
+    /* Idem: prompt editado no meio da conversa, sem reiniciar o servidor. */
+    suites.push(await testarPromptAoVivo({ base, anthropic }));
     /* Tambem usa a Anthropic de mentira, e poe e tira a chave. */
     suites.push(await testarAvaliacao({ base, anthropic }));
     suites.push(await testarVoz({ base, anthropic, openai }));

@@ -1668,13 +1668,15 @@ export async function paginaAtendimento({
       atualizarUiDeGravacao(false);
     }
 
-    const botaoMicrofone = botao('', {
+    /* Com texto do lado, igual Anexar/Template/Agendar — so icone (como o
+       Enviar) ficava parecido demais com enfeite entre os outros botoes, e
+       passava despercebido. */
+    const botaoMicrofone = botao('Áudio', {
       pequeno: true,
       icone: 'microfone',
       titulo: 'Gravar áudio',
       aoClicar: () => (gravando ? pararGravacao() : iniciarGravacao()),
     });
-    botaoMicrofone.setAttribute('aria-label', 'Gravar áudio');
     const botaoCancelarGravacao = botao('', {
       pequeno: true,
       icone: 'fechar',
@@ -1683,27 +1685,54 @@ export async function paginaAtendimento({
     });
     botaoCancelarGravacao.style.display = 'none';
 
+    /*
+     * Limpa a caixa na hora do Enter, sem esperar o servidor responder.
+     *
+     * Antes, o campo so esvaziava depois do `await` terminar: numa rede lenta
+     * dava a impressao de que apertar Enter nao tinha feito nada. Agora limpa
+     * de impeto e, se o envio falhar, devolve o texto e o anexo para o
+     * atendente nao perder o que escreveu.
+     */
     const enviar = async () => {
       const conteudo = texto.value.trim();
       if (!conteudo && !anexo) return;
+      const anexoEnviado = anexo;
+      const agendamentoEnviado = agendarPara;
+      const rotuloAnexoTexto = rotuloAnexo.textContent;
+      const rotuloAgendaTexto = rotuloAgenda.textContent;
+
+      texto.value = '';
+      /* Enviou, entao o rascunho cumpriu o papel. Deixado no mapa, ele
+         voltaria sozinho no proximo desenho, como se a mensagem nao tivesse
+         saido. */
+      RASCUNHOS.delete(contato.id);
+      texto.style.height = 'auto';
+      anexo = null;
+      agendarPara = null;
+      rotuloAnexo.style.display = 'none';
+      rotuloAgenda.style.display = 'none';
+
       try {
         await api.post(`/api/contatos/${contato.id}/mensagens`, {
           conteudo,
-          midia: anexo,
+          midia: anexoEnviado,
           nota: ehNota,
-          agendarPara,
+          agendarPara: agendamentoEnviado,
         });
-        texto.value = '';
-        /* Enviou, entao o rascunho cumpriu o papel. Deixado no mapa, ele
-           voltaria sozinho no proximo desenho, como se a mensagem nao tivesse
-           saido. */
-        RASCUNHOS.delete(contato.id);
-        texto.style.height = 'auto';
-        anexo = null;
-        agendarPara = null;
-        rotuloAnexo.style.display = 'none';
-        rotuloAgenda.style.display = 'none';
       } catch (erro) {
+        texto.value = conteudo;
+        if (conteudo) RASCUNHOS.set(contato.id, conteudo);
+        ajustarAltura();
+        anexo = anexoEnviado;
+        if (anexoEnviado) {
+          rotuloAnexo.textContent = rotuloAnexoTexto;
+          rotuloAnexo.style.display = 'inline-flex';
+        }
+        agendarPara = agendamentoEnviado;
+        if (agendamentoEnviado) {
+          rotuloAgenda.textContent = rotuloAgendaTexto;
+          rotuloAgenda.style.display = 'inline-flex';
+        }
         aviso(erro.message, 'erro');
       }
     };
