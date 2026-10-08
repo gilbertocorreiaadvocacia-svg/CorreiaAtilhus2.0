@@ -13,7 +13,10 @@ import { suite } from './apoio.js';
  * quando o escritorio nao tem nenhuma, escolhe voz so para quem nao tem,
  * acrescenta a regra do CANAL DE VOZ so onde falta (e a de voltar ao texto so
  * onde so falta ela), deixa a Avaliacao em paz, nao encosta em agente
- * desligado, e rodar duas vezes nao duplica nada.
+ * desligado, e rodar duas vezes nao duplica nada. E, o achado de 08/10/2026:
+ * passa em TODO workspace da base, nao so no primeiro — a versao antiga so
+ * olhava listar('workspaces')[0] e nunca chegava nos agentes de um segundo
+ * escritorio.
  */
 export async function testarVozDosAgentes({ raiz }) {
   const s = suite('Voz dos agentes (ferramenta)');
@@ -43,6 +46,8 @@ inserir('agentes', { id: 'a-trab', workspaceId: 'w1', nome: 'AG01 trab', ativo: 
 inserir('agentes', { id: 'a-ok', workspaceId: 'w1', nome: 'Ja pronto', ativo: true, prompt: 'Use @ativaraudio e @desativaraudio.', vozId: 'voz-propria' });
 inserir('agentes', { id: 'a-aval', workspaceId: 'w1', nome: 'Avaliação · Trabalhista', ativo: true, prompt: 'Pergunte a nota.', vozId: null });
 inserir('agentes', { id: 'a-off', workspaceId: 'w1', nome: 'Desligado', ativo: false, prompt: 'Nada.', vozId: null });
+inserir('workspaces', { id: 'w2', nome: 'Segundo escritorio' });
+inserir('agentes', { id: 'a-w2', workspaceId: 'w2', nome: 'Triagem do segundo', ativo: true, prompt: 'Receba o cliente do outro escritorio.', vozId: null });
 await encerrarBanco();
 `,
   );
@@ -74,8 +79,9 @@ process.exit(0);
     const aplicado = await rodar(ferramenta, ['--aplicar']);
     b = await lerBase();
     s.ok('aplicar termina sem erro', aplicado.codigo === 0, aplicado.texto.slice(-400));
-    s.ok('cadastra as duas vozes', b.vozes.length === 2 && b.vozes.some((v) => v.vozBase === 'shimmer') && b.vozes.some((v) => v.vozBase === 'nova'), JSON.stringify(b.vozes));
-    const acolhedora = b.vozes.find((v) => v.nome === 'Acolhedora');
+    const vozesDoW1 = b.vozes.filter((v) => v.workspaceId === 'w1');
+    s.ok('cadastra as duas vozes', vozesDoW1.length === 2 && vozesDoW1.some((v) => v.vozBase === 'shimmer') && vozesDoW1.some((v) => v.vozBase === 'nova'), JSON.stringify(vozesDoW1));
+    const acolhedora = vozesDoW1.find((v) => v.nome === 'Acolhedora');
     s.ok('a Acolhedora e um pouco mais lenta', acolhedora?.velocidade === 0.95, JSON.stringify(acolhedora));
 
     const rec = por(b, 'a-rec');
@@ -91,10 +97,23 @@ process.exit(0);
     s.ok('a Avaliacao fica de fora', !por(b, 'a-aval').vozId && por(b, 'a-aval').prompt === 'Pergunte a nota.', JSON.stringify(por(b, 'a-aval')));
     s.ok('agente desligado nao e tocado', !por(b, 'a-off').vozId && por(b, 'a-off').prompt === 'Nada.', JSON.stringify(por(b, 'a-off')));
 
+    /* O achado de 08/10/2026: um SEGUNDO workspace tambem precisa receber
+       vozes proprias e o agente dele tambem precisa ganhar voz e regra. */
+    const vozesDoW2 = b.vozes.filter((v) => v.workspaceId === 'w2');
+    s.ok('o segundo escritorio ganha as proprias vozes', vozesDoW2.length === 2, JSON.stringify(vozesDoW2));
+    const doW2 = por(b, 'a-w2');
+    const acolhedoraDoW2 = vozesDoW2.find((v) => v.nome === 'Acolhedora');
+    s.ok('o agente do segundo escritorio ganha voz', doW2.vozId === acolhedoraDoW2?.id, JSON.stringify(doW2));
+    s.ok(
+      'e a regra de voz, igual ao primeiro',
+      /@ativaraudio/.test(doW2.prompt) && /@desativaraudio/.test(doW2.prompt),
+      doW2.prompt,
+    );
+
     const denovo = await rodar(ferramenta, ['--aplicar']);
     const c = await lerBase();
     s.ok('rodar de novo nao muda nada', JSON.stringify(c) === JSON.stringify(b), denovo.texto.slice(-300));
-    s.ok('e nao duplica a voz', c.vozes.length === 2, String(c.vozes.length));
+    s.ok('e nao duplica a voz em nenhum dos dois escritorios', c.vozes.length === 4, String(c.vozes.length));
   } finally {
     fs.rmSync(pasta, { recursive: true, force: true });
   }

@@ -51,67 +51,78 @@ const ehAvaliacao = (a) => normalizar(a.nome).startsWith('avaliacao');
 
 async function principal() {
   await iniciarBanco();
-  const workspace = listar('workspaces')[0];
-  if (!workspace) {
+  const workspaces = listar('workspaces');
+  if (!workspaces.length) {
     console.error('Nenhum workspace na base.');
     process.exit(1);
   }
-  const w = workspace.id;
-  console.log(`Voz dos agentes - ${workspace.nome}`);
   console.log(APLICAR ? 'MODO APLICAR: sera gravado.' : 'MODO SIMULACAO: nada sera gravado. Use --aplicar depois de conferir.');
 
-  /* 1. Vozes ----------------------------------------------------------- */
-  console.log('\n1. Vozes cadastradas');
-  let vozes = listar('vozes', { workspaceId: w });
-  let criadas = 0;
-  if (vozes.length) {
-    console.log(`  o escritorio ja tem ${vozes.length} voz(es) (${vozes.map((v) => v.nome).join(', ')}): nao cadastro nenhuma.`);
-  } else {
-    for (const v of VOZES_PADRAO) {
-      console.log(`  [${APLICAR ? 'feito' : 'simulado'}] cadastrar "${v.nome}" (${v.vozBase}, velocidade ${v.velocidade})`);
-      if (APLICAR) inserir('vozes', { id: novoId('voz'), workspaceId: w, ...v });
-      criadas += 1;
+  /* Cada workspace e um escritorio a parte, com as proprias vozes e os
+     proprios agentes (ver nucleo/banco.js: tudo escopado por workspaceId).
+     A versao antiga so olhava listar('workspaces')[0] — o workspace geral,
+     quase sem agente de atendimento — e nunca chegava nos agentes reais de
+     Previdenciario, Trabalhista e Civel, cada um no seu proprio workspace. */
+  let totalCriadas = 0;
+  let totalComVoz = 0;
+  let totalComRegra = 0;
+
+  for (const workspace of workspaces) {
+    const w = workspace.id;
+    const agentesDoEscritorio = listar('agentes', { workspaceId: w }).filter((a) => a.ativo !== false && !ehAvaliacao(a));
+    if (!agentesDoEscritorio.length) continue;
+
+    console.log(`\n--- ${workspace.nome} ---`);
+
+    /* 1. Vozes --------------------------------------------------------- */
+    let vozes = listar('vozes', { workspaceId: w });
+    if (vozes.length) {
+      console.log(`  ja tem ${vozes.length} voz(es) (${vozes.map((v) => v.nome).join(', ')}): nao cadastro nenhuma.`);
+    } else {
+      for (const v of VOZES_PADRAO) {
+        console.log(`  [${APLICAR ? 'feito' : 'simulado'}] cadastrar "${v.nome}" (${v.vozBase}, velocidade ${v.velocidade})`);
+        if (APLICAR) inserir('vozes', { id: novoId('voz'), workspaceId: w, ...v });
+        totalCriadas += 1;
+      }
+      vozes = listar('vozes', { workspaceId: w });
     }
-    vozes = listar('vozes', { workspaceId: w });
+    const padrao = vozes.find((v) => normalizar(v.nome) === 'acolhedora') || vozes[0] || null;
+
+    /* 2 e 3. Agentes ----------------------------------------------------- */
+    let semAjuste = true;
+    for (const agente of agentesDoEscritorio) {
+      const mudancas = {};
+      const acoes = [];
+
+      if (!agente.vozId && (padrao || !APLICAR)) {
+        acoes.push(`voz ${padrao?.nome || 'Acolhedora'}`);
+        if (padrao) mudancas.vozId = padrao.id;
+        totalComVoz += 1;
+      }
+
+      const prompt = String(agente.prompt || '');
+      const temLigar = /@ativaraudio/i.test(prompt);
+      const temDesligar = /@desativaraudio/i.test(prompt);
+      if (!temLigar) {
+        mudancas.prompt = `${prompt.trimEnd()}\n\n${REGRA_COMPLETA}`;
+        acoes.push('regra de voz');
+        totalComRegra += 1;
+      } else if (!temDesligar) {
+        mudancas.prompt = `${prompt.trimEnd()}\n\n${REGRA_VOLTAR}`;
+        acoes.push('regra de voltar ao texto');
+        totalComRegra += 1;
+      }
+
+      if (!acoes.length) continue;
+      semAjuste = false;
+      console.log(`  [${APLICAR ? 'feito' : 'simulado'}] ${agente.nome}: ${acoes.join(' + ')}`);
+      if (APLICAR && Object.keys(mudancas).length) atualizar('agentes', agente.id, mudancas);
+    }
+    if (semAjuste) console.log('  nenhum agente precisa de ajuste: ja estava feito.');
   }
-  const padrao = vozes.find((v) => normalizar(v.nome) === 'acolhedora') || vozes[0] || null;
-
-  /* 2 e 3. Agentes ----------------------------------------------------- */
-  console.log('\n2. Voz e regra de voz nos agentes que atendem cliente');
-  let comVoz = 0;
-  let comRegra = 0;
-  for (const agente of listar('agentes', { workspaceId: w })) {
-    if (agente.ativo === false || ehAvaliacao(agente)) continue;
-    const mudancas = {};
-    const acoes = [];
-
-    if (!agente.vozId && (padrao || !APLICAR)) {
-      acoes.push(`voz ${padrao?.nome || 'Acolhedora'}`);
-      if (padrao) mudancas.vozId = padrao.id;
-      comVoz += 1;
-    }
-
-    const prompt = String(agente.prompt || '');
-    const temLigar = /@ativaraudio/i.test(prompt);
-    const temDesligar = /@desativaraudio/i.test(prompt);
-    if (!temLigar) {
-      mudancas.prompt = `${prompt.trimEnd()}\n\n${REGRA_COMPLETA}`;
-      acoes.push('regra de voz');
-      comRegra += 1;
-    } else if (!temDesligar) {
-      mudancas.prompt = `${prompt.trimEnd()}\n\n${REGRA_VOLTAR}`;
-      acoes.push('regra de voltar ao texto');
-      comRegra += 1;
-    }
-
-    if (!acoes.length) continue;
-    console.log(`  [${APLICAR ? 'feito' : 'simulado'}] ${agente.nome}: ${acoes.join(' + ')}`);
-    if (APLICAR && Object.keys(mudancas).length) atualizar('agentes', agente.id, mudancas);
-  }
-  if (!comVoz && !comRegra) console.log('  nenhum agente precisa de ajuste: ja estava feito.');
 
   console.log('\n---------------------------------------------');
-  console.log(`vozes cadastradas: ${criadas} | agentes com voz escolhida: ${comVoz} | prompts com regra acrescentada: ${comRegra}`);
+  console.log(`vozes cadastradas: ${totalCriadas} | agentes com voz escolhida: ${totalComVoz} | prompts com regra acrescentada: ${totalComRegra}`);
   if (APLICAR) {
     await encerrarBanco();
     console.log('\nPronto. Suba o sistema de novo. Falta cadastrar a chave da OpenAI em Integracoes para o audio sair.');
