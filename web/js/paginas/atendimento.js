@@ -3909,7 +3909,16 @@ export async function paginaAtendimento({
         ],
       );
 
-      return [partes, quemConduz];
+      const relatorios = botao('Relatórios', {
+        pequeno: true,
+        icone: 'painel',
+        titulo: 'Quantos contratos cada pessoa e cada agente de IA fecharam',
+        aoClicar: () => {
+          location.hash = '#/relatorios';
+        },
+      });
+
+      return [partes, quemConduz, relatorios];
     }
 
     const quadro = el('div', { class: 'kanban' });

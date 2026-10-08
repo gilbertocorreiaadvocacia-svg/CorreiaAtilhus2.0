@@ -115,7 +115,8 @@ export async function paginaRelatorios({ definirAcoes = () => {} } = {}) {
       <style>
         * { box-sizing: border-box; }
         body { font: 14px/1.5 -apple-system, Segoe UI, Roboto, sans-serif; color: #141414; margin: 32px; }
-        header { border-bottom: 2px solid #141414; padding-bottom: 12px; margin-bottom: 20px; }
+        header { display: flex; align-items: center; gap: 16px; border-bottom: 2px solid #141414; padding-bottom: 12px; margin-bottom: 20px; }
+        header img { height: 48px; width: auto; flex: none; }
         h1 { font-size: 20px; margin: 0; }
         .sub { color: #555; margin-top: 4px; }
         .total { font-size: 32px; font-weight: 700; margin: 8px 0 24px; }
@@ -129,8 +130,11 @@ export async function paginaRelatorios({ definirAcoes = () => {} } = {}) {
         @media print { body { margin: 0; } }
       </style></head><body>
       <header>
-        <h1>Correia Advogados — Contratos fechados</h1>
-        <div class="sub">Contratos assinados · ${escapar(periodo)}</div>
+        <img src="${location.origin}/assets/logo.png" alt="" onerror="this.remove()">
+        <div>
+          <h1>Correia Advogados — Contratos fechados</h1>
+          <div class="sub">Contratos assinados · ${escapar(periodo)}</div>
+        </div>
       </header>
       <div class="total">${ultimo.total} ${ultimo.total === 1 ? 'contrato assinado' : 'contratos assinados'}</div>
       ${bloco('Por pessoa (quem aprovou e enviou)', ultimo.porPessoa, 'Aprovado pelo sistema')}
