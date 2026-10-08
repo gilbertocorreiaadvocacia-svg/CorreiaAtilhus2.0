@@ -574,12 +574,23 @@ function blocoDoHistorico(conexao, aoMudar) {
   } else if (h.situacao === 'aguardando') {
     texto = 'O celular está mandando o histórico. As conversas chegam em Ativos nos próximos minutos.';
   } else if (h.situacao === 'importando') {
-    texto = `Trazendo as conversas do celular${h.rodada ? ` (rodada ${h.rodada})` : ''}: ${h.conversas || 0} conversas até agora. O sistema continua buscando até o celular parar de mandar, por até uma hora.`;
+    texto = `Trazendo as conversas do celular${h.rodada ? ` (rodada ${h.rodada}${h.totalRodadas ? ` de até ${h.totalRodadas}` : ''})` : ''}: ${h.conversas || 0} conversas até agora. O sistema continua buscando até o celular parar de mandar, por até uma hora.`;
   } else if (h.situacao === 'erro') {
     texto = `A última tentativa falhou: ${h.erro || 'erro sem descrição'}.`;
   } else {
     texto = `${h.conversas || 0} conversas e ${h.mensagens || 0} mensagens trazidas do celular${h.concluidoEm ? `, ${dataHora(h.concluidoEm)}` : ''}.`;
   }
+
+  /*
+   * A porcentagem e uma estimativa pela etapa do calendario de buscas, NAO
+   * pelo total de conversas — o celular nunca diz quantas tem ao todo, so da
+   * para saber depois que a importacao termina. Por isso o rotulo sempre leva
+   * um "~" e a explicacao do que ela mede, para ninguem ler como uma conta
+   * exata. So aparece com sincronizacao automatica (rodada numerada); o botao
+   * "Sincronizar tudo" e um reforco manual avulso, sem rodada no calendario.
+   */
+  const emAndamentoComEstimativa =
+    h?.situacao === 'importando' && typeof h.percentual === 'number' && h.rodada;
 
   const trazer = (botaoClicado) => sincronizarTudo(conexao, aoMudar, botaoClicado);
 
@@ -590,6 +601,14 @@ function blocoDoHistorico(conexao, aoMudar) {
     ),
     el('div', { class: 'conexao-bloco' }, [
       el('p', { class: 'ajuda', texto }),
+      emAndamentoComEstimativa
+        ? el('div', { class: 'historico-progresso', title: 'Estimativa pela etapa do calendário de buscas, não pelo total de conversas (esse total só se sabe ao final).' }, [
+            el('div', { class: 'historico-progresso-trilha' }, [
+              el('div', { class: 'historico-progresso-cheia', estilo: { width: `${h.percentual}%` } }),
+            ]),
+            el('span', { class: 'historico-progresso-numero', texto: `~${h.percentual}%` }),
+          ])
+        : null,
       conectada && podeConfigurar() && h?.situacao !== 'importando'
         ? el('div', { class: 'linha-botoes' }, [
             botao('Sincronizar tudo', {

@@ -179,6 +179,8 @@ export async function testarHistorico({ base, evolucao, chaveEvolucao }) {
     `parou na rodada ${historico?.rodada}`,
   );
   s.ok('a tela sabe quantas conversas vieram', historico?.conversas === 5, JSON.stringify(historico));
+  s.ok('concluido, a estimativa de andamento fecha em 100%', historico?.percentual === 100, String(historico?.percentual));
+  s.ok('e sabe quantas rodadas o calendario tinha ao todo', historico?.totalRodadas === 5, String(historico?.totalRodadas));
 
   const todas = (await api.get(`/api/contatos?conexao=${id}&limite=500`)).dados?.contatos || [];
   const pelo = (fn) => todas.find(fn);

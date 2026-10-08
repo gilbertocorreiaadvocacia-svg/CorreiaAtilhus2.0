@@ -42,6 +42,21 @@ const RODADAS_MINIMAS = Math.min(3, ESPERAS.length);
 /** Rodadas seguidas sem nada novo que encerram a sincronizacao. */
 const RODADAS_CALMAS = 2;
 
+/**
+ * Uma estimativa, nao uma conta exata: o celular nunca diz quantas conversas
+ * ou mensagens tem no total, entao nao ha "total" para comparar com o que ja
+ * chegou. O que da para medir e em que rodada do calendario a sincronizacao
+ * esta — a maioria termina bem antes da ultima, pela calmaria (ver cabecalho
+ * do arquivo), entao o numero tende a UNDERESTIMAR o quanto falta, nunca o
+ * contrario: melhor a pessoa achar que falta mais do que o real e ser
+ * surpreendida pelo fim, do que o contrario.
+ */
+function percentualDaRodada(rodada, terminou) {
+  if (terminou) return { percentual: 100, totalRodadas: ESPERAS.length };
+  if (rodada === null || rodada === undefined) return { totalRodadas: ESPERAS.length };
+  return { percentual: Math.min(99, Math.round((rodada / ESPERAS.length) * 100)), totalRodadas: ESPERAS.length };
+}
+
 const agendadas = new Map();
 /** conexaoId -> a promessa da rodada em andamento. */
 const rodando = new Map();
@@ -74,7 +89,7 @@ function anotar(conexaoId, mudancas) {
 export function agendarSincronizacao(conexao) {
   if (!conexao || conexao.tipo !== 'qrcode' || agendadas.has(conexao.id)) return;
   calmas.set(conexao.id, 0);
-  anotar(conexao.id, { situacao: 'aguardando', rodada: 0, erro: null });
+  anotar(conexao.id, { situacao: 'aguardando', rodada: 0, percentual: 0, totalRodadas: ESPERAS.length, erro: null });
   const relogios = ESPERAS.map((espera, i) => {
     /* O erro ja fica anotado na conexao e no log; sem o catch, a promessa
        rejeitada dentro do relogio derrubaria o servidor inteiro. */
@@ -163,6 +178,7 @@ async function executar(conexao, { rodada, responsavel, forcarFotos }) {
       conversas,
       mensagens: mensagensAntes + relato.mensagensGravadas,
       ...(terminou ? { concluidoEm: agora() } : {}),
+      ...percentualDaRodada(rodada, terminou),
       erro: null,
     });
     registrarLog(

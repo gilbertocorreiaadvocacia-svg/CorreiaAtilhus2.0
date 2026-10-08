@@ -10502,6 +10502,39 @@ tbody tr:focus-within .conexao-alca {
   color: var(--texto-suave);
 }
 
+/* Estimativa de andamento da sincronizacao do celular (so durante "importando",
+   com rodada numerada). O "~" no numero, no texto do js, ja avisa que e
+   aproximada — a barra so reforca visualmente. */
+.historico-progresso {
+  display: flex;
+  align-items: center;
+  gap: var(--e3);
+}
+
+.historico-progresso-trilha {
+  flex: 1;
+  height: 6px;
+  border-radius: var(--raio-pilula);
+  background: var(--superficie-3);
+  overflow: hidden;
+}
+
+.historico-progresso-cheia {
+  height: 100%;
+  border-radius: var(--raio-pilula);
+  background: var(--ouro);
+  transition: width 0.3s ease;
+}
+
+.historico-progresso-numero {
+  flex: none;
+  min-width: 3ch;
+  font-size: var(--t-nota);
+  font-weight: 600;
+  color: var(--texto-suave);
+  font-variant-numeric: tabular-nums;
+}
+
 /* Lista de eventos da conexao (aba Logs e "Ver eventos"). Linha por linha, a
    hora a esquerda em largura fixa para as horas alinharem entre si. */
 .conexao-evento {
