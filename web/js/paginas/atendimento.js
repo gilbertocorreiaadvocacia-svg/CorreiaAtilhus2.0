@@ -120,9 +120,9 @@ function etapaDoStatus(status) {
  * so, as colunas paradas empurravam o funil para fora da tela.
  */
 const SEGMENTOS_DO_FUNIL = [
-  { id: 'venda', rotulo: 'Venda' },
+  { id: 'venda', rotulo: 'CRM' },
   { id: 'posvenda', rotulo: 'Pós-venda' },
-  { id: 'encerradas', rotulo: 'Encerradas' },
+  { id: 'encerradas', rotulo: 'Encerrado' },
 ];
 
 function segmentoDoStatus(status) {

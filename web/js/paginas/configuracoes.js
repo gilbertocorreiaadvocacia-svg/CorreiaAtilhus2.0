@@ -272,8 +272,18 @@ export async function paginaConfiguracoes({ parametros }) {
     await desenharConteudo();
   }
 
+  /* A tela aparece ja: desenharConteudo ja limpa e poe a migalha e o
+     cabecalho antes de esperar a secao (atual.montar), entao devolver o
+     layout sem esperar essa promessa ja tira o bloqueio da troca de tela.
+     Antes, abrir uma secao pesada (ex.: Saude do sistema) travava a
+     navegacao inteira ate a secao terminar de carregar. */
   desenharIndice();
-  await desenharConteudo(true);
+  desenharConteudo(true).catch((erro) => {
+    // Sessao expirada: quem trata e o ouvinte global de unhandledrejection
+    // (app.js), que leva de volta para a tela de entrada.
+    if (erro.codigo === 401) throw erro;
+    conteudo.replaceChildren(vazio('Nao consegui abrir esta secao', erro.message));
+  });
   return layout;
 }
 

@@ -96,14 +96,17 @@ function gravarPreferencia(chave, valor) {
 export async function paginaConexoes({ definirAcoes } = {}) {
   const container = el('div');
 
-  /* Se a chamada falhar, a lista de reserva acima continua valendo: e melhor a
-     tela abrir com os tres caminhos conhecidos do que nao abrir. */
-  try {
-    const tipos = await api.get('/api/conexoes-tipos');
-    if (Array.isArray(tipos) && tipos.length) TIPOS = tipos;
-  } catch {
-    /* segue com a lista de reserva */
-  }
+  /* Se a chamada falhar (ou so demorar), a lista de reserva acima continua
+     valendo: e melhor a tela abrir com os tres caminhos conhecidos do que
+     esperar a rede para abrir. Roda em paralelo com o resto, sem bloquear. */
+  const tiposCarregados = api
+    .get('/api/conexoes-tipos')
+    .then((tipos) => {
+      if (Array.isArray(tipos) && tipos.length) TIPOS = tipos;
+    })
+    .catch(() => {
+      /* segue com a lista de reserva */
+    });
 
   /* A volta do login do TikTok traz o resultado na busca do endereco. */
   const voltaDoTikTok = new URLSearchParams(location.search).get('tiktok');
@@ -349,7 +352,23 @@ export async function paginaConexoes({ definirAcoes } = {}) {
     await desenhar();
   });
 
-  await desenhar();
+  /* A tela aparece ja: o esqueleto entra agora, a tabela chega em segundo
+     plano. Antes, a troca de tela esperava a lista de conexoes inteira. */
+  container.append(
+    el('div', { class: 'esqueleto-rota' }, [
+      el('div', { class: 'esqueleto esqueleto-linha', estilo: { width: '40%' } }),
+      el('div', { class: 'esqueleto esqueleto-bloco' }),
+      el('div', { class: 'esqueleto esqueleto-bloco' }),
+      el('div', { class: 'esqueleto esqueleto-bloco' }),
+    ]),
+  );
+  const primeiraPintura = Promise.all([tiposCarregados, desenhar()]);
+  primeiraPintura.catch((erro) => {
+    // Sessao expirada: quem trata e o ouvinte global de unhandledrejection
+    // (app.js), que leva de volta para a tela de entrada.
+    if (erro.codigo === 401) throw erro;
+    container.replaceChildren(vazio('Não consegui carregar as conexões', erro.message));
+  });
   return container;
 }
 

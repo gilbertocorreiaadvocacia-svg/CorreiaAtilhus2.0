@@ -1904,8 +1904,30 @@ export async function paginaAgentes({ parametros, definirAcoes, definirPrincipal
     });
   }
 
-  await recarregarTudo();
-  return modoLista ? pastasDaLista : container;
+  /* A tela aparece ja: a troca de pagina nao espera mais a rede inteira
+     (agentes, vozes, mencoes, e a lista cruzada "todos os escritorios"). No
+     modo lista, que comeca vazio, entra um esqueleto; no editor de 3 colunas
+     (container ja chega com lista/area/lado montados, so sem dado ainda) nao
+     ha o que esqueletizar por cima sem competir com o proprio layout. */
+  const raiz = modoLista ? pastasDaLista : container;
+  if (modoLista) {
+    raiz.append(
+      el('div', { class: 'esqueleto-rota' }, [
+        el('div', { class: 'esqueleto esqueleto-linha', estilo: { width: '40%' } }),
+        el('div', { class: 'esqueleto esqueleto-bloco' }),
+        el('div', { class: 'esqueleto esqueleto-bloco' }),
+        el('div', { class: 'esqueleto esqueleto-bloco' }),
+      ]),
+    );
+  }
+  const primeiraCarga = recarregarTudo();
+  primeiraCarga.catch((erro) => {
+    // Sessao expirada: quem trata e o ouvinte global de unhandledrejection
+    // (app.js), que leva de volta para a tela de entrada.
+    if (erro.codigo === 401) throw erro;
+    raiz.replaceChildren(vazio('Não consegui carregar os agentes', erro.message));
+  });
+  return raiz;
 }
 
 /* ------------------------------------------------------------------ */
