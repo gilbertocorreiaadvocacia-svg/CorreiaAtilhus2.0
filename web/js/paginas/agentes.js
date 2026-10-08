@@ -170,35 +170,60 @@ export async function paginaAgentes({ parametros, definirAcoes, definirPrincipal
   const pastasDaLista = el('section', { class: 'agentes-pastas', 'aria-label': 'Agentes por pasta' });
   const squadsAbertos = new Set();
 
-  definirAcoes?.(
-    podeConfigurar()
-      ? botao('Desligar todos', {
-          pequeno: true,
-          icone: 'alerta',
-          titulo: 'Desliga todo agente de IA deste workspace — a equipe assume as conversas na mão',
-          aoClicar: () =>
-            confirmar(
-              'Desligar todos os agentes de IA?',
-              'Nenhum agente deste workspace vai responder sozinho até você religar um por um (ou instalar um pacote de novo). Isso não afeta outros workspaces.',
-              async () => {
-                const r = await api.post('/api/agentes-desligar-todos', {});
-                aviso(r.desligados ? `${r.desligados} agente(s) desligado(s).` : 'Nenhum agente estava ligado.', 'sucesso');
-                /* agentesDeTodos so busca uma vez (em modoLista); sem isso, o
-                   resumo "todos os escritorios" ficava com a contagem antiga. */
-                agentesDeTodos = null;
-                await recarregarTudo();
-              },
-              'Desligar todos',
-            ),
-        })
-      : null,
-    podeConfigurar()
-      ? botao('Agentes por área', { pequeno: true, icone: 'usuarios', aoClicar: () => abrirPacotes() })
-      : null,
-    podeConfigurar()
-      ? botao('Criar com IA', { pequeno: true, icone: 'raio', aoClicar: () => abrirGeracao(recarregarTudo) })
-      : null,
-  );
+  /*
+   * O botao de ligar/desligar tudo troca de cara conforme o que ja esta
+   * ligado: com algum agente ligado, ele desliga todos; com tudo desligado,
+   * vira o convite para ligar de novo. Por isso mora numa funcao que
+   * recarregarTudo() chama de novo a cada recarga — definirAcoes substitui o
+   * que ja estava la (nunca empilha).
+   */
+  function pintarAcoes() {
+    const algumLigado = agentes.some((a) => a.ativo);
+    definirAcoes?.(
+      podeConfigurar()
+        ? botao(algumLigado ? 'Desligar todos' : 'Ativar todos', {
+            pequeno: true,
+            icone: algumLigado ? 'alerta' : 'ok',
+            titulo: algumLigado
+              ? 'Desliga todo agente de IA deste workspace — a equipe assume as conversas na mão'
+              : 'Liga de novo todo agente de IA deste workspace',
+            aoClicar: () =>
+              algumLigado
+                ? confirmar(
+                    'Desligar todos os agentes de IA?',
+                    'Nenhum agente deste workspace vai responder sozinho até você ligar de novo (pelo botão Ativar todos, ou um por um). Isso não afeta outros workspaces.',
+                    async () => {
+                      const r = await api.post('/api/agentes-desligar-todos', {});
+                      aviso(r.desligados ? `${r.desligados} agente(s) desligado(s).` : 'Nenhum agente estava ligado.', 'sucesso');
+                      /* agentesDeTodos so busca uma vez (em modoLista); sem isso, o
+                         resumo "todos os escritorios" ficava com a contagem antiga. */
+                      agentesDeTodos = null;
+                      await recarregarTudo();
+                    },
+                    'Desligar todos',
+                  )
+                : confirmar(
+                    'Ativar todos os agentes de IA?',
+                    'Liga TODO agente deste workspace, inclusive o que você tinha desligado antes por outro motivo (um agente ainda não terminado, por exemplo). Isso não afeta outros workspaces.',
+                    async () => {
+                      const r = await api.post('/api/agentes-ativar-todos', {});
+                      aviso(r.ativados ? `${r.ativados} agente(s) ligado(s).` : 'Nenhum agente estava desligado.', 'sucesso');
+                      agentesDeTodos = null;
+                      await recarregarTudo();
+                    },
+                    'Ativar todos',
+                  ),
+          })
+        : null,
+      podeConfigurar()
+        ? botao('Agentes por área', { pequeno: true, icone: 'usuarios', aoClicar: () => abrirPacotes() })
+        : null,
+      podeConfigurar()
+        ? botao('Criar com IA', { pequeno: true, icone: 'raio', aoClicar: () => abrirGeracao(recarregarTudo) })
+        : null,
+    );
+  }
+  pintarAcoes();
   definirPrincipal?.(
     podeConfigurar() ? botao('Novo agente', { tipo: 'principal', icone: 'mais', aoClicar: criarVazio }) : null,
   );
@@ -220,6 +245,7 @@ export async function paginaAgentes({ parametros, definirAcoes, definirPrincipal
     const [lidos, listaVozes] = await Promise.all([recarregar('agentes'), api.get('/api/vozes').catch(() => vozes)]);
     agentes = lidos;
     vozes = listaVozes;
+    pintarAcoes();
     try {
       catalogoDeMencoes = await api.get('/api/mencoes');
     } catch {

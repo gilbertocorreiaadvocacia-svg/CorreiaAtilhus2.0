@@ -637,6 +637,26 @@ export function registrarAutomacoes(rotas) {
     return { ok: true, desligados: ligados.length };
   });
 
+  /**
+   * O inverso: liga de uma vez todo agente desligado deste escritorio. Religa
+   * TODOS, inclusive quem estava desligado por outro motivo antes do "Desligar
+   * todos" (um agente nunca terminado, por exemplo) — a tela avisa isso antes
+   * de confirmar.
+   */
+  rotas.post('/api/agentes-ativar-todos', async ({ ctx }) => {
+    exigirConfiguracao(ctx);
+    const desligados = listar('agentes', { workspaceId: ctx.workspaceId }).filter((a) => !a.ativo);
+    for (const agente of desligados) atualizar('agentes', agente.id, { ativo: true });
+    if (desligados.length) {
+      registrarLog(ctx.workspaceId, null, 'seguranca', `Ligou todos os agentes de IA (${desligados.length})`, {
+        tipo: 'membro',
+        id: ctx.membro?.id,
+        nome: ctx.usuario?.nome,
+      });
+    }
+    return { ok: true, ativados: desligados.length };
+  });
+
   rotas.delete('/api/agentes/:id', async ({ ctx, params }) => {
     exigirConfiguracao(ctx);
     doWorkspace(ctx, 'agentes', params.id);

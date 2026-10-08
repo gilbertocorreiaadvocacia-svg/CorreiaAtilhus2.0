@@ -224,6 +224,21 @@ export async function testarAgentes({ base }) {
 
     const denovo = await api.post('/api/agentes-desligar-todos', {});
     s.ok('rodar de novo com tudo ja desligado nao acusa ninguem', denovo.dados?.desligados === 0, String(denovo.dados?.desligados));
+
+    /* Ativar todos: o inverso. Liga TODO mundo, inclusive quem estava
+       desligado por outro motivo (a propria cobaia jaDesligado) — e isso, nao
+       um desfazer esperto, que a tela avisa antes de confirmar. */
+    const rAtiva = await api.post('/api/agentes-ativar-todos', {});
+    s.ok('ativar todos responde com o total ligado', rAtiva.status === 200 && rAtiva.dados?.ativados >= 3, JSON.stringify(rAtiva.dados));
+
+    const depoisDeAtivar = (await api.get('/api/agentes')).dados || [];
+    const porDepois = (id) => depoisDeAtivar.find((a) => a.id === id);
+    s.ok('quem tinha sido desligado pelo "desligar todos" volta a ligar', porDepois(ligado1.id)?.ativo === true && porDepois(ligado2.id)?.ativo === true);
+    s.ok('e quem ja estava desligado por outro motivo TAMBEM liga', porDepois(jaDesligado.id)?.ativo === true);
+    s.ok('ninguem do escritorio ficou desligado', depoisDeAtivar.every((a) => a.ativo), JSON.stringify(depoisDeAtivar.filter((a) => !a.ativo).map((a) => a.nome)));
+
+    const ativaDenovo = await api.post('/api/agentes-ativar-todos', {});
+    s.ok('rodar de novo com tudo ja ligado nao acusa ninguem', ativaDenovo.dados?.ativados === 0, String(ativaDenovo.dados?.ativados));
   } finally {
     await api.delete(`/api/agentes/${ligado1.id}`);
     await api.delete(`/api/agentes/${ligado2.id}`);
