@@ -128,6 +128,25 @@ function montarSistema({ agente, contato, workspace }) {
     .map(([chave, valor]) => `- ${chave}: ${valor}`)
     .join('\n');
 
+  /*
+   * Lista de documentos recebidos, SEMPRE presente — nao so os das ultimas
+   * imagens que o modelo ainda enxerga de verdade (ver IMAGENS_MAXIMAS em
+   * montarHistorico).
+   *
+   * Achado em 09/10/2026, a partir de reclamacao real: num caso previdenciario
+   * o cliente manda CTPS, laudo, CNIS, RG, comprovante — mais de tres fotos, e
+   * as primeiras passavam a aparecer no historico so como
+   * "[imagem: nome_do_arquivo]", sem o conteudo. O agente nao lia mais o que
+   * ja tinha sido mandado e perguntava de novo, e isso ja fez cliente querer
+   * desistir. Esta lista e texto simples (nome do arquivo e data), nao imagem:
+   * nao estoura custo de visao e nunca sai do contexto, por mais longo que o
+   * caso fique.
+   */
+  const dataCurta = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' });
+  const documentos = mensagensDe(contato.id)
+    .filter((m) => !m.nota && m.direcao === 'entrada' && m.midia?.url && ['imagem', 'documento'].includes(m.midia.tipo))
+    .map((m) => `- ${m.midia.nome || m.midia.tipo} (${dataCurta.format(new Date(m.criadoEm))})`);
+
   const dataHora = new Intl.DateTimeFormat('pt-BR', {
     timeZone: 'America/Sao_Paulo',
     dateStyle: 'full',
@@ -155,6 +174,9 @@ function montarSistema({ agente, contato, workspace }) {
     'DADOS JA COLETADOS:',
     variaveis || '- nenhum ainda',
     ...(faltam.length ? ['', `FALTA COLETAR antes de avancar: ${faltam.join(', ')}`] : []),
+    '',
+    'DOCUMENTOS JA RECEBIDOS NESTA CONVERSA (nunca peca de novo um que ja esta aqui; so as ultimas imagens aparecem com o conteudo legivel mais abaixo — as mais antigas voce ve so pelo nome e pela data, mas elas EXISTEM e foram recebidas):',
+    documentos.length ? documentos.join('\n') : '- nenhum documento recebido ainda',
     ...(passagem
       ? [
           '',
