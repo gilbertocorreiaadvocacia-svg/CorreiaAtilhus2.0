@@ -5678,23 +5678,21 @@ select.chat-teste-escolha {
 }
 
 /*
- * Uma linha so: quem cede e o numero de onde a mensagem sai, que corta com
- * reticencia e mostra o resto no title. Quebrando, o Enviar descia para uma
- * segunda linha, longe do campo.
+ * Quem cede primeiro e o numero de onde a mensagem sai, que corta com
+ * reticencia e mostra o resto no title.
  *
- * Com a coluna do meio estreita (janela nao maximizada, por volta de
- * 1230-1400px) e a fileira maior — o microfone ganhou o rotulo "Audio" e o
- * anexo de audio mostra a duracao —, a soma dos botoes nao cabia mais e
- * vazava por cima do painel da direita, escondendo o Enviar (achado em
- * producao, 09/10/2026). overflow-x rola a fileira em vez de vazar; o Enviar
- * fica com flex:none para nunca encolher nem ser o que sai de vista primeiro.
+ * Tentei nowrap + rolagem lateral (09/10/2026, achado em producao: a fileira
+ * cresceu — rotulo "Audio" no microfone, duracao no anexo de audio — e vazava
+ * por cima do painel da direita numa janela nao maximizada). A rolagem ate
+ * resolvia o vazamento, mas criava um problema pior: o Enviar ficava fora da
+ * vista, cortado no meio de uma palavra, exigindo rolar para mandar mensagem.
+ * Quebrar linha e melhor: o Enviar sempre aparece inteiro, na propria linha
+ * se precisar, nunca escondido atras de nada nem exigindo rolagem para ser
+ * clicado.
  */
 .compositor .linha-botoes {
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   min-width: 0;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin;
 }
 
 .compositor .linha-botoes > .cortar {
