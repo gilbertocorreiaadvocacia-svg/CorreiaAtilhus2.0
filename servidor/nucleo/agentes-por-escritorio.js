@@ -231,6 +231,37 @@ export function ligarNumerosDasAreas() {
 }
 
 /**
+ * Numero de WhatsApp de verdade (nao simulador) com ZERO agente ativo: a
+ * conversa cai e ninguem responde, nem humano nem IA, em silencio total — o
+ * tipo de falha que so aparece quando um cliente real escreve e reclama.
+ *
+ * Achado de 08/10/2026, reconferindo o diagnostico de 29/09: o caso concreto
+ * foi o escritorio Civel/Consumidor, criado em 06/10 com o numero ja
+ * conectado e os 4 agentes esquecidos como inativos.
+ *
+ * So liga quando NENHUM agente de atendimento (fora Avaliacao) esta ativo no
+ * escritorio: um que ja tem pelo menos um agente ligado nao e mexido, mesmo
+ * que outro agente dele esteja desligado de proposito (ex.: agente
+ * aposentado por migrar-agentes.js). Roda no boot, junto com
+ * ligarNumerosDasAreas — sem equipe nenhuma ligada, nao ha nem agente de
+ * entrada para o numero apontar.
+ */
+export function ativarAgentesSemEquipe() {
+  const ativados = [];
+  for (const workspace of listar('workspaces')) {
+    const temConexaoReal = listar('conexoes', { workspaceId: workspace.id }).some((c) => c.tipo !== 'simulador');
+    if (!temConexaoReal) continue;
+    const agentesDeAtendimento = listar('agentes', { workspaceId: workspace.id }).filter((a) => a.objetivo !== 'avaliar');
+    if (!agentesDeAtendimento.length || agentesDeAtendimento.some((a) => a.ativo)) continue;
+    for (const agente of agentesDeAtendimento) {
+      atualizar('agentes', agente.id, { ativo: true });
+      ativados.push({ escritorio: workspace.nome, agente: agente.nome });
+    }
+  }
+  return ativados;
+}
+
+/**
  * Cada area no seu escritorio: os agentes do Previdenciario no escritorio
  * Previdenciario, os do Trabalhista no Trabalhista.
  *

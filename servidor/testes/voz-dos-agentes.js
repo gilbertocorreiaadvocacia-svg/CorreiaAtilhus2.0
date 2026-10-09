@@ -119,3 +119,78 @@ process.exit(0);
   }
   return s;
 }
+
+/**
+ * `deduplicarVozes`: clique repetido no botao de cadastrar voz cria copias
+ * identicas. O que nao pode falhar: mantem a mais antiga, remapeia quem
+ * apontava para uma copia removida, nao mexe entre escritorios diferentes
+ * (mesmo nome em dois escritorios nao e duplicata), e nao mexe em voz com
+ * nome igual mas configuracao diferente (vozBase ou velocidade).
+ */
+export async function testarDeduplicarVozes({ raiz }) {
+  const s = suite('Vozes duplicadas (dedup)');
+  const urlDoBanco = pathToFileURL(path.join(raiz, 'servidor/nucleo/banco.js')).href;
+  const urlDoModulo = pathToFileURL(path.join(raiz, 'servidor/nucleo/vozes-dos-agentes.js')).href;
+  const pasta = fs.mkdtempSync(path.join(os.tmpdir(), 'dedup-vozes-'));
+
+  const rodar = (arquivo) =>
+    new Promise((resolve) => {
+      const p = spawn(process.execPath, [arquivo], { env: { ...process.env, CORREIA_DADOS: pasta }, stdio: ['ignore', 'pipe', 'pipe'] });
+      let texto = '';
+      p.stdout.on('data', (d) => (texto += d));
+      p.stderr.on('data', (d) => (texto += d));
+      p.on('close', (codigo) => resolve({ codigo, texto }));
+    });
+
+  const montagem = path.join(pasta, 'montar.mjs');
+  fs.writeFileSync(
+    montagem,
+    `import { iniciarBanco, inserir, encerrarBanco } from ${JSON.stringify(urlDoBanco)};
+iniciarBanco();
+inserir('workspaces', { id: 'w1', nome: 'Teste' });
+inserir('vozes', { id: 'v-original', workspaceId: 'w1', nome: 'Voz da triagem', vozBase: 'shimmer', velocidade: 1 });
+inserir('vozes', { id: 'v-copia1', workspaceId: 'w1', nome: 'Voz da triagem', vozBase: 'shimmer', velocidade: 1 });
+inserir('vozes', { id: 'v-copia2', workspaceId: 'w1', nome: 'Voz da triagem', vozBase: 'shimmer', velocidade: 1 });
+inserir('vozes', { id: 'v-diferente', workspaceId: 'w1', nome: 'Voz da triagem', vozBase: 'nova', velocidade: 1 });
+inserir('agentes', { id: 'a1', workspaceId: 'w1', nome: 'Triagem', vozId: 'v-copia2' });
+inserir('workspaces', { id: 'w2', nome: 'Outro escritorio' });
+inserir('vozes', { id: 'v-outro', workspaceId: 'w2', nome: 'Voz da triagem', vozBase: 'shimmer', velocidade: 1 });
+await encerrarBanco();
+`,
+  );
+  const rodarDedup = path.join(pasta, 'dedup.mjs');
+  fs.writeFileSync(
+    rodarDedup,
+    `import { iniciarBanco, listar, encerrarBanco } from ${JSON.stringify(urlDoBanco)};
+import { deduplicarVozes } from ${JSON.stringify(urlDoModulo)};
+iniciarBanco();
+const resultado = deduplicarVozes();
+console.log(JSON.stringify({ resultado, vozes: listar('vozes'), agentes: listar('agentes') }));
+await encerrarBanco();
+process.exit(0);
+`,
+  );
+
+  try {
+    const m = await rodar(montagem);
+    if (!s.ok('a base descartavel foi montada', m.codigo === 0, m.texto.slice(-300))) return s;
+
+    const r1 = await rodar(rodarDedup);
+    if (!s.ok('roda sem erro', r1.codigo === 0, r1.texto.slice(-400))) return s;
+    const { resultado, vozes, agentes } = JSON.parse(r1.texto.trim().split('\n').pop());
+
+    s.ok('remove as duas copias identicas', !vozes.some((v) => v.id === 'v-copia1') && !vozes.some((v) => v.id === 'v-copia2'), JSON.stringify(vozes.map((v) => v.id)));
+    s.ok('mantem a original', vozes.some((v) => v.id === 'v-original'), JSON.stringify(vozes.map((v) => v.id)));
+    s.ok('mantem a de configuracao diferente (vozBase nova)', vozes.some((v) => v.id === 'v-diferente'), JSON.stringify(vozes.map((v) => v.id)));
+    s.ok('mantem a do outro escritorio, mesmo com o mesmo nome', vozes.some((v) => v.id === 'v-outro'), JSON.stringify(vozes.map((v) => v.id)));
+    s.ok('remapeia o agente que apontava para a copia removida', agentes.find((a) => a.id === 'a1').vozId === 'v-original', agentes.find((a) => a.id === 'a1').vozId);
+    s.ok('relata 2 removidas e 1 remapeada', resultado.removidas === 2 && resultado.remapeadas === 1, JSON.stringify(resultado));
+
+    const r2 = await rodar(rodarDedup);
+    const segunda = JSON.parse(r2.texto.trim().split('\n').pop());
+    s.ok('rodar de novo nao acha mais duplicata nenhuma', segunda.resultado.removidas === 0, JSON.stringify(segunda.resultado));
+  } finally {
+    fs.rmSync(pasta, { recursive: true, force: true });
+  }
+  return s;
+}

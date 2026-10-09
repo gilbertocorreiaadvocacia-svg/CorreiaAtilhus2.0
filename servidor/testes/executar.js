@@ -42,9 +42,11 @@ import { testarDiagnostico } from './diagnostico.js';
 import { testarEventosDeConexao } from './eventos-conexao.js';
 import { testarHigiene } from './higiene.js';
 import { testarBaseEStatus } from './base-e-status.js';
+import { testarAtivarAgentesSemEquipe } from './ativar-agentes-sem-equipe.js';
 import { testarVoz } from './voz.js';
+import { testarTranscricaoDeAudio } from './transcricao-audio.js';
 import { testarDoisFatores } from './doisfatores.js';
-import { testarVozDosAgentes } from './voz-dos-agentes.js';
+import { testarDeduplicarVozes, testarVozDosAgentes } from './voz-dos-agentes.js';
 import { testarReorganizarAgentes } from './reorganizar-agentes.js';
 import { subirOpenaiFalsa } from './openai-falsa.js';
 import { testarAtalhos } from './atalhos.js';
@@ -255,6 +257,7 @@ async function principal() {
     /* Tambem usa a Anthropic de mentira, e poe e tira a chave. */
     suites.push(await testarAvaliacao({ base, anthropic }));
     suites.push(await testarVoz({ base, anthropic, openai }));
+    suites.push(await testarTranscricaoDeAudio({ base, openai }));
     suites.push(await testarDoisFatores({ base }));
     /* Cria workspaces novos: depois de quem conta agentes e etiquetas da origem. */
     suites.push(await testarWorkspacesPorArea({ base }));
@@ -286,7 +289,9 @@ async function principal() {
     suites.push(await testarSobreviver({ raiz: RAIZ, portaLivre }));
     /* Ferramenta de manutencao, com base descartavel propria. */
     suites.push(await testarBaseEStatus({ raiz: RAIZ }));
+    suites.push(await testarAtivarAgentesSemEquipe({ raiz: RAIZ }));
     suites.push(await testarVozDosAgentes({ raiz: RAIZ }));
+    suites.push(await testarDeduplicarVozes({ raiz: RAIZ }));
     suites.push(await testarReorganizarAgentes({ raiz: RAIZ }));
   } catch (erro) {
     console.error('\nA suite quebrou antes de terminar:', erro.message);

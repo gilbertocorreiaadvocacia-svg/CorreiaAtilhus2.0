@@ -5677,16 +5677,32 @@ select.chat-teste-escolha {
   color: var(--texto);
 }
 
-/* Uma linha so: quem cede e o numero de onde a mensagem sai, que corta com
-   reticencia e mostra o resto no title. Quebrando, o Enviar descia para uma
-   segunda linha, longe do campo. */
+/*
+ * Uma linha so: quem cede e o numero de onde a mensagem sai, que corta com
+ * reticencia e mostra o resto no title. Quebrando, o Enviar descia para uma
+ * segunda linha, longe do campo.
+ *
+ * Com a coluna do meio estreita (janela nao maximizada, por volta de
+ * 1230-1400px) e a fileira maior — o microfone ganhou o rotulo "Audio" e o
+ * anexo de audio mostra a duracao —, a soma dos botoes nao cabia mais e
+ * vazava por cima do painel da direita, escondendo o Enviar (achado em
+ * producao, 09/10/2026). overflow-x rola a fileira em vez de vazar; o Enviar
+ * fica com flex:none para nunca encolher nem ser o que sai de vista primeiro.
+ */
 .compositor .linha-botoes {
   flex-wrap: nowrap;
   min-width: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
 }
 
 .compositor .linha-botoes > .cortar {
   min-width: 0;
+}
+
+.compositor .linha-botoes .botao-enviar {
+  flex: none;
 }
 
 /* Gravando audio: o microfone vira vermelho e pulsa, igual ao "ao vivo" que

@@ -9,6 +9,24 @@ import { el, limpar, icone, botao, campo, cartao, plural, selecao, selo, aviso }
  * logo abaixo). `opcoes.aoAbrir` troca esse clique — e o que a conversa usa
  * para abrir o visualizador ja com as outras imagens dela, e nao so esta.
  */
+/*
+ * Um audio tocando pausa os outros, igual a qualquer app de mensagem.
+ *
+ * Cada balao cria o proprio <audio> nativo, sem saber dos outros — sem isso,
+ * tocar um segundo enquanto o primeiro ainda fala deixa os dois sobrepostos.
+ * Esta referencia e module-level de proposito: precisa sobreviver entre
+ * balaos diferentes (funcoes diferentes, chamadas em momentos diferentes), e
+ * tambem coordena com o audio do visualizador em tela cheia, mais abaixo.
+ */
+let audioTocando = null;
+function pausarOutrosAoTocar(elemento) {
+  elemento.addEventListener('play', () => {
+    if (audioTocando && audioTocando !== elemento) audioTocando.pause();
+    audioTocando = elemento;
+  });
+  return elemento;
+}
+
 export function previaDaMidia(midia, opcoes = {}) {
   if (!midia?.url) return null;
   // A largura das duas previas mora em .midia-previa e .midia-previa.compacta,
@@ -35,7 +53,7 @@ export function previaDaMidia(midia, opcoes = {}) {
   if (midia.tipo === 'audio') {
     // O tocador do navegador nao aceita moldura nem canto arredondado, entao a
     // variacao som tira a borda e usa largura em vez de largura maxima.
-    return el('audio', { src: midia.url, controls: true, preload: 'metadata', class: `${medida} som` });
+    return pausarOutrosAoTocar(el('audio', { src: midia.url, controls: true, preload: 'metadata', class: `${medida} som` }));
   }
 
   return cartaoDeArquivo(midia, { aoAbrir: abrir });
@@ -168,7 +186,7 @@ export function abrirVisualizador(itens, inicio = 0) {
     } else if (formato === 'video') {
       palco.append(el('video', { src: item.url, controls: true, autoplay: true, class: 'visualizador-video' }));
     } else if (formato === 'audio') {
-      palco.append(el('audio', { src: item.url, controls: true, autoplay: true }));
+      palco.append(pausarOutrosAoTocar(el('audio', { src: item.url, controls: true, autoplay: true })));
     } else if (formato === 'pdf') {
       palco.append(el('iframe', { src: item.url, class: 'visualizador-documento', title: item.nome || 'Documento' }));
     } else {

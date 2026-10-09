@@ -1,4 +1,4 @@
-import { atualizar, inserir, listar } from './banco.js';
+import { atualizar, inserir, listar, remover } from './banco.js';
 import { normalizar, novoId } from './util.js';
 
 /**
@@ -86,4 +86,44 @@ export function processarVozes({ aplicar = false, log = () => {} } = {}) {
   }
 
   return { totalCriadas, totalComVoz, totalComRegra };
+}
+
+/**
+ * Tira voz duplicada (mesmo nome, mesma voz base, mesma velocidade) dentro
+ * do mesmo escritorio — achado de 08/10/2026, reconferindo o diagnostico de
+ * 29/09: clique repetido no botao de cadastrar criou ate 20 copias
+ * identicas de "Voz da triagem" num so escritorio. Mantem a mais antiga (a
+ * primeira da lista), remapeia quem apontava para uma copia removida, e
+ * apaga as copias. Idempotente: sem duplicata, nao mexe em nada.
+ */
+export function deduplicarVozes() {
+  let removidas = 0;
+  let remapeadas = 0;
+
+  for (const workspace of listar('workspaces')) {
+    const canonicaPorAssinatura = new Map();
+    const substituicoes = new Map();
+    for (const voz of listar('vozes', { workspaceId: workspace.id })) {
+      const assinatura = `${normalizar(voz.nome)}|${voz.vozBase}|${voz.velocidade}`;
+      const canonica = canonicaPorAssinatura.get(assinatura);
+      if (!canonica) {
+        canonicaPorAssinatura.set(assinatura, voz);
+        continue;
+      }
+      substituicoes.set(voz.id, canonica.id);
+    }
+    if (!substituicoes.size) continue;
+
+    for (const agente of listar('agentes', { workspaceId: workspace.id })) {
+      if (!agente.vozId || !substituicoes.has(agente.vozId)) continue;
+      atualizar('agentes', agente.id, { vozId: substituicoes.get(agente.vozId) });
+      remapeadas += 1;
+    }
+    for (const idDuplicada of substituicoes.keys()) {
+      remover('vozes', idDuplicada);
+      removidas += 1;
+    }
+  }
+
+  return { removidas, remapeadas };
 }

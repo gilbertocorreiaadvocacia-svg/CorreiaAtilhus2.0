@@ -1592,6 +1592,11 @@ export async function paginaAtendimento({
     let cancelandoGravacao = false;
     let inicioDaGravacao = 0;
     let cronometroGravacao = null;
+    /* Quem espera o upload da gravacao terminar (ver pararGravacao). O 'stop'
+       do MediaRecorder sobe o arquivo de forma assincrona; sem isso, apertar
+       Enviar (ou Enter) logo depois de parar corria na frente do anexo ficar
+       pronto, e a mensagem saia sem ele (achado em producao, 09/10/2026). */
+    let resolverAnexoPendente = null;
 
     const formatarTempo = (segundos) => `${Math.floor(segundos / 60)}:${String(segundos % 60).padStart(2, '0')}`;
 
@@ -1632,17 +1637,21 @@ export async function paginaAtendimento({
       gravador.addEventListener('stop', async () => {
         const mimeGravado = gravador.mimeType || 'audio/webm';
         pararFluxo();
-        if (cancelandoGravacao || !pedacosDeAudio.length) return;
-        const blob = new Blob(pedacosDeAudio, { type: mimeGravado });
-        if (!blob.size) return;
-        const extensao = mimeGravado.includes('ogg') ? 'ogg' : 'webm';
-        const arquivo = new File([blob], `mensagem-de-voz.${extensao}`, { type: mimeGravado });
+        const concluirEspera = resolverAnexoPendente;
+        resolverAnexoPendente = null;
         try {
+          if (cancelandoGravacao || !pedacosDeAudio.length) return;
+          const blob = new Blob(pedacosDeAudio, { type: mimeGravado });
+          if (!blob.size) return;
+          const extensao = mimeGravado.includes('ogg') ? 'ogg' : 'webm';
+          const arquivo = new File([blob], `mensagem-de-voz.${extensao}`, { type: mimeGravado });
           anexo = await enviarArquivo(arquivo);
           rotuloAnexo.textContent = `áudio gravado · ${formatarTempo(Math.round((Date.now() - inicioDaGravacao) / 1000))}`;
           rotuloAnexo.style.display = 'inline-flex';
         } catch (erro) {
           aviso(erro.message, 'erro');
+        } finally {
+          concluirEspera?.();
         }
       });
       gravador.start();
@@ -1656,9 +1665,23 @@ export async function paginaAtendimento({
       }, 500);
     }
 
+    /*
+     * Para a gravacao e devolve uma Promise que so resolve quando o anexo
+     * termina de subir — e o que deixa "gravar e mandar direto" (clicar
+     * Enviar ou apertar Enter sem clicar no microfone antes) funcionar sem
+     * corrida: quem chama so precisa dar `await`.
+     */
     function pararGravacao() {
-      if (gravador && gravador.state !== 'inactive') gravador.stop();
+      if (!gravando) return Promise.resolve();
+      const espera =
+        gravador && gravador.state !== 'inactive'
+          ? new Promise((resolve) => {
+              resolverAnexoPendente = resolve;
+              gravador.stop();
+            })
+          : Promise.resolve();
       atualizarUiDeGravacao(false);
+      return espera;
     }
 
     function cancelarGravacao() {
@@ -1694,6 +1717,10 @@ export async function paginaAtendimento({
      * atendente nao perder o que escreveu.
      */
     const enviar = async () => {
+      /* Gravando ainda? Para e espera o anexo subir antes de checar se ha o
+         que mandar — sem isso, mandar direto (sem clicar no microfone para
+         parar primeiro) perdia a gravacao: o anexo ainda nao existia. */
+      if (gravando) await pararGravacao();
       const conteudo = texto.value.trim();
       if (!conteudo && !anexo) return;
       const anexoEnviado = anexo;

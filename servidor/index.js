@@ -3,7 +3,7 @@ import http from 'node:http';
 import path from 'node:path';
 import { HOSPEDADO, HOST, INTERVALO_AGENDADOR, PORTA, RAIZ, enderecoPermitido } from './config.js';
 import { prepararHospedagem } from './nucleo/hospedagem.js';
-import { garantirAvaliacaoNosEscritorios } from './nucleo/agentes-por-escritorio.js';
+import { ativarAgentesSemEquipe, garantirAvaliacaoNosEscritorios } from './nucleo/agentes-por-escritorio.js';
 import { iniciarAvaliacoes } from './automacao/avaliacao.js';
 import { caminhoDaMidia } from './nucleo/midia.js';
 import { atualizar, encerrarBanco, iniciarBanco, listar } from './nucleo/banco.js';
@@ -12,7 +12,8 @@ import { migrarTiposDeCaso } from './nucleo/casos.js';
 import { migrarCanaisDeOrigem } from './nucleo/origens.js';
 import { contextoDaSessao, limparSessoesOrfas, migrarPapeis } from './nucleo/auth.js';
 import { migrarNomesDeAgentes } from './nucleo/migrar-agentes.js';
-import { processarVozes } from './nucleo/vozes-dos-agentes.js';
+import { deduplicarVozes, processarVozes } from './nucleo/vozes-dos-agentes.js';
+import { processarBaseEStatus } from './nucleo/base-e-status.js';
 import { criarRoteador, lerCookies, lerCorpo, responderErro, responderJson, servirEstatico } from './nucleo/http.js';
 import { inscrever } from './nucleo/eventos.js';
 import { semearSePrecisar } from './nucleo/seed.js';
@@ -65,6 +66,11 @@ if (origensAcertadas) console.log(`Origens de anuncio e Instagram: ${origensAcer
 /* O agente de avaliacao do atendimento, uma vez em cada escritorio. */
 const avaliadores = garantirAvaliacaoNosEscritorios();
 if (avaliadores) console.log(`Avaliacao do atendimento: agente instalado em ${avaliadores} escritorio(s).`);
+/* Numero real conectado sem nenhum agente ativo: silencio total para quem escreve. */
+const agentesLigados = ativarAgentesSemEquipe();
+if (agentesLigados.length) {
+  console.log(`Agentes ativados por falta de equipe: ${agentesLigados.map((a) => `${a.agente} (${a.escritorio})`).join(', ')}.`);
+}
 /* Beatriz destravada, nomes e pasta do Trabalhista limpos, "Agente 26" repetido fora (07/10/2026). */
 const reorganizacaoDeAgentes = migrarNomesDeAgentes();
 if (reorganizacaoDeAgentes.renomeados || reorganizacaoDeAgentes.removidos) {
@@ -75,10 +81,24 @@ if (reorganizacaoDeAgentes.renomeados || reorganizacaoDeAgentes.removidos) {
 /* Vozes dos agentes: cadastra as duas vozes padrao e liga a regra do canal de
    voz em quem atende cliente e ainda nao tinha (achado de 08/10/2026). So
    falta a chave da OpenAI em Integracoes para o audio sair de fato. */
+const vozesDeduplicadas = deduplicarVozes();
+if (vozesDeduplicadas.removidas) {
+  console.log(`Vozes duplicadas: ${vozesDeduplicadas.removidas} copia(s) removida(s), ${vozesDeduplicadas.remapeadas} agente(s) remapeado(s) para a original.`);
+}
 const vozesAcertadas = processarVozes({ aplicar: true });
 if (vozesAcertadas.totalCriadas || vozesAcertadas.totalComVoz || vozesAcertadas.totalComRegra) {
   console.log(
     `Vozes dos agentes: ${vozesAcertadas.totalCriadas} voz(es) cadastrada(s), ${vozesAcertadas.totalComVoz} agente(s) com voz escolhida, ${vozesAcertadas.totalComRegra} prompt(s) com a regra do canal de voz.`,
+  );
+}
+/* Base previdenciaria tirada dos agentes trabalhistas (rascunho proprio no
+   lugar) e departamento posto nos status de saida orfaos (achado de 29/09,
+   so corrigido de fato em 08/10/2026 depois de achar que a ferramenta so
+   olhava o primeiro workspace). */
+const baseEStatus = processarBaseEStatus({ aplicar: true });
+if (baseEStatus.desvinculados || baseEStatus.rascunhosCriados || baseEStatus.vinculadosAoRascunho || baseEStatus.ajustados) {
+  console.log(
+    `Base e status: ${baseEStatus.desvinculados} vinculo(s) previdenciario(s) removido(s) dos trabalhistas, ${baseEStatus.rascunhosCriados} rascunho(s) trabalhista(s) criado(s), ${baseEStatus.vinculadosAoRascunho} agente(s) vinculado(s) a ele, ${baseEStatus.ajustados} status com departamento ajustado.`,
   );
 }
 limparSessoesOrfas();
