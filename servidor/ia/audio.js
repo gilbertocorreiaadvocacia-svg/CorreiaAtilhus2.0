@@ -32,13 +32,21 @@ export function vozDisponivel(workspaceId) {
   return Boolean(chaveOpenai(workspaceId));
 }
 
-/** Transcreve um audio que o cliente mandou. */
+/**
+ * Transcreve um audio que o cliente mandou.
+ *
+ * Devolve `{ texto, erro }`, nunca so uma string: um audio sem transcricao e
+ * mudo demais quando a equipe nao sabe por que — "sem chave", "a API
+ * recusou" e "sem fala nenhuma" pedem reacoes diferentes de quem atende.
+ * Padrao visto no Atilhus Juri (irmao deste sistema): a mensagem SEMPRE e
+ * gravada, com o motivo exato da falta de texto, em vez de silencio.
+ */
 export async function transcrever({ workspaceId, contatoId, midia }) {
   const chave = chaveOpenai(workspaceId);
-  if (!chave) return null;
+  if (!chave) return { texto: null, erro: 'Transcrição não configurada — falta a chave da OpenAI em Integrações.' };
 
   const caminho = caminhoDaMidia(midia?.url);
-  if (!caminho) return null;
+  if (!caminho) return { texto: null, erro: 'O áudio não pôde ser lido do disco.' };
 
   try {
     const dados = fs.readFileSync(caminho);
@@ -53,14 +61,15 @@ export async function transcrever({ workspaceId, contatoId, midia }) {
       body: formulario,
     });
     const corpo = await resposta.json().catch(() => ({}));
-    if (!resposta.ok) return null;
+    if (!resposta.ok) return { texto: null, erro: `O serviço de transcrição recusou (${resposta.status}).` };
 
     const segundos = Math.max(1, Math.round(dados.length / 16000));
     lancar(workspaceId, contatoId, 'transcricao_audio', (CUSTO.transcricaoAudioPorMinuto * segundos) / 60);
 
-    return corpo.text?.trim() || null;
-  } catch {
-    return null;
+    const texto = corpo.text?.trim() || null;
+    return texto ? { texto, erro: null } : { texto: null, erro: 'O serviço de transcrição não devolveu texto.' };
+  } catch (erro) {
+    return { texto: null, erro: `Transcrição falhou: ${erro.message}` };
   }
 }
 

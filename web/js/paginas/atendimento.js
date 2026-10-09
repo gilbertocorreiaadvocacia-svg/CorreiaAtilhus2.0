@@ -1498,6 +1498,12 @@ export async function paginaAtendimento({
             texto: 'Transcrito automaticamente do áudio.',
           })
         : null,
+      /* Sem a transcricao, dizer PORQUE — "sem chave", "a API recusou", "sem
+         fala nenhuma" pedem reacoes diferentes de quem atende, e nada e pior
+         que um audio mudo sem explicacao nenhuma (padrao do Atilhus Juri). */
+      !mensagem.transcricao && mensagem.transcricaoErro && mensagem.midia?.tipo === 'audio'
+        ? el('div', { class: 't-xs c-suave mt-1', estilo: { fontStyle: 'italic' }, texto: `Não transcrito: ${mensagem.transcricaoErro}` })
+        : null,
       el('div', { class: 'balao-rodape' }, [
         estrelaDa(mensagem),
         document.createTextNode(dataHora(mensagem.criadoEm)),

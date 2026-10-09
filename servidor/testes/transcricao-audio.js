@@ -11,6 +11,12 @@ import { cliente, suite } from './apoio.js';
  * texto sozinho?". O que nao pode falhar: com a chave cadastrada, a mensagem
  * de entrada do tipo audio chega com `transcricao` e `conteudo` preenchidos
  * com o texto que a OpenAI devolveu, e o anexo original continua intacto.
+ *
+ * 09/10/2026 — motivo da falta de transcricao, visivel: padrao visto no
+ * Atilhus Juri (sistema irmao). Sem a chave, a mensagem de audio continua
+ * chegando normal (nunca trava o recebimento), mas agora com
+ * `transcricaoErro` dizendo exatamente por que nao virou texto, em vez de
+ * `transcricao` simplesmente vazia sem explicacao.
  */
 export async function testarTranscricaoDeAudio({ base, openai }) {
   const s = suite('Transcricao do audio do cliente');
@@ -54,9 +60,29 @@ export async function testarTranscricaoDeAudio({ base, openai }) {
   s.ok('a mensagem guarda a transcricao', recebida?.transcricao === 'transcricao de mentira', JSON.stringify(recebida));
   s.ok('e o conteudo da mensagem e a propria transcricao (o agente le isso)', recebida?.conteudo === 'transcricao de mentira', String(recebida?.conteudo));
   s.ok('o audio original continua anexado', recebida?.midia?.tipo === 'audio' && Boolean(recebida?.midia?.url), JSON.stringify(recebida?.midia));
+  s.ok('sem erro nenhum quando a transcricao deu certo', !recebida?.transcricaoErro, String(recebida?.transcricaoErro));
 
-  /* Limpeza: a suite seguinte depende de nao haver chave da OpenAI cadastrada. */
+  /* --- Sem a chave: a mensagem chega do mesmo jeito, com o motivo exato --- */
+  await oa.post('/__zerar', {});
   await api.patch('/api/integracoes', { ia: { chaveOpenai: null } });
+
+  const resultadoSemChave = await api.post('/api/simulador/mensagem', {
+    conexaoId: simulador.id,
+    telefone: '5581936000002',
+    nome: 'Cliente sem chave configurada',
+    tipo: 'audio',
+    midia,
+  });
+  if (!s.ok('sem chave, a mensagem de entrada ainda e aceita', resultadoSemChave.status === 200, JSON.stringify(resultadoSemChave))) return s;
+
+  const listaSemChave = (await api.get(`/api/contatos/${resultadoSemChave.dados.contatoId}/mensagens`)).dados;
+  const mensagensSemChave = Array.isArray(listaSemChave) ? listaSemChave : listaSemChave?.mensagens || [];
+  const recebidaSemChave = mensagensSemChave.find((m) => m.direcao === 'entrada');
+
+  s.ok('a OpenAI nao e chamada sem chave', (await pedidos()).filter((p) => p.rota === 'transcriptions').length === 0, JSON.stringify(await pedidos()));
+  s.ok('sem transcricao', !recebidaSemChave?.transcricao, String(recebidaSemChave?.transcricao));
+  s.ok('mas com o motivo exato, nao so vazio', /chave da OpenAI/.test(recebidaSemChave?.transcricaoErro || ''), String(recebidaSemChave?.transcricaoErro));
+  s.ok('e o audio original ainda chega, intacto', recebidaSemChave?.midia?.tipo === 'audio' && Boolean(recebidaSemChave?.midia?.url), JSON.stringify(recebidaSemChave?.midia));
 
   return s;
 }
