@@ -21,6 +21,7 @@ import { testarHistorico } from './historico.js';
 import { testarCasos } from './casos.js';
 import { testarEncadeamento } from './encadeamento.js';
 import { testarDocumentosRecebidos } from './documentos-recebidos.js';
+import { testarEduardaRoteamento } from './eduarda-roteamento.js';
 import { testarPromptAoVivo } from './prompt-ao-vivo.js';
 import { testarPacotes } from './pacotes.js';
 import { subirZapsignFalsa } from './zapsign-falsa.js';
@@ -265,6 +266,9 @@ async function principal() {
     suites.push(await testarDoisFatores({ base }));
     /* Cria workspaces novos: depois de quem conta agentes e etiquetas da origem. */
     suites.push(await testarWorkspacesPorArea({ base }));
+    /* Depois: precisa do escritorio Previdenciario ja criado (os agentes
+       reais Eduarda e Andreia vem de la), igual as suites abaixo. */
+    suites.push(await testarEduardaRoteamento({ base, anthropic }));
     /* Depois de todas as outras: acrescenta conversas em Ativos, e as suites
        de cima contam fila. */
     suites.push(await testarHistorico({ base, evolucao, chaveEvolucao: CHAVE_EVOLUCAO }));
