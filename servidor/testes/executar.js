@@ -44,6 +44,7 @@ import { testarEventosDeConexao } from './eventos-conexao.js';
 import { testarHigiene } from './higiene.js';
 import { testarBaseEStatus } from './base-e-status.js';
 import { testarAtivarAgentesSemEquipe } from './ativar-agentes-sem-equipe.js';
+import { testarPosVenda } from './posvenda.js';
 import { testarVoz } from './voz.js';
 import { testarTranscricaoDeAudio } from './transcricao-audio.js';
 import { testarDoisFatores } from './doisfatores.js';
@@ -292,6 +293,7 @@ async function principal() {
     /* Ferramenta de manutencao, com base descartavel propria. */
     suites.push(await testarBaseEStatus({ raiz: RAIZ }));
     suites.push(await testarAtivarAgentesSemEquipe({ raiz: RAIZ }));
+    suites.push(await testarPosVenda({ raiz: RAIZ }));
     suites.push(await testarVozDosAgentes({ raiz: RAIZ }));
     suites.push(await testarDeduplicarVozes({ raiz: RAIZ }));
     suites.push(await testarReorganizarAgentes({ raiz: RAIZ }));

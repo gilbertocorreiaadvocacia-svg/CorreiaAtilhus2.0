@@ -3,7 +3,7 @@ import http from 'node:http';
 import path from 'node:path';
 import { HOSPEDADO, HOST, INTERVALO_AGENDADOR, PORTA, RAIZ, enderecoPermitido } from './config.js';
 import { prepararHospedagem } from './nucleo/hospedagem.js';
-import { ativarAgentesSemEquipe, garantirAvaliacaoNosEscritorios } from './nucleo/agentes-por-escritorio.js';
+import { ativarAgentesSemEquipe, garantirAvaliacaoNosEscritorios, garantirPosVendaNosEscritorios } from './nucleo/agentes-por-escritorio.js';
 import { iniciarAvaliacoes } from './automacao/avaliacao.js';
 import { caminhoDaMidia } from './nucleo/midia.js';
 import { atualizar, encerrarBanco, iniciarBanco, listar } from './nucleo/banco.js';
@@ -66,6 +66,12 @@ if (origensAcertadas) console.log(`Origens de anuncio e Instagram: ${origensAcer
 /* O agente de avaliacao do atendimento, uma vez em cada escritorio. */
 const avaliadores = garantirAvaliacaoNosEscritorios();
 if (avaliadores) console.log(`Avaliacao do atendimento: agente instalado em ${avaliadores} escritorio(s).`);
+/* O agente de pos-venda, uma vez em cada escritorio de area, e ligado como
+   responsavel apos a assinatura quando esse ponto ainda nao foi configurado. */
+const posVenda = garantirPosVendaNosEscritorios();
+if (posVenda.instalados || posVenda.configurados) {
+  console.log(`Pós-venda: agente instalado em ${posVenda.instalados} escritorio(s), responsavel apos assinatura ligado em ${posVenda.configurados}.`);
+}
 /* Numero real conectado sem nenhum agente ativo: silencio total para quem escreve. */
 const agentesLigados = ativarAgentesSemEquipe();
 if (agentesLigados.length) {

@@ -4,6 +4,7 @@ import { AUXILIO_ACIDENTE } from './pacotes/auxilio-acidente.js';
 import { avaliadorDoEscritorio } from './pacotes/avaliacao.js';
 import { BPC } from './pacotes/bpc.js';
 import { MATERNIDADE } from './pacotes/maternidade.js';
+import { posVendaDoEscritorio } from './pacotes/posvenda.js';
 import { AGENTE_26 } from './pacotes/suporte.js';
 import { EDUARDA } from './pacotes/triagem.js';
 import { TRABALHISTA } from './pacotes/trabalhista.js';
@@ -141,6 +142,7 @@ export const PACOTES = {
       ['Comercial', 'var(--serie-2)'],
       ['Suporte', 'var(--serie-6)'],
       ['Juridico', 'var(--serie-1)'],
+      ['Pos-venda', 'var(--sucesso)'],
     ],
     etiquetas: [
       ['BPC/LOAS', 'var(--serie-2)'],
@@ -174,6 +176,7 @@ export const PACOTES = {
       ...AUXILIO_ACIDENTE.map((agente) => ({ ...agente, pasta: 'Auxílio-Acidente FER MAR26' })),
       ...BPC.map((agente) => ({ ...agente, pasta: 'BPC Loas' })),
       ...MATERNIDADE.map((agente) => ({ ...agente, pasta: 'Salário Maternidade' })),
+      posVendaDoEscritorio('Previdenciário'),
       avaliadorDoEscritorio('Previdenciário'),
     ],
   },
@@ -212,6 +215,7 @@ export const PACOTES = {
     ],
     agentes: [
       ...TRABALHISTA.map((agente) => ({ ...agente, pasta: 'Trabalhista' })),
+      posVendaDoEscritorio('Trabalhista'),
       avaliadorDoEscritorio('Trabalhista'),
     ],
   },
@@ -220,6 +224,7 @@ export const PACOTES = {
     nome: 'Cível / Consumidor',
     pasta: 'Cível e Consumidor',
     bases: ['objec'],
+    departamentos: [['Pos-venda', 'var(--sucesso)']],
     templates: ['avaliacao'],
     variaveis: [
       ['empresa_reclamada', 'Empresa reclamada', 'Nome da empresa com quem o cliente tem o problema.'],
@@ -287,6 +292,7 @@ export const PACOTES = {
           'Explique em poucas frases como o escritorio trabalha: analise do caso por advogado, tentativa de solucao com a empresa quando couber e acao na Justica, muitas vezes no Juizado Especial; honorarios conforme a tabela do escritorio.',
         ),
       },
+      posVendaDoEscritorio('Cível'),
       avaliadorDoEscritorio('Cível'),
     ],
   },

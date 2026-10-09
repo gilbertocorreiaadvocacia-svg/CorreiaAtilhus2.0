@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { PASTA_DADOS, areaValida } from '../config.js';
 import { ESCRITORIO_GERAL, PACOTES, prepararEscritorio } from '../ia/pacotes.js';
+import { posVendaDoEscritorio } from '../ia/pacotes/posvenda.js';
 import { achar, atualizar, inserir, listar, remover } from './banco.js';
 import { gravarAtomico, normalizar, novoId } from './util.js';
 import { criarWorkspacesPorArea } from './workspaces-por-area.js';
@@ -186,6 +187,67 @@ export function garantirAvaliacaoNosEscritorios() {
     atualizar('workspaces', workspace.id, { avaliacaoInstaladaEm: new Date().toISOString() });
   }
   return instalados;
+}
+
+/**
+ * O agente de pos-venda, instalado em todo escritorio de area (Previdenciario,
+ * Trabalhista, Civel) que ainda nao tem um, e ligado como responsavel de
+ * depois-da-assinatura quando esse ponto ainda nao foi configurado.
+ *
+ * Pedido do escritorio em 09/10/2026: reclamacao real de cliente que
+ * preferia ligar direto para o dono do que escrever no pos-venda, porque o
+ * atendimento pedia documento que ja tinha sido mandado e demorava demais.
+ * Nao existia NENHUM agente de pos-venda ativo — so um rascunho de seed de
+ * 5 linhas, nunca instalado.
+ *
+ * So liga o responsavel-apos-assinatura (integracoes.zapsign.posAssinatura)
+ * quando ele ainda nao foi configurado: se o escritorio ja escolheu a mao
+ * uma pessoa ou outro agente para esse ponto, essa escolha fica — a migracao
+ * nao substitui decisao manual. O agente em si sempre e garantido (e
+ * idempotente pelo nome), mesmo quando o responsavel ja estava configurado,
+ * para a equipe poder transferir para ele na mao se quiser.
+ */
+export function garantirPosVendaNosEscritorios() {
+  let instalados = 0;
+  let configurados = 0;
+
+  for (const workspace of listar('workspaces')) {
+    const pacote = workspace.area ? PACOTES[workspace.area] : null;
+    if (!pacote) continue;
+
+    const nomeAgente = `Pós-venda · ${pacote.nome}`;
+    let agente = listar('agentes', { workspaceId: workspace.id }).find((a) => a.nome === nomeAgente);
+    if (!agente) {
+      agente = inserir('agentes', novoAgente(workspace.id, { ...posVendaDoEscritorio(pacote.nome), area: workspace.area }));
+      instalados += 1;
+    }
+
+    const integracoes = achar('integracoes', { workspaceId: workspace.id });
+    if (!integracoes) continue;
+    const zapsign = integracoes.zapsign || { chave: '', modelos: [], ativo: false };
+    if (zapsign.posAssinatura?.responsavel) continue;
+
+    let departamento = listar('departamentos', { workspaceId: workspace.id }).find((d) => normalizar(d.nome) === 'pos-venda');
+    if (!departamento) {
+      departamento = inserir('departamentos', { id: novoId('dep'), workspaceId: workspace.id, nome: 'Pós-venda', cor: 'var(--sucesso)' });
+    }
+    const statusFechado = listar('status', { workspaceId: workspace.id }).find((s) => normalizar(s.nome) === 'contrato fechado');
+
+    atualizar('integracoes', integracoes.id, {
+      zapsign: {
+        ...zapsign,
+        posAssinatura: {
+          ...(zapsign.posAssinatura || {}),
+          responsavel: { tipo: 'agente', id: agente.id, nome: agente.nome },
+          departamentoId: zapsign.posAssinatura?.departamentoId || departamento.id,
+          statusId: zapsign.posAssinatura?.statusId || statusFechado?.id || null,
+        },
+      },
+    });
+    configurados += 1;
+  }
+
+  return { instalados, configurados };
 }
 
 /**
