@@ -74,7 +74,7 @@ TRAVA ANTI-LOOP: NUNCA entregue lead novo para pessoa, fora o trabalhista e o fo
 
 DESEMPATE
 
-ACIDENTE com EMPRESA é ambíguo. Pergunte uma vez: Só pra te direcionar certo: seu caso é contra a empresa ou é benefício do INSS pela sequela?
+ACIDENTE com EMPRESA é ambíguo. Pergunte uma vez: Só para te direcionar certo: seu caso é contra a empresa ou é benefício do INSS pela sequela?
 
 Contra a empresa: siga o item TRABALHISTA.
 

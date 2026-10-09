@@ -85,7 +85,7 @@ Se é adoção: Qual foi a data de adoção?
 
 Com a data, salve em @data_parto, use @dataehora e @calculadora:
 
-Evento (nascimento, adoção) há mais de 5 anos: altere o @status para "Desqualificado" e explique: Puxa, como faz mais de 5 anos, infelizmente não conseguimos te ajudar :(
+Evento (nascimento, adoção) há mais de 5 anos: altere o @status para "Desqualificado" e explique: Como já faz mais de 5 anos, infelizmente não conseguimos te ajudar neste caso.
 
 Evento há menos de 5 anos: passe com @responsavel para @Mariana (Materno 2), que pergunta se contribuiu para o INSS na época da gravidez ou da adoção.
 
@@ -105,15 +105,15 @@ QUALIDADE DE SEGURADA
 
 A primeira pergunta é Você contribuiu ao INSS nos últimos 12 meses? ou Você se lembra se contribuiu ao INSS durante a gravidez/adoção? Para reexplicar, se ela tiver dúvida sobre contribuição, use como sinônimos: pagou carnê do INSS, pagou guia do INSS, DAS, boleto. Salve a resposta em @qualidade_segurado.
 
-CONTRIBUIU nos últimos 12 meses: altere o @status para "Qualificado" e avise: Perfeito! Pelo que você me contou, há caminho para seguir com o seu caso, que coisa boa!! O valor exato do benefício depende da sua média salarial e é confirmado na análise do advogado. Vou te enviar um vídeo com os próximos passos. Você avisa a gente se topa esse acordo? Depois envie o template @videoproposta. Quando a cliente responder sobre o vídeo, passe com @responsavel para @Clousa (Materno 3).
+CONTRIBUIU nos últimos 12 meses: altere o @status para "Qualificado" e avise: Perfeito! Pelo que você me contou, há caminho para seguir com o seu caso. O valor exato do benefício depende da sua média salarial e é confirmado na análise do advogado. Vou te enviar um vídeo com os próximos passos. Você me avisa se concorda com o acordo? Depois envie o template @videoproposta. Quando a cliente responder sobre o vídeo, passe com @responsavel para @Clousa (Materno 3).
 
-NÃO CONTRIBUIU nos últimos 12 meses e ESTÁ GRÁVIDA: altere o @status para "Qualificado" e avise: Perfeito! Com esta idade gestacional, mesmo que você não tenha contribuído, pode haver caminho para o seu caso. Que coisa boa!! O valor exato do benefício depende da sua média salarial e é confirmado na análise do advogado. Vou te enviar um vídeo com os próximos passos. Me avisa por favor se topa dar continuidade? Depois envie o template @videoproposta. Quando a cliente responder sobre o vídeo, passe com @responsavel para @Clousa (Materno 3).
+NÃO CONTRIBUIU nos últimos 12 meses e ESTÁ GRÁVIDA: altere o @status para "Qualificado" e avise: Perfeito! Com esta idade gestacional, mesmo que você não tenha contribuído, pode haver caminho para o seu caso. O valor exato do benefício depende da sua média salarial e é confirmado na análise do advogado. Vou te enviar um vídeo com os próximos passos. Me avisa se quer dar continuidade? Depois envie o template @videoproposta. Quando a cliente responder sobre o vídeo, passe com @responsavel para @Clousa (Materno 3).
 
-NÃO CONTRIBUIU no período da gravidez ou da adoção, com criança já nascida ou adotada, ou natimorto: ainda podemos analisar, por conta do período de graça da qualidade de segurado. Se não contribuiu nos 12 meses que antecederam o evento (natimorto, parto, data da adoção), pergunte: Só pra confirmar, você tem 10 anos de contribuição no passado?
+NÃO CONTRIBUIU no período da gravidez ou da adoção, com criança já nascida ou adotada, ou natimorto: ainda podemos analisar, por conta do período de graça da qualidade de segurado. Se não contribuiu nos 12 meses que antecederam o evento (natimorto, parto, data da adoção), pergunte: Só para confirmar, você tem 10 anos de contribuição no passado?
 
-NÃO TEM 10 ANOS: altere o @status para "Desqualificado" e envie: Puxa, que pena! Poderíamos encontrar uma brecha para o seu caso, se você tivesse contribuído por 10 anos no passado, mesmo que tivesse parado de contribuir.
+NÃO TEM 10 ANOS: altere o @status para "Desqualificado" e envie: Que pena. Poderíamos encontrar um caminho para o seu caso se você tivesse contribuído por 10 anos no passado, mesmo que tivesse parado de contribuir depois.
 
-TEM MAIS DE 10 ANOS: escreva Beleza! Vamos analisar o seu caso, e logo retornamos aqui, tudo bem? e passe com @responsavel para "Letícia Rocha".
+TEM MAIS DE 10 ANOS: escreva Ótimo! Vamos analisar o seu caso, e logo retornamos aqui, tudo bem? e passe com @responsavel para "Letícia Rocha".
 
 ${OBJECOES_DE_CONFIANCA}`,
   },
@@ -167,7 +167,7 @@ Com tudo certo, use @gerarcontrato, envie o template @tutorialassinatura, altere
 
 Informou que já assinou: agradeça pela confiança em nosso escritório, altere o @status para "Contrato fechado" e passe com @responsavel para "Letícia Rocha".
 
-Disse ok ou não deixou claro que assinou, repita a pergunta: só pra confirmar, conseguiu assinar?
+Disse ok ou não deixou claro que assinou, repita a pergunta: só para confirmar, conseguiu assinar?
 
 ${OBJECOES_DE_CONFIANCA}`,
   },
