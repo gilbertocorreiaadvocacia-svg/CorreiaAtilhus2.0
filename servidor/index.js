@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
+import { monitorEventLoopDelay } from 'node:perf_hooks';
 import { HOSPEDADO, HOST, INTERVALO_AGENDADOR, PORTA, RAIZ, enderecoPermitido } from './config.js';
 import { prepararHospedagem } from './nucleo/hospedagem.js';
 import { ativarAgentesSemEquipe, garantirAvaliacaoNosEscritorios, garantirPosVendaNosEscritorios } from './nucleo/agentes-por-escritorio.js';
@@ -38,6 +39,13 @@ import { iniciarRenovacaoDeTokens } from './whatsapp/renovar-tokens.js';
 iniciarBanco();
 /* Quando ESTA copia subiu. Vai na saude, para dar para distinguir duas. */
 const INICIADO_EM = new Date().toISOString();
+
+/* Atraso do event loop: se o processo Node estiver bloqueado por algo
+   sincrono (grava de arquivo grande, laco pesado), ate um /api/saude trivial
+   demora para responder. Sem isto, "o sistema esta lento" nunca tinha como
+   virar numero — so sobrava desconfiar. */
+const medidorDeAtraso = monitorEventLoopDelay({ resolution: 20 });
+medidorDeAtraso.enable();
 
 const semeado = semearSePrecisar();
 /* Hospedado, a senha padrao nao chega a abrir a porta (nucleo/hospedagem.js). */
@@ -196,14 +204,28 @@ rotas.get('/api/eventos', async ({ req, res, ctx }) => {
  */
 rotas.get(
   '/api/saude',
-  async () => ({
-    ok: true,
-    versao: '0.1.0',
-    agora: new Date().toISOString(),
-    raiz: RAIZ,
-    pid: process.pid,
-    desde: INICIADO_EM,
-  }),
+  async () => {
+    const memoria = process.memoryUsage();
+    return {
+      ok: true,
+      versao: '0.1.0',
+      agora: new Date().toISOString(),
+      raiz: RAIZ,
+      pid: process.pid,
+      desde: INICIADO_EM,
+      processo: {
+        rodandoHaSegundos: Math.round(process.uptime()),
+        memoriaRssMb: Math.round(memoria.rss / 1024 / 1024),
+        memoriaHeapUsadaMb: Math.round(memoria.heapUsed / 1024 / 1024),
+        /* Se o event loop esta livre, media e maximo ficam perto de 0. Numero
+           alto aqui e o processo preso em algo sincrono, nao rede lenta. */
+        atrasoDoEventLoopMs: {
+          media: Number((medidorDeAtraso.mean / 1e6).toFixed(1)),
+          maximo: Number((medidorDeAtraso.max / 1e6).toFixed(1)),
+        },
+      },
+    };
+  },
   { publica: true },
 );
 
