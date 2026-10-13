@@ -17,6 +17,7 @@ import {
   removerOnde,
 } from '../nucleo/banco.js';
 import { aplicarModoFoco, ehAdministrador, filtrarConversasVisiveis, podeVerConversa } from '../nucleo/auth.js';
+import { creditosMesDoContato } from '../nucleo/creditos.js';
 import { emitir } from '../nucleo/eventos.js';
 import { agora, aplicarVariaveis, garantirPasta, normalizar, normalizarTelefone, novoId, ordenarPor } from '../nucleo/util.js';
 import { enviarMensagem, janelaAberta } from '../whatsapp/envio.js';
@@ -361,6 +362,21 @@ export function registrarAtendimento(rotas) {
         template: a.templateId ? achar('templates', a.templateId)?.nome || null : null,
       }));
     return ordenarPor(agendamentos, 'quando', 'asc');
+  });
+
+  /*
+   * Quanto este lead ja custou de credito no mes corrente.
+   *
+   * Pedido do escritorio em 13/10/2026, igual ao painel de consumo geral
+   * (Configuracoes > Consumo), mas ao vivo, por lead, enquanto se conversa.
+   * Rota propria, e nao um campo em enriquecer(): enriquecer tambem roda nos
+   * ate 200 contatos da listagem (GET /api/contatos) a cada atualizacao da
+   * fila, e somar credito ali multiplicaria por 200 uma varredura que aqui
+   * custa 1 so, pela conversa que esta aberta.
+   */
+  rotas.get('/api/contatos/:id/creditos-mes', async ({ ctx, params }) => {
+    const contato = conversaOu404(ctx, params.id);
+    return { creditos: creditosMesDoContato(contato.id) };
   });
 
   /* ---------------- Envio ---------------- */

@@ -295,7 +295,7 @@ export async function paginaAtendimento({
   const container = el('div', { class: 'atendimento' });
 
   /* Referencias da conversa aberta agora. Trocadas a cada redesenho. */
-  const vivo = { indicador: null, painel: null, contatoId: null, recarregar: null };
+  const vivo = { indicador: null, painel: null, contatoId: null, recarregar: null, creditosEl: null };
 
   /**
    * "O agente esta escrevendo" e estado, nao pintura.
@@ -314,6 +314,28 @@ export async function paginaAtendimento({
     if (vivo.indicador) vivo.indicador.style.display = 'none';
     if (fimDoDigitando) clearTimeout(fimDoDigitando);
   };
+
+  /*
+   * Quanto este lead ja custou de credito no mes corrente, ao vivo.
+   *
+   * Pedido do escritorio: ver o consumo subindo conforme a conversa acontece,
+   * e nao so no painel geral de Configuracoes > Consumo. `elemento` e
+   * conferido pelo contatoId no fim do pedido: trocar de conversa rapido nao
+   * pode fazer a resposta de uma conversa antiga escrever por cima do span da
+   * conversa nova.
+   */
+  async function atualizarCreditosMes(doContatoId, elemento) {
+    try {
+      const resposta = await api.get(`/api/contatos/${doContatoId}/creditos-mes`);
+      if (vivo.contatoId === doContatoId && document.body.contains(elemento)) {
+        elemento.textContent = `${numero(resposta.creditos)} créditos`;
+      }
+    } catch {
+      if (vivo.contatoId === doContatoId && document.body.contains(elemento)) {
+        elemento.textContent = '—';
+      }
+    }
+  }
 
   async function buscar() {
     const resposta = await api.get('/api/contatos', {
@@ -2353,6 +2375,15 @@ export async function paginaAtendimento({
       else expandidos.delete('ver-mais');
     });
 
+    /* Créditos deste lead no mes corrente, atualizado ao vivo conforme a
+       conversa acontece (ver atualizarCreditosMes, mais acima).
+       `div`, e nao `span`: ".propriedade > span" e o estilo do ROTULO
+       (maiusculas, filete embaixo); o valor precisa de outra marcacao para
+       nao herdar isso (mesmo padrao do Modo audio e do Contrato, acima). */
+    const valorCreditosMes = el('div', { class: 't-sm', texto: '…' });
+    vivo.creditosEl = valorCreditosMes;
+    atualizarCreditosMes(contato.id, valorCreditosMes);
+
     /*
      * O conteudo da aba Dados. As outras cinco sao montadas mais abaixo, sob
      * demanda: nenhuma delas precisa existir enquanto ninguem a abriu.
@@ -2363,6 +2394,9 @@ export async function paginaAtendimento({
     const painelDados = el('div', { class: 'painel-dados' }, [
         pessoa,
         el('div', { class: 'painel-cartao' }, [campoResponsavel]),
+        el('div', { class: 'painel-cartao' }, [
+          el('div', { class: 'propriedade' }, [el('span', { texto: 'Créditos este mês' }), valorCreditosMes]),
+        ]),
         /*
          * As quatro classificacoes da conversa num bloco so, uma por linha,
          * cada uma com o icone do que ela e.
@@ -4480,6 +4514,9 @@ export async function paginaAtendimento({
     if (!document.body.contains(container) || dados.contatoId !== vivo.contatoId) return;
     pararDigitando();
     if (vivo.recarregar) vivo.recarregar();
+    /* Mensagem da IA costuma vir com credito lancado (processamento_ia, e
+       possivelmente mencoes): e o momento de atualizar o numero no painel. */
+    if (vivo.creditosEl) atualizarCreditosMes(vivo.contatoId, vivo.creditosEl);
   });
 
   /*

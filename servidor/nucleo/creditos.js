@@ -35,6 +35,23 @@ export function custoDaMencao(tipo) {
 }
 
 /**
+ * Quanto ESTE lead consumiu no mes corrente — o numero que aparece ao vivo no
+ * painel da conversa, conforme ele vai conversando. Pedido do escritorio em
+ * 13/10/2026: diferente de consumoDoWorkspace, que varre o workspace inteiro
+ * para o dashboard (uso esporadico, uma vez por abertura do painel), este sai
+ * direto no painel de CADA conversa aberta, entao o filtro ja entra pelo
+ * contatoId (listar() so compara igualdade — nucleo/banco.js) em vez de somar
+ * o workspace inteiro e descartar o resto.
+ */
+export function creditosMesDoContato(contatoId, referencia = new Date()) {
+  const inicioDoMes = new Date(referencia.getFullYear(), referencia.getMonth(), 1).toISOString();
+  const total = listar('creditos', { contatoId })
+    .filter((l) => l.criadoEm >= inicioDoMes)
+    .reduce((soma, l) => soma + l.quantidade, 0);
+  return Number(total.toFixed(2));
+}
+
+/**
  * `contatosPermitidos` e um Set de ids de conversa. Quando vem preenchido, o
  * consumo so soma o que saiu das conversas que a pessoa pode abrir: a lista de
  * quem mais consumiu carrega o nome do cliente, e nome de cliente de

@@ -21,6 +21,7 @@ import { testarHistorico } from './historico.js';
 import { testarCasos } from './casos.js';
 import { testarEncadeamento } from './encadeamento.js';
 import { testarDocumentosRecebidos } from './documentos-recebidos.js';
+import { testarCreditosMes } from './creditos-mes.js';
 import { testarEduardaRoteamento } from './eduarda-roteamento.js';
 import { testarPromptAoVivo } from './prompt-ao-vivo.js';
 import { testarPacotes } from './pacotes.js';
@@ -255,6 +256,7 @@ async function principal() {
     /* Depois da IA: poe a chave de mentira de volta e tira no fim. */
     suites.push(await testarEncadeamento({ base, anthropic }));
     suites.push(await testarDocumentosRecebidos({ base, anthropic }));
+    suites.push(await testarCreditosMes({ base, anthropic }));
     /* Mesmo esquema do encadeamento: roteiro na Anthropic de mentira, chave posta e tirada. */
     suites.push(await testarFalaEAcao({ base, anthropic }));
     /* Idem: prompt editado no meio da conversa, sem reiniciar o servidor. */
