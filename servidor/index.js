@@ -8,6 +8,7 @@ import { ativarAgentesSemEquipe, garantirAvaliacaoNosEscritorios, garantirPosVen
 import { iniciarAvaliacoes } from './automacao/avaliacao.js';
 import { caminhoDaMidia } from './nucleo/midia.js';
 import { atualizar, encerrarBanco, iniciarBanco, listar } from './nucleo/banco.js';
+import { estado as estadoDoEspelho, ligado as espelhoLigado } from './nucleo/espelho.js';
 import { migrarCoresParaTokens } from './nucleo/paleta.js';
 import { migrarTiposDeCaso } from './nucleo/casos.js';
 import { migrarCanaisDeOrigem } from './nucleo/origens.js';
@@ -223,6 +224,17 @@ rotas.get(
           media: Number((medidorDeAtraso.mean / 1e6).toFixed(1)),
           maximo: Number((medidorDeAtraso.max / 1e6).toFixed(1)),
         },
+      },
+      /* Espelho do Supabase (nucleo/espelho.js): sem as duas variaveis de
+         ambiente, "ligado" fica falso e o resto nem importa. Com elas, da
+         para confirmar daqui que a escrita esta indo, sem esperar alguem
+         notar no Supabase. */
+      espelho: {
+        ligado: espelhoLigado,
+        enviados: estadoDoEspelho.enviados,
+        falhas: estadoDoEspelho.falhas,
+        ultimoErro: estadoDoEspelho.ultimoErro ? String(estadoDoEspelho.ultimoErro).slice(0, 150) : null,
+        ultimoEnvioEm: estadoDoEspelho.ultimoEnvioEm,
       },
     };
   },
