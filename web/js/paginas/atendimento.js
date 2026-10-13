@@ -4567,9 +4567,33 @@ export async function paginaAtendimento({
     desenhar();
   }
 
+  /*
+   * Junta redesenhos que chegam em rajada numa unica chamada.
+   *
+   * 'contato' e 'contatos' nao tem como filtrar por relevancia (qualquer
+   * contato do workspace pode ter entrado ou saido do filtro atual), entao
+   * cada um refaz o GET /api/contatos (ate 400 linhas) e reconstroi lista e
+   * kanban do zero. Numa rajada — a IA respondendo varias conversas ao mesmo
+   * tempo dispara um 'contato' por mencao — isso virava um redesenho inteiro
+   * atras do outro, em serie. Aqui so o PRIMEIRO pedido de uma janela de
+   * 150ms dispara o timer; os que chegam depois so avisam (pendente = true) e
+   * saem, e o redesenho de verdade sai uma vez so, com o estado mais recente.
+   */
+  let redesenhoEmEspera = null;
+  function agendarRedesenho() {
+    if (redesenhoEmEspera) return redesenhoEmEspera;
+    redesenhoEmEspera = new Promise((resolver) => {
+      setTimeout(() => {
+        redesenhoEmEspera = null;
+        redesenharSemAtrapalhar().then(resolver, resolver);
+      }, 150);
+    });
+    return redesenhoEmEspera;
+  }
+
   ouvir('contato', async () => {
     if (!document.body.contains(container)) return;
-    await redesenharSemAtrapalhar();
+    await agendarRedesenho();
   });
 
   /*
@@ -4594,7 +4618,7 @@ export async function paginaAtendimento({
   }
   ouvir('contatos', async () => {
     if (!document.body.contains(container)) return;
-    await redesenharSemAtrapalhar();
+    await agendarRedesenho();
   });
 
   /**
