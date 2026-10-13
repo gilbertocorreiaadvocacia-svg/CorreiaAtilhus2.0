@@ -15,6 +15,7 @@ import {
   registrarLog,
   remover,
   removerOnde,
+  totalMensagensEmCache,
 } from '../nucleo/banco.js';
 import { aplicarModoFoco, ehAdministrador, filtrarConversasVisiveis, podeVerConversa } from '../nucleo/auth.js';
 import { creditosMesDoContato } from '../nucleo/creditos.js';
@@ -108,19 +109,22 @@ function enriquecer(contato) {
     /*
      * Quanto ja se conversou com esta pessoa.
      *
-     * Sai de mensagensDe(), que guarda o resultado em memoria — entao a conta
-     * custa a primeira leitura de cada conversa e nada nas seguintes. E
-     * enriquecer() so roda no lote que cabe no limite da resposta, nunca na
-     * base inteira, entao o custo tem teto.
+     * 13/10/2026: era mensagensDe(contato.id).length. Essa chamada LE O
+     * ARQUIVO da conversa do disco se ainda nao estiver em memoria — e
+     * enriquecer() roda para CADA contato do lote (ate 400 na fila, 1000 na
+     * tela Contatos). Logo apos reiniciar, isso virava uma rajada de leitura
+     * sincrona de disco, uma por contato, travando o processo inteiro para
+     * todo mundo (ver totalMensagensEmCache em nucleo/banco.js). Agora so
+     * mostra o numero de quem ja esta em memoria (conversa aberta, mensagem
+     * recente, etc.); para o resto, fica null ate alguem tocar a conversa —
+     * o front ja trata null como "sem numero" (nao mostra o selo).
      *
      * O numero nao fica gravado no contato de proposito: para isso ele teria
      * de ser mantido no caminho de gravacao da mensagem, que e o caminho mais
      * critico do sistema. Errar um contador na tela e um numero errado; errar
-     * naquele caminho e mensagem de cliente perdida. Se um dia a base crescer
-     * a ponto de a primeira leitura pesar, o lugar certo de resolver e um
-     * contador mantido por inserirMensagem, com backfill preguicoso.
+     * naquele caminho e mensagem de cliente perdida.
      */
-    totalMensagens: mensagensDe(contato.id).length,
+    totalMensagens: totalMensagensEmCache(contato.id),
   };
 }
 

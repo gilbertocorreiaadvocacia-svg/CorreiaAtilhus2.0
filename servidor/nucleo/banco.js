@@ -224,6 +224,30 @@ export function mensagensDe(contatoId) {
   return cacheMensagens.get(contatoId);
 }
 
+/*
+ * Quantas mensagens tem a conversa, SEM ler o arquivo se ele ainda nao
+ * estiver em memoria. Devolve null nesse caso, em vez de pagar a leitura.
+ *
+ * Achado em 13/10/2026: a listagem (GET /api/contatos) chama isto para
+ * CADA contato do lote (ate 400 de uma vez, ou 1000 na tela Contatos). Logo
+ * depois de reiniciar — e o escritorio reiniciou varias vezes num dia so,
+ * implantando ajuste atras de ajuste — cada um desses contatos e um
+ * cache-miss, e mensagensDe() faz fs.readFileSync + JSON.parse SINCRONO por
+ * contato. Um escritorio com conversa de mais de dez mil mensagens (ja visto
+ * aqui) transforma a PRIMEIRA listagem apos o boot num laco de centenas de
+ * leituras de disco, uma atras da outra, bloqueando o unico event loop do
+ * Node — e e o processo inteiro que trava por isso, nao so quem abriu a
+ * lista: todo mundo usando o sistema ao mesmo tempo sente.
+ *
+ * O cache esquenta sozinho (abrir a conversa, mensagem nova chegando,
+ * consulta de credito do mes...), entao o numero so demora a aparecer nas
+ * conversas que ainda ninguem tocou desde o ultimo reinicio — nunca trava
+ * nada para mostrar.
+ */
+export function totalMensagensEmCache(contatoId) {
+  return cacheMensagens.has(contatoId) ? cacheMensagens.get(contatoId).length : null;
+}
+
 function marcarMensagensSujas(contatoId) {
   mensagensSujas.add(contatoId);
   if (temporizadorMensagens) return;

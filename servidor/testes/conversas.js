@@ -171,8 +171,18 @@ export async function testarConversas({ base }) {
   const semMensagemNaLista = listadas.find((c) => c.id === pendente.id);
   s.ok('a conversa traz quantas mensagens ja teve',
     comMensagemNaLista?.totalMensagens >= 1, `veio ${comMensagemNaLista?.totalMensagens}`);
-  s.ok('conversa que nunca trocou mensagem vem com zero, e nao sem o campo',
-    semMensagemNaLista?.totalMensagens === 0, `veio ${semMensagemNaLista?.totalMensagens}`);
+  /*
+   * 13/10/2026: nao e mais "zero", e `null`. A listagem trocou de ler o
+   * arquivo da conversa toda vez (achado real: o escritorio reiniciou varias
+   * vezes no mesmo dia, e cada listagem apos o boot virava uma rajada de
+   * leitura sincrona de disco por contato — travava o processo inteiro para
+   * todo mundo, nao so quem abriu a lista) para so mostrar o numero de quem
+   * ja esta em memoria (ver totalMensagensEmCache em nucleo/banco.js). Esta
+   * conversa nunca trocou mensagem nenhuma, entao o arquivo dela nunca foi
+   * tocado: o campo continua vindo (nao some), so que como "ainda nao sei".
+   */
+  s.ok('conversa que nunca trocou mensagem vem com o campo presente, mas sem numero ainda',
+    semMensagemNaLista?.totalMensagens === null, `veio ${semMensagemNaLista?.totalMensagens}`);
 
   /*
    * As fontes que as abas do painel da direita leem.
