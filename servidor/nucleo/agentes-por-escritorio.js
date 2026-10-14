@@ -272,6 +272,120 @@ export function garantirAgentesDasAreas() {
 }
 
 /**
+ * Cada workspace de area com o funil de status COMPLETO, do jeito que
+ * montarWorkspace monta para um workspace novo (ver workspaces-por-area.js) —
+ * para quem, como o caso real de 14/10/2026, nasceu pelo caminho generico
+ * (POST /api/workspaces) em vez de criarWorkspacesPorArea, e por isso ficou
+ * so com o status padrao de todo workspace novo ("NOVO lead"), sem o resto
+ * do funil que os prompts dos agentes citam por nome (@status "Em análise",
+ * "Desqualificado"...). Sem isso, ligar os agentes quebraria na primeira
+ * tentativa de mudar status para algo que nao existe.
+ *
+ * Aditivo: so acrescenta o status que falta, pelo NOME, clonando do
+ * workspace de origem (o workspace sem area com o funil mais completo —
+ * nesta casa, "Correia Advogados"). Remonta departamento e follow-up
+ * (template e desistencia) para os registros DESTE workspace, tambem pelo
+ * nome — mesma ideia do remapeamento que montarWorkspace faz, so que so
+ * para o que falta.
+ *
+ * De quebra, funde departamento duplicado pelo mesmo nome (achado junto: os
+ * workspaces afetados tinham "Comercial" duas vezes, criadas no mesmo
+ * instante — nunca se apurou por qual caminho exato). Mantem o mais antigo e
+ * remapeia quem apontava para a copia.
+ */
+export function garantirStatusDasAreas() {
+  const origem = listar('workspaces')
+    .filter((w) => !w.area)
+    .map((w) => ({ w, statusCount: listar('status', { workspaceId: w.id }).length }))
+    .sort((a, b) => b.statusCount - a.statusCount || String(a.w.criadoEm).localeCompare(String(b.w.criadoEm)))[0]?.w;
+  if (!origem) return { workspacesCorrigidos: 0, statusCriados: 0, departamentosFundidos: 0 };
+
+  let workspacesCorrigidos = 0;
+  let statusCriados = 0;
+  let departamentosFundidos = 0;
+
+  for (const alvo of WORKSPACES_POR_AREA) {
+    const workspace = listar('workspaces').find(
+      (w) => w.area === alvo.area || normalizar(w.nome) === normalizar(alvo.nome),
+    );
+    if (!workspace || workspace.id === origem.id) continue;
+
+    /* Funde departamento repetido pelo nome antes de mais nada: o status que
+       vai entrar agora precisa apontar para o departamento certo, nao para
+       uma das copias. */
+    const porNomeDeDepartamento = new Map();
+    for (const dep of listar('departamentos', { workspaceId: workspace.id }).sort((a, b) =>
+      String(a.criadoEm).localeCompare(String(b.criadoEm)),
+    )) {
+      const chave = normalizar(dep.nome);
+      const mantido = porNomeDeDepartamento.get(chave);
+      if (!mantido) {
+        porNomeDeDepartamento.set(chave, dep);
+        continue;
+      }
+      for (const status of listar('status', { workspaceId: workspace.id })) {
+        if (status.departamentoId === dep.id) atualizar('status', status.id, { departamentoId: mantido.id });
+      }
+      for (const conexao of listar('conexoes', { workspaceId: workspace.id })) {
+        if (conexao.departamentoPadraoId === dep.id) atualizar('conexoes', conexao.id, { departamentoPadraoId: mantido.id });
+      }
+      remover('departamentos', dep.id);
+      departamentosFundidos += 1;
+    }
+
+    const templatesPorAtalho = new Map(listar('templates', { workspaceId: workspace.id }).map((t) => [t.atalho, t]));
+    const statusPorNome = new Map(
+      listar('status', { workspaceId: workspace.id }).map((s) => [normalizar(s.nome), s]),
+    );
+
+    const faltando = listar('status', { workspaceId: origem.id }).filter((s) => !statusPorNome.has(normalizar(s.nome)));
+    if (!faltando.length) continue;
+
+    for (const original of faltando) {
+      const departamentoOrigem = original.departamentoId ? achar('departamentos', original.departamentoId) : null;
+      const departamentoAqui = departamentoOrigem ? porNomeDeDepartamento.get(normalizar(departamentoOrigem.nome)) : null;
+      const { id, criadoEm, atualizadoEm, followups, ...resto } = original;
+      const novo = inserir('status', {
+        ...structuredClone(resto),
+        id: novoId('sts'),
+        workspaceId: workspace.id,
+        departamentoId: departamentoAqui?.id || null,
+        followups: [],
+      });
+      statusPorNome.set(normalizar(novo.nome), novo);
+      statusCriados += 1;
+    }
+
+    /* So agora, com todo status novo ja existindo pelo nome, da para remontar
+       os follow-ups: um passo pode desistir para um status que tambem acabou
+       de ser criado nesta mesma rodada. */
+    for (const original of faltando) {
+      const novo = statusPorNome.get(normalizar(original.nome));
+      const followups = (original.followups || [])
+        .map((passo) => {
+          const templateOrigem = passo.templateId ? achar('templates', passo.templateId) : null;
+          const templateAqui = templateOrigem ? templatesPorAtalho.get(templateOrigem.atalho) : null;
+          if (!templateAqui) return null;
+          const statusDesistirOrigem = passo.desistir?.statusId ? achar('status', passo.desistir.statusId) : null;
+          const statusDesistirAqui = statusDesistirOrigem ? statusPorNome.get(normalizar(statusDesistirOrigem.nome)) : null;
+          return {
+            ...passo,
+            id: novoId('fup'),
+            templateId: templateAqui.id,
+            desistir: passo.desistir ? { ...passo.desistir, statusId: statusDesistirAqui?.id || null } : null,
+          };
+        })
+        .filter(Boolean);
+      if (followups.length) atualizar('status', novo.id, { followups });
+    }
+
+    workspacesCorrigidos += 1;
+  }
+
+  return { workspacesCorrigidos, statusCriados, departamentosFundidos };
+}
+
+/**
  * O agente de pos-venda, instalado em todo escritorio de area (Previdenciario,
  * Trabalhista, Civel) que ainda nao tem um, e ligado como responsavel de
  * depois-da-assinatura quando esse ponto ainda nao foi configurado.

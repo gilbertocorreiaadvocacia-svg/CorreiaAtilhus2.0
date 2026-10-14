@@ -4,7 +4,7 @@ import path from 'node:path';
 import { monitorEventLoopDelay } from 'node:perf_hooks';
 import { HOSPEDADO, HOST, INTERVALO_AGENDADOR, PORTA, RAIZ, enderecoPermitido } from './config.js';
 import { prepararHospedagem } from './nucleo/hospedagem.js';
-import { ativarAgentesSemEquipe, garantirAgentesDasAreas, garantirAvaliacaoNosEscritorios, garantirPosVendaNosEscritorios } from './nucleo/agentes-por-escritorio.js';
+import { ativarAgentesSemEquipe, garantirAgentesDasAreas, garantirAvaliacaoNosEscritorios, garantirPosVendaNosEscritorios, garantirStatusDasAreas } from './nucleo/agentes-por-escritorio.js';
 import { iniciarAvaliacoes } from './automacao/avaliacao.js';
 import { caminhoDaMidia } from './nucleo/midia.js';
 import { atualizar, encerrarBanco, iniciarBanco, listar } from './nucleo/banco.js';
@@ -81,6 +81,14 @@ if (avaliadores) console.log(`Avaliacao do atendimento: agente instalado em ${av
 const agentesDasAreas = garantirAgentesDasAreas();
 if (agentesDasAreas.areasCorrigidas || agentesDasAreas.agentesInstalados) {
   console.log(`Agentes por area: ${agentesDasAreas.areasCorrigidas} area(s) corrigida(s), ${agentesDasAreas.agentesInstalados} agente(s) instalado(s).`);
+}
+/* O funil de status completo em cada workspace de area, para quem tambem
+   nasceu sem ele pelo caminho generico (mesmo achado de 14/10/2026). */
+const statusDasAreas = garantirStatusDasAreas();
+if (statusDasAreas.workspacesCorrigidos) {
+  console.log(
+    `Status por area: ${statusDasAreas.workspacesCorrigidos} workspace(s) corrigido(s), ${statusDasAreas.statusCriados} status criado(s), ${statusDasAreas.departamentosFundidos} departamento(s) fundido(s).`,
+  );
 }
 /* O agente de pos-venda, uma vez em cada escritorio de area, e ligado como
    responsavel apos a assinatura quando esse ponto ainda nao foi configurado. */

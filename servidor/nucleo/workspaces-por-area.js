@@ -143,7 +143,11 @@ function montarWorkspace(origem, { area, nome }) {
 
   /* ---------------- O numero da area e o Chat de teste ---------------- */
 
-  const novaConversa = listar('status', { workspaceId: id }).find((s) => normalizar(s.nome) === 'nova conversa');
+  /* Pelo TIPO, e nao pelo nome: o status inicial do funil se chama "NOVO
+     lead" (ver seed.js), nunca "Nova conversa" — esse e so o nome do TIPO,
+     que nenhum status real carrega como nome proprio. Buscar pelo nome
+     deixava statusPadraoId sempre nulo. */
+  const novaConversa = listar('status', { workspaceId: id }).find((s) => s.tipo === 'nova');
   const comercial = listar('departamentos', { workspaceId: id }).find((d) => normalizar(d.nome) === 'comercial');
   const comum = {
     workspaceId: id,
