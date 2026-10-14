@@ -182,6 +182,18 @@ export async function testarHistorico({ base, evolucao, chaveEvolucao }) {
   s.ok('concluido, a estimativa de andamento fecha em 100%', historico?.percentual === 100, String(historico?.percentual));
   s.ok('e sabe quantas rodadas o calendario tinha ao todo', historico?.totalRodadas === 5, String(historico?.totalRodadas));
 
+  /* O sino avisa quando a sincronizacao termina de verdade, e nao a cada
+     rodada: senao a pessoa receberia tres avisos iguais para a mesma conexao
+     (rodadas 1, 2 e 3 ate a calmaria encerrar). */
+  const notificacoes = (await api.get('/api/notificacoes')).dados || [];
+  const avisosDesta = notificacoes.filter((n) => n.titulo === 'Sincronizacao do WhatsApp concluida');
+  s.ok('o sino avisa quando a sincronizacao termina', avisosDesta.length === 1, JSON.stringify(avisosDesta));
+  s.ok(
+    'o aviso cita a conexao e os numeros certos',
+    avisosDesta[0]?.texto?.includes('Escritorio (QR)') && avisosDesta[0]?.texto?.includes('5 conversas'),
+    avisosDesta[0]?.texto,
+  );
+
   const todas = (await api.get(`/api/contatos?conexao=${id}&limite=500`)).dados?.contatos || [];
   const pelo = (fn) => todas.find(fn);
   const a = pelo((c) => c.telefone === '5581911110001');

@@ -3,6 +3,7 @@ import { emitir } from '../nucleo/eventos.js';
 import { agora } from '../nucleo/util.js';
 import { importarHistorico } from './importar-historico.js';
 import { enfileirarMidiaDaConexao } from './midia-historico.js';
+import { notificar } from '../ia/mencoes.js';
 
 /**
  * Traz as conversas do celular sozinho, logo depois de o numero conectar.
@@ -189,6 +190,23 @@ async function executar(conexao, { rodada, responsavel, forcarFotos }) {
       null,
       { conexaoId, conexaoNome: conexao.nome },
     );
+    /* O sino avisa quando a sincronizacao termina de verdade (nao a cada
+       rodada): e o instante em que dono e administradores podem parar de
+       checar Conexoes para saber se acabou. Os arquivos (audio, imagem,
+       video, PDF) continuam chegando pela fila de midia-historico.js depois
+       disso, devagar — este aviso e so sobre as conversas e mensagens. */
+    if (terminou) {
+      for (const membro of listar('membros', { workspaceId: conexao.workspaceId })) {
+        if (!['owner', 'admin'].includes(membro.papel)) continue;
+        notificar(
+          conexao.workspaceId,
+          membro.id,
+          'sistema',
+          'Sincronizacao do WhatsApp concluida',
+          `${conexao.nome}: ${conversas} conversas e ${mensagensAntes + relato.mensagensGravadas} mensagens trazidas do celular.`,
+        );
+      }
+    }
     emitir(conexao.workspaceId, 'contatos', {});
     return relato;
   } catch (erro) {
