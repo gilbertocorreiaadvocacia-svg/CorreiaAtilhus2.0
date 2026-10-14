@@ -52,6 +52,7 @@ import { testarStatusDasAreas } from './status-das-areas.js';
 import { testarSituacaoExterna } from './situacao-externa.js';
 import { testarFollowup } from './followup.js';
 import { testarRegrasAntiAlucinacao } from './regras-anti-alucinacao.js';
+import { testarAplicarRegrasInstitucionais, testarRegrasInstitucionais } from './regras-institucionais.js';
 import { testarVoz } from './voz.js';
 import { testarTranscricaoDeAudio } from './transcricao-audio.js';
 import { testarDoisFatores } from './doisfatores.js';
@@ -310,6 +311,8 @@ async function principal() {
     suites.push(await testarSituacaoExterna({ raiz: RAIZ }));
     suites.push(await testarFollowup({ raiz: RAIZ }));
     suites.push(await testarRegrasAntiAlucinacao());
+    suites.push(await testarRegrasInstitucionais());
+    suites.push(await testarAplicarRegrasInstitucionais({ raiz: RAIZ }));
     suites.push(await testarVozDosAgentes({ raiz: RAIZ }));
     suites.push(await testarDeduplicarVozes({ raiz: RAIZ }));
     suites.push(await testarReorganizarAgentes({ raiz: RAIZ }));

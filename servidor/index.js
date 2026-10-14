@@ -14,6 +14,7 @@ import { migrarTiposDeCaso } from './nucleo/casos.js';
 import { migrarCanaisDeOrigem } from './nucleo/origens.js';
 import { contextoDaSessao, limparSessoesOrfas, migrarPapeis } from './nucleo/auth.js';
 import { migrarNomesDeAgentes } from './nucleo/migrar-agentes.js';
+import { aplicarRegrasInstitucionais } from './nucleo/migrar-regras-institucionais.js';
 import { deduplicarVozes, processarVozes } from './nucleo/vozes-dos-agentes.js';
 import { processarBaseEStatus } from './nucleo/base-e-status.js';
 import { criarRoteador, lerCookies, lerCorpo, responderErro, responderJson, servirEstatico } from './nucleo/http.js';
@@ -100,6 +101,17 @@ if (posVenda.instalados || posVenda.configurados) {
 const agentesLigados = ativarAgentesSemEquipe();
 if (agentesLigados.length) {
   console.log(`Agentes ativados por falta de equipe: ${agentesLigados.map((a) => `${a.agente} (${a.escritorio})`).join(', ')}.`);
+}
+/* Relatorio de melhorias do escritorio (14/10/2026): encaminhamento seguro
+   para atendimento humano, as tres unidades reais sem prometer atendimento so
+   onde ha unidade, atendimento a distancia sem prometer que tudo e virtual, e
+   nome do cliente nunca trava a conversa — acrescentado e corrigido nos
+   agentes que ja estavam instalados antes desta mudanca. */
+const regrasInstitucionais = aplicarRegrasInstitucionais();
+if (regrasInstitucionais.acrescentados || regrasInstitucionais.corrigidos) {
+  console.log(
+    `Regras institucionais: ${regrasInstitucionais.acrescentados} agente(s) com o bloco novo, ${regrasInstitucionais.corrigidos} agente(s) com texto antigo corrigido.`,
+  );
 }
 /* Beatriz destravada, nomes e pasta do Trabalhista limpos, "Agente 26" repetido fora (07/10/2026). */
 const reorganizacaoDeAgentes = migrarNomesDeAgentes();

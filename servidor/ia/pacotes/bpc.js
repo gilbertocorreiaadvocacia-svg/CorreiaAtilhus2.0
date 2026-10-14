@@ -1,4 +1,4 @@
-import { DADOS_DO_ESCRITORIO, OBJECOES_DE_CONFIANCA, PASSAGEM } from './comum.js';
+import { DADOS_DO_ESCRITORIO, OBJECOES_DE_CONFIANCA, PASSAGEM, REGRAS_INSTITUCIONAIS } from './comum.js';
 
 /**
  * BPC/LOAS: o squad da LiderHub (pasta "BPC Loas"), com as mencoes trocadas
@@ -44,7 +44,9 @@ DÚVIDAS: consulte @biblioteca, responda breve e volte ao roteiro. NUNCA mande o
 
 ${PASSAGEM}
 
-${DADOS_DO_ESCRITORIO}`;
+${DADOS_DO_ESCRITORIO}
+
+${REGRAS_INSTITUCIONAIS}`;
 
 export const BPC = [
   {

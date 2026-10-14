@@ -1,4 +1,4 @@
-import { DADOS_DO_ESCRITORIO, OBJECOES_DE_CONFIANCA, PASSAGEM } from './comum.js';
+import { DADOS_DO_ESCRITORIO, OBJECOES_DE_CONFIANCA, PASSAGEM, REGRAS_INSTITUCIONAIS } from './comum.js';
 
 /**
  * Eduarda, a secretaria (LiderHub, pasta "Triagem"): recebe quem escreve para
@@ -67,6 +67,8 @@ ESTILO: humana e simpática. Mensagens curtas, sem juridiquês, 1 emoji. Chame p
 ${PASSAGEM}
 
 ${DADOS_DO_ESCRITORIO}
+
+${REGRAS_INSTITUCIONAIS}
 
 ABERTURA
 

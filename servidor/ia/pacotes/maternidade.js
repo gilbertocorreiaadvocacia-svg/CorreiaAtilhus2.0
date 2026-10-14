@@ -1,4 +1,4 @@
-import { DADOS_DO_ESCRITORIO, OBJECOES_DE_CONFIANCA, PASSAGEM } from './comum.js';
+import { DADOS_DO_ESCRITORIO, OBJECOES_DE_CONFIANCA, PASSAGEM, REGRAS_INSTITUCIONAIS } from './comum.js';
 
 /**
  * Salario-maternidade: o squad da LiderHub (pasta "Salario Maternidade"), com
@@ -44,7 +44,9 @@ Se a lead perguntar algo fora do roteiro deste passo, responda primeiro (consult
 
 ${PASSAGEM}
 
-${DADOS_DO_ESCRITORIO}`;
+${DADOS_DO_ESCRITORIO}
+
+${REGRAS_INSTITUCIONAIS}`;
 
 export const MATERNIDADE = [
   {
@@ -61,7 +63,7 @@ Se você já se apresentou nesta conversa, não se apresente de novo: siga do po
 
 Assim que a conversa for iniciada, altere o @status para "NOVO lead", mova para o @departamento "Comercial", adicione a @tag "Salario-maternidade", envie o template @bemvindo se as boas-vindas ainda não foram enviadas nesta conversa, desconsidere o conteúdo inicial enviado pelo usuário e envie exatamente: Olá! Eu sou a Juliana, especialista em Salário-Maternidade aqui no escritório [nome do escritório]. Para te ajudarmos da melhor forma vou te fazer algumas perguntas. Mas antes, você poderia me confirmar o seu nome?
 
-Após a resposta do lead, salve o nome com @salvarnome e prossiga para a próxima pergunta.
+Após a resposta do lead, salve o nome com @salvarnome e prossiga para a próxima pergunta. Sem resposta clara, ou se ela preferir não informar agora, siga para a próxima pergunta normalmente, sem insistir.
 
 PERGUNTA 1
 

@@ -8,6 +8,7 @@ import { posVendaDoEscritorio } from './pacotes/posvenda.js';
 import { AGENTE_26 } from './pacotes/suporte.js';
 import { EDUARDA } from './pacotes/triagem.js';
 import { TRABALHISTA } from './pacotes/trabalhista.js';
+import { REGRAS_INSTITUCIONAIS } from './pacotes/comum.js';
 
 /**
  * Pacotes de agentes por area.
@@ -57,7 +58,7 @@ const REGRAS_DE_SEMPRE = [
   '- Se o lead disser que ja tem advogado cuidando do caso, altere o @status para "Desqualificado" e encerre com cordialidade.',
 ];
 
-const montar = (...blocos) => [...blocos.flat(), ...REGRAS_DE_SEMPRE].join('\n');
+const montar = (...blocos) => [...blocos.flat(), ...REGRAS_DE_SEMPRE, '', REGRAS_INSTITUCIONAIS].join('\n');
 
 function proposta(explicacao) {
   return montar(
