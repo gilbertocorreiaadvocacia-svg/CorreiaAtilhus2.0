@@ -943,10 +943,12 @@ export async function paginaAgentes({ parametros, definirAcoes, definirPrincipal
 
   /* ---------------- Painel: Atendimento ---------------- */
 
-  /* Um bloco do painel: o rotulo, o controle e, embaixo, a ajuda curta. */
-  function secao(titulo, ajuda, ...filhos) {
+  /* Um bloco do painel: o icone, o rotulo, o controle e, embaixo, a ajuda
+     curta. O icone e so uma pista visual rapida — cada secao continua lida
+     pelo titulo e pelo conteudo. */
+  function secao(titulo, iconeDoTitulo, ajuda, ...filhos) {
     return el('section', { class: 'agentes-secao' }, [
-      el('h3', { class: 'agentes-secao-titulo', texto: titulo }),
+      el('h3', { class: 'agentes-secao-titulo' }, [icone(iconeDoTitulo, 14), titulo]),
       ...filhos,
       ajuda ? el('p', { class: 'agentes-secao-ajuda', texto: ajuda }) : null,
     ]);
@@ -1085,20 +1087,23 @@ export async function paginaAgentes({ parametros, definirAcoes, definirPrincipal
     return el('div', { class: 'agentes-config' }, [
       secao(
         'Situação',
+        'raio',
         'Desligado, ele não responde a ninguém e some do Chat de teste.',
         interruptor(agente.ativo ? 'Agente ligado' : 'Agente desligado', agente.ativo, (ligado) =>
           salvarConfig({ ativo: ligado }, ligado ? 'Agente ligado.' : 'Agente desligado.'),
         ),
       ),
-      secao('Área', 'Palavra-chave e passagem de conversa só valem dentro da mesma área.', area),
+      secao('Área', 'predio', 'Palavra-chave e passagem de conversa só valem dentro da mesma área.', area),
       secao(
         'Caminho da conversa',
+        'conexoes',
         null,
         caminhoDa(agente),
         botao('Abrir Conexões', { pequeno: true, icone: 'abrir', aoClicar: () => (location.hash = '#/conexoes') }),
       ),
       secao(
         'Precisa coletar antes de avançar',
+        'contrato',
         'Enquanto faltar algum, ele lê "FALTA COLETAR" no contexto.',
         /* O servidor transforma o texto em chave (CTPS foto -> ctps_foto). */
         etiquetasEditaveis(agente.requisitos || [], {
@@ -1110,6 +1115,7 @@ export async function paginaAgentes({ parametros, definirAcoes, definirPrincipal
       ),
       secao(
         'Palavras-chave',
+        'etiqueta',
         'Só valem na primeira mensagem de quem escreve.',
         etiquetasEditaveis(agente.palavrasChave || [], {
           rotulo: 'Nova palavra-chave',
@@ -1121,6 +1127,7 @@ export async function paginaAgentes({ parametros, definirAcoes, definirPrincipal
       ),
       secao(
         'Tempo de espera antes de responder',
+        'relogio',
         `${escolhida ? `${escolhida.rotulo}: ${escolhida.ajuda}. ` : ''}Cada mensagem nova reinicia a contagem, para ele responder a tudo de uma vez.`,
         segmentado,
       ),
@@ -1183,6 +1190,7 @@ export async function paginaAgentes({ parametros, definirAcoes, definirPrincipal
     return el('div', { class: 'agentes-config' }, [
       secao(
         'Modelo de IA',
+        'raio',
         agente.modeloDisponivel
           ? 'O cérebro do agente. O custo abaixo é só o da leitura das instruções, que vão junto em toda resposta.'
           : 'Sem a chave deste provedor em Integrações, o agente responde pelo roteiro fixo: segue as falas numeradas do prompt, uma por resposta.',
@@ -1190,12 +1198,14 @@ export async function paginaAgentes({ parametros, definirAcoes, definirPrincipal
       ),
       secao(
         'Base de conhecimento',
+        'pasta',
         'Marcar já basta: o agente consulta o que estiver marcado quando a pergunta for de regra, requisito, prazo ou valor. É aqui que mora o material longo, e não nas instruções.',
         bases,
         botao('Abrir a base de conhecimento', { pequeno: true, icone: 'pasta', aoClicar: () => (location.hash = '#/conhecimento') }),
       ),
       secao(
         'O que ele pode fazer',
+        'opcoes',
         'Sai das menções escritas nas instruções. Quanto menos ferramenta, menos chance de ele fazer o que não devia.',
         agente.ferramentas?.length
           ? el('div', { class: 'linha-p quebra' }, agente.ferramentas.map((f) => el('span', { class: 'selo', texto: f })))
@@ -1282,6 +1292,7 @@ export async function paginaAgentes({ parametros, definirAcoes, definirPrincipal
     return el('div', { class: 'agentes-config' }, [
       secao(
         'Foto',
+        'pessoa',
         'Aparece na lista e na conversa, no lugar das iniciais. Ajuda a equipe a ver de relance quem está conduzindo.',
         el('div', { class: 'agentes-foto' }, [
           avatar(agente, 64),
@@ -1293,9 +1304,10 @@ export async function paginaAgentes({ parametros, definirAcoes, definirPrincipal
           ]),
         ]),
       ),
-      secao('Pasta', 'Só organiza a lista ao lado. Não muda nada no atendimento.', escolhaDePasta),
+      secao('Pasta', 'pasta', 'Só organiza a lista ao lado. Não muda nada no atendimento.', escolhaDePasta),
       secao(
         'Voz',
+        'microfone',
         vozes.disponivel ? 'Com voz, o agente pode responder em áudio quando a pessoa pede.' : 'A voz precisa da chave da OpenAI em Integrações.',
         escolhaDeVoz,
         botao('Ouvir', {
@@ -1313,7 +1325,7 @@ export async function paginaAgentes({ parametros, definirAcoes, definirPrincipal
       ),
       podeConfigurar()
         ? el('section', { class: 'agentes-secao agentes-perigo' }, [
-            el('h3', { class: 'agentes-secao-titulo', texto: 'Excluir agente' }),
+            el('h3', { class: 'agentes-secao-titulo' }, [icone('lixo', 14), 'Excluir agente']),
             el('p', {
               class: 'agentes-secao-ajuda',
               texto: 'Conversas que estão com ele precisam de outro responsável antes. Não dá para desfazer.',

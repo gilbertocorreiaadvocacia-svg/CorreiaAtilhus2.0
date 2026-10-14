@@ -3477,6 +3477,7 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
   border: 1px solid var(--borda);
   border-radius: var(--raio-g);
   background: var(--superficie);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.12), 0 8px 24px rgb(0 0 0 / 0.12);
 }
 
 .agentes-tabela-cabeca,
@@ -3514,7 +3515,11 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
 }
 
 .agentes-linha-pasta {
-  background: color-mix(in srgb, var(--texto) 3%, transparent);
+  background: color-mix(in srgb, var(--texto) 5%, transparent);
+}
+
+.agentes-linha-pasta .agentes-linha-nome {
+  letter-spacing: 0.01em;
 }
 
 .agentes-linha-principal {
@@ -3601,7 +3606,11 @@ button.agentes-linha-principal:focus-visible {
 
 .agentes-linha-conta {
   flex: none;
+  padding: 1px var(--e2);
+  border-radius: var(--raio-pilula);
+  background: color-mix(in srgb, var(--texto) 7%, transparent);
   font-size: var(--t-nota);
+  font-variant-numeric: lining-nums tabular-nums;
   color: var(--texto-fraco);
 }
 
@@ -4424,6 +4433,8 @@ button.agentes-rosto:focus-visible {
 .agentes-config {
   display: flex;
   flex-direction: column;
+  gap: var(--e3);
+  padding: var(--e3) var(--e4);
 }
 
 .agentes-secao {
@@ -4431,23 +4442,32 @@ button.agentes-rosto:focus-visible {
   flex-direction: column;
   align-items: stretch;
   gap: var(--e2);
-  padding: var(--e3) var(--e4);
-  border-bottom: 1px solid var(--borda);
-}
-
-.agentes-secao:last-child {
-  border-bottom: none;
+  padding: var(--e3);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio-g);
+  background: color-mix(in srgb, var(--texto) 2.5%, var(--superficie));
 }
 
 .agentes-secao-titulo {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
   margin: 0;
-  padding-bottom: var(--e2);
-  border-bottom: 1px solid var(--borda);
   font-size: var(--t-nota);
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: var(--tr-alta);
   text-transform: uppercase;
   color: var(--texto-suave);
+}
+
+.agentes-secao-titulo > svg {
+  flex: none;
+  color: var(--area-agentes);
+  opacity: 0.85;
+}
+
+.agentes-perigo .agentes-secao-titulo > svg {
+  color: var(--erro);
 }
 
 .agentes-secao-ajuda {
@@ -4650,11 +4670,13 @@ button.agentes-passo:focus-visible {
   height: 28px;
   border: 1px solid var(--borda-forte);
   border-radius: 50%;
+  background: var(--superficie-2);
   color: var(--texto-suave);
 }
 
 .agentes-passo.alerta .agentes-passo-simbolo {
   border-color: var(--alerta-linha);
+  background: color-mix(in srgb, var(--alerta) 12%, var(--superficie-2));
   color: var(--alerta);
 }
 
@@ -4681,6 +4703,12 @@ button.agentes-passo:focus-visible {
   color: var(--texto-fraco);
 }
 
+.agentes-passo.atual {
+  padding: var(--e1) var(--e2);
+  border-radius: var(--raio);
+  background: color-mix(in srgb, var(--ouro) 10%, transparent);
+}
+
 .agentes-passo.atual .avatar {
   box-shadow: 0 0 0 1.5px var(--ouro);
 }
@@ -4690,10 +4718,10 @@ button.agentes-passo:focus-visible {
 }
 
 .agentes-ligacao {
-  width: 1px;
-  height: 12px;
-  margin: 3px 0 3px 13.5px;
-  background: var(--borda-forte);
+  width: 0;
+  height: 14px;
+  margin: 2px 0 2px 13.5px;
+  border-left: 1px dashed var(--borda-forte);
 }
 
 /* Agente sem foto: as iniciais na cor da IA, como as mensagens que ele manda
