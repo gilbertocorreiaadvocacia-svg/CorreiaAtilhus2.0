@@ -181,6 +181,14 @@ export async function testarHistorico({ base, evolucao, chaveEvolucao }) {
   s.ok('a tela sabe quantas conversas vieram', historico?.conversas === 5, JSON.stringify(historico));
   s.ok('concluido, a estimativa de andamento fecha em 100%', historico?.percentual === 100, String(historico?.percentual));
   s.ok('e sabe quantas rodadas o calendario tinha ao todo', historico?.totalRodadas === 5, String(historico?.totalRodadas));
+  /* Das cinco, so a E (sem agenda, sem perfil, sem nome em mensagem nenhuma)
+     fica sem nome de verdade — o numero dela vira o "nome", que conta como
+     provisorio (ver nomes.js). As outras quatro tem agenda ou perfil. */
+  s.ok(
+    'e sabe quantas dessas conversas ainda nao tem nome de verdade',
+    historico?.semIdentificacao === 1,
+    String(historico?.semIdentificacao),
+  );
 
   /* O sino avisa quando a sincronizacao termina de verdade, e nao a cada
      rodada: senao a pessoa receberia tres avisos iguais para a mesma conexao

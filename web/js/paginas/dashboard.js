@@ -1485,13 +1485,33 @@ function corDaSincronizacao(situacao) {
   return 'var(--serie-4)';
 }
 
+/*
+ * "Concluida" quer dizer que o celular parou de mandar historico novo — nao
+ * quer dizer que toda conversa ganhou nome. Uma conversa @lid antiga, sem
+ * mensagem recente, pode nunca trazer nome nenhum, de nenhum jeito: o
+ * WhatsApp so entrega isso em mensagem recente (ver nomes.js). Escondido,
+ * esse numero parece contradicao ("concluida" ao lado de "sem identificacao"
+ * na fila); mostrado, fica claro que sao duas coisas diferentes.
+ */
+function semIdentificacaoEmTexto(h) {
+  const quantas = Number(h.semIdentificacao) || 0;
+  if (!quantas) return '';
+  return ` ${numero(quantas)} continuam sem identificação — ganham nome se a pessoa escrever de novo, ou renomeie na mão.`;
+}
+
 function textoDaSincronizacao(h) {
   if (h.situacao === 'erro') return h.erro || 'Erro na sincronização.';
   if (h.situacao === 'concluido') {
-    return `Concluída: ${numero(h.conversas || 0)} conversas, ${numero(h.mensagens || 0)} mensagens.`;
+    return (
+      `Concluída: ${numero(h.conversas || 0)} conversas, ${numero(h.mensagens || 0)} mensagens.` +
+      semIdentificacaoEmTexto(h)
+    );
   }
   if (h.situacao === 'importando' || h.situacao === 'aguardando') {
-    return `Trazendo as conversas do celular (rodada ${h.rodada ?? 0} de até ${h.totalRodadas ?? '?'}).`;
+    return (
+      `Trazendo as conversas do celular (rodada ${h.rodada ?? 0} de até ${h.totalRodadas ?? '?'}).` +
+      semIdentificacaoEmTexto(h)
+    );
   }
   return '';
 }

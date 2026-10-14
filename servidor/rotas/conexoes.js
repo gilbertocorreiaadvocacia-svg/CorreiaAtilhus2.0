@@ -11,6 +11,7 @@ import { agendarResposta } from '../ia/motor.js';
 import { guardarNaAgenda } from '../whatsapp/agenda.js';
 import { completarComEvolutionLocal, garantirEvolutionLocal } from '../whatsapp/evolution-local.js';
 import { agendarSincronizacao, cancelarSincronizacao, rodar } from '../whatsapp/sincronizar-historico.js';
+import { nomeEhProvisorio } from '../whatsapp/nomes.js';
 import { comCodigo, exigirConfiguracao } from './sessao.js';
 
 /**
@@ -143,7 +144,22 @@ export function registrarConexoes(rotas) {
    * criacao desempata para a ordem nunca oscilar entre dois carregamentos.
    */
   rotas.get('/api/conexoes', async ({ ctx }) => {
-    const lista = listar('conexoes', { workspaceId: ctx.workspaceId }).map(paraTela);
+    const lista = listar('conexoes', { workspaceId: ctx.workspaceId }).map((conexao) => {
+      const naTela = paraTela(conexao);
+      if (conexao.tipo !== 'qrcode' || !conexao.historico) return naTela;
+      /*
+       * Quantas conversas desta conexao ainda nao tem nome de verdade (so o
+       * numero, ou nenhum). A sincronizacao "concluida" nao quer dizer "toda
+       * conversa identificada" — quer dizer que o celular parou de mandar
+       * historico novo; algumas conversas @lid antigas, sem mensagem recente,
+       * nunca trazem nome nenhum, de nenhum jeito. Sem este numero ao lado da
+       * palavra "concluida", quem olhasse a tela achava contraditorio.
+       */
+      const semIdentificacao = listar('contatos', { workspaceId: ctx.workspaceId, conexaoId: conexao.id }).filter(
+        (c) => nomeEhProvisorio(c),
+      ).length;
+      return { ...naTela, historico: { ...naTela.historico, semIdentificacao } };
+    });
     return ordenarPor(lista, 'ordem').sort(
       (a, b) => a.ordem - b.ordem || String(a.criadoEm).localeCompare(String(b.criadoEm)),
     );
