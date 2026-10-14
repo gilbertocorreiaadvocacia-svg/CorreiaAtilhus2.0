@@ -943,9 +943,23 @@ export function registrarAtendimento(rotas) {
     if (corpo.de) contatos = contatos.filter((c) => (c.ultimaMensagemEm || c.criadoEm) >= corpo.de);
     if (corpo.ate) contatos = contatos.filter((c) => (c.ultimaMensagemEm || c.criadoEm) <= `${corpo.ate}T23:59:59.999Z`);
 
-    contatos = contatos.filter((c) => mensagensDe(c.id).some((m) => !m.nota));
+    /*
+     * O limite entra ANTES de ler mensagem do disco, nao depois.
+     *
+     * mensagensDe() le o arquivo da conversa na primeira vez (nucleo/banco.js);
+     * filtrar "tem mensagem de verdade" por todo o contato filtrado, antes do
+     * corte, significava ler do disco toda conversa que bateu status/data —
+     * centenas, numa fila grande — so para descartar a maioria no slice
+     * seguinte. Cortando primeiro pelo limite (so ordenacao em memoria, sem
+     * tocar arquivo nenhum) e so DEPOIS filtrando quem nao tem mensagem de
+     * verdade, o maximo de leituras de disco cai para o proprio limite —
+     * ao custo de, raramente, devolver menos conversas que o pedido quando
+     * alguma das mais recentes so tem nota interna, sem troca de verdade.
+     */
     const limite = Math.min(Number(corpo.limite) || 30, 200);
-    contatos = ordenarPor(contatos, 'ultimaMensagemEm', 'desc').slice(0, limite);
+    contatos = ordenarPor(contatos, 'ultimaMensagemEm', 'desc')
+      .slice(0, limite)
+      .filter((c) => mensagensDe(c.id).some((m) => !m.nota));
 
     const anonimo = corpo.anonimizar !== false;
     const blocos = [];

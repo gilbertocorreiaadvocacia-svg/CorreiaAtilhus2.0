@@ -83,6 +83,14 @@ export async function testarCopiarWorkspace({ base }) {
   const agentesFonte = (await api.get('/api/agentes')).dados || [];
   s.ok('a fonte continua intacta (o agente dela segue la)', agentesFonte.some((a) => a.id === agente.id), JSON.stringify(agentesFonte.map((a) => a.nome)));
 
+  /* --- Nome reservado de area recusado (achado real em 14/10/2026) ----- */
+  const reservado = await api.post('/api/workspaces', { nome: 'trabalhista' });
+  s.ok('nome que bate com uma area (sem acento, minusculo) e recusado', reservado.status === 409, JSON.stringify(reservado.dados));
+  const reservadoComAcento = await api.post('/api/workspaces', { nome: 'Previdenciário' });
+  s.ok('mesma trava vale com acento', reservadoComAcento.status === 409, JSON.stringify(reservadoComAcento.dados));
+  const nomeComum = await api.post('/api/workspaces', { nome: 'Cliente Novo Qualquer' });
+  s.ok('nome comum, sem bater com nenhuma area, continua funcionando normal', nomeComum.status === 200 && Boolean(nomeComum.dados?.id), JSON.stringify(nomeComum.dados));
+
   /* Volta para onde comecou. */
   if (inicio) await api.post('/api/sessao/workspace', { workspaceId: inicio });
   return s;

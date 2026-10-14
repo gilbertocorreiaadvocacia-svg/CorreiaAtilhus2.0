@@ -4,7 +4,7 @@ import { ESCRITORIO_GERAL, PACOTES, prepararEscritorio } from '../ia/pacotes.js'
 import { posVendaDoEscritorio } from '../ia/pacotes/posvenda.js';
 import { achar, atualizar, inserir, listar, remover } from './banco.js';
 import { gravarAtomico, normalizar, novoId } from './util.js';
-import { criarWorkspacesPorArea } from './workspaces-por-area.js';
+import { criarWorkspacesPorArea, WORKSPACES_POR_AREA } from './workspaces-por-area.js';
 
 /**
  * Agentes nos escritorios: o construtor do agente, a instalacao dos pacotes e
@@ -187,6 +187,88 @@ export function garantirAvaliacaoNosEscritorios() {
     atualizar('workspaces', workspace.id, { avaliacaoInstaladaEm: new Date().toISOString() });
   }
   return instalados;
+}
+
+/**
+ * Instala, num workspace que JA tem a area certa, as bases e os agentes do
+ * pacote dessa area — a mesma coisa que montarWorkspace faz para um
+ * workspace novo (ver nucleo/workspaces-por-area.js), mas so para quem ja
+ * existe: nunca mexe no que ja esta la. Agente com o mesmo nome fica como
+ * esta (pode ter sido afinado a mao); so o que falta entra, DESLIGADO,
+ * igual a um workspace de area recem-criado.
+ */
+export function instalarAgentesDaArea(workspaceId, area) {
+  const pacote = PACOTES[area];
+  if (!pacote) return { agentesCriados: 0, bases: 0 };
+
+  prepararEscritorio(workspaceId, pacote);
+
+  const bases = listar('conhecimento', { workspaceId })
+    .filter((base) => (pacote.bases || []).some((pedaco) => normalizar(base.nome).includes(pedaco)))
+    .map((base) => base.id);
+
+  let agentesCriados = 0;
+  for (const agente of pacote.agentes || []) {
+    const jaTem = listar('agentes', { workspaceId }).some((a) => normalizar(a.nome) === normalizar(agente.nome));
+    if (jaTem) continue;
+    inserir('agentes', {
+      id: novoId('agn'),
+      workspaceId,
+      nome: agente.nome,
+      objetivo: agente.objetivo,
+      prompt: agente.prompt,
+      palavrasChave: [],
+      modelo: 'claude-sonnet-5',
+      delaySegundos: 15,
+      conhecimentoIds: bases,
+      vozId: null,
+      modoAudio: false,
+      pasta: agente.pasta || pacote.pasta,
+      area,
+      requisitos: agente.requisitos || [],
+      foto: null,
+      ativo: false,
+    });
+    agentesCriados += 1;
+  }
+  return { agentesCriados, bases: bases.length };
+}
+
+/**
+ * Cada workspace de area (Previdenciario, Trabalhista, Civel) com a area
+ * certa marcada e o roteiro certo de agentes — mesmo quando o workspace
+ * nasceu errado, criado pelo POST /api/workspaces generico em vez de
+ * criarWorkspacesPorArea (foi o caso real de dois workspaces em 14/10/2026,
+ * corrigidos a mao por ferramentas/corrigir-agentes-das-areas.mjs).
+ *
+ * Aditivo, nunca sobrescreve: acha o workspace pelo mesmo criterio de
+ * criarWorkspacesPorArea (area OU nome normalizado), marca a area quando
+ * falta, e so acrescenta agente do pacote que ainda nao existe la pelo
+ * nome — agente que o escritorio criou com outro conteudo e o mesmo nome
+ * fica como esta, e agente extra que nao e do pacote (como os genericos
+ * copiados por engano) NAO e tocado por esta migracao: ela so acrescenta o
+ * que falta, nunca remove.
+ */
+export function garantirAgentesDasAreas() {
+  let areasCorrigidas = 0;
+  let agentesInstalados = 0;
+
+  for (const alvo of WORKSPACES_POR_AREA) {
+    const workspace = listar('workspaces').find(
+      (w) => w.area === alvo.area || normalizar(w.nome) === normalizar(alvo.nome),
+    );
+    if (!workspace) continue;
+
+    if (workspace.area !== alvo.area) {
+      atualizar('workspaces', workspace.id, { area: alvo.area });
+      areasCorrigidas += 1;
+    }
+
+    const resultado = instalarAgentesDaArea(workspace.id, alvo.area);
+    agentesInstalados += resultado.agentesCriados;
+  }
+
+  return { areasCorrigidas, agentesInstalados };
 }
 
 /**

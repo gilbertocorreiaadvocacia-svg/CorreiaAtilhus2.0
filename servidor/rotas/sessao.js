@@ -23,7 +23,7 @@ import {
 } from '../nucleo/doisfatores.js';
 import { agora, conferirSenha, hashSenha, normalizar, normalizarTelefone, novoId } from '../nucleo/util.js';
 import { semearWorkspace } from '../nucleo/seed.js';
-import { criarWorkspacesPorArea } from '../nucleo/workspaces-por-area.js';
+import { criarWorkspacesPorArea, WORKSPACES_POR_AREA } from '../nucleo/workspaces-por-area.js';
 import { SELECIONAVEIS, copiarConfiguracoes } from '../nucleo/copiar-workspace.js';
 import { migrarTiposDeCaso } from '../nucleo/casos.js';
 import { migrarCanaisDeOrigem } from '../nucleo/origens.js';
@@ -491,6 +491,23 @@ export function registrarSessao(rotas) {
   rotas.post('/api/workspaces', async ({ ctx, corpo }) => {
     exigirAdministrador(ctx);
 
+    /* "Previdenciário", "Trabalhista" e "Cível / Consumidor" sao nomes
+       reservados do workspace de area, mantidos automaticamente pelo
+       sistema (ver nucleo/workspaces-por-area.js). Criar um workspace com
+       esse nome por este caminho generico — sem a area marcada, sem o
+       roteiro certo de agentes — foi o que causou agentes duplicados entre
+       escritorios em 14/10/2026: o workspace nascia parecido o bastante
+       para a verificacao de "ja existe" da criacao por area tambem casar
+       nele e nunca mais tocar. */
+    const nomeNovo = String(corpo.nome || '').trim() || 'Novo workspace';
+    const colideComArea = WORKSPACES_POR_AREA.find((alvo) => normalizar(alvo.nome) === normalizar(nomeNovo));
+    if (colideComArea) {
+      throw comCodigo(
+        `"${colideComArea.nome}" é um nome reservado para o workspace da área ${colideComArea.nome}, mantido automaticamente pelo sistema. Para criar o workspace dessa área, use "Separar por área"; para um workspace independente, escolha outro nome.`,
+        409,
+      );
+    }
+
     /* So da para copiar de um workspace que a pessoa participa. */
     const origem = corpo.copiarDe ? ctx.workspaces.find((w) => w.id === corpo.copiarDe) : null;
     if (corpo.copiarDe && !origem) throw comCodigo('Você não participa do workspace de origem da cópia.', 403);
@@ -499,7 +516,7 @@ export function registrarSessao(rotas) {
 
     const workspace = inserir('workspaces', {
       id: novoId('wks'),
-      nome: String(corpo.nome || '').trim() || 'Novo workspace',
+      nome: nomeNovo,
       descricao: String(corpo.descricao || '').trim(),
       empresa: origemCompleta ? { ...(origemCompleta.empresa || {}) } : {},
       horarioComercial: origemCompleta?.horarioComercial || null,

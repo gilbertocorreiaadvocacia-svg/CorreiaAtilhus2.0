@@ -4,7 +4,7 @@ import path from 'node:path';
 import { monitorEventLoopDelay } from 'node:perf_hooks';
 import { HOSPEDADO, HOST, INTERVALO_AGENDADOR, PORTA, RAIZ, enderecoPermitido } from './config.js';
 import { prepararHospedagem } from './nucleo/hospedagem.js';
-import { ativarAgentesSemEquipe, garantirAvaliacaoNosEscritorios, garantirPosVendaNosEscritorios } from './nucleo/agentes-por-escritorio.js';
+import { ativarAgentesSemEquipe, garantirAgentesDasAreas, garantirAvaliacaoNosEscritorios, garantirPosVendaNosEscritorios } from './nucleo/agentes-por-escritorio.js';
 import { iniciarAvaliacoes } from './automacao/avaliacao.js';
 import { caminhoDaMidia } from './nucleo/midia.js';
 import { atualizar, encerrarBanco, iniciarBanco, listar } from './nucleo/banco.js';
@@ -75,6 +75,13 @@ if (origensAcertadas) console.log(`Origens de anuncio e Instagram: ${origensAcer
 /* O agente de avaliacao do atendimento, uma vez em cada escritorio. */
 const avaliadores = garantirAvaliacaoNosEscritorios();
 if (avaliadores) console.log(`Avaliacao do atendimento: agente instalado em ${avaliadores} escritorio(s).`);
+/* Cada workspace de area com a area certa marcada e o roteiro certo de
+   agentes — mesmo quando o workspace nasceu errado, criado pelo caminho
+   generico em vez do caminho de area (achado real em 14/10/2026). */
+const agentesDasAreas = garantirAgentesDasAreas();
+if (agentesDasAreas.areasCorrigidas || agentesDasAreas.agentesInstalados) {
+  console.log(`Agentes por area: ${agentesDasAreas.areasCorrigidas} area(s) corrigida(s), ${agentesDasAreas.agentesInstalados} agente(s) instalado(s).`);
+}
 /* O agente de pos-venda, uma vez em cada escritorio de area, e ligado como
    responsavel apos a assinatura quando esse ponto ainda nao foi configurado. */
 const posVenda = garantirPosVendaNosEscritorios();
