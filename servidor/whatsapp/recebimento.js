@@ -21,7 +21,6 @@ import { nomeNaAgenda } from './agenda.js';
 import { agendarFoto } from './fotos.js';
 import { SEM_IDENTIFICACAO, nomeEhProvisorio, podeTrocarNome } from './nomes.js';
 import { agendarFollowupsDoStatus, cancelarFollowups, limparAgendamentosDoContato, reagendarFollowups } from '../automacao/followup.js';
-import { marcarComoLida } from './envio.js';
 import { driverDa } from './drivers/index.js';
 import { transcrever, transcricaoDisponivel } from '../ia/audio.js';
 
@@ -569,7 +568,15 @@ export async function receberMensagem({
 
   reagendarFollowups(contato);
 
-  if (idExterno) marcarComoLida(conexao, idExterno, contato).catch(() => {});
+  /* O tique azul do WhatsApp do cliente NAO sobe aqui.
+   *
+   * Ate 14/10/2026, toda mensagem que chegava virava "lida" no celular do
+   * cliente na hora, mesmo numa conversa que ficasse horas na fila sem
+   * ninguem da equipe abrir — o escritorio pediu para isso parar: o tique so
+   * deve subir quando alguem realmente abre a conversa. Esse momento e
+   * detectavel no sistema (POST /api/contatos/:id/ler, chamado pela tela ao
+   * abrir), e e la que a marcacao agora acontece — ver rotas/atendimento.js.
+   */
 
   /* Depois de atualizar o contato, e nao antes: o aviso le o responsavel e o
      estado ja com o que esta mensagem mudou — uma conversa que acabou de

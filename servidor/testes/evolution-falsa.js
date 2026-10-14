@@ -21,6 +21,8 @@ import zlib from 'node:zlib';
  *   POST /__celular    poe conversas, mensagens e contatos "no celular"
  *   GET  /__configuracoes  o que o driver pediu ao criar a instancia e ao
  *                          reapontar o webhook
+ *   GET  /__marcadas-lidas o que o driver pediu marcar como lido no celular
+ *                          do cliente
  */
 
 const PORTA = Number(process.env.PORTA_EVOLUCAO || 8099);
@@ -29,6 +31,7 @@ const CHAVE = process.env.CHAVE_EVOLUCAO || 'chave-de-teste';
 let estado = 'close';
 const enviadas = [];
 const configuracoes = [];
+const marcadasLidas = [];
 /* Como na Evolution de verdade: instancia que nao foi criada responde 404 no
    connectionState. E isso que faz o driver criar em vez de reaproveitar. */
 const instancias = new Set();
@@ -175,6 +178,7 @@ export function subirEvolucaoFalsa(porta = PORTA, chave = CHAVE) {
       estado = 'close';
       enviadas.length = 0;
       configuracoes.length = 0;
+      marcadasLidas.length = 0;
       instancias.clear();
       consultasDeFoto.length = 0;
       celular = { chats: [], mensagens: [], contatos: [], fotos: {}, anexos: {} };
@@ -195,6 +199,7 @@ export function subirEvolucaoFalsa(porta = PORTA, chave = CHAVE) {
       return responder(200, { ok: true });
     }
     if (caminho === '/__fotos') return responder(200, consultasDeFoto);
+    if (caminho === '/__marcadas-lidas') return responder(200, marcadasLidas);
 
     /* O protocolo de verdade. */
     if (caminho === '/instance/create') {
@@ -277,7 +282,11 @@ export function subirEvolucaoFalsa(porta = PORTA, chave = CHAVE) {
       enviadas.push({ rota: caminho, ...carga });
       return responder(201, { key: { id: `MOCK_${enviadas.length}` }, status: 'PENDING' });
     }
-    if (caminho.startsWith('/chat/markMessageAsRead/')) return responder(200, { read: 'success' });
+    if (caminho.startsWith('/chat/markMessageAsRead/')) {
+      const pedido = corpo ? JSON.parse(corpo) : {};
+      for (const item of pedido.readMessages || []) marcadasLidas.push(item);
+      return responder(200, { read: 'success' });
+    }
 
     responder(404, { message: `rota nao mapeada: ${caminho}` });
   });

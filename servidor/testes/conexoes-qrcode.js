@@ -96,6 +96,30 @@ export async function testarQrCode({ base, evolucao, chaveEvolucao }) {
   if (!conversa) return s;
 
   /*
+   * 6b. O tique azul so sobe quando a equipe ABRE a conversa.
+   *
+   * Ate 14/10/2026 a mensagem virava "lida" no celular do cliente assim que
+   * chegava no servidor — mesmo numa conversa que ninguem tivesse olhado
+   * ainda. O escritorio pediu para isso so acontecer quando alguem realmente
+   * abre a conversa (POST /api/contatos/:id/ler, que a tela chama ao
+   * desenhar as mensagens).
+   */
+  const marcadasAntes = await (await fetch(`${evolucao}/__marcadas-lidas`, { headers: { apikey: chaveEvolucao } })).json();
+  s.ok(
+    'a mensagem NAO vira lida so por ter chegado',
+    !marcadasAntes.some((m) => m.id === 'WA_ABC123'),
+    JSON.stringify(marcadasAntes),
+  );
+  await api.post(`/api/contatos/${conversa.id}/ler`);
+  await esperar(300);
+  const marcadasDepois = await (await fetch(`${evolucao}/__marcadas-lidas`, { headers: { apikey: chaveEvolucao } })).json();
+  s.ok(
+    'e vira lida quando a equipe abre a conversa',
+    marcadasDepois.some((m) => m.id === 'WA_ABC123' && m.remoteJid === '5581988887777@s.whatsapp.net'),
+    JSON.stringify(marcadasDepois),
+  );
+
+  /*
    * 7. As duas caras de uma mensagem "nossa".
    *
    * A sessao por QR Code usa o mesmo aparelho para os dois lados, entao tudo o

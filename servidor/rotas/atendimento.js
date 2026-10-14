@@ -21,7 +21,7 @@ import { aplicarModoFoco, ehAdministrador, filtrarConversasVisiveis, podeVerConv
 import { creditosMesDoContato } from '../nucleo/creditos.js';
 import { emitir } from '../nucleo/eventos.js';
 import { agora, aplicarVariaveis, garantirPasta, normalizar, normalizarTelefone, novoId, ordenarPor } from '../nucleo/util.js';
-import { enviarMensagem, janelaAberta } from '../whatsapp/envio.js';
+import { enviarMensagem, janelaAberta, marcarComoLida } from '../whatsapp/envio.js';
 import { janelaDaConversa } from '../whatsapp/canais.js';
 import { acharOuCriarContato } from '../whatsapp/recebimento.js';
 import { driverDa } from '../whatsapp/drivers/index.js';
@@ -578,9 +578,30 @@ export function registrarAtendimento(rotas) {
     return enriquecer(achar('contatos', contato.id));
   });
 
+  /*
+   * So aqui o tique azul sobe no WhatsApp do cliente — quando alguem da
+   * equipe ABRE a conversa de verdade (a tela chama esta rota ao desenhar
+   * as mensagens, se havia nao-lida). Antes, a mensagem virava "lida" assim
+   * que chegava no servidor, mesmo horas antes de alguem olhar; o escritorio
+   * pediu para isso parar, porque mentia para o cliente sobre ter sido visto.
+   */
   rotas.post('/api/contatos/:id/ler', async ({ ctx, params }) => {
     const contato = conversaOu404(ctx, params.id);
     atualizar('contatos', contato.id, { naoLidas: 0 });
+
+    const mensagens = mensagensDe(contato.id);
+    let ultimaDeEntrada = null;
+    for (let i = mensagens.length - 1; i >= 0; i -= 1) {
+      if (mensagens[i].direcao === 'entrada' && mensagens[i].idExterno) {
+        ultimaDeEntrada = mensagens[i];
+        break;
+      }
+    }
+    if (ultimaDeEntrada) {
+      const conexao = achar('conexoes', contato.conexaoId);
+      if (conexao) marcarComoLida(conexao, ultimaDeEntrada.idExterno, contato).catch(() => {});
+    }
+
     emitir(ctx.workspaceId, 'contato', { contatoId: contato.id });
     return { ok: true };
   });
