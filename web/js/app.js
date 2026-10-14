@@ -1531,9 +1531,14 @@ async function desenharRota() {
 /* ------------------------------------------------------------------ */
 
 async function iniciarApp() {
+  /* carregarSessao primeiro, sozinha: se a sessao nao for valida (401), e
+     ela quem lanca o erro que mostra a tela de login — rodando as outras
+     duas junto, as 10 chamadas de carregarBasico disparariam e falhariam
+     com 401 tambem, à toa, antes de alguem nem ter entrado. As outras duas
+     nao dependem uma da outra nem do resultado desta (autenticacao e por
+     cookie), entao rodam em paralelo entre si, poupando uma ida e volta. */
   await carregarSessao();
-  await carregarBasico();
-  await carregarNotificacoes();
+  await Promise.all([carregarBasico(), carregarNotificacoes()]);
   montarEstrutura();
   conectarEventos();
   /* Funcoes com nome: iniciarApp roda de novo ao trocar de escritorio, e o

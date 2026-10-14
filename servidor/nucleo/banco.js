@@ -248,6 +248,31 @@ export function totalMensagensEmCache(contatoId) {
   return cacheMensagens.has(contatoId) ? cacheMensagens.get(contatoId).length : null;
 }
 
+/*
+ * Acha uma mensagem pelo idExterno, so entre conversas que JA estao em
+ * memoria — nunca le arquivo do disco. Devolve {contatoId, mensagem} ou
+ * null.
+ *
+ * Achado em 14/10/2026: atualizarSituacaoExterna (whatsapp/recebimento.js)
+ * usava isto para achar a mensagem de uma confirmacao de entrega (enviada,
+ * entregue, lida), percorrendo TODO contato do escritorio e lendo a
+ * conversa do disco ate achar — e a Meta manda varias confirmacoes por
+ * mensagem enviada, entao isso disparava o tempo todo, nao so depois de
+ * reiniciar como os outros dois casos ja corrigidos.
+ *
+ * Quase sempre acha aqui: a conversa que MANDOU esta mensagem acabou de
+ * passar por inserirMensagem por causa do proprio envio, segundos antes —
+ * ja esta cache-quente quando a confirmacao de entrega chega. So cai na
+ * busca completa (mais cara) no caso raro de nao achar.
+ */
+export function buscarMensagemPorIdExternoEmCache(idExterno) {
+  for (const [contatoId, mensagens] of cacheMensagens) {
+    const mensagem = mensagens.find((m) => m.idExterno === idExterno);
+    if (mensagem) return { contatoId, mensagem };
+  }
+  return null;
+}
+
 function marcarMensagensSujas(contatoId) {
   mensagensSujas.add(contatoId);
   if (temporizadorMensagens) return;

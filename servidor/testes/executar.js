@@ -48,6 +48,7 @@ import { testarBaseEStatus } from './base-e-status.js';
 import { testarAtivarAgentesSemEquipe } from './ativar-agentes-sem-equipe.js';
 import { testarPosVenda } from './posvenda.js';
 import { testarAgentesDasAreas } from './agentes-das-areas.js';
+import { testarSituacaoExterna } from './situacao-externa.js';
 import { testarRegrasAntiAlucinacao } from './regras-anti-alucinacao.js';
 import { testarVoz } from './voz.js';
 import { testarTranscricaoDeAudio } from './transcricao-audio.js';
@@ -303,6 +304,7 @@ async function principal() {
     suites.push(await testarAtivarAgentesSemEquipe({ raiz: RAIZ }));
     suites.push(await testarPosVenda({ raiz: RAIZ }));
     suites.push(await testarAgentesDasAreas({ raiz: RAIZ }));
+    suites.push(await testarSituacaoExterna({ raiz: RAIZ }));
     suites.push(await testarRegrasAntiAlucinacao());
     suites.push(await testarVozDosAgentes({ raiz: RAIZ }));
     suites.push(await testarDeduplicarVozes({ raiz: RAIZ }));

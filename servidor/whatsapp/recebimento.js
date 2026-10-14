@@ -3,6 +3,7 @@ import {
   apagarMensagens,
   atualizar,
   atualizarMensagem,
+  buscarMensagemPorIdExternoEmCache,
   inserir,
   inserirMensagem,
   listar,
@@ -708,8 +709,29 @@ async function registrarRespostaDoCelular({ workspaceId, conexao, contato, tipo,
   return { contato, mensagem, doCelular: true };
 }
 
-/** Atualiza o estado de entrega vindo da Meta (enviada, entregue, lida, erro). */
+/*
+ * Atualiza o estado de entrega vindo da Meta (enviada, entregue, lida, erro).
+ *
+ * 14/10/2026: a Meta manda varias confirmacoes por mensagem enviada, e isto
+ * dispara a cada uma. Tenta achar a mensagem SEM tocar disco primeiro
+ * (buscarMensagemPorIdExternoEmCache, nucleo/banco.js) — a conversa que
+ * mandou a mensagem original ja esta em cache, porque foi ela mesma que a
+ * inseriu segundos antes. So cai na busca completa (percorre todo contato
+ * do escritorio, lendo do disco quem ainda nao estiver em memoria) no caso
+ * raro de nao achar, por exemplo confirmacao atrasada chegando depois de
+ * um reinicio no meio do caminho.
+ */
 export function atualizarSituacaoExterna(workspaceId, idExterno, situacao, erro = null) {
+  const emCache = buscarMensagemPorIdExternoEmCache(idExterno);
+  if (emCache) {
+    const contato = achar('contatos', emCache.contatoId);
+    if (contato?.workspaceId === workspaceId) {
+      atualizarMensagem(emCache.contatoId, emCache.mensagem.id, { situacao, erro, atualizadaEm: agora() });
+      emitir(workspaceId, 'mensagem-situacao', { contatoId: emCache.contatoId, mensagemId: emCache.mensagem.id, situacao });
+      return true;
+    }
+  }
+
   for (const contato of listar('contatos', { workspaceId })) {
     const mensagem = mensagensDe(contato.id).find((m) => m.idExterno === idExterno);
     if (!mensagem) continue;

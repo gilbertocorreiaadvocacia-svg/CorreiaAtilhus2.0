@@ -556,7 +556,7 @@ export function avatar(pessoa, tamanho = 32, opcoes = {}) {
 
   let face = circulo();
   if (pessoa?.foto) {
-    face = el('img', { class: 'avatar', src: pessoa.foto, alt: '', estilo: { width: medida, height: medida } });
+    face = el('img', { class: 'avatar', src: pessoa.foto, alt: '', loading: 'lazy', estilo: { width: medida, height: medida } });
     /*
      * Foto que nao carrega volta a ser as iniciais.
      *

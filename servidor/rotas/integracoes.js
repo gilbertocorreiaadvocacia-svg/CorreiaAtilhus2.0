@@ -364,21 +364,26 @@ export function registrarIntegracoes(rotas) {
     return resultado;
   };
 
-  rotas.get('/api/contratos', async ({ ctx, query }) =>
-    listar('contratos', { workspaceId: ctx.workspaceId })
+  rotas.get('/api/contratos', async ({ ctx, query }) => {
+    /* Indice montado uma vez: achar('contatos', ...) e busca linear, e
+       chamar dentro do laço (antes, duas vezes por contrato — filter e
+       map) cresce mal conforme a base de contatos cresce. Mesmo padrão ja
+       usado em rotas/tarefas.js (indiceDeContatos). */
+    const contatos = new Map(listar('contatos', { workspaceId: ctx.workspaceId }).map((c) => [c.id, c]));
+    return listar('contratos', { workspaceId: ctx.workspaceId })
       .filter((contrato) => !query.contatoId || contrato.contatoId === query.contatoId)
       .filter((contrato) => {
-        const contato = achar('contatos', contrato.contatoId);
+        const contato = contatos.get(contrato.contatoId);
         return !contato || podeVerConversa(ctx, contato);
       })
       .sort((a, b) => String(b.criadoEm).localeCompare(String(a.criadoEm)))
       .map((contrato) => {
         /* O telefone vai junto: a tela de Contratos mostra a lista sem abrir
            conversa por conversa. */
-        const contato = achar('contatos', contrato.contatoId);
+        const contato = contatos.get(contrato.contatoId);
         return { ...contrato, contato: contato?.nome || 'conversa removida', telefone: contato?.telefone || '' };
-      }),
-  );
+      });
+  });
 
   /* A equipe pede o contrato pela tela, como o agente pede pela mencao. */
   rotas.post('/api/contatos/:id/contrato', async ({ ctx, params }) => {
@@ -468,11 +473,12 @@ export function registrarIntegracoes(rotas) {
 
   /* ---------------- Compromissos ---------------- */
 
-  rotas.get('/api/compromissos', async ({ ctx }) =>
-    listar('compromissos', { workspaceId: ctx.workspaceId })
+  rotas.get('/api/compromissos', async ({ ctx }) => {
+    const contatos = new Map(listar('contatos', { workspaceId: ctx.workspaceId }).map((c) => [c.id, c]));
+    return listar('compromissos', { workspaceId: ctx.workspaceId })
       .sort((a, b) => a.quando.localeCompare(b.quando))
-      .map((c) => ({ ...c, contato: achar('contatos', c.contatoId)?.nome || null })),
-  );
+      .map((c) => ({ ...c, contato: contatos.get(c.contatoId)?.nome || null }));
+  });
 
   rotas.delete('/api/compromissos/:id', async ({ ctx, params }) => {
     const compromisso = achar('compromissos', params.id);
