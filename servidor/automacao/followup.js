@@ -86,8 +86,23 @@ export async function aplicarStatus(contato, status, autor, { dispararFollowups 
     { statusId: status.id, tipo: status.tipo || 'nenhum', anteriorId: anterior?.id || null },
   );
 
-  cancelarFollowups(contato.id, 'status alterado');
-  if (dispararFollowups) agendarFollowupsDoStatus(contato, status);
+  /*
+   * So reinicia a sequencia de follow-up numa troca de VERDADE.
+   *
+   * O agente de IA tem uma ferramenta para alterar status, e reafirma o
+   * mesmo status mais de uma vez na mesma negociacao (o roteiro manda
+   * confirmar "Qualificado" de novo depois de responder uma objecao, por
+   * exemplo) — isso nao e uma transicao nova. Antes, cada reafirmacao
+   * cancelava e recriava os tres passos do zero, e o relogio reiniciava
+   * toda vez: o "faz tempo que paramos" acabava disparando de novo sempre
+   * que a conversa ficava quieta depois de uma dessas reafirmacoes, nao so
+   * na troca real de etapa. O escritorio pediu para o follow-up parar de
+   * mandar mensagem toda hora, e essa recriacao escondida era a causa.
+   */
+  if (trocouDeStatus) {
+    cancelarFollowups(contato.id, 'status alterado');
+    if (dispararFollowups) agendarFollowupsDoStatus(contato, status);
+  }
 
   // Devolve o resultado para a Meta, para o anuncio otimizar por contrato
   // fechado e nao por conversa iniciada. Falha aqui nunca trava o atendimento.
