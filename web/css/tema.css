@@ -3609,6 +3609,17 @@ button.agentes-linha-principal:focus-visible {
   padding-left: var(--e5);
 }
 
+/* A pasta dentro da aba "Todos os escritorios" (agentes.js), um nivel
+   abaixo do cabecalho do escritorio; o agente dentro dela, mais um nivel
+   abaixo disso. */
+.agentes-linha-subpasta .agentes-linha-principal {
+  padding-left: var(--e5);
+}
+
+.agentes-linha-agente.aninhado .agentes-linha-principal {
+  padding-left: calc(var(--e5) * 2);
+}
+
 .agentes-linha-agente.membro .agentes-linha-principal {
   padding-left: calc(var(--e5) * 2 + 24px);
 }

@@ -1575,9 +1575,18 @@ export async function paginaAgentes({ parametros, definirAcoes, definirPrincipal
       if (!mostrou) corpo.append(el('p', { class: 'agentes-nada', texto: `Nenhum agente ou pasta com "${busca.trim()}".` }));
     }
 
-    /* A aba "Todos os escritorios": so lista, agrupado por escritorio. Nao
-       tem pasta, membro de squad nem acoes de editar - isso e sempre dentro
-       do escritorio de cada um. */
+    /* A aba "Todos os escritorios": agrupado por escritorio e, dentro de
+       cada um, por pasta — sem squad nem acoes de editar (renomear pasta
+       etc.), que sao sempre dentro do escritorio de cada um.
+
+       Achado em 14/10/2026: ate aqui a lista dentro de cada escritorio saia
+       em ordem alfabetica simples, ignorando a pasta. Um escritorio com
+       varias pastas por tipo de caso (ex.: Previdenciario, dividido em
+       Triagem / Auxilio-Acidente / BPC Loas / Salario Maternidade) ficava
+       com os agentes de pastas diferentes intercalados em ordem alfabetica
+       do NOME — "Beatriz" (Auxilio-Acidente) aparecia entre "Avaliacao"
+       (Pos-atendimento) e "Bianca" (BPC Loas), por exemplo. A pasta so
+       aparecia como uma legenda ao lado do nome, sem agrupar nada. */
     function desenharCorpoDeTodos() {
       const todos = agentesDeTodos || [];
       if (!todos.length) {
@@ -1627,8 +1636,41 @@ export async function paginaAgentes({ parametros, definirAcoes, definirPrincipal
           ]),
         );
 
-        for (const agente of visiveis.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))) {
-          corpo.append(linhaDoAgenteCruzado(agente, workspaceId));
+        const pastas = new Map();
+        for (const agente of visiveis) {
+          const pasta = agente.pasta || PASTA_PADRAO;
+          if (!pastas.has(pasta)) pastas.set(pasta, []);
+          pastas.get(pasta).push(agente);
+        }
+        const nomesDePasta = [...pastas.keys()].sort((a, b) => {
+          if (a === PASTA_PADRAO) return -1;
+          if (b === PASTA_PADRAO) return 1;
+          return a.localeCompare(b, 'pt-BR');
+        });
+        /* So um nome de pasta neste escritorio (o caso comum, de poucos
+           agentes): o cabecalho da pasta nao diria nada que o do escritorio
+           ja nao disse, e so ocuparia espaco. */
+        const agrupar = nomesDePasta.length > 1;
+
+        for (const pasta of nomesDePasta) {
+          const daPasta = pastas.get(pasta);
+          if (agrupar) {
+            corpo.append(
+              el('div', { class: 'agentes-linha agentes-linha-pasta agentes-linha-subpasta' }, [
+                el('div', { class: 'agentes-linha-principal' }, [
+                  el('span', { class: 'agentes-seta vazia' }),
+                  el('span', { class: 'agentes-pasta-icone' }, [icone('pasta', 14)]),
+                  el('span', { class: 'agentes-linha-nome', texto: pasta }),
+                  el('span', { class: 'agentes-linha-conta', texto: plural(daPasta.length, 'agente', 'agentes') }),
+                ]),
+                el('span'),
+                el('span'),
+              ]),
+            );
+          }
+          for (const agente of daPasta.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))) {
+            corpo.append(linhaDoAgenteCruzado(agente, workspaceId, agrupar));
+          }
         }
       }
 
@@ -1641,14 +1683,16 @@ export async function paginaAgentes({ parametros, definirAcoes, definirPrincipal
   /* A linha da aba "Todos os escritorios": abrir troca de escritorio de
      verdade primeiro (como no seletor la em cima), porque o agente so existe
      dentro do dele. */
-  function linhaDoAgenteCruzado(agente, workspaceId) {
+  function linhaDoAgenteCruzado(agente, workspaceId, agrupado = false) {
     const abrir = async (evento) => {
       evento.preventDefault();
       if (workspaceId !== estado.sessao?.workspace?.id) await api.post('/api/sessao/workspace', { workspaceId });
       location.hash = `#/agentes/${agente.id}`;
       location.reload();
     };
-    return el('div', { class: `agentes-linha agentes-linha-agente${agente.ativo ? '' : ' desligado'}` }, [
+    return el('div', {
+      class: `agentes-linha agentes-linha-agente${agrupado ? ' aninhado' : ''}${agente.ativo ? '' : ' desligado'}`,
+    }, [
       el('div', { class: 'agentes-linha-principal' }, [
         el('span', { class: 'agentes-seta vazia' }),
         el('a', { class: 'agentes-linha-link', href: `#/agentes/${agente.id}`, title: `Abrir ${agente.nome}`, aoClick: abrir }, [
@@ -1657,7 +1701,9 @@ export async function paginaAgentes({ parametros, definirAcoes, definirPrincipal
             el('span', { class: `agente-ponto ${agente.ativo ? 'ligado' : ''}`.trim(), title: agente.ativo ? 'Ligado' : 'Desligado' }),
           ]),
           el('span', { class: 'agentes-linha-nome', texto: agente.nome }),
-          agente.pasta && agente.pasta !== PASTA_PADRAO ? selo(agente.pasta, 'info') : null,
+          /* Agrupado, a pasta ja esta dita no cabecalho logo acima: repetir
+             como legenda em toda linha seria dizer a mesma coisa de novo. */
+          !agrupado && agente.pasta && agente.pasta !== PASTA_PADRAO ? selo(agente.pasta, 'info') : null,
         ]),
         agente.ativo ? null : el('span', { class: 'agentes-linha-desligado', texto: 'desligado' }),
       ]),
