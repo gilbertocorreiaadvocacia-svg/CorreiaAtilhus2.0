@@ -131,6 +131,7 @@ export async function paginaDashboard({ definirAcoes = () => {} } = {}) {
   /** Dois modos de leitura do mesmo periodo: contagem ou percentual de avanco. */
   let modoAnalise = 'periodo';
   let dados = null;
+  let composicao = null;
   let falha = '';
   /* Trocar de filtro depressa dispara pedidos que voltam fora de ordem. So o
      ultimo pedido tem direito de desenhar. */
@@ -190,14 +191,21 @@ export async function paginaDashboard({ definirAcoes = () => {} } = {}) {
       /* O servidor le `origem` como lista separada por virgula. Vazio some da
          URL, senao "origem=" chegaria como filtro de origem nenhuma. */
       const { origens, ...resto } = filtro;
-      const painel = await api.get('/api/dashboard', { ...resto, origem: origens.join(',') });
+      /* A composicao e um numero de apoio, nao o motivo do pedido: se ela
+         falhar (por exemplo um periodo largo demais no servidor), o resto do
+         painel continua de pe em vez de cair junto. */
+      const [painel, composicaoBruta] = await Promise.all([
+        api.get('/api/dashboard', { ...resto, origem: origens.join(',') }),
+        api.get('/api/dashboard/composicao', { de: filtro.de, ate: filtro.ate }).catch(() => null),
+      ]);
       if (meu !== sequencia) return;
 
-      const assinatura = JSON.stringify(painel);
+      const assinatura = JSON.stringify(painel) + JSON.stringify(composicaoBruta);
       if (silencioso && assinatura === ultimaResposta) return;
       ultimaResposta = assinatura;
 
       dados = normalizarPainel(painel);
+      composicao = normalizarComposicao(composicaoBruta);
       falha = '';
       pintar();
     } catch (erro) {
@@ -238,6 +246,7 @@ export async function paginaDashboard({ definirAcoes = () => {} } = {}) {
         pintar();
       }),
       secaoDistribuicao(dados, filtro),
+      secaoComposicao(composicao, filtro),
       rodapeDoConsumo(),
     ];
     for (const parte of partes) {
@@ -426,6 +435,20 @@ function normalizarPainel(bruto) {
     gargalos: painel.gargalos ?? null,
     tiposSemStatus: lista(painel.tiposSemStatus),
     totalConversas: Number(painel.totalConversas) || 0,
+  };
+}
+
+/** Resposta de /api/dashboard/composicao. `null` quando o pedido falhou. */
+function normalizarComposicao(bruto) {
+  if (!bruto) return null;
+  const porTipo = bruto.porTipo ?? {};
+  return {
+    conversas: Number(bruto.conversas) || 0,
+    mensagens: Number(porTipo.texto) || 0,
+    fotos: Number(porTipo.imagem) || 0,
+    audios: Number(porTipo.audio) || 0,
+    documentos: Number(porTipo.documento) || 0,
+    truncado: Boolean(bruto.truncado),
   };
 }
 
@@ -1436,6 +1459,62 @@ function cartaoDeRosca(divisao, itens, filtro, totalDaCarteira) {
   caixa.append(abrir);
 
   return caixa;
+}
+
+/* Secao E, composicao do atendimento ----------------------------------- */
+
+/* As cinco barras que a pessoa pediu: conversas e os quatro tipos de mensagem
+   que o WhatsApp manda (texto, imagem, audio, documento — video fica de fora,
+   e raro neste escritorio e nao fazia parte das cinco citadas). O percentual
+   de cada barra e sobre a soma das cinco, e nao sobre o total do escritorio:
+   aqui a pergunta e "qual fatia desse grupo de cinco", nao "qual fatia de
+   tudo que existe". */
+const CATEGORIAS_COMPOSICAO = [
+  { chave: 'conversas', nome: 'Conversas', icone: 'conversas', cor: 'var(--serie-1)' },
+  { chave: 'mensagens', nome: 'Mensagens', icone: 'enviar', cor: 'var(--serie-2)' },
+  { chave: 'fotos', nome: 'Fotos', icone: 'anexar', cor: 'var(--serie-3)' },
+  { chave: 'audios', nome: 'Áudios', icone: 'microfone', cor: 'var(--serie-4)' },
+  { chave: 'documentos', nome: 'Documentos', icone: 'pasta', cor: 'var(--serie-5)' },
+];
+
+function secaoComposicao(composicao, filtro) {
+  if (!composicao) return null;
+
+  const linhas = CATEGORIAS_COMPOSICAO.map((item) => ({ ...item, valor: composicao[item.chave] || 0 }));
+  const total = linhas.reduce((soma, item) => soma + item.valor, 0);
+
+  const caixa = cartaoComDica({
+    titulo: 'Composição do atendimento',
+    conceito: 'Quanto cada tipo pesa no periodo, em proporcao sobre a soma das cinco barras abaixo.',
+    ajuda: composicao.truncado
+      ? 'A conta considerou so as conversas mais recentes do periodo; com um periodo tao largo, o numero sai aproximado.'
+      : null,
+  });
+
+  if (!total) {
+    caixa.append(
+      el('p', { class: 'cartao-ajuda sem-margem', texto: `Nenhuma conversa nem mensagem ${faixaEmTexto(filtro)}.` }),
+    );
+    return caixa;
+  }
+
+  caixa.append(el('div', {}, linhas.map((item) => linhaDeProporcao(item, total))));
+  return caixa;
+}
+
+function linhaDeProporcao(item, total) {
+  const percentual = total ? Number(((item.valor / total) * 100).toFixed(1)) : 0;
+  return el('div', { class: 'mb-3' }, [
+    el('div', { class: 'linha mb-2 t-sm' }, [
+      icone(item.icone, 15),
+      el('span', { class: 'flexivel encolhe', texto: item.nome }),
+      el('strong', { class: 'num', texto: numero(item.valor) }),
+      el('span', { class: 'c-fraco valor-percentual', texto: `${numero(percentual)}%` }),
+    ]),
+    el('div', { class: 'barra' }, [
+      el('div', { estilo: { width: `${total ? Math.max(2, percentual) : 0}%`, background: item.cor } }),
+    ]),
+  ]);
 }
 
 function abrirListaCompleta(titulo, lista, total) {

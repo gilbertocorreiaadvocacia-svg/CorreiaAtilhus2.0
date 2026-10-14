@@ -1,5 +1,5 @@
 import { TIPOS_STATUS } from '../config.js';
-import { achar, atualizar, listar, remover } from '../nucleo/banco.js';
+import { achar, atualizar, listar, mensagensDe, remover } from '../nucleo/banco.js';
 import { filtrarConversasVisiveis, podeVerConversa } from '../nucleo/auth.js';
 import { consumoDoWorkspace } from '../nucleo/creditos.js';
 import { diagnosticar } from '../nucleo/diagnostico.js';
@@ -764,6 +764,45 @@ export function registrarPainel(rotas) {
   });
 
 
+
+  /* ---------------- Composicao do atendimento (barras) ---------------- */
+
+  /*
+   * Quantas conversas, e quantas mensagens de cada tipo (texto, foto, audio,
+   * documento), dentro do periodo pedido — para a barra de composicao do
+   * Dashboard (pedido do escritorio em 14/10/2026).
+   *
+   * So le mensagem do disco das conversas que tiveram ULTIMA mensagem dentro
+   * do periodo — nunca da base inteira. Num periodo curto (a semana, o mes),
+   * isso e uma fatia pequena da fila, nao a fila toda; mesmo assim, um teto
+   * (LIMITE_LEITURA) evita que um periodo muito largo ("todo o historico")
+   * vire a mesma rajada de leitura sincrona que ja foi corrigida em outro
+   * lugar deste sistema — e por isso o numero aqui e uma composicao
+   * aproximada, nao uma auditoria exata, quando o periodo for muito largo.
+   */
+  const LIMITE_LEITURA_COMPOSICAO = 500;
+
+  rotas.get('/api/dashboard/composicao', async ({ ctx, query }) => {
+    const de = inicioDoDia(query.de);
+    const ate = fimDoDia(query.ate);
+
+    const contatos = filtrarConversasVisiveis(ctx, listar('contatos', { workspaceId: ctx.workspaceId })).filter(
+      (c) => dentroDoPeriodo(c.ultimaMensagemEm, de, ate),
+    );
+
+    const porTipo = { texto: 0, imagem: 0, audio: 0, documento: 0, video: 0 };
+    const truncado = contatos.length > LIMITE_LEITURA_COMPOSICAO;
+    for (const contato of contatos.slice(0, LIMITE_LEITURA_COMPOSICAO)) {
+      for (const mensagem of mensagensDe(contato.id)) {
+        if (mensagem.nota) continue;
+        if (!dentroDoPeriodo(mensagem.criadoEm, de, ate)) continue;
+        const tipo = mensagem.tipo || 'texto';
+        if (tipo in porTipo) porTipo[tipo] += 1;
+      }
+    }
+
+    return { conversas: contatos.length, porTipo, truncado };
+  });
 
   /* ---------------- Central de agendamentos ---------------- */
 
