@@ -14,7 +14,7 @@ import http from 'node:http';
  * Paginas pequenas e fixas: o que importa provar e o mapeamento de campos e
  * a idempotencia, nao a paginacao em si (ja coberta pelo teste da fase 1).
  */
-export function subirLiderhubHistoricoFalsa({ porta, chave, conexoes, contatosPorConexao, mensagensPorContato }) {
+export function subirLiderhubHistoricoFalsa({ porta, chave, conexoes, contatosPorConexao, mensagensPorContato, status = [], tags = [], departamentos = [] }) {
   const pedidos = [];
 
   const servidor = http.createServer(async (req, res) => {
@@ -31,6 +31,10 @@ export function subirLiderhubHistoricoFalsa({ porta, chave, conexoes, contatosPo
     if (url.pathname === '/v1/connections') {
       return responder(200, { connections: conexoes });
     }
+
+    if (url.pathname === '/v1/settings/status') return responder(200, status);
+    if (url.pathname === '/v1/settings/tags') return responder(200, tags);
+    if (url.pathname === '/v1/settings/departamentos') return responder(200, departamentos);
 
     if (url.pathname === '/v1/contacts') {
       const conexaoId = url.searchParams.get('connection');

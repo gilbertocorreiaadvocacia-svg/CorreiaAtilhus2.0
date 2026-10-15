@@ -84,6 +84,52 @@ function dicionario(lista) {
   return mapa;
 }
 
+/* As tres listas de nomes da LiderHub (status, tags, departamentos) e os
+   mapas DESTE sistema por nome normalizado — usados tanto pela fase 1
+   (classificacao) quanto pela fase 2 (historico completo), para as duas
+   tratarem status/etiqueta/departamento do mesmo jeito. */
+async function buscarListasDaLiderhub(chave) {
+  const statusLh = dicionario(await pedir('/settings/status', chave));
+  await espera(ESPERA_ENTRE);
+  const tagsLh = dicionario(await pedir('/settings/tags', chave));
+  await espera(ESPERA_ENTRE);
+  const deptLh = dicionario(await pedir('/settings/departamentos', chave));
+  await espera(ESPERA_ENTRE);
+  return { statusLh, tagsLh, deptLh };
+}
+
+function dicionariosDaqui(workspaceId) {
+  return {
+    statusDaqui: new Map(listar('status', { workspaceId }).map((s) => [normalizar(s.nome), s])),
+    deptDaqui: new Map(listar('departamentos', { workspaceId }).map((d) => [normalizar(d.nome), d])),
+    etiquetasDaqui: new Map(listar('etiquetas', { workspaceId }).map((e) => [normalizar(e.nome), e])),
+  };
+}
+
+/** Casa o nome do status da LiderHub com uma coluna do funil daqui, pelos apelidos conhecidos. */
+function casarStatus(nome, statusDaqui) {
+  const alvo = APELIDOS_STATUS[normalizar(nome)] || normalizar(nome);
+  return statusDaqui.get(alvo) || null;
+}
+
+const CORES_DE_ETIQUETA = ['var(--serie-1)', 'var(--serie-2)', 'var(--serie-3)', 'var(--serie-5)', 'var(--serie-6)', 'var(--serie-7)', 'var(--serie-8)'];
+
+/** Acha a etiqueta pelo nome normalizado, ou cria (etiqueta e lista aberta). Nunca cria em modo simular. */
+function acharOuCriarEtiqueta(workspaceId, nome, etiquetasDaqui, { simular = false } = {}) {
+  const chaveNome = normalizar(nome);
+  const existente = etiquetasDaqui.get(chaveNome);
+  if (existente) return { etiqueta: existente, criada: false };
+  if (simular) return { etiqueta: null, criada: true };
+  const nova = inserir('etiquetas', {
+    id: novoId('etq'),
+    workspaceId,
+    nome: String(nome).trim(),
+    cor: CORES_DE_ETIQUETA[etiquetasDaqui.size % CORES_DE_ETIQUETA.length],
+  });
+  etiquetasDaqui.set(chaveNome, nova);
+  return { etiqueta: nova, criada: true };
+}
+
 /** Percorre todas as paginas de contatos, respeitando o ritmo da API. */
 async function todosOsContatos(chave) {
   const contatos = [];
@@ -122,44 +168,13 @@ export async function importarClassificacao(workspaceId, { simular = true } = {}
     throw erro;
   }
 
-  /* As tres listas de nomes, uma requisicao cada, com folga entre elas. */
-  const statusLh = dicionario(await pedir('/settings/status', chave));
-  await espera(ESPERA_ENTRE);
-  const tagsLh = dicionario(await pedir('/settings/tags', chave));
-  await espera(ESPERA_ENTRE);
-  const deptLh = dicionario(await pedir('/settings/departamentos', chave));
-  await espera(ESPERA_ENTRE);
-
+  const { statusLh, tagsLh, deptLh } = await buscarListasDaLiderhub(chave);
   const contatosLh = await todosOsContatos(chave);
 
-  /* Os dicionarios DESTE sistema, por nome normalizado. */
-  const statusDaqui = new Map(listar('status', { workspaceId }).map((s) => [normalizar(s.nome), s]));
-  const deptDaqui = new Map(listar('departamentos', { workspaceId }).map((d) => [normalizar(d.nome), d]));
-  const etiquetasDaqui = new Map(listar('etiquetas', { workspaceId }).map((e) => [normalizar(e.nome), e]));
+  const { statusDaqui, deptDaqui, etiquetasDaqui } = dicionariosDaqui(workspaceId);
   const contatosExistentes = new Set(
     listar('contatos', { workspaceId }).map((c) => soDigitos(c.telefone)).filter(Boolean),
   );
-
-  const casarStatus = (nome) => {
-    const alvo = APELIDOS_STATUS[normalizar(nome)] || normalizar(nome);
-    return statusDaqui.get(alvo) || null;
-  };
-
-  const CORES = ['var(--serie-1)', 'var(--serie-2)', 'var(--serie-3)', 'var(--serie-5)', 'var(--serie-6)', 'var(--serie-7)', 'var(--serie-8)'];
-  const acharOuCriarEtiqueta = (nome) => {
-    const chaveNome = normalizar(nome);
-    const existente = etiquetasDaqui.get(chaveNome);
-    if (existente) return { etiqueta: existente, criada: false };
-    if (simular) return { etiqueta: null, criada: true };
-    const nova = inserir('etiquetas', {
-      id: novoId('etq'),
-      workspaceId,
-      nome: String(nome).trim(),
-      cor: CORES[etiquetasDaqui.size % CORES.length],
-    });
-    etiquetasDaqui.set(chaveNome, nova);
-    return { etiqueta: nova, criada: true };
-  };
 
   const relatorio = {
     simulacao: simular,
@@ -187,7 +202,7 @@ export async function importarClassificacao(workspaceId, { simular = true } = {}
     const nomeDept = c.department ? deptLh.get(c.department) : '';
     const nomesTags = (c.tags || []).map((id) => tagsLh.get(id)).filter(Boolean);
 
-    const status = nomeStatus ? casarStatus(nomeStatus) : null;
+    const status = nomeStatus ? casarStatus(nomeStatus, statusDaqui) : null;
     if (nomeStatus && !status) relatorio.statusSemPar.add(nomeStatus);
 
     const dept = nomeDept ? deptDaqui.get(normalizar(nomeDept)) : null;
@@ -195,7 +210,7 @@ export async function importarClassificacao(workspaceId, { simular = true } = {}
 
     const etiquetaIds = [];
     for (const nomeTag of nomesTags) {
-      const { etiqueta, criada } = acharOuCriarEtiqueta(nomeTag);
+      const { etiqueta, criada } = acharOuCriarEtiqueta(workspaceId, nomeTag, etiquetasDaqui, { simular });
       if (criada) relatorio.etiquetasCriadas.add(String(nomeTag).trim());
       if (etiqueta) etiquetaIds.push(etiqueta.id);
     }
@@ -343,6 +358,13 @@ export async function detectarHistoricoLiderhub(workspaceId) {
    mesmo tempo, mas workspaces diferentes podem rodar em paralelo. */
 const filasHistorico = new Map();
 const andandoHistorico = new Set();
+/* O contador de status/etiqueta/departamento de uma rodada — uma referencia
+   SO, compartilhada por todas as tarefas da fila daquele workspace. */
+const contadoresHistorico = new Map();
+
+function novoContador() {
+  return { comStatus: 0, comDepartamento: 0, etiquetasAplicadas: 0, etiquetasCriadas: new Set(), statusSemPar: new Set(), departamentoSemPar: new Set() };
+}
 
 function anotarHistorico(workspaceId, extra = {}) {
   const registro = achar('integracoes', { workspaceId });
@@ -359,8 +381,16 @@ function etiquetaDoHistorico(workspaceId) {
   return inserir('etiquetas', { id: novoId('etq'), workspaceId, nome, cor: 'var(--serie-6)' }).id;
 }
 
-/** Um contato da LiderHub: acha-ou-cria aqui, marca a etiqueta, traz a conversa inteira. */
-async function processarContatoHistorico({ workspaceId, conexao, chave, contatoLh, etiquetaId }) {
+/**
+ * Um contato da LiderHub: acha-ou-cria aqui, aplica status/etiquetas/
+ * departamento (mesmas regras da fase 1 — ver importarClassificacao),
+ * marca a etiqueta do historico e traz a conversa inteira.
+ *
+ * Status e departamento SO para contato NOVO (o que ja existia aqui nunca
+ * tem isso tocado); etiqueta e sempre somada, em contato novo ou nao — e
+ * so acrescenta, nunca tira o que ja estava la.
+ */
+async function processarContatoHistorico({ workspaceId, conexao, chave, contatoLh, etiquetaHistoricoId, classificacao, contador }) {
   const telefone = String(contatoLh.contactNumber || contatoLh.number || '').trim();
   if (!soDigitos(telefone)) return { mensagens: 0 };
 
@@ -372,8 +402,40 @@ async function processarContatoHistorico({ workspaceId, conexao, chave, contatoL
     nomeOrigem: contatoLh.contactName ? 'manual' : null,
   });
 
-  if (etiquetaId && !(contato.etiquetas || []).includes(etiquetaId)) {
-    atualizar('contatos', contato.id, { etiquetas: [...(contato.etiquetas || []), etiquetaId] });
+  const { statusLh, tagsLh, deptLh, statusDaqui, deptDaqui, etiquetasDaqui } = classificacao;
+  const nomeStatus = contatoLh.status ? statusLh.get(contatoLh.status) : '';
+  const nomeDept = contatoLh.department ? deptLh.get(contatoLh.department) : '';
+  const nomesTags = (contatoLh.tags || []).map((id) => tagsLh.get(id)).filter(Boolean);
+
+  const status = nomeStatus ? casarStatus(nomeStatus, statusDaqui) : null;
+  const dept = nomeDept ? deptDaqui.get(normalizar(nomeDept)) : null;
+
+  const etiquetaIds = etiquetaHistoricoId ? [etiquetaHistoricoId] : [];
+  for (const nomeTag of nomesTags) {
+    const { etiqueta, criada } = acharOuCriarEtiqueta(workspaceId, nomeTag, etiquetasDaqui, { simular: false });
+    if (criada) contador.etiquetasCriadas.add(String(nomeTag).trim());
+    if (etiqueta) etiquetaIds.push(etiqueta.id);
+  }
+  const etiquetasNovas = etiquetaIds.filter((id) => !(contato.etiquetas || []).includes(id));
+  if (etiquetasNovas.length) {
+    const juntas = [...(contato.etiquetas || []), ...etiquetasNovas];
+    atualizar('contatos', contato.id, { etiquetas: umTipoDeCaso(juntas, contato.etiquetas) });
+    contador.etiquetasAplicadas += etiquetasNovas.length;
+  }
+
+  if (novo) {
+    if (status) {
+      await aplicarStatus(contato, status, { tipo: 'sistema', nome: 'Histórico LiderHub' }, { dispararFollowups: false });
+      contador.comStatus += 1;
+    } else if (nomeStatus) {
+      contador.statusSemPar.add(nomeStatus);
+    }
+    if (dept) {
+      atualizar('contatos', contato.id, { departamentoId: dept.id });
+      contador.comDepartamento += 1;
+    } else if (nomeDept) {
+      contador.departamentoSemPar.add(nomeDept);
+    }
   }
 
   /* So decide o modo de um contato NOVO (o que ja existia aqui nunca tem
@@ -446,6 +508,7 @@ async function andarHistorico(workspaceId) {
   andandoHistorico.add(workspaceId);
   try {
     const fila = filasHistorico.get(workspaceId);
+    const contador = contadoresHistorico.get(workspaceId) || novoContador();
     while (fila && fila.length) {
       const tarefa = fila.shift();
       try {
@@ -455,6 +518,12 @@ async function andarHistorico(workspaceId) {
           situacao: 'importando',
           contatosProcessados: (registro?.liderhub?.historico?.contatosProcessados || 0) + 1,
           mensagensImportadas: (registro?.liderhub?.historico?.mensagensImportadas || 0) + importadas,
+          comStatus: contador.comStatus,
+          comDepartamento: contador.comDepartamento,
+          etiquetasAplicadas: contador.etiquetasAplicadas,
+          etiquetasCriadas: [...contador.etiquetasCriadas],
+          statusSemPar: [...contador.statusSemPar],
+          departamentoSemPar: [...contador.departamentoSemPar],
         });
       } catch (erro) {
         anotarHistorico(workspaceId, { erro: erro.message });
@@ -464,6 +533,7 @@ async function andarHistorico(workspaceId) {
   } finally {
     andandoHistorico.delete(workspaceId);
     filasHistorico.delete(workspaceId);
+    contadoresHistorico.delete(workspaceId);
   }
 }
 
@@ -495,11 +565,26 @@ export async function enfileirarHistoricoLiderhub(workspaceId) {
     contatosTotal: 0,
     contatosProcessados: 0,
     mensagensImportadas: 0,
+    comStatus: 0,
+    comDepartamento: 0,
+    etiquetasAplicadas: 0,
+    etiquetasCriadas: [],
+    statusSemPar: [],
+    departamentoSemPar: [],
     erro: null,
     concluidoEm: null,
   });
 
-  const etiquetaId = etiquetaDoHistorico(workspaceId);
+  /* Mesma classificacao da fase 1 (status, etiquetas, departamento) — pedido
+     do escritorio em 15/10/2026: o historico completo tambem traz isso,
+     nao so a conversa. */
+  const { statusLh, tagsLh, deptLh } = await buscarListasDaLiderhub(chave);
+  const { statusDaqui, deptDaqui, etiquetasDaqui } = dicionariosDaqui(workspaceId);
+  const classificacao = { statusLh, tagsLh, deptLh, statusDaqui, deptDaqui, etiquetasDaqui };
+  const contador = novoContador();
+  contadoresHistorico.set(workspaceId, contador);
+
+  const etiquetaHistoricoId = etiquetaDoHistorico(workspaceId);
   const limite = dataLimiteDoHistorico();
   const fila = [];
   let pagina = 1;
@@ -507,7 +592,7 @@ export async function enfileirarHistoricoLiderhub(workspaceId) {
     await espera(ESPERA_ENTRE);
     const dados = await pedir('/contacts', chave, { connection: conexaoLh.id, page: pagina, limit: 100, modifiedAfter: limite });
     const lote = dados?.contacts || [];
-    for (const contatoLh of lote) fila.push({ workspaceId, conexao, chave, contatoLh, etiquetaId });
+    for (const contatoLh of lote) fila.push({ workspaceId, conexao, chave, contatoLh, etiquetaHistoricoId, classificacao, contador });
     anotarHistorico(workspaceId, { contatosTotal: fila.length });
     if (!dados?.pagination?.hasNextPage || !lote.length) break;
     pagina += 1;

@@ -742,9 +742,18 @@ function blocoLiderhubHistorico(integracoes, recarregarTela) {
   const linhaDeProgresso = (h) => {
     if (h.situacao === 'erro') return el('div', { class: 'alerta-caixa', texto: `Parou com erro: ${h.erro}` });
     const concluido = h.situacao === 'concluido';
-    return el('div', {
-      texto: `${concluido ? 'Concluído' : 'Importando…'} ${h.contatosProcessados || 0} de ${h.contatosTotal || 0} contato(s), ${h.mensagensImportadas || 0} mensagem(ns)${concluido ? '' : ' até agora'}.`,
-    });
+    const classificacao = h.comStatus || h.comDepartamento || h.etiquetasAplicadas
+      ? el('div', {
+          class: 'ajuste-ajuda',
+          texto: `Status casado: ${h.comStatus || 0}. Departamento casado: ${h.comDepartamento || 0}. Etiquetas aplicadas: ${h.etiquetasAplicadas || 0}${h.etiquetasCriadas?.length ? ` (criadas: ${h.etiquetasCriadas.join(', ')})` : ''}.`,
+        })
+      : null;
+    return el('div', {}, [
+      el('div', {
+        texto: `${concluido ? 'Concluído' : 'Importando…'} ${h.contatosProcessados || 0} de ${h.contatosTotal || 0} contato(s), ${h.mensagensImportadas || 0} mensagem(ns)${concluido ? '' : ' até agora'}.`,
+      }),
+      classificacao,
+    ]);
   };
 
   const mostrarProgresso = (h) => {
@@ -827,7 +836,7 @@ function blocoLiderhubHistorico(integracoes, recarregarTela) {
 
   return cartaoAjustes(
     'Histórico completo da LiderHub (uma conexão)',
-    'Traz, de uma conexão específica, o contato e a conversa inteira dos últimos 6 meses — não traz quem está parado há mais tempo, para não encher a fila de contato sem identificação. Casa pelo número: a conexão da LiderHub com o mesmo número já conectado aqui em Conexões. Contato que já existe aqui não tem responsável nem status mexidos, só ganha as mensagens que faltavam. Contato novo entra pronto para a IA, exceto quem a LiderHub mostra com uma pessoa cuidando: esse fica Pendente, para a equipe olhar.',
+    'Traz, de uma conexão específica, o contato, a conversa inteira e a classificação (status, etiquetas e departamento) dos últimos 6 meses — não traz quem está parado há mais tempo, para não encher a fila de contato sem identificação. Casa pelo número: a conexão da LiderHub com o mesmo número já conectado aqui em Conexões. Contato que já existe aqui não tem responsável, status nem departamento mexidos — só ganha as mensagens que faltavam e as etiquetas que ainda não tinha. Contato novo entra pronto para a IA, exceto quem a LiderHub mostra com uma pessoa cuidando: esse fica Pendente, para a equipe olhar.',
     linhaAjuste('Chave da API', null, chave, { balao: 'A mesma x-company-key da LiderHub. Se já configurou no cartão acima, pode deixar em branco aqui.' }),
     el('div', { class: 'ajuste-linha larga' }, [el('div', {}, [resultado])]),
     rodapeAjustes(podeConfigurar() ? detectar : null, podeConfigurar() ? importar : null),

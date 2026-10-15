@@ -36,11 +36,14 @@ export async function testarLiderhubHistorico({ raiz }) {
     conexoes: [{ id: 'lh-conn-1', number: '+55 81 99999-0000', connectionStatus: 'connected', integration: 'WHATSAPP-NON-OFFICIAL' }],
     contatosPorConexao: {
       'lh-conn-1': [
-        { id: 'lh-contato-A', contactNumber: '5581977770000', contactName: 'Ana Nova' },
-        { id: 'lh-contato-B', contactNumber: '5581988880000', contactName: 'Beto Existente' },
+        { id: 'lh-contato-A', contactNumber: '5581977770000', contactName: 'Ana Nova', status: 'lh-st-1', department: 'lh-dep-1', tags: ['lh-tag-1'] },
+        { id: 'lh-contato-B', contactNumber: '5581988880000', contactName: 'Beto Existente', status: 'lh-st-1', department: 'lh-dep-1', tags: ['lh-tag-1'] },
         { id: 'lh-contato-C', contactNumber: '5581966660000', contactName: 'Carla Com Pessoa', user: 'lh-user-1', ticketStatus: 'open' },
       ],
     },
+    status: [{ id: 'lh-st-1', name: 'Em andamento' }],
+    tags: [{ id: 'lh-tag-1', name: 'Urgente' }],
+    departamentos: [{ id: 'lh-dep-1', name: 'Comercial' }],
     mensagensPorContato: {
       'lh-contato-A': [
         { id: 'm-a1', content: 'Oi, bom dia', outbound: false, createdAt: '2025-01-01T10:00:00.000Z', sentAt: '2025-01-01T10:00:00.000Z' },
@@ -83,9 +86,12 @@ inserir('conexoes', {
   responsavelPadrao: { tipo: 'agente', id: 'ag1', nome: 'Triagem Trabalhista' },
 });
 inserir('integracoes', { id: 'int1', workspaceId: 'w1', liderhub: { chave: ${JSON.stringify(CHAVE)}, ativo: false, ultimaImportacao: null } });
+inserir('status', { id: 'sts-andamento', workspaceId: 'w1', nome: 'Em andamento', tipo: 'em_analise' });
+inserir('departamentos', { id: 'dep-comercial', workspaceId: 'w1', nome: 'Comercial', cor: 'var(--serie-2)' });
+inserir('etiquetas', { id: 'etq-vip', workspaceId: 'w1', nome: 'VIP', cor: 'var(--serie-1)' });
 inserir('contatos', {
   id: 'ctt-beto', workspaceId: 'w1', conexaoId: 'cnx1', telefone: '5581988880000', nome: 'Beto Existente',
-  responsavel: { tipo: 'membro', id: 'm1', nome: 'Fulano' }, estado: 'ativo', statusId: 'sts-x', etiquetas: [],
+  responsavel: { tipo: 'membro', id: 'm1', nome: 'Fulano' }, estado: 'ativo', statusId: 'sts-x', etiquetas: ['etq-vip'],
 });
 await encerrarBanco();
 `,
@@ -144,6 +150,14 @@ process.exit(0);
       resultado1.historico?.situacao === 'concluido' && resultado1.historico?.contatosProcessados === 3 && resultado1.historico?.mensagensImportadas === 4,
       JSON.stringify(resultado1.historico),
     );
+    s.ok(
+      /* So a Ana conta: e o UNICO contato NOVO com status/departamento casando
+         por nome (Beto ja existia, Carla nao tem status/departamento no
+         teste) — status e departamento so entram para contato novo. */
+      'o relatorio final traz status e departamento so do contato novo que casou (Ana), e as etiquetas dos tres',
+      resultado1.historico?.comStatus === 1 && resultado1.historico?.comDepartamento === 1 && resultado1.historico?.etiquetasAplicadas === 5 && resultado1.historico?.etiquetasCriadas?.includes('Urgente'),
+      JSON.stringify(resultado1.historico),
+    );
 
     let base = await lerBase();
     const ana = base.contatos.find((c) => c.telefone === '5581977770000');
@@ -167,10 +181,15 @@ process.exit(0);
       base.mensagens['5581977770000'].find((msg) => msg.idExterno === 'liderhub:m-a1')?.direcao === 'entrada' &&
         base.mensagens['5581977770000'].find((msg) => msg.idExterno === 'liderhub:m-a2')?.direcao === 'saida',
     );
+    s.ok(
+      'a Ana (contato novo) ganha o status e o departamento casados pelo nome',
+      ana?.statusId === 'sts-andamento' && ana?.departamentoId === 'dep-comercial',
+      JSON.stringify({ statusId: ana?.statusId, departamentoId: ana?.departamentoId }),
+    );
 
     s.ok(
-      'o Beto (contato que ja existia) NAO tem responsavel nem estado nem status tocados',
-      beto?.responsavel?.tipo === 'membro' && beto.responsavel.id === 'm1' && beto.estado === 'ativo' && beto.statusId === 'sts-x',
+      'o Beto (contato que ja existia) NAO tem responsavel nem estado nem status nem departamento tocados',
+      beto?.responsavel?.tipo === 'membro' && beto.responsavel.id === 'm1' && beto.estado === 'ativo' && beto.statusId === 'sts-x' && beto.departamentoId !== 'dep-comercial',
       JSON.stringify(beto),
     );
     s.ok('o Beto ganha a mensagem que faltava', base.mensagens['5581988880000']?.length === 1 && base.mensagens['5581988880000'][0].idExterno === 'liderhub:m-b1', JSON.stringify(base.mensagens['5581988880000']));
@@ -195,7 +214,21 @@ process.exit(0);
       JSON.stringify({ etiquetaHistorico, anaEtiquetas: ana?.etiquetas, betoEtiquetas: beto?.etiquetas, carlaEtiquetas: carla?.etiquetas }),
     );
 
+    const etiquetaUrgente = base.etiquetas.find((e) => e.nome === 'Urgente');
+    s.ok('a etiqueta "Urgente" da LiderHub foi CRIADA aqui (nao existia antes)', Boolean(etiquetaUrgente), JSON.stringify(base.etiquetas.map((e) => e.nome)));
+    s.ok(
+      'a Ana e o Beto ganham a etiqueta "Urgente" casada por nome',
+      Boolean(etiquetaUrgente) && ana.etiquetas.includes(etiquetaUrgente.id) && beto.etiquetas.includes(etiquetaUrgente.id),
+      JSON.stringify({ anaEtiquetas: ana?.etiquetas, betoEtiquetas: beto?.etiquetas }),
+    );
+    s.ok(
+      'o Beto mantem a etiqueta VIP que ja tinha (etiqueta so soma, nunca tira)',
+      beto?.etiquetas?.includes('etq-vip'),
+      JSON.stringify(beto?.etiquetas),
+    );
+
     s.ok('a LiderHub falsa so recebeu requisicoes com a chave certa (nenhum 401 nos pedidos de teste)', pedidos.length > 0, pedidos.join(', '));
+    s.ok('o pedido das 3 listas de nomes (status/tags/departamentos) foi feito', pedidos.some((p) => p.startsWith('/v1/settings/status')) && pedidos.some((p) => p.startsWith('/v1/settings/tags')) && pedidos.some((p) => p.startsWith('/v1/settings/departamentos')), pedidos.join(', '));
     s.ok(
       'o pedido de contatos leva modifiedAfter, para so trazer quem teve conversa nos ultimos 6 meses',
       pedidos.some((p) => p.startsWith('/v1/contacts') && p.includes('modifiedAfter=')),
@@ -206,6 +239,11 @@ process.exit(0);
     s.ok('rodar de novo termina sem erro', segunda.codigo === 0, segunda.texto.slice(-600));
     const resultado2 = JSON.parse(segunda.texto.trim().split('\n').pop());
     s.ok('rodar de novo nao importa nenhuma mensagem nova (idempotente)', resultado2.historico?.situacao === 'concluido' && resultado2.historico?.mensagensImportadas === 0, JSON.stringify(resultado2.historico));
+    s.ok(
+      'rodar de novo nao reaplica status/departamento/etiqueta (todos ja existiam)',
+      resultado2.historico?.comStatus === 0 && resultado2.historico?.comDepartamento === 0 && resultado2.historico?.etiquetasAplicadas === 0,
+      JSON.stringify(resultado2.historico),
+    );
 
     const depois = await lerBase();
     s.ok(
