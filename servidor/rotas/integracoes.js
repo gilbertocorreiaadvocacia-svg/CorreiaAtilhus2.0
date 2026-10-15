@@ -252,6 +252,30 @@ export function registrarIntegracoes(rotas) {
   });
 
   /**
+   * Segunda fase: antes de importar o historico completo, mostra qual conexao
+   * da LiderHub bate com o numero deste workspace e quantos contatos ela tem —
+   * sem gravar nada ainda.
+   */
+  rotas.post('/api/integracoes/liderhub/detectar', async ({ ctx }) => {
+    exigirConfiguracao(ctx);
+    const { detectarHistoricoLiderhub } = await import('../integracoes/liderhub.js');
+    return detectarHistoricoLiderhub(ctx.workspaceId);
+  });
+
+  /**
+   * Importa o historico completo (contato + conversa inteira) da conexao da
+   * LiderHub com o mesmo numero deste workspace. Demora: a rota so poe tudo na
+   * fila e devolve na hora, o processamento continua em segundo plano (ver
+   * enfileirarHistoricoLiderhub). O progresso sai em GET /api/integracoes,
+   * dentro de liderhub.historico.
+   */
+  rotas.post('/api/integracoes/liderhub/importar-historico', async ({ ctx }) => {
+    exigirConfiguracao(ctx);
+    const { enfileirarHistoricoLiderhub } = await import('../integracoes/liderhub.js');
+    return enfileirarHistoricoLiderhub(ctx.workspaceId);
+  });
+
+  /**
    * Teste de conexao com o modelo.
    *
    * Ele gasta a chave paga do escritorio, entao pede a mesma permissao das

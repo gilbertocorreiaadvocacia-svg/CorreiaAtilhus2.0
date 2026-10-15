@@ -1,6 +1,6 @@
-import { achar, atualizar, inserir, listar } from '../nucleo/banco.js';
+import { achar, atualizar, inserir, inserirMensagem, listar, mensagensDe } from '../nucleo/banco.js';
 import { umTipoDeCaso } from '../nucleo/casos.js';
-import { normalizar, novoId } from '../nucleo/util.js';
+import { agora, normalizar, novoId } from '../nucleo/util.js';
 import { acharOuCriarContato } from '../whatsapp/recebimento.js';
 import { aplicarStatus } from '../automacao/followup.js';
 
@@ -259,4 +259,241 @@ export async function importarClassificacao(workspaceId, { simular = true } = {}
     departamentoSemPar: [...relatorio.departamentoSemPar],
     etiquetasCriadas: [...relatorio.etiquetasCriadas],
   };
+}
+
+/**
+ * Segunda fase: o historico COMPLETO (contato + conversa inteira) de UMA
+ * conexao da LiderHub — a que tiver o mesmo numero da conexao deste
+ * workspace. Pedido do escritorio em 15/10/2026, depois da fase 1
+ * (classificacao) ja estar no ar: so o numero do Trabalhista, e o contato
+ * entra pronto para a IA (responsavel = o agente de entrada da conexao, o
+ * mesmo que qualquer lead novo receberia) sem mandar nenhuma mensagem agora
+ * — a IA so fala se a PESSOA escrever de novo.
+ *
+ * Contato que ja existe aqui (de uso real ou da fase 1) NUNCA tem
+ * responsavel, status, departamento ou etiqueta tocados: so ganha as
+ * mensagens que ainda nao tinha.
+ */
+
+/** Acha a conexao da LiderHub com o mesmo numero da conexao real daqui. */
+async function conexaoNaLiderhub(chave, numeroDaqui) {
+  const dados = await pedir('/connections', chave);
+  const lista = dados?.connections || [];
+  const achada = lista.find((c) => soDigitos(c.number) === numeroDaqui);
+  if (!achada) {
+    const erro = new Error(`Nenhuma conexao na LiderHub com o numero ${numeroDaqui}.`);
+    erro.codigo = 404;
+    throw erro;
+  }
+  return achada;
+}
+
+function conexaoQrcodeDoWorkspace(workspaceId) {
+  const conexao = listar('conexoes', { workspaceId, tipo: 'qrcode' })[0];
+  if (!conexao || !soDigitos(conexao.numero)) {
+    const erro = new Error('Conecte o numero de WhatsApp deste workspace (em Conexoes) antes de importar o historico.');
+    erro.codigo = 400;
+    throw erro;
+  }
+  return conexao;
+}
+
+/** O que a tela mostra antes de importar: qual conexao bateu, e quantos contatos tem. */
+export async function detectarHistoricoLiderhub(workspaceId) {
+  const chave = chaveDe(workspaceId);
+  if (!chave) {
+    const erro = new Error('Configure a chave da LiderHub em Integracoes antes de importar.');
+    erro.codigo = 400;
+    throw erro;
+  }
+  const conexao = conexaoQrcodeDoWorkspace(workspaceId);
+  const numeroDaqui = soDigitos(conexao.numero);
+  const conexaoLh = await conexaoNaLiderhub(chave, numeroDaqui);
+  await espera(ESPERA_ENTRE);
+  const pagina1 = await pedir('/contacts', chave, { connection: conexaoLh.id, page: 1, limit: 1 });
+  return { numero: conexao.numero, conexaoLiderhubId: conexaoLh.id, totalContatos: pagina1?.pagination?.total ?? 0 };
+}
+
+/* Uma fila por workspace: nunca duas importacoes do mesmo workspace ao
+   mesmo tempo, mas workspaces diferentes podem rodar em paralelo. */
+const filasHistorico = new Map();
+const andandoHistorico = new Set();
+
+function anotarHistorico(workspaceId, extra = {}) {
+  const registro = achar('integracoes', { workspaceId });
+  if (!registro) return;
+  const historico = { ...(registro.liderhub?.historico || {}), atualizadoEm: agora(), ...extra };
+  atualizar('integracoes', registro.id, { liderhub: { ...(registro.liderhub || {}), historico } });
+}
+
+/** Garante a etiqueta que marca quem veio do historico da LiderHub, sem duplicar. */
+function etiquetaDoHistorico(workspaceId) {
+  const nome = 'Histórico LiderHub';
+  const existente = listar('etiquetas', { workspaceId }).find((e) => normalizar(e.nome) === normalizar(nome));
+  if (existente) return existente.id;
+  return inserir('etiquetas', { id: novoId('etq'), workspaceId, nome, cor: 'var(--serie-6)' }).id;
+}
+
+/** Um contato da LiderHub: acha-ou-cria aqui, marca a etiqueta, traz a conversa inteira. */
+async function processarContatoHistorico({ workspaceId, conexao, chave, contatoLh, etiquetaId }) {
+  const telefone = String(contatoLh.contactNumber || contatoLh.number || '').trim();
+  if (!soDigitos(telefone)) return { mensagens: 0 };
+
+  const { contato, novo } = acharOuCriarContato({
+    workspaceId,
+    conexao,
+    telefone,
+    nome: contatoLh.contactName || '',
+    nomeOrigem: contatoLh.contactName ? 'manual' : null,
+  });
+
+  if (etiquetaId && !(contato.etiquetas || []).includes(etiquetaId)) {
+    atualizar('contatos', contato.id, { etiquetas: [...(contato.etiquetas || []), etiquetaId] });
+  }
+
+  const idsQueJaTenho = new Set(mensagensDe(contato.id).map((m) => m.idExterno).filter(Boolean));
+  let importadas = 0;
+  let primeira = null;
+  let ultima = null;
+  let pagina = 1;
+  for (let volta = 0; volta < 1000; volta += 1) {
+    await espera(ESPERA_ENTRE);
+    const dados = await pedir('/message', chave, { contact: contatoLh.id, page: pagina, limit: 100 });
+    const lote = dados?.messages || [];
+    for (const msg of lote) {
+      const idExterno = msg.id ? `liderhub:${msg.id}` : null;
+      if (idExterno && idsQueJaTenho.has(idExterno)) continue;
+      const outbound = Boolean(msg.outbound);
+      ultima = inserirMensagem(contato.id, {
+        workspaceId,
+        direcao: outbound ? 'saida' : 'entrada',
+        tipo: 'texto',
+        conteudo: typeof msg.content === 'string' ? msg.content : '',
+        midia: msg.mediaUrl ? { url: msg.mediaUrl, caption: msg.mediaCaption || null } : null,
+        idExterno,
+        autor: outbound ? { tipo: 'membro', nome: 'LiderHub (histórico)' } : { tipo: 'cliente', nome: contato.nome },
+        situacao: outbound ? 'enviada' : 'recebida',
+        criadoEm: msg.sentAt || msg.createdAt || agora(),
+        importada: true,
+      });
+      if (!primeira) primeira = ultima;
+      if (idExterno) idsQueJaTenho.add(idExterno);
+      importadas += 1;
+    }
+    if (!dados?.pagination?.hasNextPage || !lote.length) break;
+    pagina += 1;
+  }
+
+  /* Sem isso, o contato nao aparece direito na fila de Atendimento: la, a
+     ordenacao e a previa dependem de ultimaMensagemEm/previa no proprio
+     contato, nao so das mensagens (mesmo padrao de importar-historico.js).
+     Contato que ja existia pode ter conversa mais recente que a importada
+     (uso real, depois da LiderHub): so pisa em ultimaMensagemEm/previa se o
+     historico trazido for mais novo do que o que ja estava la. */
+  if (ultima) {
+    const atual = achar('contatos', contato.id);
+    const maisRecente = !atual.ultimaMensagemEm || String(ultima.criadoEm) > String(atual.ultimaMensagemEm);
+    if (maisRecente) {
+      atualizar('contatos', contato.id, { ultimaMensagemEm: ultima.criadoEm, previa: (ultima.conteudo || '').slice(0, 120) });
+    }
+    if (novo && primeira) atualizar('contatos', contato.id, { primeiraMensagemEm: primeira.criadoEm });
+  }
+
+  return { importadas };
+}
+
+/** O laco que esvazia a fila de um workspace, um contato por vez. */
+async function andarHistorico(workspaceId) {
+  if (andandoHistorico.has(workspaceId)) return;
+  andandoHistorico.add(workspaceId);
+  try {
+    const fila = filasHistorico.get(workspaceId);
+    while (fila && fila.length) {
+      const tarefa = fila.shift();
+      try {
+        const { importadas } = await processarContatoHistorico(tarefa);
+        const registro = achar('integracoes', { workspaceId });
+        anotarHistorico(workspaceId, {
+          situacao: 'importando',
+          contatosProcessados: (registro?.liderhub?.historico?.contatosProcessados || 0) + 1,
+          mensagensImportadas: (registro?.liderhub?.historico?.mensagensImportadas || 0) + importadas,
+        });
+      } catch (erro) {
+        anotarHistorico(workspaceId, { erro: erro.message });
+      }
+    }
+    anotarHistorico(workspaceId, { situacao: 'concluido', concluidoEm: agora() });
+  } finally {
+    andandoHistorico.delete(workspaceId);
+    filasHistorico.delete(workspaceId);
+  }
+}
+
+/**
+ * Dispara a importacao do historico completo. Nao espera terminar: poe tudo
+ * na fila (detecta a conexao, pagina os contatos da LiderHub) e devolve so
+ * quando a fila ja esta montada — o processamento em si (uma conversa por
+ * vez) continua em segundo plano depois que a funcao retorna.
+ */
+export async function enfileirarHistoricoLiderhub(workspaceId) {
+  if (andandoHistorico.has(workspaceId)) {
+    const erro = new Error('Ja ha uma importacao de historico em andamento neste workspace.');
+    erro.codigo = 409;
+    throw erro;
+  }
+  const chave = chaveDe(workspaceId);
+  if (!chave) {
+    const erro = new Error('Configure a chave da LiderHub em Integracoes antes de importar.');
+    erro.codigo = 400;
+    throw erro;
+  }
+  const conexao = conexaoQrcodeDoWorkspace(workspaceId);
+  const numeroDaqui = soDigitos(conexao.numero);
+  const conexaoLh = await conexaoNaLiderhub(chave, numeroDaqui);
+
+  anotarHistorico(workspaceId, {
+    situacao: 'importando',
+    numero: conexao.numero,
+    contatosTotal: 0,
+    contatosProcessados: 0,
+    mensagensImportadas: 0,
+    erro: null,
+    concluidoEm: null,
+  });
+
+  const etiquetaId = etiquetaDoHistorico(workspaceId);
+  const fila = [];
+  let pagina = 1;
+  for (let volta = 0; volta < 1000; volta += 1) {
+    await espera(ESPERA_ENTRE);
+    const dados = await pedir('/contacts', chave, { connection: conexaoLh.id, page: pagina, limit: 100 });
+    const lote = dados?.contacts || [];
+    for (const contatoLh of lote) fila.push({ workspaceId, conexao, chave, contatoLh, etiquetaId });
+    anotarHistorico(workspaceId, { contatosTotal: fila.length });
+    if (!dados?.pagination?.hasNextPage || !lote.length) break;
+    pagina += 1;
+  }
+
+  /* fila.length precisa ser lido ANTES de chamar andarHistorico: o trecho
+     sincrono de uma funcao async roda na hora, ate o primeiro await la
+     dentro — andar() ja da um fila.shift() antes de suspender, entao ler
+     fila.length depois daria o numero errado (um a menos). */
+  const contatosTotal = fila.length;
+  filasHistorico.set(workspaceId, fila);
+  andarHistorico(workspaceId).catch((erro) => anotarHistorico(workspaceId, { situacao: 'erro', erro: erro.message }));
+  return { iniciado: true, contatosTotal };
+}
+
+/** Retomada apos reiniciar: workspace que ficou "importando" comeca de novo
+    (idempotente por idExterno, entao so repete trabalho ja feito). */
+export function retomarHistoricoLiderhub() {
+  let retomados = 0;
+  for (const registro of listar('integracoes')) {
+    if (registro.liderhub?.historico?.situacao !== 'importando') continue;
+    retomados += 1;
+    enfileirarHistoricoLiderhub(registro.workspaceId).catch((erro) =>
+      anotarHistorico(registro.workspaceId, { situacao: 'erro', erro: erro.message }),
+    );
+  }
+  return retomados;
 }

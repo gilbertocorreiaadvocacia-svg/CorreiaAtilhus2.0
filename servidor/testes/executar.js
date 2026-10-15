@@ -53,6 +53,7 @@ import { testarSituacaoExterna } from './situacao-externa.js';
 import { testarFollowup } from './followup.js';
 import { testarRegrasAntiAlucinacao } from './regras-anti-alucinacao.js';
 import { testarAplicarRegrasInstitucionais, testarRegrasInstitucionais } from './regras-institucionais.js';
+import { testarLiderhubHistorico } from './liderhub-historico.js';
 import { testarVoz } from './voz.js';
 import { testarTranscricaoDeAudio } from './transcricao-audio.js';
 import { testarDoisFatores } from './doisfatores.js';
@@ -316,6 +317,7 @@ async function principal() {
     suites.push(await testarVozDosAgentes({ raiz: RAIZ }));
     suites.push(await testarDeduplicarVozes({ raiz: RAIZ }));
     suites.push(await testarReorganizarAgentes({ raiz: RAIZ }));
+    suites.push(await testarLiderhubHistorico({ raiz: RAIZ }));
   } catch (erro) {
     console.error('\nA suite quebrou antes de terminar:', erro.message);
     console.error(erro.stack);

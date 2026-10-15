@@ -36,6 +36,7 @@ import { retomarSincronizacoes } from './whatsapp/sincronizar-historico.js';
 import { iniciarBatimento, recuperarDaQueda } from './nucleo/batimento.js';
 import { iniciarBackup } from './nucleo/backup.js';
 import { retomarMidiaHistorico } from './whatsapp/midia-historico.js';
+import { retomarHistoricoLiderhub } from './integracoes/liderhub.js';
 import { iniciarRenovacaoDeTokens } from './whatsapp/renovar-tokens.js';
 
 iniciarBanco();
@@ -163,6 +164,11 @@ iniciarBackup();
 /* E a fila de arquivos (audio, imagem, video, PDF) do historico: retoma de
    onde parou, reencontrando o que ainda esta sem arquivo. */
 retomarMidiaHistorico();
+/* E a importacao do historico completo da LiderHub (fase 2): workspace que
+   ficou "importando" quando o servidor caiu comeca de novo — idempotente
+   por idExterno, entao so repete trabalho ja feito. */
+const historicoLiderhubRetomado = retomarHistoricoLiderhub();
+if (historicoLiderhubRetomado) console.log(`Historico LiderHub: ${historicoLiderhubRetomado} workspace(s) retomado(s).`);
 
 const MIMES = {
   '.jpg': 'image/jpeg',

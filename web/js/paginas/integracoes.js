@@ -49,6 +49,7 @@ export async function paginaIntegracoes() {
         blocoAgenda(integracoes, desenhar),
         blocoAndamento(integracoes, desenhar),
         blocoLiderhub(integracoes, desenhar),
+        blocoLiderhubHistorico(integracoes, desenhar),
         blocoMetaConversoes(integracoes, desenhar),
         blocoTikTokEventos(integracoes, desenhar),
         blocoFerramentas(integracoes, desenhar),
@@ -669,7 +670,7 @@ function blocoLiderhub(integracoes, recarregarTela) {
     limpar(resultado);
     resultado.append(el('div', { texto: simular ? 'Consultando a LiderHub…' : 'Importando…' }));
     try {
-      const r = (await api.post('/api/integracoes/liderhub/importar', { simular })).dados;
+      const r = await api.post('/api/integracoes/liderhub/importar', { simular });
       mostrar(r);
       if (!simular) {
         aviso('Importação concluída.', 'sucesso');
@@ -706,6 +707,120 @@ function blocoLiderhub(integracoes, recarregarTela) {
           })
         : null,
     ),
+  );
+}
+
+/**
+ * Segunda fase da migração da LiderHub: o histórico COMPLETO (contato +
+ * conversa inteira) de UMA conexão — a que tiver o mesmo número do
+ * WhatsApp já conectado neste workspace (em Conexões). Pedido do
+ * escritório em 15/10/2026: o contato entra pronto para a IA responder
+ * (mesmo responsável que um lead novo desse número receberia), mas
+ * ninguém recebe mensagem agora — só quando a pessoa escrever de novo.
+ *
+ * Roda em segundo plano (pode levar um tempo para contas grandes), então
+ * o botão "Importar" só dispara e a tela acompanha o progresso sozinha,
+ * relendo /api/integracoes a cada alguns segundos enquanto durar.
+ */
+function blocoLiderhubHistorico(integracoes, recarregarTela) {
+  const lh = integracoes.liderhub || {};
+  const resultado = el('div', { class: 'ajuste-ajuda mt-2' });
+  let detectado = null;
+  let temporizador = null;
+
+  const pararPolling = () => {
+    if (temporizador) clearInterval(temporizador);
+    temporizador = null;
+  };
+
+  const mostrarErro = (erro) => {
+    pararPolling();
+    limpar(resultado);
+    resultado.append(el('div', { class: 'alerta-caixa', texto: erro?.mensagem || erro?.message || 'Falha ao falar com a LiderHub.' }));
+  };
+
+  const mostrarProgresso = (h) => {
+    limpar(resultado);
+    if (h.situacao === 'erro') {
+      resultado.append(el('div', { class: 'alerta-caixa', texto: `Parou com erro: ${h.erro}` }));
+      return;
+    }
+    const concluido = h.situacao === 'concluido';
+    resultado.append(
+      el('div', {
+        texto: `${concluido ? 'Concluído' : 'Importando…'} ${h.contatosProcessados || 0} de ${h.contatosTotal || 0} contato(s), ${h.mensagensImportadas || 0} mensagem(ns)${concluido ? '' : ' até agora'}.`,
+      }),
+    );
+  };
+
+  const iniciarPolling = () => {
+    pararPolling();
+    temporizador = setInterval(async () => {
+      if (!resultado.isConnected) return pararPolling();
+      try {
+        const dados = await api.get('/api/integracoes');
+        const h = dados.liderhub?.historico;
+        if (!h) return;
+        mostrarProgresso(h);
+        if (h.situacao !== 'importando') pararPolling();
+      } catch {
+        pararPolling();
+      }
+    }, 4000);
+  };
+
+  if (lh.historico) {
+    mostrarProgresso(lh.historico);
+    if (lh.historico.situacao === 'importando') iniciarPolling();
+  }
+
+  const chave = entradaSegredo('', { placeholder: lh.chave ? 'já configurada acima' : 'x-company-key da LiderHub' });
+  const salvarChaveSePreciso = async () => {
+    if (chave.value.trim()) await api.patch('/api/integracoes', { liderhub: { chave: chave.value.trim() } });
+  };
+
+  const importar = botao('Importar histórico completo', { tipo: 'principal', pequeno: true, desabilitado: true });
+  importar.addEventListener('click', async () => {
+    if (
+      !(await confirmar(
+        'Importar o histórico completo agora? Roda em segundo plano e pode levar um tempo. Ninguém recebe mensagem nova — o contato só fica pronto para a IA responder se escrever de novo.',
+      ))
+    )
+      return;
+    try {
+      await api.post('/api/integracoes/liderhub/importar-historico', {});
+      aviso('Importação iniciada em segundo plano.', 'sucesso');
+      mostrarProgresso({ situacao: 'importando', contatosProcessados: 0, contatosTotal: detectado?.totalContatos || 0, mensagensImportadas: 0 });
+      iniciarPolling();
+    } catch (erro) {
+      mostrarErro(erro);
+    }
+  });
+
+  const detectar = botao('Detectar conexão', {
+    pequeno: true,
+    aoClicar: async () => {
+      await salvarChaveSePreciso();
+      pararPolling();
+      limpar(resultado);
+      resultado.append(el('div', { texto: 'Procurando a conexão na LiderHub…' }));
+      try {
+        detectado = await api.post('/api/integracoes/liderhub/detectar', {});
+        limpar(resultado);
+        resultado.append(el('div', { texto: `Encontrado: número ${detectado.numero}, ${detectado.totalContatos} contato(s) na LiderHub.` }));
+        importar.disabled = false;
+      } catch (erro) {
+        mostrarErro(erro);
+      }
+    },
+  });
+
+  return cartaoAjustes(
+    'Histórico completo da LiderHub (uma conexão)',
+    'Traz, de uma conexão específica, o contato e a conversa inteira — não só a classificação. Casa pelo número: a conexão da LiderHub com o mesmo número já conectado aqui em Conexões. Contato que já existe aqui não tem responsável nem status mexidos, só ganha as mensagens que faltavam.',
+    linhaAjuste('Chave da API', null, chave, { balao: 'A mesma x-company-key da LiderHub. Se já configurou no cartão acima, pode deixar em branco aqui.' }),
+    el('div', { class: 'ajuste-linha larga' }, [el('div', {}, [resultado])]),
+    rodapeAjustes(podeConfigurar() ? detectar : null, podeConfigurar() ? importar : null),
   );
 }
 
