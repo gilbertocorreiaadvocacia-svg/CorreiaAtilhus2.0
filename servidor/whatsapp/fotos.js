@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { achar, atualizar } from '../nucleo/banco.js';
+import { achar, atualizar, listar } from '../nucleo/banco.js';
 import { emitir } from '../nucleo/eventos.js';
 import { apagarMidia, guardarBuffer } from '../nucleo/midia.js';
 import { agora } from '../nucleo/util.js';
@@ -51,6 +51,30 @@ export function agendarFoto(contato, { forcar = false } = {}) {
   fila.push(contato.id);
   andar();
   return true;
+}
+
+/**
+ * Retoma a fila apos reiniciar o servidor (achado em 15/10/2026): a fila
+ * so vive em memoria, e uma importacao de historico grande (centenas ou
+ * milhares de contatos, um a cada INTERVALO) nao cabe entre dois deploys —
+ * o escritorio reimplanta varias vezes por dia. Sem isso, contato que
+ * entrou na fila e o servidor reiniciou antes da vez dele ficava sem foto
+ * para sempre, a nao ser que mandasse mensagem de novo (so ai
+ * agendarFoto() era chamado outra vez, em recebimento.js).
+ *
+ * Varre todo contato de toda conexao conectada: agendarFoto() ja sabe
+ * pular quem nao precisa (foto manual, verificada ha pouco), entao rodar
+ * de novo no boot e barato e idempotente.
+ */
+export function retomarFotos() {
+  let reenfileirados = 0;
+  for (const conexao of listar('conexoes')) {
+    if (conexao.estado !== 'conectado' || !driverDa(conexao).buscarFoto) continue;
+    for (const contato of listar('contatos', { workspaceId: conexao.workspaceId, conexaoId: conexao.id })) {
+      if (agendarFoto(contato)) reenfileirados += 1;
+    }
+  }
+  return reenfileirados;
 }
 
 async function andar() {

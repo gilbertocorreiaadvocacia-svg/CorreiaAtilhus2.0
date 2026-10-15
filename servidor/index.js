@@ -36,6 +36,7 @@ import { retomarSincronizacoes } from './whatsapp/sincronizar-historico.js';
 import { iniciarBatimento, recuperarDaQueda } from './nucleo/batimento.js';
 import { iniciarBackup } from './nucleo/backup.js';
 import { retomarMidiaHistorico } from './whatsapp/midia-historico.js';
+import { retomarFotos } from './whatsapp/fotos.js';
 import { retomarHistoricoLiderhub } from './integracoes/liderhub.js';
 import { iniciarRenovacaoDeTokens } from './whatsapp/renovar-tokens.js';
 
@@ -164,6 +165,13 @@ iniciarBackup();
 /* E a fila de arquivos (audio, imagem, video, PDF) do historico: retoma de
    onde parou, reencontrando o que ainda esta sem arquivo. */
 retomarMidiaHistorico();
+/* E a fila de fotos de perfil: ela so vive em memoria, e um lote grande (a
+   importacao de historico, por exemplo) nao cabe entre dois deploys — o
+   escritorio reimplanta varias vezes por dia. Sem retomar, contato que
+   entrou na fila e o servidor reiniciou antes da vez dele ficava sem foto
+   para sempre, a nao ser que mandasse mensagem de novo. */
+const fotosRetomadas = retomarFotos();
+if (fotosRetomadas) console.log(`Fotos de perfil: ${fotosRetomadas} contato(s) de volta na fila.`);
 /* E a importacao do historico completo da LiderHub (fase 2): workspace que
    ficou "importando" quando o servidor caiu comeca de novo — idempotente
    por idExterno, entao so repete trabalho ja feito. */
