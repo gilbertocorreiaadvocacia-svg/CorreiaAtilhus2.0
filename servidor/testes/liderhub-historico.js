@@ -100,7 +100,7 @@ import { enfileirarHistoricoLiderhub } from ${JSON.stringify(urlDaLiderhub)};
 iniciarBanco();
 const iniciado = await enfileirarHistoricoLiderhub('w1');
 const comeco = Date.now();
-while (Date.now() - comeco < 8000) {
+while (Date.now() - comeco < 2000) {
   const registro = achar('integracoes', { workspaceId: 'w1' });
   if (registro?.liderhub?.historico?.situacao !== 'importando') break;
   await new Promise((r) => setTimeout(r, 30));
@@ -210,6 +210,132 @@ process.exit(0);
     );
     const carlaDepois = depois.contatos.find((c) => c.telefone === '5581966660000');
     s.ok('rodar de novo nao muda o modo da Carla (ja existia, nunca e tocada de novo)', carlaDepois?.estado === 'pendente' && carlaDepois?.responsavel === null, JSON.stringify(carlaDepois));
+  } finally {
+    servidor.close();
+    fs.rmSync(pasta, { recursive: true, force: true });
+  }
+  return s;
+}
+
+/**
+ * Pedido do escritorio em 15/10/2026: "a partir do momento que eu colocar a
+ * chave API, eu quero que voce sincronize" — salvar a chave da LiderHub
+ * (PATCH /api/integracoes) ja dispara a importacao do historico sozinha, sem
+ * precisar clicar em Detectar/Importar na tela.
+ *
+ * Achado ao testar na tela: a primeira versao comparava a chave nova com
+ * `atual.liderhub.chave` DEPOIS de already ter chamado atualizar() — como
+ * atualizar() grava por cima do MESMO objeto (Object.assign em cima do que
+ * achar() devolve), a chave "antiga" ja tinha virado a nova antes da
+ * comparacao, e o gatilho nunca disparava. Este teste chama a rota de
+ * verdade (sem subir servidor HTTP: resolve o handler no mesmo roteador que
+ * o servidor usa) para travar contra essa classe de erro.
+ */
+export async function testarGatilhoAutomaticoDeHistorico({ raiz }) {
+  const s = suite('Salvar a chave da LiderHub ja dispara a sincronizacao (PATCH /api/integracoes)');
+  const urlDoBanco = pathToFileURL(path.join(raiz, 'servidor/nucleo/banco.js')).href;
+  const urlDasRotas = pathToFileURL(path.join(raiz, 'servidor/rotas/integracoes.js')).href;
+  const urlDoRoteador = pathToFileURL(path.join(raiz, 'servidor/nucleo/http.js')).href;
+  const pasta = fs.mkdtempSync(path.join(os.tmpdir(), 'liderhub-gatilho-'));
+  const porta = 8800 + Math.floor(Math.random() * 500);
+  const CHAVE = 'chave-do-gatilho';
+
+  const { servidor } = await subirLiderhubHistoricoFalsa({
+    porta,
+    chave: CHAVE,
+    conexoes: [{ id: 'lh-conn-x', number: '5581955550000', connectionStatus: 'connected', integration: 'WHATSAPP-NON-OFFICIAL' }],
+    contatosPorConexao: { 'lh-conn-x': [{ id: 'lh-contato-x', contactNumber: '5581944440000', contactName: 'Diana Gatilho' }] },
+    mensagensPorContato: { 'lh-contato-x': [{ id: 'm-x1', content: 'Oi', outbound: false, createdAt: '2025-04-01T10:00:00.000Z', sentAt: '2025-04-01T10:00:00.000Z' }] },
+  });
+
+  const env = { ...process.env, CORREIA_DADOS: pasta, CORREIA_LIDERHUB_URL: `http://127.0.0.1:${porta}/v1`, CORREIA_LIDERHUB_INTERVALO: '20' };
+  const rodar = (arquivo) =>
+    new Promise((resolve) => {
+      const p = spawn(process.execPath, [arquivo], { env, stdio: ['ignore', 'pipe', 'pipe'] });
+      let texto = '';
+      p.stdout.on('data', (d) => (texto += d));
+      p.stderr.on('data', (d) => (texto += d));
+      p.on('close', (codigo) => resolve({ codigo, texto }));
+    });
+
+  const montagem = path.join(pasta, 'montar.mjs');
+  fs.writeFileSync(
+    montagem,
+    `import { iniciarBanco, inserir, encerrarBanco } from ${JSON.stringify(urlDoBanco)};
+iniciarBanco();
+inserir('workspaces', { id: 'w1', nome: 'Trabalhista', area: 'trabalhista' });
+inserir('agentes', { id: 'ag1', workspaceId: 'w1', nome: 'Triagem', objetivo: 'recepcionar', ativo: true, prompt: 'x' });
+inserir('conexoes', {
+  id: 'cnx1', workspaceId: 'w1', tipo: 'qrcode', numero: '5581955550000', estado: 'conectado',
+  responsavelPadrao: { tipo: 'agente', id: 'ag1', nome: 'Triagem' },
+});
+await encerrarBanco();
+`,
+  );
+
+  const chamarPatch = async (corpo) => {
+    const script = path.join(pasta, `patch-${Date.now()}-${Math.random()}.mjs`);
+    fs.writeFileSync(
+      script,
+      `import { iniciarBanco, achar, encerrarBanco } from ${JSON.stringify(urlDoBanco)};
+import { criarRoteador } from ${JSON.stringify(urlDoRoteador)};
+import { registrarIntegracoes } from ${JSON.stringify(urlDasRotas)};
+iniciarBanco();
+/* Marca de antes: o gatilho e fire-and-forget, entao so dar para ver o
+   resultado NOVO esperando ate o 'atualizadoEm' mudar (sem isso, uma
+   situacao ja 'concluido' de uma chamada anterior passaria no teste sem o
+   gatilho desta chamada ter rodado nada). */
+const antes = achar('integracoes', { workspaceId: 'w1' })?.liderhub?.historico?.atualizadoEm || null;
+const roteador = criarRoteador();
+registrarIntegracoes(roteador);
+const achado = roteador.resolver('PATCH', '/api/integracoes');
+const resposta = await achado.manipulador({ ctx: { papel: 'owner', workspaceId: 'w1' }, corpo: ${JSON.stringify(corpo)} });
+const comeco = Date.now();
+let registro = achar('integracoes', { workspaceId: 'w1' });
+while (Date.now() - comeco < 2000) {
+  registro = achar('integracoes', { workspaceId: 'w1' });
+  const h = registro?.liderhub?.historico;
+  if (h && h.atualizadoEm !== antes && h.situacao !== 'importando') break;
+  await new Promise((r) => setTimeout(r, 30));
+}
+console.log(JSON.stringify({ resposta, mudou: registro?.liderhub?.historico?.atualizadoEm !== antes, historico: registro?.liderhub?.historico || null }));
+await encerrarBanco();
+process.exit(0);
+`,
+    );
+    return rodar(script);
+  };
+
+  try {
+    const m = await rodar(montagem);
+    if (!s.ok('a base descartavel foi montada', m.codigo === 0, m.texto.slice(-400))) return s;
+
+    const r1 = await chamarPatch({ liderhub: { chave: CHAVE } });
+    s.ok('o primeiro PATCH (chave nova) roda sem erro', r1.codigo === 0, r1.texto.slice(-600));
+    const j1 = JSON.parse(r1.texto.trim().split('\n').pop());
+    s.ok(
+      'salvar a chave pela primeira vez ja dispara e conclui a sincronizacao sozinha',
+      j1.historico?.situacao === 'concluido' && j1.historico?.contatosProcessados === 1 && j1.historico?.mensagensImportadas === 1,
+      JSON.stringify(j1.historico),
+    );
+
+    const r2 = await chamarPatch({ liderhub: { chave: CHAVE } });
+    s.ok('o segundo PATCH (mesma chave) roda sem erro', r2.codigo === 0, r2.texto.slice(-600));
+    const j2 = JSON.parse(r2.texto.trim().split('\n').pop());
+    s.ok(
+      'resalvar a MESMA chave nao reinicia a sincronizacao (nao zera o progresso)',
+      j2.historico?.situacao === 'concluido' && j2.historico?.contatosProcessados === 1 && j2.historico?.mensagensImportadas === 1,
+      JSON.stringify(j2.historico),
+    );
+
+    const r3 = await chamarPatch({ liderhub: { chave: `${CHAVE}-trocada` } });
+    s.ok('o terceiro PATCH (chave DIFERENTE) roda sem erro', r3.codigo === 0, r3.texto.slice(-600));
+    const j3 = JSON.parse(r3.texto.trim().split('\n').pop());
+    s.ok(
+      'trocar a chave de verdade dispara a sincronizacao de novo (com a chave nova, que a LiderHub falsa recusa)',
+      j3.historico?.situacao === 'erro',
+      JSON.stringify(j3.historico),
+    );
   } finally {
     servidor.close();
     fs.rmSync(pasta, { recursive: true, force: true });

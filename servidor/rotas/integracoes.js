@@ -133,6 +133,11 @@ export function registrarIntegracoes(rotas) {
   rotas.patch('/api/integracoes', async ({ ctx, corpo }) => {
     exigirConfiguracao(ctx);
     const atual = integracoesDo(ctx.workspaceId);
+    /* atualizar() grava por cima do MESMO objeto (Object.assign em achar()),
+       entao comparar atual.liderhub.chave DEPOIS do atualizar() la embaixo
+       sempre bateria igual — a chave velha ja teria sumido. Guardamos aqui,
+       antes de qualquer mudanca. */
+    const chaveLiderhubAnterior = atual.liderhub?.chave;
     const mudancas = {};
 
     if (corpo.zapsign) {
@@ -219,7 +224,32 @@ export function registrarIntegracoes(rotas) {
       });
     }
 
-    return mascarar(atualizar('integracoes', atual.id, mudancas));
+    const salvo = atualizar('integracoes', atual.id, mudancas);
+
+    /* Pedido do escritorio em 15/10/2026: assim que a chave da LiderHub for
+       salva (nova ou trocada), o historico completo ja comeca a sincronizar
+       sozinho, sem precisar clicar em "Detectar conexao" e "Importar" na
+       tela. So dispara quando a chave realmente MUDOU — resalvar a mesma
+       chave, ou so trocar outro campo do liderhub, nao reinicia a
+       importacao a toa. Fica fora do await: a resposta do PATCH nao espera
+       a LiderHub responder, e qualquer erro (chave errada, numero sem par)
+       vai parar em liderhub.historico.erro, pra tela mostrar. */
+    if (mudancas.liderhub && mudancas.liderhub.chave && mudancas.liderhub.chave !== chaveLiderhubAnterior) {
+      const { enfileirarHistoricoLiderhub } = await import('../integracoes/liderhub.js');
+      enfileirarHistoricoLiderhub(ctx.workspaceId).catch(() => {
+        /* o proprio enfileirarHistoricoLiderhub ja grava o erro em
+           liderhub.historico antes de lancar, exceto na falha mais cedo
+           (chave/conexao): cobrimos esse caso aqui. */
+        const registro = achar('integracoes', { workspaceId: ctx.workspaceId });
+        if (registro && registro.liderhub?.historico?.situacao !== 'erro') {
+          atualizar('integracoes', registro.id, {
+            liderhub: { ...registro.liderhub, historico: { ...(registro.liderhub?.historico || {}), situacao: 'erro', erro: 'Nao foi possivel iniciar a sincronizacao. Confira a chave e a conexao, e tente pelo botao Importar.' } },
+          });
+        }
+      });
+    }
+
+    return mascarar(salvo);
   });
 
   rotas.post('/api/integracoes/meta-conversoes/testar', async ({ ctx }) => {

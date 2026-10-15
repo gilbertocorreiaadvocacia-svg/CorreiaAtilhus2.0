@@ -739,18 +739,17 @@ function blocoLiderhubHistorico(integracoes, recarregarTela) {
     resultado.append(el('div', { class: 'alerta-caixa', texto: erro?.mensagem || erro?.message || 'Falha ao falar com a LiderHub.' }));
   };
 
+  const linhaDeProgresso = (h) => {
+    if (h.situacao === 'erro') return el('div', { class: 'alerta-caixa', texto: `Parou com erro: ${h.erro}` });
+    const concluido = h.situacao === 'concluido';
+    return el('div', {
+      texto: `${concluido ? 'Concluído' : 'Importando…'} ${h.contatosProcessados || 0} de ${h.contatosTotal || 0} contato(s), ${h.mensagensImportadas || 0} mensagem(ns)${concluido ? '' : ' até agora'}.`,
+    });
+  };
+
   const mostrarProgresso = (h) => {
     limpar(resultado);
-    if (h.situacao === 'erro') {
-      resultado.append(el('div', { class: 'alerta-caixa', texto: `Parou com erro: ${h.erro}` }));
-      return;
-    }
-    const concluido = h.situacao === 'concluido';
-    resultado.append(
-      el('div', {
-        texto: `${concluido ? 'Concluído' : 'Importando…'} ${h.contatosProcessados || 0} de ${h.contatosTotal || 0} contato(s), ${h.mensagensImportadas || 0} mensagem(ns)${concluido ? '' : ' até agora'}.`,
-      }),
-    );
+    resultado.append(linhaDeProgresso(h));
   };
 
   const iniciarPolling = () => {
@@ -800,6 +799,10 @@ function blocoLiderhubHistorico(integracoes, recarregarTela) {
   const detectar = botao('Detectar conexão', {
     pequeno: true,
     aoClicar: async () => {
+      /* Salvar a chave aqui (se for nova) ja pode ter disparado a
+         sincronizacao sozinha, no PATCH /api/integracoes — por isso, depois
+         do "Encontrado", confere se ja tem (ou comecou a ter) historico e
+         mostra isso tambem, em vez de deixar so a frase do Detectar. */
       await salvarChaveSePreciso();
       pararPolling();
       limpar(resultado);
@@ -809,6 +812,13 @@ function blocoLiderhubHistorico(integracoes, recarregarTela) {
         limpar(resultado);
         resultado.append(el('div', { texto: `Encontrado: número ${detectado.numero}, ${detectado.totalContatos} contato(s) na LiderHub.` }));
         importar.disabled = false;
+
+        const dados = await api.get('/api/integracoes');
+        const h = dados.liderhub?.historico;
+        if (h) {
+          resultado.append(el('div', { texto: 'A chave acabou de ser salva: a sincronização já começou sozinha.' }), linhaDeProgresso(h));
+          if (h.situacao === 'importando') iniciarPolling();
+        }
       } catch (erro) {
         mostrarErro(erro);
       }
