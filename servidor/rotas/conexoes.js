@@ -390,6 +390,59 @@ export function registrarConexoes(rotas) {
   });
 
   /**
+   * Apaga as conversas de UMA conexao, SEM excluir a conexao (fica tudo
+   * configurado: servidor, chave, instancia). Pedido do escritorio em
+   * 15/10/2026: depois de apagar, desconectar e reconectar o numero para
+   * comecar de novo com ele, so que trazendo do celular apenas os ultimos
+   * `manterMeses` meses, em vez do historico inteiro.
+   *
+   * Existe ao lado da ferramenta de linha de comando
+   * (ferramentas/apagar-conversas.js, que faz a mesma coisa com uma copia em
+   * disco antes) porque, nesta hospedagem, o Console do EasyPanel so abre
+   * terminal em container RODANDO — nao da para seguir o roteiro de "parar o
+   * app, abrir o terminal, rodar o script" aqui. Esta rota roda com o app no
+   * ar, dentro do mesmo processo que serve a tela: sem o risco de um
+   * processo antigo, com cache velho na memoria, sobrescrever a exclusao no
+   * disco depois (o motivo de exigir o app parado na ferramenta de linha de
+   * comando). Em troca, nao guarda copia — e definitivo.
+   */
+  rotas.post('/api/conexoes/:id/apagar-conversas', async ({ ctx, params, corpo }) => {
+    exigirConfiguracao(ctx);
+    exigirAdministrador(ctx);
+    const conexao = achar('conexoes', params.id);
+    if (!conexao || conexao.workspaceId !== ctx.workspaceId) throw comCodigo('Conexao nao encontrada.', 404);
+
+    const contatos = listar('contatos', { workspaceId: ctx.workspaceId }).filter((c) => c.conexaoId === params.id);
+    for (const contato of contatos) excluirConversa(ctx, contato);
+
+    const meses = Number(corpo?.manterMeses);
+    let corte = agora();
+    if (Number.isFinite(meses) && meses > 0) {
+      const data = new Date();
+      data.setMonth(data.getMonth() - meses);
+      corte = data.toISOString();
+    }
+    atualizar('conexoes', params.id, {
+      historico: { ...(conexao.historico || {}), situacao: 'concluido', naoTrazerAntesDe: corte, conversas: 0, mensagens: 0 },
+    });
+
+    if (contatos.length) emitir(ctx.workspaceId, 'contatos', {});
+    registrarLog(
+      ctx.workspaceId,
+      null,
+      'exclusao',
+      `${contatos.length} conversa(s) de ${conexao.nome} apagadas de uma vez${
+        Number.isFinite(meses) && meses > 0
+          ? `; ao reconectar, so voltam conversas dos ultimos ${meses} meses`
+          : ''
+      }`,
+      { tipo: 'membro', nome: ctx.usuario.nome },
+    );
+    emitir(ctx.workspaceId, 'conexao', { conexaoId: params.id });
+    return { ok: true, conversasExcluidas: contatos.length, naoTrazerAntesDe: corte };
+  });
+
+  /**
    * Ordem das conexoes na tela, arrastada pela alca da linha.
    *
    * Recebe a lista inteira de ids, e nao "mova o item X para a posicao Y": com

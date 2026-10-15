@@ -315,6 +315,9 @@ export async function paginaConexoes({ definirAcoes } = {}) {
           conexao.tipo === 'tiktok' && podeConfigurar()
             ? { rotulo: 'Cadastrar webhook no TikTok', icone: 'conexoes', aoClicar: () => cadastrarWebhookTikTok(conexao) }
             : null,
+          conexao.tipo === 'qrcode' && podeConfigurar()
+            ? { rotulo: 'Apagar conversas', icone: 'lixo', perigo: true, aoClicar: () => apagarConversasDaConexao(conexao, desenhar) }
+            : null,
           podeConfigurar() ? { separador: true } : null,
           podeConfigurar()
             ? { rotulo: 'Excluir', icone: 'lixo', perigo: true, aoClicar: () => excluir(conexao, desenhar) }
@@ -874,10 +877,24 @@ function abaAcoes(conexao, painel, recarregarTela) {
           }),
         )
       : null,
+    conexao.tipo === 'qrcode' && podeConfigurar()
+      ? acao(
+          'Apagar conversas',
+          `Apaga as mensagens, anexos e o historico de toda conversa ligada a este numero — ele continua configurado. Ao reconectar, so voltam conversas dos ultimos ${MESES_PADRAO_AO_APAGAR} meses.`,
+          botao('Apagar conversas', {
+            tipo: 'perigo',
+            aoClicar: () =>
+              apagarConversasDaConexao(conexao, async () => {
+                painel.fechar();
+                await recarregarTela();
+              }),
+          }),
+        )
+      : null,
     podeConfigurar()
       ? acao(
           'Excluir conexao',
-          'So e possivel se nenhuma conversa estiver ligada a este numero. Migre-as antes.',
+          'Se houver conversas, a exclusao pede uma segunda confirmacao para apagar o numero e as conversas juntos.',
           botao('Excluir', {
             tipo: 'perigo',
             aoClicar: () =>
@@ -1185,6 +1202,30 @@ function confirmarExclusaoComConversas(conexao, avisoDaConferencia, depois) {
       await depois();
     },
     'Apagar tudo',
+  );
+}
+
+/** Quantos meses de historico entram ao reconectar, depois de apagar as conversas de uma conexao. */
+const MESES_PADRAO_AO_APAGAR = 6;
+
+/**
+ * Apaga as conversas de uma conexao e mantem o numero configurado, pronto
+ * para desconectar e reconectar: a sincronizacao que acontece sozinha ao
+ * reconectar vai trazer do celular so os ultimos meses, nao o historico
+ * inteiro de novo. Diferente de excluir a conexao: aqui o numero continua
+ * cadastrado, so a conversa anterior (mensagens, anexos, historico) some —
+ * definitivo, sem copia guardada.
+ */
+function apagarConversasDaConexao(conexao, depois) {
+  confirmar(
+    `Apagar as conversas de ${conexao.nome}?`,
+    `Apaga as mensagens, anexos e o historico de toda conversa ligada a este numero — o numero continua configurado. Ao desconectar e reconectar, so voltam conversas dos ultimos ${MESES_PADRAO_AO_APAGAR} meses. Nao pode ser desfeita.`,
+    async () => {
+      const resultado = await api.post(`/api/conexoes/${conexao.id}/apagar-conversas`, { manterMeses: MESES_PADRAO_AO_APAGAR });
+      aviso(`${resultado.conversasExcluidas} conversa(s) apagada(s).`, 'sucesso');
+      await depois();
+    },
+    'Apagar conversas',
   );
 }
 
