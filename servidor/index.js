@@ -13,6 +13,7 @@ import { migrarCoresParaTokens } from './nucleo/paleta.js';
 import { migrarTiposDeCaso } from './nucleo/casos.js';
 import { migrarCanaisDeOrigem } from './nucleo/origens.js';
 import { migrarSemIdentificacaoParaNumero } from './whatsapp/migrar-nomes.js';
+import { deduplicarContatos } from './whatsapp/duplicados.js';
 import { contextoDaSessao, limparSessoesOrfas, migrarPapeis } from './nucleo/auth.js';
 import { migrarNomesDeAgentes } from './nucleo/migrar-agentes.js';
 import { aplicarRegrasInstitucionais } from './nucleo/migrar-regras-institucionais.js';
@@ -82,6 +83,13 @@ if (origensAcertadas) console.log(`Origens de anuncio e Instagram: ${origensAcer
    importar-historico.js). */
 const semIdentificacaoAcertados = migrarSemIdentificacaoParaNumero();
 if (semIdentificacaoAcertados) console.log(`Conversa sem identificacao: ${semIdentificacaoAcertados} trocada(s) pelo numero.`);
+/* Contato duplicado (mesma pessoa, dois registros) — achado em 15/10/2026 na
+   importacao da LiderHub, ja corrigido na fonte (ver integracoes/liderhub.js).
+   Funde o que ja ficou duplicado antes da correcao. */
+const contatosFundidos = deduplicarContatos();
+if (contatosFundidos.fundidos) {
+  console.log(`Contatos duplicados: ${contatosFundidos.fundidos} fundido(s), ${contatosFundidos.mensagensMovidas} mensagem(ns) movida(s).`);
+}
 /* O agente de avaliacao do atendimento, uma vez em cada escritorio. */
 const avaliadores = garantirAvaliacaoNosEscritorios();
 if (avaliadores) console.log(`Avaliacao do atendimento: agente instalado em ${avaliadores} escritorio(s).`);

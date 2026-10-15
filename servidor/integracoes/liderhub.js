@@ -161,7 +161,15 @@ export async function importarClassificacao(workspaceId, { simular = true } = {}
     throw erro;
   }
 
-  const conexao = listar('conexoes', { workspaceId })[0];
+  /* A mesma conexao que a fase 2 escolhe (a de qrcode), quando existir — nunca
+     so "a primeira do workspace". Workspace com qrcode E simulador (comum: o
+     simulador e o "Chat de teste" que todo workspace ja nasce com) escolhendo
+     uma conexao diferente em cada fase criava DOIS contatos para a mesma
+     pessoa da LiderHub, um por fase (achado em 15/10/2026, ver duplicados.js).
+     So cai para "a primeira" quando nao ha nenhuma de qrcode, para continuar
+     servindo um workspace so de teste. */
+  const conexoesDoWorkspace = listar('conexoes', { workspaceId });
+  const conexao = conexoesDoWorkspace.find((c) => c.tipo === 'qrcode') || conexoesDoWorkspace[0];
   if (!conexao) {
     const erro = new Error('Cadastre uma conexao (numero de WhatsApp ou simulador) antes de importar.');
     erro.codigo = 400;
@@ -232,6 +240,11 @@ export async function importarClassificacao(workspaceId, { simular = true } = {}
         telefone,
         nome: c.contactName || '',
         nomeOrigem: c.contactName ? 'manual' : null,
+        /* O numero da LiderHub ja vem com o pais (igual ao do WhatsApp real) —
+           passar por normalizarTelefone (que ASSUME numero digitado sem pais e
+           completa com 55) inventa numero para quem tiver 11 digitos ou menos
+           depois de so os digitos. Mesmo bug documentado em nucleo/util.js. */
+        doWhatsApp: true,
       });
       if (novo) relatorio.novos += 1;
       else relatorio.atualizados += 1;
@@ -400,6 +413,9 @@ async function processarContatoHistorico({ workspaceId, conexao, chave, contatoL
     telefone,
     nome: contatoLh.contactName || '',
     nomeOrigem: contatoLh.contactName ? 'manual' : null,
+    /* Mesmo motivo da fase 1 (ver acima): o numero da LiderHub ja vem com o
+       pais, igual ao do WhatsApp real. */
+    doWhatsApp: true,
   });
 
   const { statusLh, tagsLh, deptLh, statusDaqui, deptDaqui, etiquetasDaqui } = classificacao;
