@@ -44,6 +44,19 @@ const APELIDOS_STATUS = {
 const espera = (ms) => new Promise((r) => setTimeout(r, ms));
 const soDigitos = (t) => String(t || '').replace(/\D+/g, '');
 
+/* Pedido do escritorio em 15/10/2026: o historico completo (fase 2) vinha
+   com contato demais sem identificacao (gente que nunca chegou a dar o
+   nome, parada ha anos na LiderHub). Trazer so quem teve conversa nos
+   ultimos MESES_DO_HISTORICO meses reduz esse lixo acumulado e deixa a
+   fila de Atendimento enxuta. Calculada na hora da chamada (nao uma vez so
+   no boot), para o "ha 6 meses" andar com o relogio de verdade. */
+const MESES_DO_HISTORICO = 6;
+function dataLimiteDoHistorico() {
+  const limite = new Date();
+  limite.setMonth(limite.getMonth() - MESES_DO_HISTORICO);
+  return limite.toISOString();
+}
+
 function chaveDe(workspaceId) {
   const registro = achar('integracoes', { workspaceId });
   return String(registro?.liderhub?.chave || process.env.CORREIA_LIDERHUB_CHAVE || '').trim();
@@ -279,6 +292,12 @@ export async function importarClassificacao(workspaceId, { simular = true } = {}
  * Contato que ja existe aqui (de uso real ou da fase 1) NUNCA tem
  * responsavel, status, departamento ou etiqueta tocados: so ganha as
  * mensagens que ainda nao tinha.
+ *
+ * So os ultimos MESES_DO_HISTORICO meses (pedido do escritorio, mesmo dia):
+ * o historico completo estava trazendo contato demais sem identificacao —
+ * gente parada ha anos na LiderHub, sem nome nem conversa recente. Limitar
+ * pela ultima modificacao (modifiedAfter) deixa a fila de Atendimento
+ * enxuta, sem o lixo acumulado de contas antigas.
  */
 
 /** Acha a conexao da LiderHub com o mesmo numero da conexao real daqui. */
@@ -316,8 +335,8 @@ export async function detectarHistoricoLiderhub(workspaceId) {
   const numeroDaqui = soDigitos(conexao.numero);
   const conexaoLh = await conexaoNaLiderhub(chave, numeroDaqui);
   await espera(ESPERA_ENTRE);
-  const pagina1 = await pedir('/contacts', chave, { connection: conexaoLh.id, page: 1, limit: 1 });
-  return { numero: conexao.numero, conexaoLiderhubId: conexaoLh.id, totalContatos: pagina1?.pagination?.total ?? 0 };
+  const pagina1 = await pedir('/contacts', chave, { connection: conexaoLh.id, page: 1, limit: 1, modifiedAfter: dataLimiteDoHistorico() });
+  return { numero: conexao.numero, conexaoLiderhubId: conexaoLh.id, totalContatos: pagina1?.pagination?.total ?? 0, meses: MESES_DO_HISTORICO };
 }
 
 /* Uma fila por workspace: nunca duas importacoes do mesmo workspace ao
@@ -481,11 +500,12 @@ export async function enfileirarHistoricoLiderhub(workspaceId) {
   });
 
   const etiquetaId = etiquetaDoHistorico(workspaceId);
+  const limite = dataLimiteDoHistorico();
   const fila = [];
   let pagina = 1;
   for (let volta = 0; volta < 1000; volta += 1) {
     await espera(ESPERA_ENTRE);
-    const dados = await pedir('/contacts', chave, { connection: conexaoLh.id, page: pagina, limit: 100 });
+    const dados = await pedir('/contacts', chave, { connection: conexaoLh.id, page: pagina, limit: 100, modifiedAfter: limite });
     const lote = dados?.contacts || [];
     for (const contatoLh of lote) fila.push({ workspaceId, conexao, chave, contatoLh, etiquetaId });
     anotarHistorico(workspaceId, { contatosTotal: fila.length });

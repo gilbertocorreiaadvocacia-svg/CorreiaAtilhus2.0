@@ -196,6 +196,11 @@ process.exit(0);
     );
 
     s.ok('a LiderHub falsa so recebeu requisicoes com a chave certa (nenhum 401 nos pedidos de teste)', pedidos.length > 0, pedidos.join(', '));
+    s.ok(
+      'o pedido de contatos leva modifiedAfter, para so trazer quem teve conversa nos ultimos 6 meses',
+      pedidos.some((p) => p.startsWith('/v1/contacts') && p.includes('modifiedAfter=')),
+      pedidos.join(', '),
+    );
 
     const segunda = await importar();
     s.ok('rodar de novo termina sem erro', segunda.codigo === 0, segunda.texto.slice(-600));

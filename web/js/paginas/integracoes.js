@@ -810,7 +810,7 @@ function blocoLiderhubHistorico(integracoes, recarregarTela) {
       try {
         detectado = await api.post('/api/integracoes/liderhub/detectar', {});
         limpar(resultado);
-        resultado.append(el('div', { texto: `Encontrado: número ${detectado.numero}, ${detectado.totalContatos} contato(s) na LiderHub.` }));
+        resultado.append(el('div', { texto: `Encontrado: número ${detectado.numero}, ${detectado.totalContatos} contato(s) na LiderHub com conversa nos últimos ${detectado.meses || 6} meses.` }));
         importar.disabled = false;
 
         const dados = await api.get('/api/integracoes');
@@ -827,7 +827,7 @@ function blocoLiderhubHistorico(integracoes, recarregarTela) {
 
   return cartaoAjustes(
     'Histórico completo da LiderHub (uma conexão)',
-    'Traz, de uma conexão específica, o contato e a conversa inteira — não só a classificação. Casa pelo número: a conexão da LiderHub com o mesmo número já conectado aqui em Conexões. Contato que já existe aqui não tem responsável nem status mexidos, só ganha as mensagens que faltavam. Contato novo entra pronto para a IA, exceto quem a LiderHub mostra com uma pessoa cuidando: esse fica Pendente, para a equipe olhar.',
+    'Traz, de uma conexão específica, o contato e a conversa inteira dos últimos 6 meses — não traz quem está parado há mais tempo, para não encher a fila de contato sem identificação. Casa pelo número: a conexão da LiderHub com o mesmo número já conectado aqui em Conexões. Contato que já existe aqui não tem responsável nem status mexidos, só ganha as mensagens que faltavam. Contato novo entra pronto para a IA, exceto quem a LiderHub mostra com uma pessoa cuidando: esse fica Pendente, para a equipe olhar.',
     linhaAjuste('Chave da API', null, chave, { balao: 'A mesma x-company-key da LiderHub. Se já configurou no cartão acima, pode deixar em branco aqui.' }),
     el('div', { class: 'ajuste-linha larga' }, [el('div', {}, [resultado])]),
     rodapeAjustes(podeConfigurar() ? detectar : null, podeConfigurar() ? importar : null),
