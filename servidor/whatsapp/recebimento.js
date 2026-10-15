@@ -161,7 +161,11 @@ function criarContato({ workspaceId, conexao, numero, lid, nomeInicial, nomeOrig
     conexaoId: conexao.id,
     telefone: numero,
     lid,
-    nome: nomeInicial || (canal === 'whatsapp' ? SEM_IDENTIFICACAO : `Contato do ${CANAIS[canal].nome}`),
+    /* Sem nome nenhum (agenda, perfil): mostra o numero, que pelo menos
+       distingue uma conversa da outra na lista — "Conversa sem
+       identificacao" so entra quando nem isso existe (conversa so por
+       @lid, antes do WhatsApp revelar o numero de verdade). */
+    nome: nomeInicial || (canal === 'whatsapp' ? numero || lid || SEM_IDENTIFICACAO : `Contato do ${CANAIS[canal].nome}`),
     nomeOrigem,
     ...(canal !== 'whatsapp' ? { canal, idCanal, usuarioCanal: usuario || null } : {}),
     foto,

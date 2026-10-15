@@ -12,6 +12,7 @@ import { estado as estadoDoEspelho, ligado as espelhoLigado } from './nucleo/esp
 import { migrarCoresParaTokens } from './nucleo/paleta.js';
 import { migrarTiposDeCaso } from './nucleo/casos.js';
 import { migrarCanaisDeOrigem } from './nucleo/origens.js';
+import { migrarSemIdentificacaoParaNumero } from './whatsapp/migrar-nomes.js';
 import { contextoDaSessao, limparSessoesOrfas, migrarPapeis } from './nucleo/auth.js';
 import { migrarNomesDeAgentes } from './nucleo/migrar-agentes.js';
 import { aplicarRegrasInstitucionais } from './nucleo/migrar-regras-institucionais.js';
@@ -75,6 +76,12 @@ if (casosAcertados) console.log(`Tipos de caso e momentos: ${casosAcertados} ace
 /* As origens que respondem pela marca do WhatsApp (anuncio, Instagram). */
 const origensAcertadas = migrarCanaisDeOrigem();
 if (origensAcertadas) console.log(`Origens de anuncio e Instagram: ${origensAcertadas} acertos.`);
+/* "Conversa sem identificacao" com telefone: pedido do escritorio em
+   15/10/2026, sem nome mostra o numero. So entram no texto antigo quem ja
+   tinha sido criado assim; a fonte ja esta corrigida (ver recebimento.js e
+   importar-historico.js). */
+const semIdentificacaoAcertados = migrarSemIdentificacaoParaNumero();
+if (semIdentificacaoAcertados) console.log(`Conversa sem identificacao: ${semIdentificacaoAcertados} trocada(s) pelo numero.`);
 /* O agente de avaliacao do atendimento, uma vez em cada escritorio. */
 const avaliadores = garantirAvaliacaoNosEscritorios();
 if (avaliadores) console.log(`Avaliacao do atendimento: agente instalado em ${avaliadores} escritorio(s).`);
