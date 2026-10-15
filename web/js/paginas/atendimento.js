@@ -3421,6 +3421,7 @@ export async function paginaAtendimento({
       botao('Etiquetas', { pequeno: true, aoClicar: () => acaoMassa('etiquetas') }),
       botao('Conexao', { pequeno: true, aoClicar: () => acaoMassa('conexao') }),
       botao('Concluir', { pequeno: true, aoClicar: () => acaoMassa('arquivar') }),
+      podeConfigurar() ? botao('Excluir', { pequeno: true, tipo: 'perigo', aoClicar: () => acaoMassa('excluir') }) : null,
     ]);
 
     const lista = contatosOrdenados();
@@ -3600,6 +3601,21 @@ export async function paginaAtendimento({
         marcados.clear();
         await desenhar();
       });
+      return;
+    }
+
+    if (tipo === 'excluir') {
+      confirmar(
+        `Excluir ${plural(ids.length, 'conversa', 'conversas')}?`,
+        `Apaga mensagens, anexos e historico de ${plural(ids.length, 'uma conversa', `${ids.length} conversas`)} de uma vez. Nao pode ser desfeita.`,
+        async () => {
+          const resultado = await api.post('/api/contatos/acoes-em-massa', { ids, acao: 'excluir' });
+          aviso(`${resultado.afetados} conversa(s) excluida(s).`, 'sucesso');
+          marcados.clear();
+          await desenhar();
+        },
+        'Excluir',
+      );
       return;
     }
 

@@ -45,6 +45,7 @@ import { testarDiagnostico } from './diagnostico.js';
 import { testarEventosDeConexao } from './eventos-conexao.js';
 import { testarExcluirConexaoComConversas } from './excluir-conexao-com-conversas.js';
 import { testarApagarConversasDaConexao } from './apagar-conversas-da-conexao.js';
+import { testarExcluirEmMassa } from './excluir-em-massa.js';
 import { testarHigiene } from './higiene.js';
 import { testarBaseEStatus } from './base-e-status.js';
 import { testarAtivarAgentesSemEquipe } from './ativar-agentes-sem-equipe.js';
@@ -292,6 +293,7 @@ async function principal() {
     suites.push(await testarEventosDeConexao({ base, evolucao, chaveEvolucao: CHAVE_EVOLUCAO }));
     suites.push(await testarExcluirConexaoComConversas({ base }));
     suites.push(await testarApagarConversasDaConexao({ base }));
+    suites.push(await testarExcluirEmMassa({ base }));
     suites.push(await testarHigiene({ base }));
     suites.push(await testarAtalhos({ base }));
     suites.push(await testarDiagnostico({ base, anthropic }));

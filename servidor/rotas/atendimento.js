@@ -761,12 +761,23 @@ export function registrarAtendimento(rotas) {
   /* ---------------- Acoes em massa ---------------- */
 
   rotas.post('/api/contatos/acoes-em-massa', async ({ ctx, corpo }) => {
+    /* Excluir e irreversivel (LGPD, ver excluirConversa): so administrador,
+       e falha antes de tocar em qualquer conversa, nunca apagando so parte
+       do lote por falta de permissao no meio do caminho. */
+    if (corpo.acao === 'excluir' && !ehAdministrador(ctx)) {
+      throw comCodigo('Somente administrador pode excluir conversas.', 403);
+    }
+
     const ids = corpo.ids || [];
     const alvos = ids.map((id) => achar('contatos', id)).filter((c) => c && podeVerConversa(ctx, c));
     let afetados = 0;
 
     for (const contato of alvos) {
       switch (corpo.acao) {
+        case 'excluir':
+          excluirConversa(ctx, contato);
+          afetados += 1;
+          break;
         case 'status': {
           const status = achar('status', corpo.valor);
           if (!status) break;
