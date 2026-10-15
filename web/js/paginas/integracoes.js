@@ -817,7 +817,7 @@ function blocoLiderhubHistorico(integracoes, recarregarTela) {
 
   return cartaoAjustes(
     'Histórico completo da LiderHub (uma conexão)',
-    'Traz, de uma conexão específica, o contato e a conversa inteira — não só a classificação. Casa pelo número: a conexão da LiderHub com o mesmo número já conectado aqui em Conexões. Contato que já existe aqui não tem responsável nem status mexidos, só ganha as mensagens que faltavam.',
+    'Traz, de uma conexão específica, o contato e a conversa inteira — não só a classificação. Casa pelo número: a conexão da LiderHub com o mesmo número já conectado aqui em Conexões. Contato que já existe aqui não tem responsável nem status mexidos, só ganha as mensagens que faltavam. Contato novo entra pronto para a IA, exceto quem a LiderHub mostra com uma pessoa cuidando: esse fica Pendente, para a equipe olhar.',
     linhaAjuste('Chave da API', null, chave, { balao: 'A mesma x-company-key da LiderHub. Se já configurou no cartão acima, pode deixar em branco aqui.' }),
     el('div', { class: 'ajuste-linha larga' }, [el('div', {}, [resultado])]),
     rodapeAjustes(podeConfigurar() ? detectar : null, podeConfigurar() ? importar : null),

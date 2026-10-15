@@ -13,12 +13,14 @@ import { suite } from './apoio.js';
  * conectado neste workspace.
  *
  * O que nao pode falhar: casa a conexao da LiderHub pelo NUMERO (ignorando
- * formatacao); contato NOVO nasce com o responsavel padrao da conexao daqui
- * (pronto para a IA, sem nenhuma mensagem mandada); contato que JA EXISTIA
- * aqui nunca tem responsavel, estado ou status tocados, so ganha as
- * mensagens que faltavam; toda mensagem leva o prefixo "liderhub:" no
- * idExterno; e rodar a importacao duas vezes nao duplica nada (nem
- * mensagem, nem contagem no relatorio).
+ * formatacao); contato NOVO sem "user" na LiderHub nasce com o responsavel
+ * padrao da conexao daqui (pronto para a IA, sem nenhuma mensagem mandada);
+ * contato NOVO que a LiderHub mostra com uma PESSOA cuidando ("user")
+ * nasce Pendente, sem responsavel (nunca inventa quem seria essa pessoa
+ * aqui); contato que JA EXISTIA aqui nunca tem responsavel, estado ou
+ * status tocados, so ganha as mensagens que faltavam; toda mensagem leva o
+ * prefixo "liderhub:" no idExterno; e rodar a importacao duas vezes nao
+ * duplica nada (nem mensagem, nem contagem no relatorio).
  */
 export async function testarLiderhubHistorico({ raiz }) {
   const s = suite('Historico completo da LiderHub (fase 2)');
@@ -36,6 +38,7 @@ export async function testarLiderhubHistorico({ raiz }) {
       'lh-conn-1': [
         { id: 'lh-contato-A', contactNumber: '5581977770000', contactName: 'Ana Nova' },
         { id: 'lh-contato-B', contactNumber: '5581988880000', contactName: 'Beto Existente' },
+        { id: 'lh-contato-C', contactNumber: '5581966660000', contactName: 'Carla Com Pessoa', user: 'lh-user-1', ticketStatus: 'open' },
       ],
     },
     mensagensPorContato: {
@@ -45,6 +48,9 @@ export async function testarLiderhubHistorico({ raiz }) {
       ],
       'lh-contato-B': [
         { id: 'm-b1', content: 'Mensagem antiga do Beto', outbound: false, createdAt: '2025-02-01T09:00:00.000Z', sentAt: '2025-02-01T09:00:00.000Z' },
+      ],
+      'lh-contato-C': [
+        { id: 'm-c1', content: 'Estou aguardando retorno', outbound: false, createdAt: '2025-03-01T08:00:00.000Z', sentAt: '2025-03-01T08:00:00.000Z' },
       ],
     },
   });
@@ -132,16 +138,17 @@ process.exit(0);
     const primeira = await importar();
     s.ok('a importacao roda sem erro', primeira.codigo === 0, primeira.texto.slice(-600));
     const resultado1 = JSON.parse(primeira.texto.trim().split('\n').pop());
-    s.ok('acha a conexao certa e poe os 2 contatos na fila', resultado1.iniciado?.contatosTotal === 2, JSON.stringify(resultado1.iniciado));
+    s.ok('acha a conexao certa e poe os 3 contatos na fila', resultado1.iniciado?.contatosTotal === 3, JSON.stringify(resultado1.iniciado));
     s.ok(
-      'termina concluido, com 2 contatos e 3 mensagens novas',
-      resultado1.historico?.situacao === 'concluido' && resultado1.historico?.contatosProcessados === 2 && resultado1.historico?.mensagensImportadas === 3,
+      'termina concluido, com 3 contatos e 4 mensagens novas',
+      resultado1.historico?.situacao === 'concluido' && resultado1.historico?.contatosProcessados === 3 && resultado1.historico?.mensagensImportadas === 4,
       JSON.stringify(resultado1.historico),
     );
 
     let base = await lerBase();
     const ana = base.contatos.find((c) => c.telefone === '5581977770000');
     const beto = base.contatos.find((c) => c.telefone === '5581988880000');
+    const carla = base.contatos.find((c) => c.telefone === '5581966660000');
 
     s.ok('a Ana (contato novo) foi criada', Boolean(ana), JSON.stringify(ana));
     s.ok(
@@ -173,8 +180,20 @@ process.exit(0);
       JSON.stringify({ ultimaMensagemEm: beto?.ultimaMensagemEm, previa: beto?.previa }),
     );
 
+    s.ok('a Carla (contato novo, com "user" na LiderHub) foi criada', Boolean(carla), JSON.stringify(carla));
+    s.ok(
+      'a Carla NAO entra pronta para a IA: fica Pendente, sem responsavel inventado',
+      carla?.responsavel === null && carla?.estado === 'pendente' && !carla?.aceitoPor,
+      JSON.stringify({ responsavel: carla?.responsavel, estado: carla?.estado, aceitoPor: carla?.aceitoPor }),
+    );
+    s.ok('a Carla ganha a mensagem dela mesmo assim', base.mensagens['5581966660000']?.length === 1 && base.mensagens['5581966660000'][0].idExterno === 'liderhub:m-c1', JSON.stringify(base.mensagens['5581966660000']));
+
     const etiquetaHistorico = base.etiquetas.find((e) => e.nome === 'Histórico LiderHub');
-    s.ok('a etiqueta "Histórico LiderHub" existe e foi aplicada nos dois', Boolean(etiquetaHistorico) && ana.etiquetas.includes(etiquetaHistorico.id) && beto.etiquetas.includes(etiquetaHistorico.id), JSON.stringify({ etiquetaHistorico, anaEtiquetas: ana?.etiquetas, betoEtiquetas: beto?.etiquetas }));
+    s.ok(
+      'a etiqueta "Histórico LiderHub" existe e foi aplicada nos tres',
+      Boolean(etiquetaHistorico) && ana.etiquetas.includes(etiquetaHistorico.id) && beto.etiquetas.includes(etiquetaHistorico.id) && carla.etiquetas.includes(etiquetaHistorico.id),
+      JSON.stringify({ etiquetaHistorico, anaEtiquetas: ana?.etiquetas, betoEtiquetas: beto?.etiquetas, carlaEtiquetas: carla?.etiquetas }),
+    );
 
     s.ok('a LiderHub falsa so recebeu requisicoes com a chave certa (nenhum 401 nos pedidos de teste)', pedidos.length > 0, pedidos.join(', '));
 
@@ -186,9 +205,11 @@ process.exit(0);
     const depois = await lerBase();
     s.ok(
       'rodar de novo nao duplica mensagem nenhuma',
-      depois.mensagens['5581977770000']?.length === 2 && depois.mensagens['5581988880000']?.length === 1,
-      JSON.stringify({ ana: depois.mensagens['5581977770000']?.length, beto: depois.mensagens['5581988880000']?.length }),
+      depois.mensagens['5581977770000']?.length === 2 && depois.mensagens['5581988880000']?.length === 1 && depois.mensagens['5581966660000']?.length === 1,
+      JSON.stringify({ ana: depois.mensagens['5581977770000']?.length, beto: depois.mensagens['5581988880000']?.length, carla: depois.mensagens['5581966660000']?.length }),
     );
+    const carlaDepois = depois.contatos.find((c) => c.telefone === '5581966660000');
+    s.ok('rodar de novo nao muda o modo da Carla (ja existia, nunca e tocada de novo)', carlaDepois?.estado === 'pendente' && carlaDepois?.responsavel === null, JSON.stringify(carlaDepois));
   } finally {
     servidor.close();
     fs.rmSync(pasta, { recursive: true, force: true });

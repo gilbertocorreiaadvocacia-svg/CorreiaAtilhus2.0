@@ -265,10 +265,16 @@ export async function importarClassificacao(workspaceId, { simular = true } = {}
  * Segunda fase: o historico COMPLETO (contato + conversa inteira) de UMA
  * conexao da LiderHub — a que tiver o mesmo numero da conexao deste
  * workspace. Pedido do escritorio em 15/10/2026, depois da fase 1
- * (classificacao) ja estar no ar: so o numero do Trabalhista, e o contato
- * entra pronto para a IA (responsavel = o agente de entrada da conexao, o
- * mesmo que qualquer lead novo receberia) sem mandar nenhuma mensagem agora
- * — a IA so fala se a PESSOA escrever de novo.
+ * (classificacao) ja estar no ar: so o numero do Trabalhista, sem mandar
+ * nenhuma mensagem agora.
+ *
+ * Contato NOVO entra pronto para a IA por padrao (responsavel = o agente de
+ * entrada da conexao, o mesmo que qualquer lead novo receberia) — a IA so
+ * fala se a PESSOA escrever de novo. Excecao, pedida em 15/10/2026: a
+ * LiderHub manda, por contato, quem cuidava dele la (`user` = uma pessoa,
+ * `agent` = um agente de IA dela). Contato que tinha PESSOA cuidando nao
+ * entra pronto para a IA: fica Pendente, esperando a equipe olhar e decidir
+ * (nunca inventa quem seria essa pessoa no nosso sistema).
  *
  * Contato que ja existe aqui (de uso real ou da fase 1) NUNCA tem
  * responsavel, status, departamento ou etiqueta tocados: so ganha as
@@ -349,6 +355,19 @@ async function processarContatoHistorico({ workspaceId, conexao, chave, contatoL
 
   if (etiquetaId && !(contato.etiquetas || []).includes(etiquetaId)) {
     atualizar('contatos', contato.id, { etiquetas: [...(contato.etiquetas || []), etiquetaId] });
+  }
+
+  /* So decide o modo de um contato NOVO (o que ja existia aqui nunca tem
+     responsavel/estado tocados). Por padrao, acharOuCriarContato ja deixa
+     pronto para a IA (responsavelPadrao da conexao). Mas a LiderHub manda,
+     por contato, quem cuidava la — "user" e uma PESSOA; "agent" e um agente
+     de IA dela. Quem tinha pessoa cuidando nao entra pronto para a IA daqui:
+     fica Pendente, esperando a equipe olhar e decidir (nunca inventa quem
+     seria essa pessoa no nosso sistema). */
+  if (novo && contatoLh.user) {
+    atualizar('contatos', contato.id, { responsavel: null, estado: 'pendente', aceitoPor: null });
+    contato.responsavel = null;
+    contato.estado = 'pendente';
   }
 
   const idsQueJaTenho = new Set(mensagensDe(contato.id).map((m) => m.idExterno).filter(Boolean));
