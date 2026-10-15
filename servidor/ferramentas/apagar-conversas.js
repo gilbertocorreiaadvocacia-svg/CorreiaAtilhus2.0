@@ -22,6 +22,7 @@ import { agora, garantirPasta, gravarAtomico } from '../nucleo/util.js';
  * Uso (COM O SERVIDOR PARADO):
  *   node servidor/ferramentas/apagar-conversas.js --copia <pasta nova>
  *   node servidor/ferramentas/apagar-conversas.js --copia <pasta nova> --origem <id do workspace>
+ *   node servidor/ferramentas/apagar-conversas.js --copia <pasta nova> --origem <id do workspace> --manter-meses 6
  *
  * Sem --origem, o escritorio e o geral (o unico sem area).
  *
@@ -32,9 +33,15 @@ import { agora, garantirPasta, gravarAtomico } from '../nucleo/util.js';
  * os proprios arquivos (movidos, e nao apagados). Midia que tambem e usada por
  * template, agente ou voz e COPIADA, e continua no lugar.
  *
- * Os numeros por QR Code do escritorio ficam marcados para a importacao do
- * celular nao trazer de volta nada de antes de agora (naoTrazerAntesDe, em
- * whatsapp/importar-historico.js). A agenda de nomes do celular fica.
+ * Os numeros por QR Code do escritorio ficam marcados (naoTrazerAntesDe, em
+ * whatsapp/importar-historico.js) para a importacao do celular nao trazer de
+ * volta o que foi apagado. Sem --manter-meses, o corte e AGORA: nada do
+ * historico antigo volta, nem ao desconectar e reconectar o numero — so o que
+ * chegar a partir de agora. Com --manter-meses N, o corte fica N meses atras:
+ * ao reconectar, o celular sincroniza de novo, e so entra o que for mais
+ * recente que isso (pedido do escritorio em 15/10/2026, para reconectar e
+ * comecar com os ultimos N meses, em vez do historico inteiro de novo). A
+ * agenda de nomes do celular fica.
  *
  * Imprime so contagens.
  */
@@ -139,7 +146,13 @@ async function principal() {
     remover('contatos', contato.id);
   }
 
-  const corte = agora();
+  const meses = Number(argumento('--manter-meses'));
+  let corte = agora();
+  if (Number.isFinite(meses) && meses > 0) {
+    const data = new Date();
+    data.setMonth(data.getMonth() - meses);
+    corte = data.toISOString();
+  }
   let numeros = 0;
   for (const conexao of listar('conexoes', { workspaceId: workspace.id })) {
     if (conexao.tipo !== 'qrcode') continue;
@@ -153,8 +166,12 @@ async function principal() {
   });
 
   await encerrarBanco();
+  const comoFicouOCorte =
+    Number.isFinite(meses) && meses > 0
+      ? `ao reconectar, so entram conversas dos ultimos ${meses} meses`
+      : 'nao trazer o historico antigo de volta';
   console.log(
-    `${workspace.nome}: ${contatos.length} conversas e ${mensagens} mensagens apagadas, ${arquivos} arquivos guardados na copia, ${numeros} numeros marcados para nao trazer o historico antigo de volta.`,
+    `${workspace.nome}: ${contatos.length} conversas e ${mensagens} mensagens apagadas, ${arquivos} arquivos guardados na copia, ${numeros} numero(s) marcado(s) para ${comoFicouOCorte}.`,
   );
   process.exit(0);
 }
