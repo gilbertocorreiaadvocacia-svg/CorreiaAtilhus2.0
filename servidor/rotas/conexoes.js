@@ -12,7 +12,8 @@ import { guardarNaAgenda } from '../whatsapp/agenda.js';
 import { completarComEvolutionLocal, garantirEvolutionLocal } from '../whatsapp/evolution-local.js';
 import { agendarSincronizacao, cancelarSincronizacao, rodar } from '../whatsapp/sincronizar-historico.js';
 import { nomeEhProvisorio } from '../whatsapp/nomes.js';
-import { comCodigo, exigirConfiguracao } from './sessao.js';
+import { comCodigo, exigirAdministrador, exigirConfiguracao } from './sessao.js';
+import { excluirConversa } from './atendimento.js';
 
 /**
  * Conexoes de WhatsApp.
@@ -354,18 +355,38 @@ export function registrarConexoes(rotas) {
     return paraTela(movida);
   });
 
-  rotas.delete('/api/conexoes/:id', async ({ ctx, params }) => {
+  /**
+   * Excluir uma conexao com conversas e irreversivel, entao o padrao continua
+   * sendo pedir para migrar antes. Mas a equipe pediu, em 15/10/2026, que a
+   * possibilidade de apagar tudo de uma vez (numero e conversas) continuasse
+   * existindo mesmo com MUITAS conversas — sem precisar migrar uma a uma so
+   * para poder excluir. `corpo.apagarConversas` e essa confirmacao explicita
+   * (a tela pede de novo, com o aviso e a contagem, antes de mandar).
+   */
+  rotas.delete('/api/conexoes/:id', async ({ ctx, params, corpo }) => {
     exigirConfiguracao(ctx);
     const conexao = achar('conexoes', params.id);
     if (!conexao || conexao.workspaceId !== ctx.workspaceId) throw comCodigo('Conexao nao encontrada.', 404);
-    const emUso = listar('contatos', { workspaceId: ctx.workspaceId }).some((c) => c.conexaoId === params.id);
-    if (emUso) throw comCodigo('Ha conversas nesta conexao. Migre-as para outro numero antes de excluir.', 409);
+
+    const contatos = listar('contatos', { workspaceId: ctx.workspaceId }).filter((c) => c.conexaoId === params.id);
+    if (contatos.length) {
+      if (!corpo?.apagarConversas) {
+        throw comCodigo(
+          `Ha ${contatos.length} conversa(s) nesta conexao. Confirme a exclusao das conversas junto, ou migre-as para outro numero antes de excluir.`,
+          409,
+        );
+      }
+      exigirAdministrador(ctx);
+      for (const contato of contatos) excluirConversa(ctx, contato);
+      emitir(ctx.workspaceId, 'contatos', {});
+    }
+
     cancelarSincronizacao(params.id);
     /* A agenda e a lista de contatos do celular daquele numero: sem o numero,
        guardar nome e telefone de centenas de pessoas nao serve a ninguem. */
     for (const registro of listar('agenda', { conexaoId: params.id })) remover('agenda', registro.id);
     remover('conexoes', params.id);
-    return { ok: true };
+    return { ok: true, conversasExcluidas: contatos.length };
   });
 
   /**

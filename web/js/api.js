@@ -63,5 +63,5 @@ export const api = {
   post: (caminho, corpo) => pedir('POST', caminho, corpo || {}),
   patch: (caminho, corpo) => pedir('PATCH', caminho, corpo || {}),
   put: (caminho, corpo) => pedir('PUT', caminho, corpo || {}),
-  delete: (caminho) => pedir('DELETE', caminho),
+  delete: (caminho, corpo) => pedir('DELETE', caminho, corpo),
 };

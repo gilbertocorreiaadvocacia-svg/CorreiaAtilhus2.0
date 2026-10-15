@@ -137,6 +137,43 @@ function abaDe(contato) {
   return 'pendentes';
 }
 
+/**
+ * Exclusao definitiva de UMA conversa: mensagens, anexos no disco,
+ * agendamentos, registros de consumo e o historico, nada fica espalhado pelo
+ * resto do sistema. Compartilhada com a exclusao de conexao (ver
+ * rotas/conexoes.js), que chama isto para cada conversa quando a equipe
+ * confirma apagar a conexao junto com as conversas dela.
+ */
+export function excluirConversa(ctx, contato) {
+  cancelarResposta(contato.id);
+  limparAgendamentosDoContato(contato.id);
+
+  for (const arquivo of contato.arquivos || []) {
+    try {
+      fs.unlinkSync(path.join(PASTA_ARQUIVOS, arquivo.caminho));
+    } catch {
+      /* arquivo ja nao estava la */
+    }
+  }
+  for (const mensagem of mensagensDe(contato.id)) {
+    if (mensagem.midia?.url) apagarMidia(mensagem.midia.url);
+  }
+
+  apagarMensagens(contato.id);
+  removerOnde('logs', { contatoId: contato.id });
+  removerOnde('creditos', { contatoId: contato.id });
+  removerOnde('compromissos', { contatoId: contato.id });
+  removerOnde('contratos', { contatoId: contato.id });
+  removerOnde('notificacoes', { contatoId: contato.id });
+  removerTarefasDoContato(contato.id);
+  remover('contatos', contato.id);
+
+  registrarLog(ctx.workspaceId, null, 'exclusao', `Conversa de ${contato.nome} (${contato.telefone}) excluida definitivamente`, {
+    tipo: 'membro',
+    nome: ctx.usuario.nome,
+  });
+}
+
 export function registrarAtendimento(rotas) {
   /* ---------------- Listagem ---------------- */
 
@@ -809,34 +846,7 @@ export function registrarAtendimento(rotas) {
   rotas.delete('/api/contatos/:id', async ({ ctx, params }) => {
     if (!ehAdministrador(ctx)) throw comCodigo('Somente administrador pode excluir uma conversa.', 403);
     const contato = conversaOu404(ctx, params.id);
-
-    cancelarResposta(contato.id);
-    limparAgendamentosDoContato(contato.id);
-
-    for (const arquivo of contato.arquivos || []) {
-      try {
-        fs.unlinkSync(path.join(PASTA_ARQUIVOS, arquivo.caminho));
-      } catch {
-        /* arquivo ja nao estava la */
-      }
-    }
-    for (const mensagem of mensagensDe(contato.id)) {
-      if (mensagem.midia?.url) apagarMidia(mensagem.midia.url);
-    }
-
-    apagarMensagens(contato.id);
-    removerOnde('logs', { contatoId: contato.id });
-    removerOnde('creditos', { contatoId: contato.id });
-    removerOnde('compromissos', { contatoId: contato.id });
-    removerOnde('contratos', { contatoId: contato.id });
-    removerOnde('notificacoes', { contatoId: contato.id });
-    removerTarefasDoContato(contato.id);
-    remover('contatos', contato.id);
-
-    registrarLog(ctx.workspaceId, null, 'exclusao', `Conversa de ${contato.nome} (${contato.telefone}) excluida definitivamente`, {
-      tipo: 'membro',
-      nome: ctx.usuario.nome,
-    });
+    excluirConversa(ctx, contato);
     emitir(ctx.workspaceId, 'contatos', {});
     return { ok: true };
   });

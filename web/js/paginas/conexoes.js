@@ -1149,16 +1149,42 @@ function copiarWebhook(conexao) {
     .catch(() => aviso(`Copie a mao: ${url}`, ''));
 }
 
+/*
+ * Com conversas ligadas, excluir pede confirmacao em DOIS passos: primeiro o
+ * pedido de sempre, depois um segundo, mais forte, so quando ha conversa de
+ * verdade em jogo. Pedido da equipe em 15/10/2026: a possibilidade de apagar
+ * o numero e as conversas juntos precisa continuar existindo mesmo com
+ * MUITAS conversas, sem ter de migrar uma a uma so para poder excluir — mas
+ * sempre com o aviso antes, porque e irreversivel.
+ */
 function excluir(conexao, depois) {
   confirmar(
     `Excluir ${conexao.nome}?`,
-    'So e possivel se nenhuma conversa estiver ligada a esta conexao.',
+    'So e possivel sem apagar as conversas se nenhuma estiver ligada a esta conexao.',
     async () => {
-      await api.delete(`/api/conexoes/${conexao.id}`);
-      aviso('Conexao excluida.', 'sucesso');
-      await depois();
+      try {
+        await api.delete(`/api/conexoes/${conexao.id}`);
+        aviso('Conexao excluida.', 'sucesso');
+        await depois();
+      } catch (erro) {
+        if (erro.codigo !== 409) throw erro;
+        confirmarExclusaoComConversas(conexao, erro.message, depois);
+      }
     },
     'Excluir',
+  );
+}
+
+function confirmarExclusaoComConversas(conexao, avisoDaConferencia, depois) {
+  confirmar(
+    `Apagar ${conexao.nome} e as conversas dela?`,
+    `${avisoDaConferencia} Essa acao apaga as conversas (mensagens, anexos, historico) junto com o numero. Nao pode ser desfeita.`,
+    async () => {
+      await api.delete(`/api/conexoes/${conexao.id}`, { apagarConversas: true });
+      aviso('Numero e conversas excluidos.', 'sucesso');
+      await depois();
+    },
+    'Apagar tudo',
   );
 }
 
