@@ -3397,6 +3397,9 @@ export async function paginaAtendimento({
       botao('Exportar CSV', { pequeno: true, aoClicar: exportar }),
       botao('Exportar conversas', { pequeno: true, titulo: 'Histórico em texto, para treinar agente', aoClicar: abrirExportacaoHistorico }),
       botao('Importar planilha', { pequeno: true, aoClicar: abrirImportacao }),
+      podeConfigurar()
+        ? botao('Excluir todos os contatos', { pequeno: true, tipo: 'perigo', aoClicar: excluirTudo })
+        : null,
     ]);
 
     if (!contatos.length) {
@@ -3684,6 +3687,30 @@ export async function paginaAtendimento({
         await desenhar();
       },
     });
+  }
+
+  /**
+   * Apaga TODO contato (e toda conversa) do workspace, de uma vez - ignora
+   * qualquer filtro na tela. Pede o total de verdade ao servidor antes de
+   * mostrar o aviso (a lista na tela pode estar cortada, ver o aviso de
+   * limite logo acima da tabela), e so apaga depois de confirmar.
+   */
+  async function excluirTudo() {
+    const previa = await api.post('/api/contatos/excluir-tudo', {});
+    if (!previa.total) {
+      aviso('Não há contatos neste workspace.', '');
+      return;
+    }
+    confirmar(
+      `Excluir todos os ${previa.total} contatos?`,
+      'Apaga mensagens, anexos e historico de TODO contato deste workspace, de uma vez - nao so os que estao na tela agora. Não pode ser desfeita.',
+      async () => {
+        const resultado = await api.post('/api/contatos/excluir-tudo', { confirmar: true });
+        aviso(`${resultado.afetados} contato(s) excluido(s).`, 'sucesso');
+        await desenhar();
+      },
+      'Excluir tudo',
+    );
   }
 
   async function exportar() {

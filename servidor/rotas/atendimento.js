@@ -849,6 +849,31 @@ export function registrarAtendimento(rotas) {
   });
 
   /**
+   * Apaga TODO contato (e toda conversa) deste workspace, de uma vez - sem
+   * depender de marcar um por um nem de uma conexao existir. Pedido do
+   * escritorio em 15/10/2026, depois de uma conexao excluida ter deixado
+   * conversas orfas para tras: o jeito mais direto de comecar um workspace do
+   * zero. Ignora qualquer filtro que a tela esteja mostrando - e sempre TODO
+   * contato do workspace. `corpo.confirmar` precisa vir true, igual ao
+   * `apagarConversas` da exclusao de conexao: nunca por acidente num clique
+   * so.
+   */
+  rotas.post('/api/contatos/excluir-tudo', async ({ ctx, corpo }) => {
+    if (!ehAdministrador(ctx)) throw comCodigo('Somente administrador pode excluir todos os contatos.', 403);
+    const contatos = listar('contatos', { workspaceId: ctx.workspaceId });
+    if (!corpo?.confirmar) {
+      return { confirmar: true, total: contatos.length };
+    }
+    for (const contato of contatos) excluirConversa(ctx, contato);
+    registrarLog(ctx.workspaceId, null, 'exclusao', `Todos os ${contatos.length} contatos do workspace foram excluidos de uma vez`, {
+      tipo: 'membro',
+      nome: ctx.usuario.nome,
+    });
+    emitir(ctx.workspaceId, 'contatos', {});
+    return { ok: true, afetados: contatos.length };
+  });
+
+  /**
    * Exclusao definitiva da conversa. Existe por causa da LGPD: quando o titular
    * pede a eliminacao dos dados dele, arquivar nao basta. Leva junto mensagens,
    * arquivos, agendamentos, registros de consumo e o historico, nao adianta
