@@ -126,6 +126,11 @@ const PAGINAS = {
     montar: (args) => import('./paginas/modulo-agentes.js').then((m) => m.moduloAgentes('testes-de-roteamento')(args)),
     semCabeca: true,
   },
+  'custos-de-agentes': {
+    titulo: 'Custos dos agentes',
+    montar: (args) => import('./paginas/modulo-agentes.js').then((m) => m.moduloAgentes('custos-de-agentes')(args)),
+    semCabeca: true,
+  },
   configuracoes: { titulo: 'Configurações', montar: (args) => import('./paginas/configuracoes.js').then((m) => m.paginaConfiguracoes(args)) },
 };
 

@@ -1,6 +1,7 @@
 import { el, limpar } from '../ui.js';
 import { paginaAgentes } from './agentes.js';
 import { paginaConhecimento } from './conhecimento.js';
+import { paginaCustosDeAgentes } from './custos-de-agentes.js';
 import { paginaSimulador } from './simulador.js';
 import { paginaTestesDeRoteamento } from './testes-de-roteamento.js';
 
@@ -25,6 +26,7 @@ export const VISOES_DE_AGENTES = [
   { rota: 'conhecimento', rotulo: 'Base de conhecimento', montar: paginaConhecimento },
   { rota: 'simulador', rotulo: 'Chat de teste', montar: paginaSimulador },
   { rota: 'testes-de-roteamento', rotulo: 'Testar roteamento', montar: paginaTestesDeRoteamento },
+  { rota: 'custos-de-agentes', rotulo: 'Custos', montar: paginaCustosDeAgentes },
 ];
 
 export function moduloAgentes(rota) {
