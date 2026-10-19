@@ -8,6 +8,7 @@ import { normalizarMomentos } from '../nucleo/casos.js';
 import { sintetizar, vozDisponivel } from '../ia/audio.js';
 import { analisarPrompt, catalogoCompleto, ferramentasDoAgente } from '../ia/mencoes.js';
 import { forcarResposta } from '../ia/motor.js';
+import { acharOuCriarContato, receberMensagem } from '../whatsapp/recebimento.js';
 import { modeloDe, provedorDisponivel, conversar } from '../ia/provedores.js';
 import { comCodigo, exigirConfiguracao } from './sessao.js';
 import { removerTemplate } from '../automacao/remover-template.js';
@@ -741,6 +742,127 @@ export function registrarAutomacoes(rotas) {
     if (!contato || contato.workspaceId !== ctx.workspaceId) throw comCodigo('Conversa nao encontrada.', 404);
     const texto = await forcarResposta(contato.id);
     return { ok: true, texto };
+  });
+
+  /* ---------------- Testes de roteamento (aba "Testar roteamento") ----------------
+   *
+   * Pedido do escritorio em 19/10/2026: testar se uma frase sobre um
+   * beneficio cai no agente certo. Cada caso e frase + o agente esperado;
+   * "rodar" manda cada frase para o agente de ENTRADA da area (o primeiro
+   * agente do pacote, normalmente a Triagem — o mesmo que todo numero real
+   * recebe como responsavelPadrao, ver ligarNumerosDasAreas). A conexao de
+   * simulador, de proposito, NUNCA tem responsavelPadrao proprio (quem
+   * escolhe e a tela do Chat de teste) — por isso o agente de entrada e
+   * atribuido aqui, antes da mensagem, do mesmo jeito que
+   * POST /api/simulador/mensagem ja faz quando a tela força um agente. Dali
+   * em diante quem decide se transfere (e para quem) e o proprio agente,
+   * pelas regras do prompt dele — igual com um lead de verdade.
+   */
+
+  const comNomeDoAgente = (caso) => ({
+    ...caso,
+    agenteEsperado: achar('agentes', caso.agenteEsperadoId)?.nome || null,
+  });
+
+  rotas.get('/api/testes-de-roteamento', async ({ ctx }) =>
+    listar('testesDeRoteamento', { workspaceId: ctx.workspaceId }).map(comNomeDoAgente),
+  );
+
+  rotas.post('/api/testes-de-roteamento', async ({ ctx, corpo }) => {
+    exigirConfiguracao(ctx);
+    const frase = String(corpo?.frase || '').trim();
+    if (!frase) throw comCodigo('Escreva a frase de teste.', 400);
+    const agente = doWorkspace(ctx, 'agentes', corpo?.agenteEsperadoId);
+    return comNomeDoAgente(
+      inserir('testesDeRoteamento', { id: novoId('tst'), workspaceId: ctx.workspaceId, frase, agenteEsperadoId: agente.id }),
+    );
+  });
+
+  rotas.patch('/api/testes-de-roteamento/:id', async ({ ctx, params, corpo }) => {
+    exigirConfiguracao(ctx);
+    doWorkspace(ctx, 'testesDeRoteamento', params.id);
+    const campos = {};
+    if (corpo?.frase !== undefined) {
+      const frase = String(corpo.frase).trim();
+      if (!frase) throw comCodigo('Escreva a frase de teste.', 400);
+      campos.frase = frase;
+    }
+    if (corpo?.agenteEsperadoId !== undefined) {
+      campos.agenteEsperadoId = doWorkspace(ctx, 'agentes', corpo.agenteEsperadoId).id;
+    }
+    return comNomeDoAgente(atualizar('testesDeRoteamento', params.id, campos));
+  });
+
+  rotas.delete('/api/testes-de-roteamento/:id', async ({ ctx, params }) => {
+    exigirConfiguracao(ctx);
+    doWorkspace(ctx, 'testesDeRoteamento', params.id);
+    remover('testesDeRoteamento', params.id);
+    return { ok: true };
+  });
+
+  rotas.post('/api/testes-de-roteamento/rodar', async ({ ctx }) => {
+    exigirConfiguracao(ctx);
+    const casos = listar('testesDeRoteamento', { workspaceId: ctx.workspaceId });
+    if (!casos.length) throw comCodigo('Nao ha nenhum caso de teste cadastrado.', 400);
+
+    const conexao = listar('conexoes', { workspaceId: ctx.workspaceId }).find((c) => c.tipo === 'simulador');
+    if (!conexao) throw comCodigo('Crie uma conexao de simulador para rodar os testes.', 400);
+
+    const workspace = achar('workspaces', ctx.workspaceId);
+    const nomeDaEntrada = workspace?.area ? PACOTES[workspace.area]?.agentes?.[0]?.nome : null;
+    const agenteEntrada = nomeDaEntrada
+      ? listar('agentes', { workspaceId: ctx.workspaceId }).find((a) => a.nome === nomeDaEntrada)
+      : null;
+    if (!agenteEntrada) throw comCodigo('Nao achei o agente de entrada (Triagem) deste workspace.', 400);
+    if (!agenteEntrada.ativo) throw comCodigo(`O agente ${agenteEntrada.nome} esta desligado. Ligue-o em Agentes para testar.`, 400);
+
+    const resultados = [];
+    for (const caso of casos) {
+      const telefone = `00${Date.now()}${Math.floor(Math.random() * 1000)}`.slice(0, 13);
+      try {
+        const { contato: recemCriado } = acharOuCriarContato({ workspaceId: ctx.workspaceId, conexao, telefone, nome: 'Teste de roteamento' });
+        const paraEntrada = { responsavel: { tipo: 'agente', id: agenteEntrada.id, nome: agenteEntrada.nome }, estado: 'ia' };
+        atualizar('contatos', recemCriado.id, paraEntrada);
+        Object.assign(recemCriado, paraEntrada);
+
+        const { contato } = await receberMensagem({
+          workspaceId: ctx.workspaceId,
+          conexao,
+          telefone,
+          nome: 'Teste de roteamento',
+          conteudo: caso.frase,
+        });
+        /* A palavra-chave da primeira mensagem (quase sempre no-op, ver
+           ia/motor.js) ou o /restart podem ter mexido no responsavel — o
+           agente de entrada precisa ser quem recebe de verdade. */
+        if (contato.responsavel?.id !== agenteEntrada.id) {
+          atualizar('contatos', contato.id, paraEntrada);
+          Object.assign(contato, paraEntrada);
+        }
+
+        await forcarResposta(contato.id);
+        const final = achar('contatos', contato.id);
+        const agenteObtidoId = final?.responsavel?.tipo === 'agente' ? final.responsavel.id : null;
+        resultados.push({
+          casoId: caso.id,
+          frase: caso.frase,
+          agenteEsperado: achar('agentes', caso.agenteEsperadoId)?.nome || null,
+          agenteObtido: achar('agentes', agenteObtidoId)?.nome || null,
+          passou: Boolean(agenteObtidoId) && agenteObtidoId === caso.agenteEsperadoId,
+          contatoId: final?.id || null,
+        });
+      } catch (erro) {
+        resultados.push({
+          casoId: caso.id,
+          frase: caso.frase,
+          agenteEsperado: achar('agentes', caso.agenteEsperadoId)?.nome || null,
+          agenteObtido: null,
+          passou: false,
+          erro: erro.message,
+        });
+      }
+    }
+    return { resultados };
   });
 
   /** Gera o prompt de um agente novo a partir de uma descricao em linguagem comum. */

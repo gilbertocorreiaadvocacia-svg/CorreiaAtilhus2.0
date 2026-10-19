@@ -2,6 +2,7 @@ import { el, limpar } from '../ui.js';
 import { paginaAgentes } from './agentes.js';
 import { paginaConhecimento } from './conhecimento.js';
 import { paginaSimulador } from './simulador.js';
+import { paginaTestesDeRoteamento } from './testes-de-roteamento.js';
 
 /**
  * O modulo de Agentes: tudo o que diz respeito aos agentes num lugar so.
@@ -23,6 +24,7 @@ export const VISOES_DE_AGENTES = [
   { rota: 'agentes', rotulo: 'Agentes', montar: paginaAgentes },
   { rota: 'conhecimento', rotulo: 'Base de conhecimento', montar: paginaConhecimento },
   { rota: 'simulador', rotulo: 'Chat de teste', montar: paginaSimulador },
+  { rota: 'testes-de-roteamento', rotulo: 'Testar roteamento', montar: paginaTestesDeRoteamento },
 ];
 
 export function moduloAgentes(rota) {

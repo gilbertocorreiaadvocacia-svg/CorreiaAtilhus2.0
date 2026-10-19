@@ -514,6 +514,58 @@ export function migrarDepartamentoPosVenda() {
 }
 
 /**
+ * Casos padrao para a bateria de teste de roteamento (aba "Testar
+ * roteamento" em Agentes) — pedido do escritorio em 19/10/2026: testar se
+ * uma frase sobre um beneficio cai no agente certo. Os gatilhos vem do
+ * proprio prompt da Eduarda (ia/pacotes/triagem.js, secao PALAVRAS-CHAVE),
+ * para o teste nunca divergir do que o agente de verdade le. So
+ * Previdenciario por enquanto: "beneficio" e vocabulario daquela area: o
+ * escritorio acrescenta os proprios casos de Trabalhista/Civel pela tela.
+ */
+const CASOS_PADRAO_POR_AREA = {
+  previdenciario: [
+    { frase: 'Minha filha nasceu semana passada, queria saber se eu tenho direito a algum beneficio', agente: 'Juliana (Materno 1)' },
+    { frase: 'Sofri um acidente indo para o trabalho e fiquei com uma sequela no braco, nao consigo mais trabalhar direito', agente: 'Beatriz (Triagem)' },
+    { frase: 'Meu filho tem autismo e nunca contribuiu com o INSS, queria saber sobre BPC', agente: 'Andreia (BPC 1) Triagem' },
+  ],
+};
+
+/**
+ * So semeia workspace que ainda nao tem NENHUM caso — nunca sobrescreve o
+ * que a equipe editou ou acrescentou. Pula caso cujo agente esperado ainda
+ * nao existe (pacote nao instalado, ou nome do agente foi trocado): melhor
+ * um caso a menos do que um caso apontando para um agente inventado.
+ */
+export function garantirTestesDeRoteamento() {
+  let workspacesSemeados = 0;
+  let casosCriados = 0;
+
+  for (const workspace of listar('workspaces')) {
+    const casosDaArea = workspace.area ? CASOS_PADRAO_POR_AREA[workspace.area] : null;
+    if (!casosDaArea) continue;
+    if (listar('testesDeRoteamento', { workspaceId: workspace.id }).length) continue;
+
+    const agentesDoWorkspace = listar('agentes', { workspaceId: workspace.id });
+    let criadosAqui = 0;
+    for (const caso of casosDaArea) {
+      const agente = agentesDoWorkspace.find((a) => a.nome === caso.agente);
+      if (!agente) continue;
+      inserir('testesDeRoteamento', {
+        id: novoId('tst'),
+        workspaceId: workspace.id,
+        frase: caso.frase,
+        agenteEsperadoId: agente.id,
+      });
+      criadosAqui += 1;
+    }
+    if (criadosAqui) workspacesSemeados += 1;
+    casosCriados += criadosAqui;
+  }
+
+  return { workspacesSemeados, casosCriados };
+}
+
+/**
  * Cada numero de area atendido pelo agente de entrada da area.
  *
  * Separar por escritorio punha os agentes ligados em cada area, e os numeros

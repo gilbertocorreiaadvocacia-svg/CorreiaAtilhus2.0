@@ -41,6 +41,9 @@ const COLECOES = [
   'configuracoes',
   /* Os nomes salvos no celular de cada numero conectado (ver whatsapp/agenda.js). */
   'agenda',
+  /* Frase de teste x agente esperado, para a bateria de roteamento em
+     Agentes (ver automacao/testes-de-roteamento.js). */
+  'testesDeRoteamento',
 ];
 
 const memoria = new Map();

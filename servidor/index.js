@@ -2,9 +2,9 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { monitorEventLoopDelay } from 'node:perf_hooks';
-import { HOSPEDADO, HOST, INTERVALO_AGENDADOR, PORTA, RAIZ, enderecoPermitido } from './config.js';
+import { HOSPEDADO, HOST, INTERVALO_AGENDADOR, INTERVALO_REATRIBUICAO, PORTA, RAIZ, enderecoPermitido } from './config.js';
 import { prepararHospedagem } from './nucleo/hospedagem.js';
-import { ativarAgentesSemEquipe, garantirAgentesDasAreas, garantirAvaliacaoNosEscritorios, garantirPosVendaNosEscritorios, garantirStatusDasAreas, migrarDepartamentoPosVenda } from './nucleo/agentes-por-escritorio.js';
+import { ativarAgentesSemEquipe, garantirAgentesDasAreas, garantirAvaliacaoNosEscritorios, garantirPosVendaNosEscritorios, garantirStatusDasAreas, garantirTestesDeRoteamento, migrarDepartamentoPosVenda } from './nucleo/agentes-por-escritorio.js';
 import { iniciarAvaliacoes } from './automacao/avaliacao.js';
 import { caminhoDaMidia } from './nucleo/midia.js';
 import { atualizar, encerrarBanco, iniciarBanco, listar } from './nucleo/banco.js';
@@ -23,6 +23,7 @@ import { criarRoteador, lerCookies, lerCorpo, responderErro, responderJson, serv
 import { inscrever } from './nucleo/eventos.js';
 import { semearSePrecisar } from './nucleo/seed.js';
 import { iniciarAgendador } from './automacao/followup.js';
+import { iniciarReatribuicaoDePendentes } from './automacao/reatribuir-pendentes.js';
 import { iniciarAcompanhamento } from './integracoes/zapsign-acompanhamento.js';
 import { iniciarIntegracaoJuri } from './integracoes/atilhus-juri.js';
 import { COOKIE_SESSAO, registrarSessao } from './rotas/sessao.js';
@@ -99,6 +100,13 @@ if (avaliadores) console.log(`Avaliacao do atendimento: agente instalado em ${av
 const agentesDasAreas = garantirAgentesDasAreas();
 if (agentesDasAreas.areasCorrigidas || agentesDasAreas.agentesInstalados) {
   console.log(`Agentes por area: ${agentesDasAreas.areasCorrigidas} area(s) corrigida(s), ${agentesDasAreas.agentesInstalados} agente(s) instalado(s).`);
+}
+/* Casos padrao da bateria de teste de roteamento (aba "Testar roteamento"
+   em Agentes) — depois de garantir os agentes, para achar cada um pelo
+   nome. So semeia quem ainda nao tem nenhum caso. */
+const testesDeRoteamento = garantirTestesDeRoteamento();
+if (testesDeRoteamento.casosCriados) {
+  console.log(`Testes de roteamento: ${testesDeRoteamento.casosCriados} caso(s) semeado(s) em ${testesDeRoteamento.workspacesSemeados} workspace(s).`);
 }
 /* O funil de status completo em cada workspace de area, para quem tambem
    nasceu sem ele pelo caminho generico (mesmo achado de 14/10/2026). */
@@ -581,6 +589,9 @@ servidor.listen(PORTA, HOST, () => {
   }
   console.log(`${linha}\n`);
   iniciarAgendador(INTERVALO_AGENDADOR);
+  /* Toda conversa pendente volta para o agente padrao da conexao — ela so
+     fala quando a pessoa escrever de novo (ver reatribuir-pendentes.js). */
+  iniciarReatribuicaoDePendentes(INTERVALO_REATRIBUICAO);
   /* Os contratos enviados: consulta a ZapSign ate saber que foi assinado. */
   iniciarAcompanhamento();
   /* Assinado, o contrato vai para o Atilhus Juri; o que falhar fica na fila. */

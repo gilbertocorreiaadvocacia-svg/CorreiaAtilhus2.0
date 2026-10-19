@@ -23,6 +23,7 @@ import { testarEncadeamento } from './encadeamento.js';
 import { testarDocumentosRecebidos } from './documentos-recebidos.js';
 import { testarCreditosMes } from './creditos-mes.js';
 import { testarEduardaRoteamento } from './eduarda-roteamento.js';
+import { testarBateriaDeRoteamento } from './bateria-de-roteamento.js';
 import { testarPromptAoVivo } from './prompt-ao-vivo.js';
 import { testarPacotes } from './pacotes.js';
 import { subirZapsignFalsa } from './zapsign-falsa.js';
@@ -52,6 +53,7 @@ import { testarBaseEStatus } from './base-e-status.js';
 import { testarAtivarAgentesSemEquipe } from './ativar-agentes-sem-equipe.js';
 import { testarPosVenda } from './posvenda.js';
 import { testarMigrarDepartamentoPosVenda } from './migrar-posvenda.js';
+import { testarReatribuirPendentes } from './reatribuir-pendentes.js';
 import { testarAgentesDasAreas } from './agentes-das-areas.js';
 import { testarStatusDasAreas } from './status-das-areas.js';
 import { testarSituacaoExterna } from './situacao-externa.js';
@@ -284,6 +286,7 @@ async function principal() {
     /* Depois: precisa do escritorio Previdenciario ja criado (os agentes
        reais Eduarda e Andreia vem de la), igual as suites abaixo. */
     suites.push(await testarEduardaRoteamento({ base, anthropic }));
+    suites.push(await testarBateriaDeRoteamento({ base, anthropic }));
     /* Depois de todas as outras: acrescenta conversas em Ativos, e as suites
        de cima contam fila. */
     suites.push(await testarHistorico({ base, evolucao, chaveEvolucao: CHAVE_EVOLUCAO }));
@@ -319,6 +322,7 @@ async function principal() {
     suites.push(await testarAtivarAgentesSemEquipe({ raiz: RAIZ }));
     suites.push(await testarPosVenda({ raiz: RAIZ }));
     suites.push(await testarMigrarDepartamentoPosVenda({ raiz: RAIZ }));
+    suites.push(await testarReatribuirPendentes({ raiz: RAIZ }));
     suites.push(await testarAgentesDasAreas({ raiz: RAIZ }));
     suites.push(await testarStatusDasAreas({ raiz: RAIZ }));
     suites.push(await testarSituacaoExterna({ raiz: RAIZ }));

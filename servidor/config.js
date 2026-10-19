@@ -156,6 +156,9 @@ export const VOZES = [
 /** Intervalo do agendador que dispara follow-ups e mensagens agendadas. */
 export const INTERVALO_AGENDADOR = 15 * 1000;
 
+/** Intervalo da varredura que devolve conversa pendente para o agente padrao. */
+export const INTERVALO_REATRIBUICAO = 10 * 60 * 1000;
+
 /**
  * Custo em creditos de cada acao, espelhando a tabela da auditoria.
  * Serve para o painel de consumo, o sistema e proprio, entao aqui o credito

@@ -121,6 +121,11 @@ const PAGINAS = {
     montar: (args) => import('./paginas/modulo-agentes.js').then((m) => m.moduloAgentes('simulador')(args)),
     semCabeca: true,
   },
+  'testes-de-roteamento': {
+    titulo: 'Testar roteamento',
+    montar: (args) => import('./paginas/modulo-agentes.js').then((m) => m.moduloAgentes('testes-de-roteamento')(args)),
+    semCabeca: true,
+  },
   configuracoes: { titulo: 'Configurações', montar: (args) => import('./paginas/configuracoes.js').then((m) => m.paginaConfiguracoes(args)) },
 };
 
