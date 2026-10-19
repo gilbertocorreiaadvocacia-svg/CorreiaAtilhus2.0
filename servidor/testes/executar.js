@@ -36,6 +36,7 @@ import { testarConexoesWorkspace } from './conexoes-workspace.js';
 import { subirJuriFalso } from './juri-falso.js';
 import { testarJuri } from './juri.js';
 import { testarWorkspacesPorArea } from './workspaces.js';
+import { testarRoteamentoPorArea } from './roteamento-por-area.js';
 import { testarHospedagem } from './hospedagem.js';
 import { testarSobreviver } from './sobreviver.js';
 import { testarAvaliacao } from './avaliacao.js';
@@ -284,6 +285,9 @@ async function principal() {
     suites.push(await testarDoisFatores({ base }));
     /* Cria workspaces novos: depois de quem conta agentes e etiquetas da origem. */
     suites.push(await testarWorkspacesPorArea({ base }));
+    /* Depois do workspaces: usa os numeros por QR Code de cada area, ja
+       separados por escritorio pelo teste acima. */
+    suites.push(await testarRoteamentoPorArea({ base, evolucao, chaveEvolucao: CHAVE_EVOLUCAO }));
     /* Depois: precisa do escritorio Previdenciario ja criado (os agentes
        reais Eduarda e Andreia vem de la), igual as suites abaixo. */
     suites.push(await testarEduardaRoteamento({ base, anthropic }));
