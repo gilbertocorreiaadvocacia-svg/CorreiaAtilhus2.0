@@ -93,26 +93,54 @@ export function deduplicarContatos() {
 
   for (const workspace of listar('workspaces')) {
     const contatos = listar('contatos', { workspaceId: workspace.id });
-    const usados = new Set();
 
-    for (let i = 0; i < contatos.length; i += 1) {
-      const atual = contatos[i];
-      if (usados.has(atual.id) || !atual.telefone) continue;
+    /*
+     * Indice antes de comparar par a par: milhares de contatos por
+     * workspace tornavam o duplo loop original (todo par contra todo par)
+     * caro demais para rodar em TODO boot (achado em 19/10/2026).
+     *
+     * Os ULTIMOS 10 digitos do telefone sao iguais com ou sem o 55 do
+     * Brasil na frente — exatamente a ambiguidade que mesmoTelefone trata.
+     * Dois contatos que mesmoTelefone consideraria o mesmo SEMPRE caem no
+     * mesmo grupo aqui: ou o telefone e identico (mesmos 10 ultimos
+     * digitos), ou um e o outro com 55 na frente (mesmos 10 ultimos
+     * digitos tambem). Um grupo com 1 contato nao tem par possivel e sai
+     * do caminho sem nenhuma comparacao — so grupos com 2+ (raro, depois
+     * da primeira limpeza) pagam a comparacao par a par de verdade.
+     */
+    const porChave = new Map();
+    for (const contato of contatos) {
+      if (!contato.telefone) continue;
+      const chave = soDigitos(contato.telefone).slice(-10);
+      if (!chave) continue;
+      const grupo = porChave.get(chave);
+      if (grupo) grupo.push(contato);
+      else porChave.set(chave, [contato]);
+    }
 
-      const pares = [atual];
-      for (let j = i + 1; j < contatos.length; j += 1) {
-        const outro = contatos[j];
-        if (usados.has(outro.id) || !outro.telefone) continue;
-        if (mesmoTelefone(atual.telefone, outro.telefone)) pares.push(outro);
-      }
-      if (pares.length < 2) continue;
+    for (const grupo of porChave.values()) {
+      if (grupo.length < 2) continue;
+      const usados = new Set();
 
-      const canonico = pares.reduce((melhor, candidato) => maisPesado(melhor, candidato));
-      for (const contato of pares) {
-        usados.add(contato.id);
-        if (contato.id === canonico.id) continue;
-        mensagensMovidas += fundirContato(canonico, contato);
-        fundidos += 1;
+      for (let i = 0; i < grupo.length; i += 1) {
+        const atual = grupo[i];
+        if (usados.has(atual.id)) continue;
+
+        const pares = [atual];
+        for (let j = i + 1; j < grupo.length; j += 1) {
+          const outro = grupo[j];
+          if (usados.has(outro.id)) continue;
+          if (mesmoTelefone(atual.telefone, outro.telefone)) pares.push(outro);
+        }
+        if (pares.length < 2) continue;
+
+        const canonico = pares.reduce((melhor, candidato) => maisPesado(melhor, candidato));
+        for (const contato of pares) {
+          usados.add(contato.id);
+          if (contato.id === canonico.id) continue;
+          mensagensMovidas += fundirContato(canonico, contato);
+          fundidos += 1;
+        }
       }
     }
   }

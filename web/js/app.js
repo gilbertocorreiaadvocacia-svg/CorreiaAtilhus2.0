@@ -32,19 +32,6 @@ import {
    unico lugar que avisa risco de bloqueio do numero e agente mal configurado,
    mas deixou de ser a porta de entrada. */
 const ROTA_PADRAO = 'atendimento';
-import { paginaAtendimento } from './paginas/atendimento.js';
-import { paginaAgentes } from './paginas/agentes.js';
-import { paginaConhecimento } from './paginas/conhecimento.js';
-import { paginaVozes } from './paginas/vozes.js';
-import { paginaIntegracoes } from './paginas/integracoes.js';
-import { paginaDashboard } from './paginas/dashboard.js';
-import { paginaRelatorios } from './paginas/relatorios.js';
-import { paginaAgendamentos } from './paginas/agendamentos.js';
-import { paginaTarefas } from './paginas/tarefas.js';
-import { paginaConexoes } from './paginas/conexoes.js';
-import { paginaConfiguracoes } from './paginas/configuracoes.js';
-import { moduloAgentes } from './paginas/modulo-agentes.js';
-import { paginaContratos } from './paginas/contratos.js';
 
 const raiz = document.getElementById('raiz');
 
@@ -52,24 +39,66 @@ const raiz = document.getElementById('raiz');
  * Conversas, Contatos e Kanban sao a mesma tela vista de tres jeitos, entao as
  * tres rotas apontam para paginaAtendimento e so mudam o campo visualizacao.
  * Duplicar a tela seria duplicar filtro, acao em massa e painel da conversa.
+ *
+ * `montar` importa a propria pagina SOB DEMANDA (so quando a rota e aberta
+ * pela primeira vez), em vez de todas as 13 telas virem juntas a cada
+ * abertura do sistema (achado em 19/10/2026: ~867 KB de JS baixados mesmo
+ * para quem so usa Conversas). O import dinamico e nativo de modulos ES —
+ * nao precisa de ferramenta de build — e o proprio runtime do navegador
+ * cacheia o modulo depois da primeira vez, entao abrir a mesma rota de novo
+ * nao baixa nada a mais. `desenharRota()` ja e `async` e ja faz
+ * `await pagina.montar(...)`, entao nenhuma outra mudanca e necessaria.
  */
 const PAGINAS = {
-  dashboard: { titulo: 'Dashboard', montar: paginaDashboard },
-  relatorios: { titulo: 'Relatórios', subtitulo: 'Quantos contratos cada pessoa e a IA fecharam.', montar: paginaRelatorios },
-  conexoes: { titulo: 'Conexões', subtitulo: 'Gerencie suas conexões com canais de comunicação.', montar: paginaConexoes },
+  dashboard: { titulo: 'Dashboard', montar: (args) => import('./paginas/dashboard.js').then((m) => m.paginaDashboard(args)) },
+  relatorios: {
+    titulo: 'Relatórios',
+    subtitulo: 'Quantos contratos cada pessoa e a IA fecharam.',
+    montar: (args) => import('./paginas/relatorios.js').then((m) => m.paginaRelatorios(args)),
+  },
+  conexoes: {
+    titulo: 'Conexões',
+    subtitulo: 'Gerencie suas conexões com canais de comunicação.',
+    montar: (args) => import('./paginas/conexoes.js').then((m) => m.paginaConexoes(args)),
+  },
 
   /* Conversas nao tem cabeca de tela: a fila comeca logo abaixo da barra de cima. */
-  atendimento: { titulo: 'Conversas', montar: paginaAtendimento, cheia: true, semCabeca: true, visualizacao: 'conversas' },
-  contatos: { titulo: 'Contatos', montar: paginaAtendimento, cheia: true, visualizacao: 'contatos' },
-  kanban: { titulo: 'Kanban', montar: paginaAtendimento, cheia: true, visualizacao: 'kanban' },
-  contratos: { titulo: 'Contratos', montar: paginaContratos, cheia: true },
+  atendimento: {
+    titulo: 'Conversas',
+    montar: (args) => import('./paginas/atendimento.js').then((m) => m.paginaAtendimento(args)),
+    cheia: true,
+    semCabeca: true,
+    visualizacao: 'conversas',
+  },
+  contatos: {
+    titulo: 'Contatos',
+    montar: (args) => import('./paginas/atendimento.js').then((m) => m.paginaAtendimento(args)),
+    cheia: true,
+    visualizacao: 'contatos',
+  },
+  kanban: {
+    titulo: 'Kanban',
+    montar: (args) => import('./paginas/atendimento.js').then((m) => m.paginaAtendimento(args)),
+    cheia: true,
+    visualizacao: 'kanban',
+  },
+  contratos: { titulo: 'Contratos', montar: (args) => import('./paginas/contratos.js').then((m) => m.paginaContratos(args)), cheia: true },
 
   /* Agentes, Base de conhecimento e Chat de teste sao abas do mesmo modulo
      (paginas/modulo-agentes.js). As tres rotas continuam existindo. A fileira
      de abas faz as vezes de cabeca: um titulo em cima dela so repetia o nome
      da aba aberta. */
-  agentes: { titulo: 'Agentes de IA', montar: moduloAgentes('agentes'), cheia: true, semCabeca: true },
-  conhecimento: { titulo: 'Base de conhecimento', montar: moduloAgentes('conhecimento'), semCabeca: true },
+  agentes: {
+    titulo: 'Agentes de IA',
+    montar: (args) => import('./paginas/modulo-agentes.js').then((m) => m.moduloAgentes('agentes')(args)),
+    cheia: true,
+    semCabeca: true,
+  },
+  conhecimento: {
+    titulo: 'Base de conhecimento',
+    montar: (args) => import('./paginas/modulo-agentes.js').then((m) => m.moduloAgentes('conhecimento')(args)),
+    semCabeca: true,
+  },
   /* Templates mora em Configuracoes. A rota antiga fica como atalho: aviso do
      sino e link guardado com #/templates abrem a secao nova. */
   templates: {
@@ -79,13 +108,20 @@ const PAGINAS = {
       return el('div', { class: 'vazio', texto: 'Abrindo Templates em Configurações…' });
     },
   },
-  vozes: { titulo: 'Vozes', montar: paginaVozes },
-  integracoes: { titulo: 'Integrações', montar: paginaIntegracoes },
+  vozes: { titulo: 'Vozes', montar: (args) => import('./paginas/vozes.js').then((m) => m.paginaVozes(args)) },
+  integracoes: { titulo: 'Integrações', montar: (args) => import('./paginas/integracoes.js').then((m) => m.paginaIntegracoes(args)) },
 
-  tarefas: { titulo: 'Tarefas', montar: paginaTarefas },
-  agendamentos: { titulo: 'Central de agendamentos', montar: paginaAgendamentos },
-  simulador: { titulo: 'Chat de teste', montar: moduloAgentes('simulador'), semCabeca: true },
-  configuracoes: { titulo: 'Configurações', montar: paginaConfiguracoes },
+  tarefas: { titulo: 'Tarefas', montar: (args) => import('./paginas/tarefas.js').then((m) => m.paginaTarefas(args)) },
+  agendamentos: {
+    titulo: 'Central de agendamentos',
+    montar: (args) => import('./paginas/agendamentos.js').then((m) => m.paginaAgendamentos(args)),
+  },
+  simulador: {
+    titulo: 'Chat de teste',
+    montar: (args) => import('./paginas/modulo-agentes.js').then((m) => m.moduloAgentes('simulador')(args)),
+    semCabeca: true,
+  },
+  configuracoes: { titulo: 'Configurações', montar: (args) => import('./paginas/configuracoes.js').then((m) => m.paginaConfiguracoes(args)) },
 };
 
 /**

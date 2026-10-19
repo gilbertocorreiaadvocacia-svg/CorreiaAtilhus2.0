@@ -148,12 +148,63 @@ export function criarRoteador() {
  * dependencia nova.
  */
 const COMPRIMIVEL = new Set(['.html', '.css', '.js', '.json', '.svg', '.map', '.txt', '.webmanifest']);
+
+/*
+ * Cache longo + versao automatica nos .js/.html, em vez de pedir confirmacao
+ * ao servidor em toda abertura da tela (achado em 19/10/2026: isso se
+ * repetia em TODA abertura, nao so depois de deploy, e pesava mais do que
+ * qualquer requisicao de API medida).
+ *
+ * VERSAO_ESTATICOS muda uma vez por subida do processo — nao precisa de
+ * ferramenta de build, so um numero que muda a cada deploy (o processo e
+ * recriado a cada deploy de qualquer jeito). O HTML continua 'no-store'
+ * (sempre revalidado, decide qual versao carregar); os demais arquivos
+ * (.js, .css, fontes, etc.) ganham `Cache-Control: immutable` de verdade —
+ * o navegador para de perguntar.
+ *
+ * Isso so e seguro porque a versao e EMBUTIDA na propria URL de cada
+ * referencia: o HTML aponta para "js/app.js?v=<versao>", e cada modulo .js
+ * que importa outro (`from './estado.js'`, `import('./paginas/x.js')`)
+ * tambem ganha a query acrescentada no texto, na hora de servir — senao so
+ * o arquivo de entrada seria versionado, e os ~22 modulos importados por
+ * dentro da cadeia ficariam reifens do cache antigo (JS novo importando
+ * modulo velho e exatamente o problema que o 'no-cache' anterior evitava).
+ * `reescreverReferencias` e essa reescrita; roda uma vez por arquivo e fica
+ * em `conteudoCache`, no mesmo padrao que a compressao gzip ja usava.
+ */
+const VERSAO_ESTATICOS = String(Date.now());
+const PRECISA_VERSAO = new Set(['.html', '.js']);
+const REFERENCIA_HTML = /(src|href)="([^":]+\.(?:js|css))"/g;
+const IMPORT_DE = /from(\s*)(['"])([^'"]+\.js)\2/g;
+const IMPORT_DINAMICO = /import\((\s*)(['"])([^'"]+\.js)\2(\s*)\)/g;
+
+function reescreverReferencias(texto, extensao) {
+  if (extensao === '.html') {
+    return texto.replace(REFERENCIA_HTML, (bate, atributo, caminho) => `${atributo}="${caminho}?v=${VERSAO_ESTATICOS}"`);
+  }
+  return texto
+    .replace(IMPORT_DE, (bate, espaco, aspas, caminho) => `from${espaco}${aspas}${caminho}?v=${VERSAO_ESTATICOS}${aspas}`)
+    .replace(IMPORT_DINAMICO, (bate, antes, aspas, caminho, depois) => `import(${antes}${aspas}${caminho}?v=${VERSAO_ESTATICOS}${aspas}${depois})`);
+}
+
+const conteudoCache = new Map();
+
+/** O conteudo de verdade a enviar: o arquivo como esta, ou (para .html/.js) com as referencias versionadas. */
+function conteudoDe(destino, extensao, mtimeMs) {
+  const guardado = conteudoCache.get(destino);
+  if (guardado && guardado.mtime === mtimeMs) return guardado.buf;
+  const bruto = fs.readFileSync(destino);
+  const buf = PRECISA_VERSAO.has(extensao) ? Buffer.from(reescreverReferencias(bruto.toString('utf8'), extensao), 'utf8') : bruto;
+  conteudoCache.set(destino, { mtime: mtimeMs, buf });
+  return buf;
+}
+
 const gzipCache = new Map();
 
-function gzipDe(destino, mtimeMs) {
+function gzipDe(destino, extensao, mtimeMs) {
   const guardado = gzipCache.get(destino);
   if (guardado && guardado.mtime === mtimeMs) return guardado.buf;
-  const buf = zlib.gzipSync(fs.readFileSync(destino), { level: 6 });
+  const buf = zlib.gzipSync(conteudoDe(destino, extensao, mtimeMs), { level: 6 });
   gzipCache.set(destino, { mtime: mtimeMs, buf });
   return buf;
 }
@@ -178,48 +229,45 @@ export function servirEstatico(req, res, caminhoUrl) {
   const extensao = path.extname(destino).toLowerCase();
 
   /*
-   * Revalidacao em vez de prazo de validade.
-   *
-   * Com max-age o navegador servia o arquivo do cache sem perguntar nada ate o
-   * prazo vencer. Depois de uma atualizacao do sistema, quem ja estava com a
-   * tela aberta seguia rodando a versao antiga sem sinal nenhum de que havia
-   * versao nova, e misturar JavaScript novo com CSS velho quebra de um jeito
-   * dificil de diagnosticar.
-   *
-   * Com no-cache o navegador SEMPRE pergunta, mas a resposta e um 304 vazio
-   * quando nada mudou: na rede do escritorio isso custa alguns milissegundos e
-   * garante que todo mundo roda a mesma versao.
+   * O HTML decide qual versao carregar, entao continua 'no-store': sempre
+   * buscado de novo, nunca guardado. Os demais arquivos tem a versao
+   * embutida na propria URL (ver VERSAO_ESTATICOS acima) — o conteudo por
+   * tras de uma URL com `?v=X` nunca muda, entao o navegador pode guardar
+   * 'para sempre' (`immutable`) sem risco de rodar versao velha: uma versao
+   * nova do arquivo so aparece com uma URL nova, nunca pisando na antiga.
    */
   const etiqueta = '"' + info.size.toString(16) + '-' + info.mtimeMs.toString(16) + '"';
+  const cacheControl = extensao === '.html' ? 'no-store' : 'public, max-age=31536000, immutable';
   if (req.headers['if-none-match'] === etiqueta) {
-    res.writeHead(304, { ETag: etiqueta, 'Cache-Control': 'no-cache' });
+    res.writeHead(304, { ETag: etiqueta, 'Cache-Control': cacheControl });
     res.end();
     return true;
   }
 
   /* Texto vai comprimido quando o navegador aceita; o resto (imagem, fonte,
-     woff2) ja e comprimido e segue em stream. */
+     woff2) ja e comprimido e segue direto. */
   const aceitaGzip = /\bgzip\b/.test(req.headers['accept-encoding'] || '');
   if (aceitaGzip && COMPRIMIVEL.has(extensao)) {
-    const buf = gzipDe(destino, info.mtimeMs);
+    const buf = gzipDe(destino, extensao, info.mtimeMs);
     res.writeHead(200, {
       'Content-Type': TIPOS[extensao] || 'application/octet-stream',
       'Content-Length': buf.length,
       'Content-Encoding': 'gzip',
       Vary: 'Accept-Encoding',
-      'Cache-Control': extensao === '.html' ? 'no-store' : 'no-cache',
+      'Cache-Control': cacheControl,
       ETag: etiqueta,
     });
     res.end(buf);
     return true;
   }
 
+  const buf = conteudoDe(destino, extensao, info.mtimeMs);
   res.writeHead(200, {
     'Content-Type': TIPOS[extensao] || 'application/octet-stream',
-    'Content-Length': info.size,
-    'Cache-Control': extensao === '.html' ? 'no-store' : 'no-cache',
+    'Content-Length': buf.length,
+    'Cache-Control': cacheControl,
     ETag: etiqueta,
   });
-  fs.createReadStream(destino).pipe(res);
+  res.end(buf);
   return true;
 }

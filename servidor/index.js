@@ -177,9 +177,6 @@ recuperarDaQueda().catch((erro) => console.error('[batimento] recuperacao falhou
 iniciarBatimento();
 /* E a copia de seguranca: uma agora, uma por dia. */
 iniciarBackup();
-/* E a fila de arquivos (audio, imagem, video, PDF) do historico: retoma de
-   onde parou, reencontrando o que ainda esta sem arquivo. */
-retomarMidiaHistorico();
 /* E a fila de fotos de perfil: ela so vive em memoria, e um lote grande (a
    importacao de historico, por exemplo) nao cabe entre dois deploys — o
    escritorio reimplanta varias vezes por dia. Sem retomar, contato que
@@ -582,6 +579,15 @@ servidor.listen(PORTA, HOST, () => {
   iniciarAvaliacoes();
   /* Tokens do Instagram e do TikTok renovados antes de vencer. */
   iniciarRenovacaoDeTokens();
+  /* E a fila de arquivos (audio, imagem, video, PDF) do historico: retoma de
+     onde parou, reencontrando o que ainda esta sem arquivo. Depois do listen,
+     e nao antes: ela abre a conversa de cada contato de cada conexao real
+     para achar midia pendente (mensagensDe, leitura sincrona de disco), e
+     isso bloqueava a porta abrir num workspace com milhares de contatos
+     (achado em 19/10/2026). A fila ja anda sozinha com pacing proprio
+     (CORREIA_MIDIA_INTERVALO/setTimeout, igual retomarFotos ja faz) — mudar
+     so o QUANDO comeca a andar, nunca o resultado final. */
+  retomarMidiaHistorico();
 });
 
 function encerrar() {
