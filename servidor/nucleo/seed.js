@@ -49,7 +49,6 @@ export function semearSePrecisar() {
   const dep = {};
   for (const [chave, nome, cor] of [
     ['comercial', 'Comercial', 'var(--serie-2)'],
-    ['posvenda', 'Pos-venda', 'var(--sucesso)'],
     ['juridico', 'Juridico', 'var(--serie-1)'],
     ['financeiro', 'Financeiro', 'var(--serie-3)'],
   ]) {
@@ -59,9 +58,11 @@ export function semearSePrecisar() {
   /* Status do funil ------------------------------------------------------ */
   const st = {};
   /* A ordem aqui e a ordem das colunas do Kanban (escolhida pelo escritorio em
-     24/09). As de pos-venda ficam no fim. As chaves internas (nova, triagem...)
-     nao mudam, so o nome que aparece — para agentes e codigo que ainda citarem
-     um nome antigo continuarem achando o status pela chave. */
+     24/09). As chaves internas (nova, triagem...) nao mudam, so o nome que
+     aparece — para agentes e codigo que ainda citarem um nome antigo
+     continuarem achando o status pela chave. O departamento de Pos-venda foi
+     removido (pedido do escritorio em 19/10/2026: so Comercial) — os status
+     de depois-da-assinatura (sucesso, documentos) ficam em Comercial tambem. */
   const statusIniciais = [
     ['nova', 'NOVO lead', 'var(--serie-1)', 'nova', dep.comercial, 'Lead que acabou de chamar e ainda nao foi triado.'],
     ['triagem', 'Em análise', 'var(--serie-2)', 'analise', dep.comercial, 'Agente esta levantando os requisitos do beneficio.'],
@@ -71,10 +72,10 @@ export function semearSePrecisar() {
     ['proposta', 'Preparar kit', 'var(--serie-4)', 'proposta', dep.comercial, 'Proposta aceita: preparar o contrato e a procuracao.'],
     ['assinatura', 'Assinatura pendente', 'var(--serie-4)', 'proposta', dep.comercial, 'Contrato gerado, aguardando assinatura.'],
     ['desistencia', 'Desistencia', 'var(--serie-8)', 'desistencia', null, 'Parou de responder ate o fim da sequencia.'],
-    ['sucesso', 'Contrato fechado', 'var(--sucesso)', 'sucesso', dep.posvenda, 'Fechou. Segue para coleta de documentos.'],
+    ['sucesso', 'Contrato fechado', 'var(--sucesso)', 'sucesso', dep.comercial, 'Fechou. Segue para coleta de documentos.'],
     ['desqualificado', 'Desqualificado', 'var(--serie-5)', 'desqualificado', null, 'Fora dos criterios do beneficio.'],
     ['followup', 'Follow up', 'var(--serie-6)', 'nenhum', dep.comercial, 'Retomar depois: aguardando um retorno combinado.'],
-    ['documentos', 'Documentacao pendente', 'var(--serie-7)', 'nenhum', dep.posvenda, 'Cliente precisa enviar documentos.'],
+    ['documentos', 'Documentacao pendente', 'var(--serie-7)', 'nenhum', dep.comercial, 'Cliente precisa enviar documentos.'],
     ['protocolado', 'Processo em andamento', 'var(--serie-6)', 'nenhum', dep.juridico, 'Ja protocolado. Cliente acompanha o andamento.'],
   ];
   for (const [chave, nome, cor, tipo, departamentoId, descricao] of statusIniciais) {

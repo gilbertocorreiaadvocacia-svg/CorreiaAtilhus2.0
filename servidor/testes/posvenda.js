@@ -14,9 +14,11 @@ import { suite } from './apoio.js';
  *
  * O que nao pode falhar: cria o agente pelo nome, uma vez por escritorio;
  * liga posAssinatura so quando estava vazio (nunca substitui escolha manual
- * ja feita); cria o departamento "Pós-venda" quando falta; acha o status
- * "Contrato fechado" certo do escritorio; escritorio sem area (geral) nao e
- * tocado; e rodar duas vezes nao duplica nem desfaz nada.
+ * ja feita); cria o departamento "Comercial" quando falta (o agente mora
+ * nele, e nao num "Pós-venda" proprio — removido em 19/10/2026, pedido do
+ * escritorio: so Comercial); acha o status "Contrato fechado" certo do
+ * escritorio; escritorio sem area (geral) nao e tocado; e rodar duas vezes
+ * nao duplica nem desfaz nada.
  */
 export async function testarPosVenda({ raiz }) {
   const s = suite('Pós-venda instalado e ligado apos a assinatura');
@@ -77,8 +79,9 @@ process.exit(0);
     s.ok('cria o agente de pos-venda no Previdenciario', Boolean(agenteW1), JSON.stringify(b.agentes.map((a) => a.nome)));
     s.ok('o agente nasce ativo', agenteW1?.ativo === true, String(agenteW1?.ativo));
 
-    const depW1 = b.departamentos.find((d) => d.workspaceId === 'w1' && d.nome === 'Pós-venda');
-    s.ok('cria o departamento Pos-venda que faltava', Boolean(depW1), JSON.stringify(b.departamentos));
+    const depW1 = b.departamentos.find((d) => d.workspaceId === 'w1' && d.nome === 'Comercial');
+    s.ok('cria o departamento Comercial que faltava (o agente mora nele)', Boolean(depW1), JSON.stringify(b.departamentos));
+    s.ok('NAO cria departamento "Pós-venda" nenhum', !b.departamentos.some((d) => d.nome === 'Pós-venda'), JSON.stringify(b.departamentos));
 
     const intW1 = b.integracoes.find((i) => i.workspaceId === 'w1');
     s.ok(

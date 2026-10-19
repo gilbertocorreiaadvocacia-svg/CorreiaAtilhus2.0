@@ -51,6 +51,7 @@ import { testarHigiene } from './higiene.js';
 import { testarBaseEStatus } from './base-e-status.js';
 import { testarAtivarAgentesSemEquipe } from './ativar-agentes-sem-equipe.js';
 import { testarPosVenda } from './posvenda.js';
+import { testarMigrarDepartamentoPosVenda } from './migrar-posvenda.js';
 import { testarAgentesDasAreas } from './agentes-das-areas.js';
 import { testarStatusDasAreas } from './status-das-areas.js';
 import { testarSituacaoExterna } from './situacao-externa.js';
@@ -317,6 +318,7 @@ async function principal() {
     suites.push(await testarBaseEStatus({ raiz: RAIZ }));
     suites.push(await testarAtivarAgentesSemEquipe({ raiz: RAIZ }));
     suites.push(await testarPosVenda({ raiz: RAIZ }));
+    suites.push(await testarMigrarDepartamentoPosVenda({ raiz: RAIZ }));
     suites.push(await testarAgentesDasAreas({ raiz: RAIZ }));
     suites.push(await testarStatusDasAreas({ raiz: RAIZ }));
     suites.push(await testarSituacaoExterna({ raiz: RAIZ }));

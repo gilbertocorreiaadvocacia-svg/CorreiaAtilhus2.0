@@ -4,7 +4,7 @@ import path from 'node:path';
 import { monitorEventLoopDelay } from 'node:perf_hooks';
 import { HOSPEDADO, HOST, INTERVALO_AGENDADOR, PORTA, RAIZ, enderecoPermitido } from './config.js';
 import { prepararHospedagem } from './nucleo/hospedagem.js';
-import { ativarAgentesSemEquipe, garantirAgentesDasAreas, garantirAvaliacaoNosEscritorios, garantirPosVendaNosEscritorios, garantirStatusDasAreas } from './nucleo/agentes-por-escritorio.js';
+import { ativarAgentesSemEquipe, garantirAgentesDasAreas, garantirAvaliacaoNosEscritorios, garantirPosVendaNosEscritorios, garantirStatusDasAreas, migrarDepartamentoPosVenda } from './nucleo/agentes-por-escritorio.js';
 import { iniciarAvaliacoes } from './automacao/avaliacao.js';
 import { caminhoDaMidia } from './nucleo/midia.js';
 import { atualizar, encerrarBanco, iniciarBanco, listar } from './nucleo/banco.js';
@@ -107,6 +107,16 @@ if (statusDasAreas.workspacesCorrigidos) {
   console.log(
     `Status por area: ${statusDasAreas.workspacesCorrigidos} workspace(s) corrigido(s), ${statusDasAreas.statusCriados} status criado(s), ${statusDasAreas.departamentosFundidos} departamento(s) fundido(s).`,
   );
+}
+/* O departamento "Pos-venda" some (pedido do escritorio em 19/10/2026: so
+   Comercial) — contatos, status, conexao padrao, escopo de membros e a
+   integracao do ZapSign que apontavam para ele passam a apontar para
+   Comercial antes dele ser removido. O agente de pos-venda continua
+   existindo (ver garantirPosVendaNosEscritorios logo abaixo), so sem
+   departamento proprio. */
+const depPosVenda = migrarDepartamentoPosVenda();
+if (depPosVenda.workspacesCorrigidos) {
+  console.log(`Departamento Pós-venda removido: ${depPosVenda.workspacesCorrigidos} workspace(s), ${depPosVenda.contatosMovidos} contato(s) movido(s) para Comercial.`);
 }
 /* O agente de pos-venda, uma vez em cada escritorio de area, e ligado como
    responsavel apos a assinatura quando esse ponto ainda nao foi configurado. */

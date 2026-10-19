@@ -423,9 +423,14 @@ export function garantirPosVendaNosEscritorios() {
     const zapsign = integracoes.zapsign || { chave: '', modelos: [], ativo: false };
     if (zapsign.posAssinatura?.responsavel) continue;
 
-    let departamento = listar('departamentos', { workspaceId: workspace.id }).find((d) => normalizar(d.nome) === 'pos-venda');
+    /* O agente mora no departamento Comercial, e nao no proprio "Pos-venda"
+       (removido do seed e dos escritorios existentes em 19/10/2026, pedido
+       do escritorio: "so comercial"). Cria Comercial aqui so no caso raro de
+       um workspace de area ainda nao ter nenhum (mesmo padrao defensivo que
+       o "Pos-venda" tinha antes). */
+    let departamento = listar('departamentos', { workspaceId: workspace.id }).find((d) => normalizar(d.nome) === 'comercial');
     if (!departamento) {
-      departamento = inserir('departamentos', { id: novoId('dep'), workspaceId: workspace.id, nome: 'Pós-venda', cor: 'var(--sucesso)' });
+      departamento = inserir('departamentos', { id: novoId('dep'), workspaceId: workspace.id, nome: 'Comercial', cor: 'var(--serie-2)' });
     }
     const statusFechado = listar('status', { workspaceId: workspace.id }).find((s) => normalizar(s.nome) === 'contrato fechado');
 
@@ -444,6 +449,68 @@ export function garantirPosVendaNosEscritorios() {
   }
 
   return { instalados, configurados };
+}
+
+/**
+ * Remove o departamento "Pos-venda" que ja existia em workspaces de antes
+ * desta mudanca. Pedido do escritorio em 19/10/2026: so Comercial — o
+ * agente de pos-venda continua existindo e trabalhando (ver
+ * garantirPosVendaNosEscritorios acima), so deixa de ter departamento
+ * proprio. Tudo que apontava para "Pos-venda" passa a apontar para
+ * "Comercial" (criado se faltar) antes do departamento antigo ser
+ * removido, para nao deixar referencia orfa: contatos, status do funil, o
+ * departamento padrao de conexoes, o escopo de departamentos de membros
+ * (quem via so "Pos-venda" passa a ver "Comercial"), e a integracao do
+ * ZapSign (posAssinatura.departamentoId). Idempotente: sem "Pos-venda"
+ * sobrando num workspace, nao mexe em nada dele.
+ */
+export function migrarDepartamentoPosVenda() {
+  let workspacesCorrigidos = 0;
+  let contatosMovidos = 0;
+
+  for (const workspace of listar('workspaces')) {
+    const posVenda = listar('departamentos', { workspaceId: workspace.id }).find((d) => normalizar(d.nome) === 'pos-venda');
+    if (!posVenda) continue;
+
+    let comercial = listar('departamentos', { workspaceId: workspace.id }).find((d) => normalizar(d.nome) === 'comercial');
+    if (!comercial) {
+      comercial = inserir('departamentos', { id: novoId('dep'), workspaceId: workspace.id, nome: 'Comercial', cor: 'var(--serie-2)' });
+    }
+
+    for (const contato of listar('contatos', { workspaceId: workspace.id, departamentoId: posVenda.id })) {
+      atualizar('contatos', contato.id, { departamentoId: comercial.id });
+      contatosMovidos += 1;
+    }
+
+    for (const status of listar('status', { workspaceId: workspace.id, departamentoId: posVenda.id })) {
+      atualizar('status', status.id, { departamentoId: comercial.id });
+    }
+
+    for (const conexao of listar('conexoes', { workspaceId: workspace.id, departamentoPadraoId: posVenda.id })) {
+      atualizar('conexoes', conexao.id, { departamentoPadraoId: comercial.id });
+    }
+
+    for (const membro of listar('membros', { workspaceId: workspace.id })) {
+      if (!(membro.departamentos || []).includes(posVenda.id)) continue;
+      const trocados = membro.departamentos.map((id) => (id === posVenda.id ? comercial.id : id));
+      atualizar('membros', membro.id, { departamentos: [...new Set(trocados)] });
+    }
+
+    const integracoes = achar('integracoes', { workspaceId: workspace.id });
+    if (integracoes?.zapsign?.posAssinatura?.departamentoId === posVenda.id) {
+      atualizar('integracoes', integracoes.id, {
+        zapsign: {
+          ...integracoes.zapsign,
+          posAssinatura: { ...integracoes.zapsign.posAssinatura, departamentoId: comercial.id },
+        },
+      });
+    }
+
+    remover('departamentos', posVenda.id);
+    workspacesCorrigidos += 1;
+  }
+
+  return { workspacesCorrigidos, contatosMovidos };
 }
 
 /**
