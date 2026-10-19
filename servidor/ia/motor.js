@@ -42,7 +42,11 @@ export function agendarResposta(contato) {
   const cronometro = setTimeout(() => {
     cronometros.delete(contato.id);
     executarAgente(contato.id).catch((erro) => {
-      registrarLog(contato.workspaceId, contato.id, 'erro_ia', `Falha do agente: ${erro.message}`);
+      registrarLog(contato.workspaceId, contato.id, 'erro_ia', `Falha do agente: ${erro.message}`, {
+        tipo: 'agente',
+        id: agente.id,
+        nome: agente.nome,
+      });
       avisarFalhaDaIa(contato, erro);
       emitir(contato.workspaceId, 'contato', { contatoId: contato.id });
     });
@@ -393,7 +397,7 @@ async function rodarAgente(contatoId, passo) {
 
     const imagensLidas = mensagens.reduce((soma, m) => soma + (m.imagens?.length || 0), 0);
     if (imagensLidas) {
-      lancar(contato.workspaceId, contato.id, 'leitura_imagem', CUSTO.transcricaoImagem * imagensLidas);
+      lancar(contato.workspaceId, contato.id, 'leitura_imagem', CUSTO.transcricaoImagem * imagensLidas, null, agente.id);
     }
 
     let paraDeResponder = false;
@@ -442,6 +446,7 @@ async function rodarAgente(contatoId, passo) {
       if (resposta.texto) falas.push(resposta.texto);
     } else {
       for (let volta = 0; volta < MAX_VOLTAS; volta += 1) {
+        const inicioDaVolta = Date.now();
         const resposta = await conversar({
           modeloId: agente.modelo,
           workspaceId: contato.workspaceId,
@@ -450,7 +455,14 @@ async function rodarAgente(contatoId, passo) {
           ferramentas,
         });
 
-        lancar(contato.workspaceId, contato.id, 'processamento_ia', modelo.creditos || CUSTO.processamentoIA);
+        lancar(
+          contato.workspaceId,
+          contato.id,
+          'processamento_ia',
+          modelo.creditos || CUSTO.processamentoIA,
+          { duracaoMs: Date.now() - inicioDaVolta },
+          agente.id,
+        );
 
         if (resposta.texto) falas.push(resposta.texto);
 
@@ -517,6 +529,7 @@ async function rodarAgente(contatoId, passo) {
             contatoId: atualizado.id,
             texto: textoFinal,
             vozId: agente.vozId,
+            agenteId: agente.id,
           });
         }
 

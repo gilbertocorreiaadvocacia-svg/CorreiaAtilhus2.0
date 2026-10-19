@@ -622,7 +622,7 @@ export async function executarFerramenta({ nome, argumentos, contato, agente, co
       const status = porRotulo(workspaceId, 'status', argumentos.status);
       if (!status) return { erro: `Status "${argumentos.status}" nao existe no workspace.` };
       await aplicarStatus(contato, status, { tipo: 'agente', id: agente.id, nome: agente.nome });
-      lancar(workspaceId, contato.id, 'mencao_status', custoDaMencao('status'));
+      lancar(workspaceId, contato.id, 'mencao_status', custoDaMencao('status'), null, agente.id);
       registrar(`Status alterado para ${status.nome}`);
       return { ok: true, status: status.nome };
     }
@@ -634,7 +634,7 @@ export async function executarFerramenta({ nome, argumentos, contato, agente, co
       const atuais = umTipoDeCaso([...(contato.etiquetas || []), etiqueta.id], contato.etiquetas);
       atualizar('contatos', contato.id, { etiquetas: atuais });
       contato.etiquetas = atuais;
-      lancar(workspaceId, contato.id, 'mencao_tag', custoDaMencao('tag'));
+      lancar(workspaceId, contato.id, 'mencao_tag', custoDaMencao('tag'), null, agente.id);
       registrar(`Etiqueta adicionada: ${etiqueta.nome}`);
       emitir(workspaceId, 'contato', { contatoId: contato.id });
       return { ok: true };
@@ -652,7 +652,7 @@ export async function executarFerramenta({ nome, argumentos, contato, agente, co
       const restantes = (contato.etiquetas || []).filter((id) => id !== etiqueta.id);
       atualizar('contatos', contato.id, { etiquetas: restantes });
       contato.etiquetas = restantes;
-      lancar(workspaceId, contato.id, 'mencao_removertag', custoDaMencao('tag'));
+      lancar(workspaceId, contato.id, 'mencao_removertag', custoDaMencao('tag'), null, agente.id);
       registrar(`Etiqueta removida: ${etiqueta.nome}`);
       emitir(workspaceId, 'contato', { contatoId: contato.id });
       return { ok: true };
@@ -678,7 +678,7 @@ export async function executarFerramenta({ nome, argumentos, contato, agente, co
         estado: 'pendente',
         criadoPor: { tipo: 'agente', id: agente.id, nome: agente.nome },
       });
-      lancar(workspaceId, contato.id, 'mencao_agendarretorno', custoDaMencao('agendarretorno'));
+      lancar(workspaceId, contato.id, 'mencao_agendarretorno', custoDaMencao('agendarretorno'), null, agente.id);
       registrar(`Retorno agendado para ${quando.toLocaleString('pt-BR')}`);
       emitir(workspaceId, 'agendamento', { contatoId: contato.id });
       return { ok: true, agendado_para: quando.toLocaleString('pt-BR'), id: agendamento.id };
@@ -689,7 +689,7 @@ export async function executarFerramenta({ nome, argumentos, contato, agente, co
       if (!departamento) return { erro: `Departamento "${argumentos.departamento}" nao existe.` };
       atualizar('contatos', contato.id, { departamentoId: departamento.id });
       contato.departamentoId = departamento.id;
-      lancar(workspaceId, contato.id, 'mencao_departamento', custoDaMencao('departamento'));
+      lancar(workspaceId, contato.id, 'mencao_departamento', custoDaMencao('departamento'), null, agente.id);
       registrar(`Departamento alterado para ${departamento.nome}`);
       emitir(workspaceId, 'contato', { contatoId: contato.id });
       return { ok: true };
@@ -767,7 +767,7 @@ export async function executarFerramenta({ nome, argumentos, contato, agente, co
       contato.responsavel = responsavel;
       contato.passagens = passagens;
       contato.estado = responsavel.tipo === 'agente' ? 'ia' : 'pendente';
-      lancar(workspaceId, contato.id, 'mencao_responsavel', custoDaMencao('responsavel'));
+      lancar(workspaceId, contato.id, 'mencao_responsavel', custoDaMencao('responsavel'), null, agente.id);
       registrar(`Conversa transferida para ${responsavel.nome}`);
       emitir(workspaceId, 'contato', { contatoId: contato.id });
 
@@ -802,7 +802,7 @@ export async function executarFerramenta({ nome, argumentos, contato, agente, co
         templateId: template.id,
         autor: { tipo: 'agente', id: agente.id, nome: agente.nome },
       });
-      lancar(workspaceId, contato.id, 'mencao_template', custoDaMencao('template'));
+      lancar(workspaceId, contato.id, 'mencao_template', custoDaMencao('template'), null, agente.id);
       registrar(`Template enviado: ${template.nome}`);
       return { ok: true, enviado: template.nome };
     }
@@ -813,7 +813,7 @@ export async function executarFerramenta({ nome, argumentos, contato, agente, co
       const variaveis = { ...(contato.variaveis || {}), [chave]: String(argumentos.valor) };
       atualizar('contatos', contato.id, { variaveis });
       contato.variaveis = variaveis;
-      lancar(workspaceId, contato.id, 'mencao_variavel', custoDaMencao('variavel'));
+      lancar(workspaceId, contato.id, 'mencao_variavel', custoDaMencao('variavel'), null, agente.id);
       registrar(`Variavel ${chave} = ${argumentos.valor}`);
       emitir(workspaceId, 'contato', { contatoId: contato.id });
       return { ok: true };
@@ -824,7 +824,7 @@ export async function executarFerramenta({ nome, argumentos, contato, agente, co
       if (!origem) return { erro: `Origem "${argumentos.origem}" nao existe.` };
       atualizar('contatos', contato.id, { origemId: origem.id });
       contato.origemId = origem.id;
-      lancar(workspaceId, contato.id, 'mencao_origem', custoDaMencao('origem'));
+      lancar(workspaceId, contato.id, 'mencao_origem', custoDaMencao('origem'), null, agente.id);
       registrar(`Origem definida: ${origem.nome}`);
       return { ok: true };
     }
@@ -837,14 +837,14 @@ export async function executarFerramenta({ nome, argumentos, contato, agente, co
       });
       if (!membro) return { erro: `Membro "${argumentos.membro}" nao encontrado.` };
       notificar(workspaceId, membro.id, 'ia', 'Aviso do agente de IA', argumentos.motivo, contato.id);
-      lancar(workspaceId, contato.id, 'mencao_notificar', custoDaMencao('notificar'));
+      lancar(workspaceId, contato.id, 'mencao_notificar', custoDaMencao('notificar'), null, agente.id);
       registrar(`Notificou ${argumentos.membro}: ${argumentos.motivo}`);
       return { ok: true };
     }
 
     case 'gerar_resumo': {
       const mensagem = inserirNota(contato, argumentos.resumo, { tipo: 'agente', id: agente.id, nome: agente.nome });
-      lancar(workspaceId, contato.id, 'mencao_resumo', custoDaMencao('resumo'));
+      lancar(workspaceId, contato.id, 'mencao_resumo', custoDaMencao('resumo'), null, agente.id);
       registrar('Resumo gravado como nota interna');
       emitir(workspaceId, 'mensagem', { contatoId: contato.id, mensagem });
       return { ok: true };
@@ -854,7 +854,7 @@ export async function executarFerramenta({ nome, argumentos, contato, agente, co
       const bases = (agente.conhecimentoIds || [])
         .map((id) => achar('conhecimento', id))
         .filter(Boolean);
-      lancar(workspaceId, contato.id, 'mencao_biblioteca', custoDaMencao('biblioteca'));
+      lancar(workspaceId, contato.id, 'mencao_biblioteca', custoDaMencao('biblioteca'), null, agente.id);
       registrar(`Consultou a base de conhecimento: ${argumentos.pergunta}`);
       if (!bases.length) return { resultado: 'Nenhuma base de conhecimento vinculada a este agente.' };
 
@@ -895,7 +895,7 @@ export async function executarFerramenta({ nome, argumentos, contato, agente, co
     }
 
     case 'calcular': {
-      lancar(workspaceId, contato.id, 'mencao_calculadora', custoDaMencao('calculadora'));
+      lancar(workspaceId, contato.id, 'mencao_calculadora', custoDaMencao('calculadora'), null, agente.id);
       try {
         const resultado = calcularExpressao(argumentos.expressao);
         registrar(`Calculou ${argumentos.expressao} = ${resultado}`);
@@ -912,14 +912,14 @@ export async function executarFerramenta({ nome, argumentos, contato, agente, co
         dateStyle: 'full',
         timeStyle: 'short',
       });
-      lancar(workspaceId, contato.id, 'mencao_dataehora', custoDaMencao('dataehora'));
+      lancar(workspaceId, contato.id, 'mencao_dataehora', custoDaMencao('dataehora'), null, agente.id);
       return { agora: formatador.format(data), iso: data.toISOString() };
     }
 
     case 'salvar_nome': {
       atualizar('contatos', contato.id, { nome: argumentos.nome });
       contato.nome = argumentos.nome;
-      lancar(workspaceId, contato.id, 'mencao_salvarnome', custoDaMencao('salvarnome'));
+      lancar(workspaceId, contato.id, 'mencao_salvarnome', custoDaMencao('salvarnome'), null, agente.id);
       registrar(`Nome do contato ajustado para ${argumentos.nome}`);
       emitir(workspaceId, 'contato', { contatoId: contato.id });
       return { ok: true };
@@ -928,7 +928,7 @@ export async function executarFerramenta({ nome, argumentos, contato, agente, co
     case 'modo_audio': {
       atualizar('contatos', contato.id, { modoAudio: Boolean(argumentos.ligar) });
       contato.modoAudio = Boolean(argumentos.ligar);
-      lancar(workspaceId, contato.id, 'mencao_audio', custoDaMencao('audio'));
+      lancar(workspaceId, contato.id, 'mencao_audio', custoDaMencao('audio'), null, agente.id);
       registrar(`Modo audio ${argumentos.ligar ? 'ativado' : 'desativado'}`);
       return { ok: true };
     }
@@ -947,7 +947,7 @@ export async function executarFerramenta({ nome, argumentos, contato, agente, co
       if (resultado.erro) return resultado;
       const atual = achar('contatos', contato.id);
       if (atual) Object.assign(contato, { responsavel: atual.responsavel, estado: atual.estado, avaliacao: atual.avaliacao });
-      lancar(workspaceId, contato.id, 'mencao_concluiravaliacao', custoDaMencao('concluiravaliacao'));
+      lancar(workspaceId, contato.id, 'mencao_concluiravaliacao', custoDaMencao('concluiravaliacao'), null, agente.id);
       registrar(valida ? `Avaliacao registrada: nota ${valida}` : 'Avaliacao encerrada sem nota');
       /* Parou de responder: a despedida escrita junto sai assim mesmo (motor.js). */
       return { ok: true, nota: valida, pare_de_responder: true };
@@ -957,7 +957,7 @@ export async function executarFerramenta({ nome, argumentos, contato, agente, co
       atualizar('contatos', contato.id, { responsavel: null, estado: 'pendente', aceitoPor: null });
       contato.responsavel = null;
       contato.estado = 'pendente';
-      lancar(workspaceId, contato.id, 'mencao_desativarIA', custoDaMencao('desativarIA'));
+      lancar(workspaceId, contato.id, 'mencao_desativarIA', custoDaMencao('desativarIA'), null, agente.id);
       registrar(`IA desativada: ${argumentos.motivo}`);
       emitir(workspaceId, 'contato', { contatoId: contato.id });
       return { ok: true, pare_de_responder: true };
@@ -965,7 +965,7 @@ export async function executarFerramenta({ nome, argumentos, contato, agente, co
 
     case 'gerar_contrato': {
       const { pedirContrato } = await import('../integracoes/zapsign.js');
-      lancar(workspaceId, contato.id, 'mencao_gerarcontrato', custoDaMencao('gerarcontrato'));
+      lancar(workspaceId, contato.id, 'mencao_gerarcontrato', custoDaMencao('gerarcontrato'), null, agente.id);
       const resultado = await pedirContrato({ contato, agente, conexao, dados: argumentos });
       registrar(resultado.ok ? `Contrato pedido (${resultado.situacao})` : `Contrato nao pedido: ${resultado.erro}`);
       return resultado;
@@ -973,7 +973,7 @@ export async function executarFerramenta({ nome, argumentos, contato, agente, co
 
     case 'agenda': {
       const { operarAgenda } = await import('../integracoes/agenda.js');
-      lancar(workspaceId, contato.id, 'mencao_calendario', custoDaMencao('calendario'));
+      lancar(workspaceId, contato.id, 'mencao_calendario', custoDaMencao('calendario'), null, agente.id);
       const resultado = await operarAgenda({ contato, agente, argumentos });
       registrar(`Agenda (${argumentos.acao}): ${resultado.resumo || resultado.erro || 'ok'}`);
       return resultado;
@@ -981,7 +981,7 @@ export async function executarFerramenta({ nome, argumentos, contato, agente, co
 
     case 'consultar_processo': {
       const { consultarProcessos } = await import('../integracoes/advbox.js');
-      lancar(workspaceId, contato.id, 'mencao_advbox', custoDaMencao('advbox'));
+      lancar(workspaceId, contato.id, 'mencao_advbox', custoDaMencao('advbox'), null, agente.id);
       const resultado = await consultarProcessos({ workspaceId, cpf: argumentos.cpf });
       registrar(`Consulta de processo para o CPF ${argumentos.cpf}`);
       return resultado;
@@ -990,7 +990,7 @@ export async function executarFerramenta({ nome, argumentos, contato, agente, co
     default: {
       if (nome.startsWith('personalizada_')) {
         const { executarCustomTool } = await import('../integracoes/personalizada.js');
-        lancar(workspaceId, contato.id, 'mencao_personalizada', custoDaMencao('personalizado'));
+        lancar(workspaceId, contato.id, 'mencao_personalizada', custoDaMencao('personalizado'), null, agente.id);
         const resultado = await executarCustomTool({ workspaceId, nomeFerramenta: nome, contato, argumentos });
         registrar(`Chamada personalizada ${nome}`);
         return resultado;

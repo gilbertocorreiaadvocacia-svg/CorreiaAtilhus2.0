@@ -41,7 +41,7 @@ export function vozDisponivel(workspaceId) {
  * Padrao visto no Atilhus Juri (irmao deste sistema): a mensagem SEMPRE e
  * gravada, com o motivo exato da falta de texto, em vez de silencio.
  */
-export async function transcrever({ workspaceId, contatoId, midia }) {
+export async function transcrever({ workspaceId, contatoId, midia, agenteId = null }) {
   const chave = chaveOpenai(workspaceId);
   if (!chave) return { texto: null, erro: 'Transcrição não configurada — falta a chave da OpenAI em Integrações.' };
 
@@ -64,7 +64,7 @@ export async function transcrever({ workspaceId, contatoId, midia }) {
     if (!resposta.ok) return { texto: null, erro: `O serviço de transcrição recusou (${resposta.status}).` };
 
     const segundos = Math.max(1, Math.round(dados.length / 16000));
-    lancar(workspaceId, contatoId, 'transcricao_audio', (CUSTO.transcricaoAudioPorMinuto * segundos) / 60);
+    lancar(workspaceId, contatoId, 'transcricao_audio', (CUSTO.transcricaoAudioPorMinuto * segundos) / 60, null, agenteId);
 
     const texto = corpo.text?.trim() || null;
     return texto ? { texto, erro: null } : { texto: null, erro: 'O serviço de transcrição não devolveu texto.' };
@@ -74,7 +74,7 @@ export async function transcrever({ workspaceId, contatoId, midia }) {
 }
 
 /** Gera o audio da resposta com a voz configurada no agente. */
-export async function sintetizar({ workspaceId, contatoId, texto, vozId }) {
+export async function sintetizar({ workspaceId, contatoId, texto, vozId, agenteId = null }) {
   const chave = chaveOpenai(workspaceId);
   if (!chave || !texto?.trim()) return null;
 
@@ -100,7 +100,7 @@ export async function sintetizar({ workspaceId, contatoId, texto, vozId }) {
 
     // Estimativa honesta: a locucao em portugues fica perto de 14 caracteres por segundo.
     const segundos = Math.max(1, Math.round(texto.length / 14));
-    lancar(workspaceId, contatoId, 'geracao_audio', (CUSTO.audioPorMinuto * segundos) / 60);
+    lancar(workspaceId, contatoId, 'geracao_audio', (CUSTO.audioPorMinuto * segundos) / 60, null, agenteId);
 
     return { ...midia, duracaoEstimada: segundos };
   } catch {

@@ -79,5 +79,17 @@ export async function testarCreditosMes({ base, anthropic }) {
     `antes: ${mesDoA1?.creditos}, depois: ${mesDoA2?.creditos}`,
   );
 
+  /* Por agente, pedido do escritorio em 19/10/2026: nas duas rodadas foi o
+     MESMO agente, entao so uma linha, com o nome dele e batendo com o total
+     (nada deste lead veio de credito sem agente). */
+  s.ok('o detalhe por agente traz exatamente um agente', mesDoA2?.porAgente?.length === 1, JSON.stringify(mesDoA2?.porAgente));
+  s.ok('o nome do agente aparece certo', mesDoA2?.porAgente?.[0]?.agenteNome === 'Agente de creditos', JSON.stringify(mesDoA2?.porAgente));
+  s.ok(
+    'o custo por agente bate com o total (tudo deste lead veio desse agente)',
+    mesDoA2?.porAgente?.[0]?.custo === mesDoA2?.creditos,
+    JSON.stringify({ porAgente: mesDoA2?.porAgente, total: mesDoA2?.creditos }),
+  );
+  s.ok('o Lead B (sem nenhuma IA ainda) nao tem agente nenhum no detalhe', (mesDoB?.porAgente || []).length === 0, JSON.stringify(mesDoB?.porAgente));
+
   return s;
 }

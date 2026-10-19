@@ -24,6 +24,7 @@ import { testarDocumentosRecebidos } from './documentos-recebidos.js';
 import { testarCreditosMes } from './creditos-mes.js';
 import { testarEduardaRoteamento } from './eduarda-roteamento.js';
 import { testarBateriaDeRoteamento } from './bateria-de-roteamento.js';
+import { testarCustoPorAgente } from './custo-por-agente.js';
 import { testarPromptAoVivo } from './prompt-ao-vivo.js';
 import { testarPacotes } from './pacotes.js';
 import { subirZapsignFalsa } from './zapsign-falsa.js';
@@ -287,6 +288,7 @@ async function principal() {
        reais Eduarda e Andreia vem de la), igual as suites abaixo. */
     suites.push(await testarEduardaRoteamento({ base, anthropic }));
     suites.push(await testarBateriaDeRoteamento({ base, anthropic }));
+    suites.push(await testarCustoPorAgente({ raiz: RAIZ }));
     /* Depois de todas as outras: acrescenta conversas em Ativos, e as suites
        de cima contam fila. */
     suites.push(await testarHistorico({ base, evolucao, chaveEvolucao: CHAVE_EVOLUCAO }));

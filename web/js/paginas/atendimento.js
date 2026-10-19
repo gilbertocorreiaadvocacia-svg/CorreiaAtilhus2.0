@@ -328,11 +328,26 @@ export async function paginaAtendimento({
     try {
       const resposta = await api.get(`/api/contatos/${doContatoId}/creditos-mes`);
       if (vivo.contatoId === doContatoId && document.body.contains(elemento)) {
-        elemento.textContent = `${numero(resposta.creditos)} créditos`;
+        limpar(elemento);
+        elemento.append(el('div', { texto: `${numero(resposta.creditos)} créditos` }));
+        /* Por agente, so quando ha mais de um — com um so, "gasto com a
+           Eduarda" ja e obvio, e repetir o nome nao ajuda. Credito sem
+           agente (de antes desta conta existir, ou de acao sem agente)
+           entra no total acima, mas nao aparece aqui por agente nenhum. */
+        if ((resposta.porAgente || []).length > 1) {
+          elemento.append(
+            el(
+              'div',
+              { class: 'c-fraco mt-1' },
+              resposta.porAgente.map((item) => el('div', { texto: `${item.agenteNome}: ${numero(item.custo)}` })),
+            ),
+          );
+        }
       }
     } catch {
       if (vivo.contatoId === doContatoId && document.body.contains(elemento)) {
-        elemento.textContent = '—';
+        limpar(elemento);
+        elemento.append('—');
       }
     }
   }

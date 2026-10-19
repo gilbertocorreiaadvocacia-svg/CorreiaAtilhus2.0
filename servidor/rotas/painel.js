@@ -1,7 +1,7 @@
 import { TIPOS_STATUS } from '../config.js';
 import { achar, atualizar, listar, remover } from '../nucleo/banco.js';
 import { filtrarConversasVisiveis, podeVerConversa } from '../nucleo/auth.js';
-import { consumoDoWorkspace } from '../nucleo/creditos.js';
+import { consumoDoWorkspace, custoPorAgente } from '../nucleo/creditos.js';
 import { diagnosticar } from '../nucleo/diagnostico.js';
 import { emitir } from '../nucleo/eventos.js';
 import { agora } from '../nucleo/util.js';
@@ -953,6 +953,18 @@ export function registrarPainel(rotas) {
         nome: visiveis.get(item.contatoId)?.nome || 'conversa removida',
       })),
     };
+  });
+
+  /** Custo, chamadas e duracao media por agente — a base de "Qualidade e custos dos agentes". */
+  rotas.get('/api/agentes/custos', async ({ ctx, query }) => {
+    const dados = custoPorAgente(ctx.workspaceId, {
+      de: inicioDoDia(query.de),
+      ate: fimDoDia(query.ate),
+    });
+    const agentes = new Map(listar('agentes', { workspaceId: ctx.workspaceId }).map((a) => [a.id, a]));
+    return dados
+      .map((item) => ({ ...item, agenteNome: agentes.get(item.agenteId)?.nome || 'Agente removido' }))
+      .sort((a, b) => b.custo - a.custo);
   });
 
   /* ---------------- Notificacoes ---------------- */

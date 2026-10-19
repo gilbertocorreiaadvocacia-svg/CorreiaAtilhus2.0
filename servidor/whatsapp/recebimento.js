@@ -441,7 +441,12 @@ export async function receberMensagem({
   let transcricaoErro = null;
   if (anexo?.tipo === 'audio' && anexo.url) {
     if (transcricaoDisponivel(workspaceId)) {
-      ({ texto: transcricao, erro: transcricaoErro } = await transcrever({ workspaceId, contatoId: contato.id, midia: anexo }));
+      ({ texto: transcricao, erro: transcricaoErro } = await transcrever({
+        workspaceId,
+        contatoId: contato.id,
+        midia: anexo,
+        agenteId: contato.responsavel?.tipo === 'agente' ? contato.responsavel.id : null,
+      }));
     } else {
       transcricaoErro = 'Transcrição não configurada — falta a chave da OpenAI em Integrações.';
     }

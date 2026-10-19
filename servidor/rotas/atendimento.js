@@ -18,7 +18,7 @@ import {
   totalMensagensEmCache,
 } from '../nucleo/banco.js';
 import { aplicarModoFoco, ehAdministrador, filtrarConversasVisiveis, podeVerConversa } from '../nucleo/auth.js';
-import { creditosMesDoContato } from '../nucleo/creditos.js';
+import { creditosMesDoContato, creditosPorAgenteDoContato } from '../nucleo/creditos.js';
 import { emitir } from '../nucleo/eventos.js';
 import { agora, aplicarVariaveis, garantirPasta, normalizar, normalizarTelefone, novoId, ordenarPor } from '../nucleo/util.js';
 import { enviarMensagem, janelaAberta, marcarComoLida } from '../whatsapp/envio.js';
@@ -417,7 +417,14 @@ export function registrarAtendimento(rotas) {
    */
   rotas.get('/api/contatos/:id/creditos-mes', async ({ ctx, params }) => {
     const contato = conversaOu404(ctx, params.id);
-    return { creditos: creditosMesDoContato(contato.id) };
+    const agentes = new Map(listar('agentes', { workspaceId: ctx.workspaceId }).map((a) => [a.id, a]));
+    return {
+      creditos: creditosMesDoContato(contato.id),
+      porAgente: creditosPorAgenteDoContato(contato.id).map((item) => ({
+        ...item,
+        agenteNome: agentes.get(item.agenteId)?.nome || 'Agente removido',
+      })),
+    };
   });
 
   /* ---------------- Envio ---------------- */
