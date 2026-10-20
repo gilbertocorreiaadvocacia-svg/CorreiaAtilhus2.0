@@ -112,24 +112,21 @@ function etapaDoStatus(status) {
 }
 
 /*
- * As tres partes do funil no quadro, tambem pelo tipo do status.
+ * As duas partes do funil no quadro, pelo tipo do status.
  *
- * Venda e o caminho ate o contrato assinado. Pos-venda sao os status sem
- * classificacao que vem depois do de sucesso (Documentacao pendente, Processo
- * em andamento). Encerradas sao as perdas. Com todos os status numa fileira
- * so, as colunas paradas empurravam o funil para fora da tela.
+ * Venda e o caminho ate o contrato assinado, e tudo que vem depois dele
+ * (Documentacao pendente, Processo em andamento): o Comercial nao acompanha
+ * pos-venda separado, entao essas colunas ficam juntas das outras, sem aba
+ * propria (pedido do escritorio em 20/10/2026). Encerradas sao as perdas.
  */
 const SEGMENTOS_DO_FUNIL = [
   { id: 'venda', rotulo: 'CRM' },
-  { id: 'posvenda', rotulo: 'Pós-venda' },
   { id: 'encerradas', rotulo: 'Encerrado' },
 ];
 
 function segmentoDoStatus(status) {
   if (!status) return 'venda';
   if (TIPOS_DE_PERDA.includes(status.tipo)) return 'encerradas';
-  const ultimaEtapa = ETAPAS_DA_VENDA.length - 1;
-  if (etapaDoStatus(status) === ultimaEtapa && status.tipo !== 'sucesso') return 'posvenda';
   return 'venda';
 }
 
@@ -3986,14 +3983,13 @@ export async function paginaAtendimento({
 
   /* A coluna nova do quadro nasce "neutra" (tipo nenhum), para nao virar etapa
      do funil nem entrar no dashboard como um estagio. Depois de criada, e
-     reposicionada para cair no segmento aberto (Venda/Pos-venda/Encerradas). */
+     reposicionada para cair no segmento aberto (Venda/Encerradas). */
   async function posicionarNoSegmento(novoId) {
     if (!novoId) return;
     const ids = estado.status.map((s) => s.id).filter((id) => id !== novoId);
     const sucesso = estado.status.find((s) => s.tipo === 'sucesso');
     let alvo = ids.length;
     if (sucesso && segmentoDoFunil === 'venda') alvo = Math.max(0, ids.indexOf(sucesso.id));
-    else if (sucesso && segmentoDoFunil === 'posvenda') alvo = ids.indexOf(sucesso.id) + 1;
     ids.splice(alvo < 0 ? ids.length : alvo, 0, novoId);
     await api.post('/api/status/ordenar', { ordem: ids });
   }
