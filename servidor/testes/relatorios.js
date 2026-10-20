@@ -43,7 +43,10 @@ export async function testarRelatorios({ base, zapsign }) {
   const semAgenteAntes = antes.porAgente.semAtribuicao || 0;
 
   /* --- Assina um contrato pelo caminho de verdade --------------------- */
-  await api.patch('/api/integracoes', { zapsign: { chave: 'zs-de-mentira', segredoWebhook: 'segredo-do-rel' } });
+  /* O modelo padrao vai explicito aqui: nao supor que outra suite deixou um
+     para tras (Diagnostico, por exemplo, comecou a zerar a ZapSign antes dos
+     proprios testes, exatamente para nao herdar lixo de suite nenhuma). */
+  await api.patch('/api/integracoes', { zapsign: { chave: 'zs-de-mentira', segredoWebhook: 'segredo-do-rel', modeloPadraoId: 'mdl-contrato' } });
   await api.post('/api/integracoes/zapsign/sincronizar', {});
 
   const contato = (await api.post('/api/contatos', { conexaoId: simulador.id, telefone: '5581980000777', nome: 'Cliente Relatorio' })).dados;

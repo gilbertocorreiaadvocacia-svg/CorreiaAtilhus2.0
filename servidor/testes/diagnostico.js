@@ -252,6 +252,83 @@ export async function testarDiagnostico({ base, anthropic }) {
     `antes tinha aviso: ${tinhaAviso}`,
   );
 
+  /* --- Fechar contrato: chave e modelo da ZapSign ---------------------- */
+
+  /* Outras suites (Contratos, Juri, Workspaces por area) usam esta mesma base
+     de integracoes e deixam a ZapSign configurada para os PROPRIOS testes.
+     Comecar limpo, e nao supor que esta limpo, e o que evita este teste
+     acusar (ou deixar de acusar) pelo motivo errado. */
+  await api.patch('/api/integracoes', { zapsign: { chave: null, modeloPadraoId: null, procuracaoPadraoId: null, modelosPorCaso: {} } });
+
+  const agenteContrato = await api.post('/api/agentes', {
+    nome: 'Diagnostico (fecha contrato)',
+    prompt: 'Quando o cliente confirmar os dados, use @gerarcontrato.',
+    ativo: true,
+  });
+  const agenteContratoId = agenteContrato.dados?.id;
+  if (!s.ok('agente que fecha contrato criado', Boolean(agenteContratoId), JSON.stringify(agenteContrato.dados))) return s;
+
+  const semZapsign = await diagnosticar();
+  s.ok(
+    'agente que usa @gerarcontrato sem chave da ZapSign e acusado como critico',
+    achar(semZapsign, 'contrato-sem-chave')?.severidade === 'critica',
+    JSON.stringify(achar(semZapsign, 'contrato-sem-chave')),
+  );
+
+  await api.patch('/api/integracoes', { zapsign: { chave: 'zs-de-mentira-para-o-teste' } });
+  const comChaveSemModelo = await diagnosticar();
+  s.ok('com a chave cadastrada, o aviso de chave ausente some', !tem(comChaveSemModelo, 'contrato-sem-chave'));
+  s.ok(
+    'mas sem nenhum modelo escolhido, o aviso de modelo aparece',
+    tem(comChaveSemModelo, 'contrato-sem-modelo'),
+    JSON.stringify((comChaveSemModelo.achados || []).map((a) => a.id)),
+  );
+
+  await api.patch('/api/integracoes', { zapsign: { modeloPadraoId: 'mdl_de_teste' } });
+  const comModelo = await diagnosticar();
+  s.ok('escolhido um modelo padrao, o aviso some', !tem(comModelo, 'contrato-sem-modelo'));
+
+  await api.patch('/api/agentes/' + agenteContratoId, { prompt: 'Atenda com educacao.' });
+  await api.patch('/api/integracoes', { zapsign: { chave: null, modeloPadraoId: null } });
+  await api.delete(`/api/agentes/${agenteContratoId}`);
+
+  /* --- Video de boas-vindas: o template promete, mas nao tem video ----- */
+
+  const templateVideo = await api.post('/api/templates', {
+    nome: 'Diagnostico (boas-vindas)',
+    atalho: 'diagnosticoboasvindas',
+    conteudo: 'Ola! Seja muito bem-vindo(a). Assista ao nosso video de boas-vindas.',
+  });
+  const templateVideoId = templateVideo.dados?.id;
+  if (!s.ok('template de boas-vindas criado', Boolean(templateVideoId), JSON.stringify(templateVideo.dados))) return s;
+
+  const agenteBoasVindas = await api.post('/api/agentes', {
+    nome: 'Diagnostico (boas-vindas)',
+    prompt: 'Na primeira mensagem, envie o template @diagnosticoboasvindas.',
+    ativo: true,
+  });
+  const agenteBoasVindasId = agenteBoasVindas.dados?.id;
+  if (!s.ok('agente que manda boas-vindas criado', Boolean(agenteBoasVindasId), JSON.stringify(agenteBoasVindas.dados))) return s;
+
+  const semVideo = await diagnosticar();
+  s.ok(
+    'template que promete video sem video anexado e acusado, com o agente e o template',
+    (achar(semVideo, 'template-promete-video-sem-video')?.detalhe || '').includes('Diagnostico (boas-vindas)') &&
+      (achar(semVideo, 'template-promete-video-sem-video')?.detalhe || '').includes('diagnosticoboasvindas'),
+    JSON.stringify(achar(semVideo, 'template-promete-video-sem-video')),
+  );
+
+  await api.patch(`/api/templates/${templateVideoId}`, { midia: { tipo: 'video', url: 'https://exemplo.com/video.mp4' } });
+  const comVideo = await diagnosticar();
+  s.ok(
+    'anexado o video, o aviso some',
+    !(achar(comVideo, 'template-promete-video-sem-video')?.detalhe || '').includes('Diagnostico (boas-vindas)'),
+    JSON.stringify(achar(comVideo, 'template-promete-video-sem-video')),
+  );
+
+  await api.delete(`/api/agentes/${agenteBoasVindasId}`);
+  await api.delete(`/api/templates/${templateVideoId}`);
+
   /* --- Quem nao configura nao le -------------------------------------- */
 
   const suporte = cliente(base);

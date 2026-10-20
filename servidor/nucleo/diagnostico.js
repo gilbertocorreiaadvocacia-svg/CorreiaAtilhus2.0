@@ -100,6 +100,64 @@ export function diagnosticar(workspaceId) {
     );
   }
 
+  /*
+   * 2b. O contrato e o fim do funil: sem ZapSign pronta, nenhum lead vira
+   * cliente. Pedido do escritorio em 20/10/2026: "comece a fechar contrato" —
+   * entao o que falta para isso acontecer precisa aparecer aqui, do mesmo
+   * jeito que a chave de IA aparece quando falta.
+   */
+  const citaContrato = ligados.some((a) => analisarPrompt(a.prompt || '', workspaceId).mencoes.some((m) => m.tipo === 'sistema' && m.chave === 'gerarcontrato'));
+  const zapsign = integracoes?.zapsign;
+  if (citaContrato && !zapsign?.chave) {
+    anotar(
+      'critica',
+      'contrato-sem-chave',
+      'Os agentes nao conseguem fechar contrato',
+      'Pelo menos um agente ligado usa @gerarcontrato, mas a chave da ZapSign nao esta cadastrada em Integracoes. O agente tenta gerar o contrato e falha, sem avisar o cliente por que.',
+      '#/integracoes',
+    );
+  } else if (citaContrato && zapsign?.chave && !zapsign?.modeloPadraoId && !Object.keys(zapsign?.modelosPorCaso || {}).length) {
+    anotar(
+      'alta',
+      'contrato-sem-modelo',
+      'ZapSign cadastrada, mas sem nenhum modelo de contrato escolhido',
+      'A chave esta configurada, mas nao ha modelo padrao nem modelo por tipo de caso em Integracoes. Sem um modelo, @gerarcontrato nao tem o que gerar.',
+      '#/integracoes',
+    );
+  }
+
+  /*
+   * 2c. O video que o template promete e o video que ele manda.
+   *
+   * Um template nasce so com o texto (ver nucleo/pacotes.js, TEMPLATES): o
+   * escritorio e quem anexa o video ou o audio em Configuracoes > Templates.
+   * Enquanto isso nao acontece, o agente manda a FRASE que promete o video —
+   * "Assista ao nosso video de boas-vindas" — sem nenhum video junto. Pedido
+   * do escritorio em 20/10/2026: todo contato novo precisa poder receber o
+   * video de boas-vindas de verdade.
+   */
+  const templates = listar('templates', { workspaceId });
+  const semVideo = [];
+  for (const agente of ligados) {
+    const { mencoes } = analisarPrompt(agente.prompt || '', workspaceId);
+    for (const mencao of mencoes) {
+      if (mencao.tipo !== 'template') continue;
+      const template = templates.find((t) => t.id === mencao.id);
+      if (!template || template.midia) continue;
+      if (!/video/.test(normalizar(template.conteudo || ''))) continue;
+      semVideo.push(`${agente.nome} → @${template.atalho} ("${template.nome}")`);
+    }
+  }
+  if (semVideo.length) {
+    anotar(
+      'alta',
+      'template-promete-video-sem-video',
+      'Um template promete vídeo, mas nenhum vídeo foi anexado',
+      `${[...new Set(semVideo)].join('; ')}. O cliente le "assista ao video" e nao recebe nada. Anexe o arquivo em Configuracoes > Templates.`,
+      '#/configuracoes/templates',
+    );
+  }
+
   /* 3. A causa silenciosa da fila sem status: a conexao nasce sem padrao. */
   const semPadrao = reais.filter((c) => !c.statusPadraoId || !c.departamentoPadraoId);
   if (semPadrao.length) {
