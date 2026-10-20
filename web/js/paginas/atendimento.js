@@ -646,10 +646,34 @@ export async function paginaAtendimento({
     });
     botaoFiltros.classList.toggle('ativo', ligados.length > 0);
 
+    /* Minhas conversas: atalho para o filtro de responsavel mais usado, sem
+       abrir a janela de Filtros toda vez. So aparece para quem tem membro
+       nesta sessao (sempre, fora de um teste chamando a API direto). Clicar
+       de novo tira o filtro — e o mesmo campo de Filtros, so um atalho para
+       o valor mais comum dele. */
+    const meuMembroId = estado.sessao?.membro?.id;
+    const souEu = Boolean(meuMembroId) && filtro.responsavel === meuMembroId;
+    const botaoMinhasConversas = meuMembroId
+      ? botao('Minhas conversas', {
+          pequeno: true,
+          icone: 'pessoa',
+          titulo: 'So as conversas em que voce e o responsavel',
+          aoClicar: async () => {
+            filtro.responsavel = souEu ? '' : meuMembroId;
+            await desenhar();
+          },
+        })
+      : null;
+    if (botaoMinhasConversas) botaoMinhasConversas.classList.toggle('ativo', souEu);
+
     const cabeca = el('div', { class: 'coluna-cabecalho sem-respiro' }, [
       abas,
       concluidos,
-      el('div', { class: 'busca-fila' }, [el('label', { class: 'busca-fila-caixa' }, [icone('lupa', 14), busca]), botaoFiltros]),
+      el('div', { class: 'busca-fila' }, [
+        el('label', { class: 'busca-fila-caixa' }, [icone('lupa', 14), busca]),
+        botaoMinhasConversas,
+        botaoFiltros,
+      ]),
       ligados.length
         ? el(
             'div',
