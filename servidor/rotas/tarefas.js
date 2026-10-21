@@ -169,6 +169,7 @@ function avisarResponsavel(ctx, tarefa, titulo) {
     titulo,
     `${ctx.usuario.nome}: "${tarefa.titulo}"${deQuem}. Prazo ${prazoLegivel(tarefa.prazo)}.`,
     tarefa.contatoId || null,
+    { tarefaId: tarefa.id },
   );
 }
 

@@ -958,6 +958,12 @@ export function registrarConexoes(rotas) {
  * de sair, e sem aviso alguem so descobre quando um cliente liga perguntando.
  */
 function aplicarEventoDeConexao(conexao, evento) {
+  /* Guardado ANTES de atualizar: atualizar() muda o MESMO objeto que
+     `conexao` aponta (Object.assign em cima do registro, nucleo/banco.js),
+     entao ler conexao.estado depois da chamada sempre devolveria o estado
+     NOVO — e caiuAgora, logo abaixo, nunca acusaria queda nenhuma, so
+     sempre comparando o evento com ele mesmo. */
+  const estadoAntes = conexao.estado;
   const mudancas = {};
   if (evento.estado) mudancas.estado = evento.estado;
   if (evento.numero) mudancas.numero = evento.numero;
@@ -992,7 +998,7 @@ function aplicarEventoDeConexao(conexao, evento) {
    * ficava enterrado no meio. Um alarme que toca sozinho a noite inteira e um
    * alarme que se aprende a desligar.
    */
-  const caiuAgora = evento.estado === 'desconectado' && conexao.estado !== 'desconectado';
+  const caiuAgora = evento.estado === 'desconectado' && estadoAntes !== 'desconectado';
   if (caiuAgora || evento.qualidade) {
     for (const membro of listar('membros', { workspaceId: conexao.workspaceId })) {
       if (!['owner', 'admin'].includes(membro.papel)) continue;
@@ -1002,6 +1008,8 @@ function aplicarEventoDeConexao(conexao, evento) {
         'sistema',
         evento.qualidade ? 'Qualidade do numero mudou' : 'Numero desconectado',
         `${conexao.nome}: ${evento.evento || evento.qualidade}`,
+        null,
+        { conexaoId: conexao.id },
       );
     }
   }

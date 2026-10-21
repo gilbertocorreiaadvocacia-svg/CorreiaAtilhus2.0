@@ -204,6 +204,8 @@ async function executar(conexao, { rodada, responsavel, forcarFotos }) {
           'sistema',
           'Sincronizacao do WhatsApp concluida',
           `${conexao.nome}: ${conversas} conversas e ${mensagensAntes + relato.mensagensGravadas} mensagens trazidas do celular.`,
+          null,
+          { conexaoId: conexao.id },
         );
       }
     }

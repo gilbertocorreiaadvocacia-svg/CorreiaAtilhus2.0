@@ -7412,6 +7412,14 @@ a.metrica:focus-visible {
   border-style: dashed;
 }
 
+/* O item que uma notificacao de tarefa apontou (#/atendimento/<id>/tarefas/
+   <tarefaId>) — mesmo realce de "selecionado" usado em .item-conversa.ativo,
+   so que aqui dentro de uma lista comum. */
+.lista-item.destaque {
+  background: var(--ouro-fraco);
+  box-shadow: inset 3px 0 0 var(--ouro);
+}
+
 /* Bloco de texto do item: titulo, descricao e o que mais a lista quiser
    empilhar. Volta a ser um bloco simples desde que o esqueleto do aplicativo
    passou a se chamar .corpo-app — ate entao a grade de duas colunas dele caia
@@ -7419,6 +7427,26 @@ a.metrica:focus-visible {
 .lista-item .corpo {
   flex: 1;
   min-width: 0;
+}
+
+/* Quando o corpo da linha e um <button> (notificacao com destino para
+   clicar), zera o visual nativo do botao para ficar identico ao <div> de
+   sempre, so com o cursor e o hover avisando que e clicavel. */
+.lista-item .corpo-clicavel {
+  display: block;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--raio-p);
+}
+
+.lista-item .corpo-clicavel:hover .titulo {
+  text-decoration: underline;
 }
 
 .lista-item .titulo {

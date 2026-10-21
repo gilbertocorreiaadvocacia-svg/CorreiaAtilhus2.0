@@ -14,6 +14,7 @@ import {
   podeConfigurar,
   tema,
 } from './estado.js';
+import { destinoDaNotificacao } from './notificacoes.js';
 import { areaTexto, avatar, aviso, botao, campo, dataHora, desenharQrOtpauth, el, entradaSegredo, entradaTexto, icone, interruptor, limpar, modal, preferencia, salvarPreferencia, selecao, selo, telefone } from './ui.js';
 import {
   definirSistema,
@@ -1218,15 +1219,38 @@ function abrirNotificacoes() {
   // no item inteiro: com opacity 0.6 no container, a descricao em
   // --texto-suave caia de 7,5:1 para cerca de 3,4:1 e reprovava o contraste.
   for (const notificacao of estado.notificacoes.slice(0, 40)) {
+    /* A linha inteira leva para o destino certo de cada tipo (ver
+       web/js/notificacoes.js) — antes so um botao "Abrir" a parte fazia
+       algo, e so quando havia contatoId. Um <button> em vez de um <div>
+       clicavel, e nao aninhado dentro do botao de "marcar lida": os dois
+       ficam irmaos, senao um botao dentro de outro quebra o foco por
+       teclado e o leitor de tela. */
+    const destino = destinoDaNotificacao(notificacao);
+    const conteudoDaLinha = [
+      el('div', { class: 'titulo', texto: notificacao.titulo }),
+      el('div', { class: 'desc', texto: notificacao.texto || '' }),
+      /* Quando aconteceu. Sem isto, "Nova mensagem de Maria" nao dizia se era
+         de agora ou de terca, e a lista inteira se lia como igualmente
+         urgente. */
+      el('div', { class: 't-xs c-fraco', texto: dataHora(notificacao.criadoEm) }),
+    ];
+    const corpo = destino
+      ? el(
+          'button',
+          {
+            type: 'button',
+            class: 'corpo corpo-clicavel',
+            aoClick: () => {
+              location.hash = destino;
+              document.querySelector('.cortina')?.remove();
+            },
+          },
+          conteudoDaLinha,
+        )
+      : el('div', { class: 'corpo' }, conteudoDaLinha);
+
     const linha = el('div', { class: notificacao.lida ? 'lista-item lida' : 'lista-item' }, [
-      el('div', { class: 'corpo' }, [
-        el('div', { class: 'titulo', texto: notificacao.titulo }),
-        el('div', { class: 'desc', texto: notificacao.texto || '' }),
-        /* Quando aconteceu. Sem isto, "Nova mensagem de Maria" nao dizia se era
-           de agora ou de terca, e a lista inteira se lia como igualmente
-           urgente. */
-        el('div', { class: 't-xs c-fraco', texto: dataHora(notificacao.criadoEm) }),
-      ]),
+      corpo,
       notificacao.lida ? selo('lida', '') : null,
       /* Marcar uma so. So havia "marcar todas", entao quem queria limpar um
          aviso resolvido tinha de apagar junto os que ainda nao tinha visto. */
@@ -1242,15 +1266,6 @@ function abrirNotificacoes() {
               linha.classList.add('lida');
             },
           }),
-      notificacao.contatoId
-        ? botao('Abrir', {
-            pequeno: true,
-            aoClicar: () => {
-              location.hash = `#/atendimento/${notificacao.contatoId}`;
-              document.querySelector('.cortina')?.remove();
-            },
-          })
-        : null,
     ]);
     lista.append(linha);
   }

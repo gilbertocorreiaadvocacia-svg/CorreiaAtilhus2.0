@@ -48,6 +48,7 @@ import { subirLiderhubFalsa } from './liderhub-falsa.js';
 import { testarLiderhub } from './liderhub.js';
 import { testarDiagnostico } from './diagnostico.js';
 import { testarEventosDeConexao } from './eventos-conexao.js';
+import { testarNotificacoes } from './notificacoes.js';
 import { testarExcluirConexaoComConversas } from './excluir-conexao-com-conversas.js';
 import { testarApagarConversasDaConexao } from './apagar-conversas-da-conexao.js';
 import { testarExcluirEmMassa } from './excluir-em-massa.js';
@@ -306,6 +307,7 @@ async function principal() {
     /* Por ultimo no servidor compartilhado: cadastra um membro de suporte, e o
        sorteio de responsavel das suites de cima conta quem existe. */
     suites.push(await testarEventosDeConexao({ base, evolucao, chaveEvolucao: CHAVE_EVOLUCAO }));
+    suites.push(await testarNotificacoes({ base, evolucao, chaveEvolucao: CHAVE_EVOLUCAO }));
     suites.push(await testarExcluirConexaoComConversas({ base }));
     suites.push(await testarApagarConversasDaConexao({ base }));
     suites.push(await testarExcluirEmMassa({ base }));

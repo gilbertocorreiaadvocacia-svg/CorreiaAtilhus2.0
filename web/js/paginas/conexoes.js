@@ -93,8 +93,14 @@ function gravarPreferencia(chave, valor) {
   }
 }
 
-export async function paginaConexoes({ definirAcoes } = {}) {
+export async function paginaConexoes({ definirAcoes, parametros } = {}) {
   const container = el('div');
+  /* #/conexoes/<id>: o aviso de numero caido ou sincronizacao concluida leva
+     ate aqui (ver web/js/notificacoes.js) — abre a gaveta de detalhes desse
+     numero sozinha, uma vez so (desenhar() roda de novo a cada filtro,
+     pagina ou coluna trocada, e isso nao pode reabrir a gaveta toda hora). */
+  const conexaoAlvoId = parametros?.[0] || null;
+  let abriuAlvo = false;
 
   /* Se a chamada falhar (ou so demorar), a lista de reserva acima continua
      valendo: e melhor a tela abrir com os tres caminhos conhecidos do que
@@ -140,6 +146,15 @@ export async function paginaConexoes({ definirAcoes } = {}) {
   async function desenhar() {
     const conexoes = await recarregar('conexoes');
     limpar(container);
+
+    if (conexaoAlvoId && !abriuAlvo) {
+      abriuAlvo = true;
+      const alvo = conexoes.find((c) => c.id === conexaoAlvoId);
+      if (alvo) {
+        abrirDetalhes(alvo, desenhar);
+        history.replaceState(null, '', '#/conexoes');
+      }
+    }
 
     if (!conexoes.length) {
       container.append(

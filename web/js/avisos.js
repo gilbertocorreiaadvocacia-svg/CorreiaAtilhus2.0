@@ -1,3 +1,5 @@
+import { destinoDaNotificacao } from './notificacoes.js';
+
 /**
  * Aviso que alcanca quem nao esta olhando a tela: som e notificacao do sistema.
  *
@@ -145,7 +147,8 @@ export function mostrarNoSistema(notificacao) {
     });
     balao.onclick = () => {
       window.focus();
-      if (notificacao.contatoId) location.hash = `#/atendimento/${notificacao.contatoId}`;
+      const destino = destinoDaNotificacao(notificacao);
+      if (destino) location.hash = destino;
       balao.close();
     };
   } catch {

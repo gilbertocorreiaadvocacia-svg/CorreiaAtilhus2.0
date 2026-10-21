@@ -286,7 +286,12 @@ export async function paginaAtendimento({
   /* Qual das seis abas do painel da direita esta aberta. Pelo mesmo motivo do
      termo acima: a tela se refaz a cada evento, e voltar para "Dados" no meio
      de uma leitura do historico seria perder o lugar sem ter pedido. */
-  let abaPainel = 'dados';
+  /* #/atendimento/<id>/tarefas/<tarefaId>: a notificacao de tarefa nova leva
+     ate aqui (ver web/js/notificacoes.js). O roteador so separa a rota por
+     "/" — sem isso, abrir direto na aba Tarefas com a tarefa certa
+     destacada nao teria como chegar. */
+  let abaPainel = parametros[1] === 'tarefas' ? 'tarefas' : 'dados';
+  const tarefaAlvoId = parametros[1] === 'tarefas' ? parametros[2] || null : null;
   let areaContatos = null;
 
   const container = el('div', { class: 'atendimento' });
@@ -2594,6 +2599,18 @@ export async function paginaAtendimento({
           if (meuPedido !== pedidoAtual || !document.body.contains(corpo)) return;
           limpar(corpo);
           corpo.append(conteudo);
+          /* Veio de uma notificacao de tarefa (#/atendimento/<id>/tarefas/<id>):
+             a tarefa certa ja nasce marcada (painelTarefas), so falta trazer
+             ela para a vista, mesmo padrao do contrato em conferencia. */
+          if (id === 'tarefas' && tarefaAlvoId) {
+            corpo.querySelector('.destaque')?.scrollIntoView({ block: 'center' });
+            /* Limpa o endereco depois de chegar: destacar continua valendo
+               (tarefaAlvoId ja foi lido), so o link na barra fica limpo para
+               compartilhar ou atualizar a pagina sem reabrir sempre na
+               mesma tarefa. Mesmo padrao da volta do login do TikTok em
+               paginas/conexoes.js. */
+            history.replaceState(null, '', `#/atendimento/${selecionadoId}`);
+          }
         })
         .catch((erro) => {
           if (meuPedido !== pedidoAtual || !document.body.contains(corpo)) return;
@@ -3023,7 +3040,7 @@ export async function paginaAtendimento({
 
   async function montarPainel(id, contato) {
     if (id === 'midia') return painelMidia(contato);
-    if (id === 'tarefas') return painelTarefas(contato);
+    if (id === 'tarefas') return painelTarefas(contato, tarefaAlvoId);
     if (id === 'arquivos') return painelArquivos(contato);
     if (id === 'agendamentos') return painelAgendamentos(contato);
     return painelHistorico(contato);
@@ -3127,7 +3144,7 @@ export async function paginaAtendimento({
     return caixa;
   }
 
-  async function painelTarefas(contato) {
+  async function painelTarefas(contato, tarefaAlvoId = null) {
     const resposta = await api.get(`/api/tarefas?contato=${contato.id}`);
     const tarefas = resposta.tarefas || resposta || [];
     if (!tarefas.length) {
@@ -3137,7 +3154,7 @@ export async function paginaAtendimento({
     const lista = el('div', { class: 'lista-simples' });
     for (const tarefa of tarefas) {
       lista.append(
-        el('div', { class: 'lista-item' }, [
+        el('div', { class: `lista-item${tarefa.id === tarefaAlvoId ? ' destaque' : ''}`, dataset: { tarefaId: tarefa.id } }, [
           el('div', { class: 'corpo' }, [
             el('div', { class: 'titulo', texto: tarefa.titulo }),
             el('div', { class: 'desc', texto: [
