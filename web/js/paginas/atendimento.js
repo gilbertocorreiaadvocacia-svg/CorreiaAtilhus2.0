@@ -31,6 +31,7 @@ import {
   preferencia,
   quando,
   salvarPreferencia,
+  secaoRecolhivel,
   selecao,
   selo,
   telefone,
@@ -2497,55 +2498,75 @@ export async function paginaAtendimento({
                 }),
               });
             })(),
-            campoRecolhivel({
-              chave: 'etiqueta',
-              iconeDoCampo: 'etiqueta',
-              rotulo: 'Etiquetas da conversa',
-              /* O resumo mostra as marcadas, nao a contagem: "Auxilio-doenca,
-                 Urgente" responde a pergunta, "2 etiquetas" obriga a abrir. */
-              resumo: (() => {
-                const marcadasAgora = (contato.etiquetas || []).map(acharEtiqueta).filter(Boolean);
-                if (!marcadasAgora.length) return convite('Adicionar etiquetas');
-                return el('span', { class: 'linha-p quebra' }, marcadasAgora.map((e) => pilula(e)));
-              })(),
-              conteudo: etiquetas,
-            }),
-            campoRecolhivel({
-              chave: 'departamento',
-              iconeDoCampo: 'predio',
-              rotulo: 'Departamento responsável',
-              resumo: pilula(estado.departamentos.find((d) => d.id === contato.departamentoId)) || convite('Escolher departamento'),
-              conteudo: listaDeEscolha({
-                opcoes: estado.departamentos,
-                atual: contato.departamentoId,
-                rotuloVazio: 'Sem departamento',
-                chaveDoTermo: 'departamento',
-                nomeDoGrupo: 'escolha-departamento',
-                aoEscolher: (id) => {
-                  fechar('departamento');
-                  return salvar({ departamentoId: id });
-                },
-              }),
-            }),
-            campoRecolhivel({
-              chave: 'origem',
-              iconeDoCampo: 'origem',
-              rotulo: 'Por onde o cliente chegou',
-              resumo: pilula(estado.origens.find((o) => o.id === contato.origemId)) || convite('Selecionar origem'),
-              conteudo: listaDeEscolha({
-                opcoes: estado.origens,
-                atual: contato.origemId,
-                rotuloVazio: 'Nao identificada',
-                chaveDoTermo: 'origem',
-                nomeDoGrupo: 'escolha-origem',
-                aoEscolher: (id) => {
-                  fechar('origem');
-                  return salvar({ origemId: id });
-                },
-              }),
-            }),
             blocoDoAnuncio(contato),
           ]),
+        ]),
+        /*
+         * Etiquetas, Departamento e Origem, fechadas por padrao (secaoRecolhivel,
+         * ui.js) — pedido do escritorio em 20/10/2026, "menos informacao" no
+         * painel. Diferente do bloco acima (Status/Momento, que so colapsam o
+         * SELETOR, com a linha-resumo sempre visivel): aqui a linha inteira some
+         * ate alguem clicar, e o resumo mostra o que ja esta escolhido. A
+         * preferencia e por navegador (preferencia()/salvarPreferencia(), mesmo
+         * mecanismo das colunas escondidas do Kanban), nao por conta.
+         */
+        el('div', { class: 'painel-cartao' }, [
+          secaoRecolhivel(
+            {
+              chave: 'painelEtiquetas',
+              aberto: false,
+              titulo: 'Etiquetas da conversa',
+              resumo: (() => {
+                const marcadasAgora = (contato.etiquetas || []).map(acharEtiqueta).filter(Boolean);
+                return marcadasAgora.length
+                  ? el('span', { class: 'linha-p' }, marcadasAgora.map((e) => pilula(e)))
+                  : convite('Adicionar etiquetas');
+              })(),
+            },
+            etiquetas,
+          ),
+          secaoRecolhivel(
+            {
+              chave: 'painelDepartamento',
+              aberto: false,
+              titulo: 'Departamento responsável',
+              resumo: pilula(estado.departamentos.find((d) => d.id === contato.departamentoId)) || convite('Escolher departamento'),
+            },
+            listaDeEscolha({
+              opcoes: estado.departamentos,
+              atual: contato.departamentoId,
+              rotuloVazio: 'Sem departamento',
+              chaveDoTermo: 'departamento',
+              nomeDoGrupo: 'escolha-departamento',
+              aoEscolher: (id) => {
+                /* Mesmo gesto do "fecha sozinho depois de escolher" de antes,
+                   so que gravando direto na preferencia persistida: a secao
+                   nao tem mais o Set `expandidos` por tras, so le o guardado
+                   no proximo desenhar() (salvar(), abaixo, redesenha a tela). */
+                salvarPreferencia('secao:painelDepartamento', false);
+                return salvar({ departamentoId: id });
+              },
+            }),
+          ),
+          secaoRecolhivel(
+            {
+              chave: 'painelOrigem',
+              aberto: false,
+              titulo: 'Por onde o cliente chegou',
+              resumo: pilula(estado.origens.find((o) => o.id === contato.origemId)) || convite('Selecionar origem'),
+            },
+            listaDeEscolha({
+              opcoes: estado.origens,
+              atual: contato.origemId,
+              rotuloVazio: 'Nao identificada',
+              chaveDoTermo: 'origem',
+              nomeDoGrupo: 'escolha-origem',
+              aoEscolher: (id) => {
+                salvarPreferencia('secao:painelOrigem', false);
+                return salvar({ origemId: id });
+              },
+            }),
+          ),
         ]),
         contratoEmDestaque,
         el('div', { class: 'painel-cartao painel-mais' }, [gatilhoMais, corpoMais]),

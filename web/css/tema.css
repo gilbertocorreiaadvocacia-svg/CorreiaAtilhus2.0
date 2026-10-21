@@ -11182,7 +11182,6 @@ img.avatar {
   flex: 1;
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: var(--e2);
   min-height: var(--controle);
   padding: var(--e2) 0;
@@ -11200,7 +11199,22 @@ img.avatar {
 }
 
 .secao-titulo {
+  flex: none;
   min-width: 0;
+}
+
+/* O que esta escolhido, so quando a secao esta fechada: aberta, o corpo
+   logo abaixo ja mostra a mesma coisa, e repetir seria dizer duas vezes. */
+.secao-resumo {
+  color: var(--texto-suave);
+  font-weight: 400;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.secao-recolhivel:not(.fechada) .secao-resumo {
+  display: none;
 }
 
 .secao-gatilho > svg {

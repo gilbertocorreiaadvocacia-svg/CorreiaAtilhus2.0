@@ -646,7 +646,7 @@ export function salvarPreferencia(nome, valor) {
  * mesmo chevron do menu lateral (icone 'voltar') gira, para o gesto ser o
  * mesmo em todo o sistema.
  */
-export function secaoRecolhivel({ titulo, chave, aberto = true, aoAlternar, acao } = {}, ...filhos) {
+export function secaoRecolhivel({ titulo, chave, aberto = true, resumo, aoAlternar, acao } = {}, ...filhos) {
   const inicial = chave ? preferencia(`secao:${chave}`, aberto) : aberto;
   const corpo = el('div', { class: 'secao-corpo', role: 'group' }, filhos);
   const seta = icone('voltar', 14);
@@ -657,7 +657,14 @@ export function secaoRecolhivel({ titulo, chave, aberto = true, aoAlternar, acao
       class: 'secao-gatilho',
       'aria-expanded': inicial ? 'true' : 'false',
     },
-    [el('span', { class: 'secao-titulo', texto: titulo }), seta],
+    [
+      el('span', { class: 'secao-titulo', texto: titulo }),
+      /* So aparece fechada: aberta, o resumo e o conteudo dizendo a mesma
+         coisa duas vezes. Classe propria para sumir sem reconstruir o
+         gatilho quando a secao abre/fecha. */
+      resumo ? el('span', { class: 'secao-resumo flexivel encolhe' }, [resumo]) : null,
+      seta,
+    ],
   );
   const caixa = el('div', { class: `secao-recolhivel${inicial ? '' : ' fechada'}` }, [
     el('div', { class: 'secao-cabeca' }, [gatilho, acao || null]),
