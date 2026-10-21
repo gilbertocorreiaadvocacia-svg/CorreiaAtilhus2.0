@@ -449,8 +449,23 @@ export async function paginaAtendimento({
    * sobre o que e um filtro, e o dia em que alguem acrescentasse um campo so
    * um dos dois caminhos saberia dele.
    */
-  function abrirFiltros(apenas = null) {
+  /*
+   * `apenasHumanos` existe so para o chip "Quem conduz" do Kanban (pedido do
+   * escritorio em 20/10/2026: tirar a IA de la, porque praticamente toda
+   * conversa ja tem um agente conduzindo por padrao, e o que sobra para
+   * filtrar de util e QUEM da equipe esta de olho). A fila normal de
+   * Atendimento e a tabela de Contatos continuam com a IA no filtro —
+   * "qual agente esta com isso" segue fazendo sentido ali. O selo roxo "IA"
+   * do card do Kanban nao muda: so o filtro fica sem a IA como opcao.
+   */
+  function abrirFiltros(apenas = null, { apenasHumanos = false } = {}) {
     const corpo = el('div');
+    const opcoesResponsavel = apenasHumanos
+      ? estado.membros.map((m) => ({ valor: m.id, rotulo: `Equipe · ${m.usuario?.nome}` }))
+      : [
+          ...estado.agentes.map((a) => ({ valor: a.id, rotulo: `IA · ${a.nome}` })),
+          ...estado.membros.map((m) => ({ valor: m.id, rotulo: `Equipe · ${m.usuario?.nome}` })),
+        ];
     const todos = [
       ['status', 'Status', estado.status.map((s) => ({ valor: s.id, rotulo: s.nome }))],
       [
@@ -464,15 +479,7 @@ export async function paginaAtendimento({
       ['etiqueta', 'Etiqueta', estado.etiquetas.map((e) => ({ valor: e.id, rotulo: e.nome }))],
       /* A conexao saiu daqui: quem escolhe o numero e o seletor da barra, e
          dois controles para a mesma coisa acabariam discordando. */
-      [
-        'responsavel',
-        'Responsavel',
-        [
-          { valor: 'nenhum', rotulo: 'Sem responsável' },
-          ...estado.agentes.map((a) => ({ valor: a.id, rotulo: `IA · ${a.nome}` })),
-          ...estado.membros.map((m) => ({ valor: m.id, rotulo: `Equipe · ${m.usuario?.nome}` })),
-        ],
-      ],
+      ['responsavel', 'Responsavel', [{ valor: 'nenhum', rotulo: 'Sem responsável' }, ...opcoesResponsavel]],
       ['origem', 'Origem', estado.origens.map((o) => ({ valor: o.id, rotulo: o.nome }))],
     ];
 
@@ -4205,7 +4212,7 @@ export async function paginaAtendimento({
           type: 'button',
           class: `chip-filtro${conduz ? ' ativo' : ''}`,
           'aria-haspopup': 'dialog',
-          aoClick: () => abrirFiltros(['responsavel']),
+          aoClick: () => abrirFiltros(['responsavel'], { apenasHumanos: true }),
         },
         [
           icone('usuarios', 14),
