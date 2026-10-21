@@ -130,10 +130,13 @@ export function consumoDoWorkspace(workspaceId, { de = null, ate = null, contato
  * nem na duracao media — nao tem duracao propria, e contar como chamada
  * infla o numero sem dizer quantas vezes o modelo foi de fato chamado.
  */
-export function custoPorAgente(workspaceId, { de = null, ate = null } = {}) {
+export function custoPorAgente(workspaceId, { de = null, ate = null, contatosPermitidos = null } = {}) {
   let lancamentos = listar('creditos', { workspaceId }).filter((l) => l.agenteId);
   if (de) lancamentos = lancamentos.filter((l) => l.criadoEm >= de);
   if (ate) lancamentos = lancamentos.filter((l) => l.criadoEm <= ate);
+  if (contatosPermitidos) {
+    lancamentos = lancamentos.filter((l) => !l.contatoId || contatosPermitidos.has(l.contatoId));
+  }
 
   const porAgente = new Map();
   const de_ = (agenteId) => {

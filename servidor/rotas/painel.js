@@ -962,9 +962,11 @@ export function registrarPainel(rotas) {
 
   /** Custo, chamadas e duracao media por agente — a base de "Qualidade e custos dos agentes". */
   rotas.get('/api/agentes/custos', async ({ ctx, query }) => {
+    const visiveis = filtrarConversasVisiveis(ctx, listar('contatos', { workspaceId: ctx.workspaceId }));
     const dados = custoPorAgente(ctx.workspaceId, {
       de: inicioDoDia(query.de),
       ate: fimDoDia(query.ate),
+      contatosPermitidos: new Set(visiveis.map((c) => c.id)),
     });
     const agentes = new Map(listar('agentes', { workspaceId: ctx.workspaceId }).map((a) => [a.id, a]));
     return dados

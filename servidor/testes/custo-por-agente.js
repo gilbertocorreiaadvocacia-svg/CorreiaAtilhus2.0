@@ -16,7 +16,10 @@ import { suite } from './apoio.js';
  * nenhum agente; so 'processamento_ia' conta como chamada e entra na
  * duracao media; os demais tipos de credito (mencao, audio) somam ao custo
  * do agente mas nao a chamada nem a duracao; o filtro de periodo (de/ate)
- * funciona; agente sem nenhum credito no periodo nao aparece.
+ * funciona; agente sem nenhum credito no periodo nao aparece;
+ * contatosPermitidos filtra como em consumoDoWorkspace (sem ele, um Suporte
+ * restrito a um departamento veria o custo somado de agentes que atenderam
+ * contatos de outros departamentos).
  */
 export async function testarCustoPorAgente({ raiz }) {
   const s = suite('Custo, chamadas e duracao media por agente');
@@ -41,14 +44,15 @@ import { lancar, custoPorAgente } from ${JSON.stringify(urlDoModulo)};
 iniciarBanco();
 inserir('workspaces', { id: 'w1', nome: 'Teste' });
 inserir('contatos', { id: 'c1', workspaceId: 'w1', telefone: '5581977770000', nome: 'Ana', etiquetas: [] });
+inserir('contatos', { id: 'c2', workspaceId: 'w1', telefone: '5581977770001', nome: 'Bia', etiquetas: [] });
 
-/* Agente A: duas chamadas de processamento_ia (com duracao) + uma mencao. */
+/* Agente A: duas chamadas de processamento_ia (com duracao) + uma mencao, no contato c1. */
 lancar('w1', 'c1', 'processamento_ia', 9, { duracaoMs: 1000 }, 'ag-a');
 lancar('w1', 'c1', 'processamento_ia', 9, { duracaoMs: 3000 }, 'ag-a');
 lancar('w1', 'c1', 'mencao_status', 1, null, 'ag-a');
 
-/* Agente B: uma chamada de processamento_ia, sem detalhe de duracao (nao deve quebrar). */
-lancar('w1', 'c1', 'processamento_ia', 9, null, 'ag-b');
+/* Agente B: uma chamada de processamento_ia, sem detalhe de duracao (nao deve quebrar), no contato c2. */
+lancar('w1', 'c2', 'processamento_ia', 9, null, 'ag-b');
 
 /* Credito sem agenteId (de antes desta mudanca, ou teste de voz): nunca deve entrar na conta de ninguem. */
 lancar('w1', 'c1', 'geracao_audio', 50, null, null);
@@ -57,8 +61,9 @@ lancar('w1', 'c1', 'geracao_audio', 50, null, null);
 const antigo = lancar('w1', 'c1', 'processamento_ia', 9, null, 'ag-a');
 antigo.criadoEm = '2020-01-01T00:00:00.000Z';
 
-const resultado = custoPorAgente('w1', { de: '2026-01-01T00:00:00.000Z' });
-console.log(JSON.stringify(resultado));
+const geral = custoPorAgente('w1', { de: '2026-01-01T00:00:00.000Z' });
+const soC1 = custoPorAgente('w1', { de: '2026-01-01T00:00:00.000Z', contatosPermitidos: new Set(['c1']) });
+console.log(JSON.stringify({ geral, soC1 }));
 await encerrarBanco();
 process.exit(0);
 `,
@@ -67,20 +72,26 @@ process.exit(0);
   try {
     const r = await rodar(script);
     if (!s.ok('roda sem erro', r.codigo === 0, r.texto.slice(-500))) return s;
-    const resultado = JSON.parse(r.texto.trim().split('\n').pop());
-    const porId = (id) => resultado.find((r2) => r2.agenteId === id);
+    const { geral, soC1 } = JSON.parse(r.texto.trim().split('\n').pop());
+    const porId = (lista, id) => lista.find((r2) => r2.agenteId === id);
 
-    s.ok('so os dois agentes com credito no periodo aparecem', resultado.length === 2, JSON.stringify(resultado));
+    s.ok('so os dois agentes com credito no periodo aparecem', geral.length === 2, JSON.stringify(geral));
 
-    const a = porId('ag-a');
+    const a = porId(geral, 'ag-a');
     s.ok('o agente A soma custo das chamadas + da mencao (9+9+1=19)', a?.custo === 19, JSON.stringify(a));
     s.ok('o agente A conta 2 chamadas (so processamento_ia, a mencao nao conta)', a?.chamadas === 2, JSON.stringify(a));
     s.ok('a duracao media do agente A e a media das duas chamadas ((1000+3000)/2=2000)', a?.duracaoMediaMs === 2000, JSON.stringify(a));
 
-    const b = porId('ag-b');
+    const b = porId(geral, 'ag-b');
     s.ok('o agente B soma so o seu credito (9)', b?.custo === 9, JSON.stringify(b));
     s.ok('o agente B conta 1 chamada', b?.chamadas === 1, JSON.stringify(b));
     s.ok('sem detalhe.duracaoMs, a duracao media fica 0 (nao quebra, nao vira NaN)', b?.duracaoMediaMs === 0, JSON.stringify(b));
+
+    s.ok(
+      'contatosPermitidos filtra como em consumoDoWorkspace: so o credito do c1 conta, agente B (so em c2) some',
+      soC1.length === 1 && porId(soC1, 'ag-a')?.custo === 19,
+      JSON.stringify(soC1),
+    );
   } finally {
     fs.rmSync(pasta, { recursive: true, force: true });
   }
