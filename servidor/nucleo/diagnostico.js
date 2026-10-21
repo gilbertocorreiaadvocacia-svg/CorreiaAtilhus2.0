@@ -170,6 +170,29 @@ export function diagnosticar(workspaceId) {
     );
   }
 
+  /*
+   * 3b. A conexao tem para onde o lead cair (status/departamento, achado
+   * acima), mas tem QUEM atende? Sem responsavelPadrao, criarContato()
+   * (whatsapp/recebimento.js) grava responsavel:null e estado:'pendente' —
+   * nenhum agente de IA entra sozinho. Pedido do escritorio em 20/10/2026:
+   * "certifique-se que toda conversa vai para a IA, do zero ate fechar
+   * contrato" — e o workspace de origem (sem area) e justamente o unico que
+   * ligarNumerosDasAreas() PULA DE PROPOSITO (so cobre Previdenciario/
+   * Trabalhista/Civel), entao este achado existe para o numero que atende
+   * cliente de verdade tambem ser coberto, sem eu precisar adivinhar qual
+   * agente atribuir sozinho.
+   */
+  const semResponsavel = reais.filter((c) => !c.responsavelPadrao);
+  if (semResponsavel.length) {
+    anotar(
+      'alta',
+      'conexao-sem-responsavel',
+      'Número sem responsável padrão',
+      `${semResponsavel.map((c) => c.nome).join(', ')}: todo lead novo entra sem IA e sem ninguém responsável (fica "pendente"), e só é notado se alguém do time abrir o sino ou filtrar por "Sem responsável" — nenhuma resposta acontece sozinha.`,
+      '#/conexoes',
+    );
+  }
+
   /* 4. Numero fora do ar nao recebe nada. */
   const fora = reais.filter((c) => c.estado !== 'conectado');
   if (fora.length) {

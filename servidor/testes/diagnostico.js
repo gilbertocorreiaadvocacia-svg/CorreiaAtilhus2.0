@@ -206,6 +206,41 @@ export async function testarDiagnostico({ base, anthropic }) {
     JSON.stringify(achar(corrigida, 'conexao-sem-padrao')),
   );
 
+  /* --- Conexao sem responsavel padrao (mesmas conexoes do bloco acima) - */
+
+  /* O mesmo simulador tambem nasce sem responsavelPadrao, e tambem nao pode
+     virar alarme: numero de mentira nao perde lead nenhum. */
+  const comSimuladorResp = await diagnosticar();
+  const acusouSimuladorResp = (achar(comSimuladorResp, 'conexao-sem-responsavel')?.detalhe || '').includes('Diagnostico (sem padrao)');
+  s.ok('o simulador sem responsavel padrao nao vira alarme', !acusouSimuladorResp);
+
+  const semResp = await diagnosticar();
+  s.ok(
+    'numero de verdade sem responsavel padrao e acusado, com o nome dele',
+    (achar(semResp, 'conexao-sem-responsavel')?.detalhe || '').includes('Diagnostico (QR sem padrao)'),
+    JSON.stringify(achar(semResp, 'conexao-sem-responsavel')),
+  );
+
+  /* Preencher status/departamento (bloco acima) nao basta: e um campo
+     diferente, e o achado precisa continuar ligado enquanto responsavelPadrao
+     seguir vazio. */
+  const aindaSemResp = await diagnosticar();
+  s.ok(
+    'preencher status/departamento, por si so, nao apaga o aviso de responsavel',
+    (achar(aindaSemResp, 'conexao-sem-responsavel')?.detalhe || '').includes('Diagnostico (QR sem padrao)'),
+  );
+
+  const membrosAtuais = (await api.get('/api/membros')).dados || [];
+  if (s.ok('ha pelo menos um membro para testar o responsavel', membrosAtuais.length > 0)) {
+    await api.patch(`/api/conexoes/${realId}`, { responsavelPadrao: { tipo: 'membro', id: membrosAtuais[0].id } });
+    const comResp = await diagnosticar();
+    s.ok(
+      'preenchido o responsavel padrao, o numero sai da lista',
+      !(achar(comResp, 'conexao-sem-responsavel')?.detalhe || '').includes('Diagnostico (QR sem padrao)'),
+      JSON.stringify(achar(comResp, 'conexao-sem-responsavel')),
+    );
+  }
+
   /* --- Agente citando um atalho que nao existe ------------------------- */
 
   const agente = await api.post('/api/agentes', {
