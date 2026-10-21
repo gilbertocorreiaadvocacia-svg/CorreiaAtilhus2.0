@@ -11278,3 +11278,58 @@ body.compacto {
     padding-inline: var(--e3);
   }
 }
+
+/* ------------------------------------------------------------------
+   Velocidade do audio
+   ------------------------------------------------------------------ */
+
+/* O botao fica na mesma linha do tocador, colado nele. Em linha separada ele
+   empurrava o rodape do balao e a conversa inteira ficava mais alta. */
+.audio-com-velocidade {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+}
+
+.audio-com-velocidade .som {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Largura fixa: sem ela o tocador pulava de lugar ao alternar entre "1x" e
+   "1,5x", que tem larguras diferentes. */
+.velocidade-audio {
+  flex: none;
+  width: 42px;
+  padding: 3px 0;
+  border: 1px solid var(--borda);
+  border-radius: var(--raio-p);
+  background: var(--superficie-2);
+  color: var(--texto-suave);
+  font: inherit;
+  font-size: var(--t-nota);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.velocidade-audio:hover {
+  color: var(--texto);
+  border-color: var(--borda-forte);
+}
+
+/* Acelerado acende: quem voltou de uma conversa e esqueceu que estava em 2x
+   acha que o cliente fala rapido. */
+/* --ouro-claro, e nao --ouro: este e o token de TEXTO sobre superficie
+   dourada, e troca de papel entre os temas. Com --ouro o estado aceso media
+   3,93:1 no tema claro, abaixo do minimo de 4,5:1 para texto. */
+.velocidade-audio.acelerado {
+  border-color: var(--ouro-linha);
+  background: var(--ouro-fraco);
+  color: var(--ouro-claro);
+}
+
+.velocidade-audio:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: 1px;
+}

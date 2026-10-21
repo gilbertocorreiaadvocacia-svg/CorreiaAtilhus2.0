@@ -27,6 +27,63 @@ function pausarOutrosAoTocar(elemento) {
   return elemento;
 }
 
+/*
+ * Velocidade de reproducao, que o tocador do navegador tem mas nao mostra.
+ *
+ * Audio de cliente contando o caso costuma ter um ou dois minutos, com pausa e
+ * repeticao. Quem atende ouve dezenas por dia, entao 1,5x e 2x economizam a
+ * maior parte desse tempo — e, quando o trecho e o numero do beneficio, da para
+ * voltar para 1x e ouvir com calma.
+ *
+ * A escolha vale para o proximo audio tambem: ninguem quer reapertar 2x em cada
+ * mensagem. Fica em localStorage e nao no servidor, porque e preferencia de
+ * quem esta ouvindo naquela maquina, e nao do escritorio.
+ */
+const VELOCIDADES = [1, 1.5, 2];
+const CHAVE_VELOCIDADE = 'correiatendimentos:velocidade-audio';
+
+function velocidadeGuardada() {
+  const bruto = Number(localStorage.getItem(CHAVE_VELOCIDADE));
+  return VELOCIDADES.includes(bruto) ? bruto : 1;
+}
+
+function botaoDeVelocidade(som) {
+  let atual = velocidadeGuardada();
+
+  const alvo = el('button', {
+    type: 'button',
+    class: 'velocidade-audio',
+    title: 'Velocidade de reproducao',
+  });
+
+  const pintar = () => {
+    som.playbackRate = atual;
+    /* Virgula, e nao ponto: "1,5x" e como se le em portugues. */
+    alvo.textContent = `${String(atual).replace('.', ',')}x`;
+    alvo.classList.toggle('acelerado', atual !== 1);
+    /* "1 vez", "1,5 vezes": o leitor de tela le isto em voz alta. */
+    const vezes = atual === 1 ? '1 vez' : `${String(atual).replace('.', ',')} vezes`;
+    alvo.setAttribute('aria-label', `Velocidade ${vezes}. Clique para trocar.`);
+  };
+
+  alvo.addEventListener('click', () => {
+    atual = VELOCIDADES[(VELOCIDADES.indexOf(atual) + 1) % VELOCIDADES.length];
+    try {
+      localStorage.setItem(CHAVE_VELOCIDADE, String(atual));
+    } catch {
+      /* Navegador sem armazenamento: a velocidade vale so para este audio. */
+    }
+    pintar();
+  });
+
+  /* O navegador zera o playbackRate quando troca a fonte do audio, entao a
+     velocidade e reaplicada a cada carregamento, e nao so na montagem. */
+  som.addEventListener('loadedmetadata', pintar);
+  pintar();
+
+  return alvo;
+}
+
 export function previaDaMidia(midia, opcoes = {}) {
   if (!midia?.url) return null;
   // A largura das duas previas mora em .midia-previa e .midia-previa.compacta,
@@ -53,7 +110,8 @@ export function previaDaMidia(midia, opcoes = {}) {
   if (midia.tipo === 'audio') {
     // O tocador do navegador nao aceita moldura nem canto arredondado, entao a
     // variacao som tira a borda e usa largura em vez de largura maxima.
-    return pausarOutrosAoTocar(el('audio', { src: midia.url, controls: true, preload: 'metadata', class: `${medida} som` }));
+    const som = pausarOutrosAoTocar(el('audio', { src: midia.url, controls: true, preload: 'metadata', class: `${medida} som` }));
+    return el('div', { class: 'audio-com-velocidade' }, [som, botaoDeVelocidade(som)]);
   }
 
   return cartaoDeArquivo(midia, { aoAbrir: abrir });
@@ -186,7 +244,10 @@ export function abrirVisualizador(itens, inicio = 0) {
     } else if (formato === 'video') {
       palco.append(el('video', { src: item.url, controls: true, autoplay: true, class: 'visualizador-video' }));
     } else if (formato === 'audio') {
-      palco.append(pausarOutrosAoTocar(el('audio', { src: item.url, controls: true, autoplay: true })));
+      const som = pausarOutrosAoTocar(el('audio', { src: item.url, controls: true, autoplay: true }));
+      /* A mesma velocidade da conversa vale aqui: quem abriu em tela cheia foi
+         justamente para ouvir com atencao o trecho que nao entendeu. */
+      palco.append(el('div', { class: 'audio-com-velocidade' }, [som, botaoDeVelocidade(som)]));
     } else if (formato === 'pdf') {
       palco.append(el('iframe', { src: item.url, class: 'visualizador-documento', title: item.nome || 'Documento' }));
     } else {
