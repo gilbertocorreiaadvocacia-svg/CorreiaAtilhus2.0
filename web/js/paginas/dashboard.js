@@ -118,7 +118,6 @@ export async function paginaDashboard({ definirAcoes = () => {} } = {}) {
   const filtro = {
     de: paraIso(trintaDias),
     ate: paraIso(hoje),
-    modo: 'evento',
     agrupamento: agrupamentoParaAJanela(paraIso(trintaDias), paraIso(hoje)),
     /* Lista, e nao valor unico: a comparacao entre duas campanhas na mesma
        janela e o uso principal deste filtro. Vira texto separado por virgula
@@ -132,6 +131,12 @@ export async function paginaDashboard({ definirAcoes = () => {} } = {}) {
   let modoAnalise = 'periodo';
   let dados = null;
   let falha = '';
+  /* Desempenho dos agentes e tempo de resposta: secoes a parte, buscadas
+     junto do painel principal mas sem travar ele — um bug nessas duas contas
+     novas nao pode derrubar o resto do Dashboard, que ja funcionava antes
+     delas existirem. */
+  let dadosAgentes = null;
+  let dadosResposta = null;
   /* Trocar de filtro depressa dispara pedidos que voltam fora de ordem. So o
      ultimo pedido tem direito de desenhar. */
   let sequencia = 0;
@@ -190,7 +195,12 @@ export async function paginaDashboard({ definirAcoes = () => {} } = {}) {
       /* O servidor le `origem` como lista separada por virgula. Vazio some da
          URL, senao "origem=" chegaria como filtro de origem nenhuma. */
       const { origens, ...resto } = filtro;
-      const painel = await api.get('/api/dashboard', { ...resto, origem: origens.join(',') });
+      const porPeriodo = { de: resto.de, ate: resto.ate, agrupamento: resto.agrupamento };
+      const [painel, agentes, resposta] = await Promise.all([
+        api.get('/api/dashboard', { ...resto, origem: origens.join(',') }),
+        api.get('/api/agentes/custos/evolucao', porPeriodo).catch(() => null),
+        api.get('/api/tempo-resposta', porPeriodo).catch(() => null),
+      ]);
       if (meu !== sequencia) return;
 
       const assinatura = JSON.stringify(painel);
@@ -198,6 +208,8 @@ export async function paginaDashboard({ definirAcoes = () => {} } = {}) {
       ultimaResposta = assinatura;
 
       dados = normalizarPainel(painel);
+      dadosAgentes = agentes;
+      dadosResposta = resposta;
       falha = '';
       pintar();
     } catch (erro) {
@@ -237,6 +249,7 @@ export async function paginaDashboard({ definirAcoes = () => {} } = {}) {
         modoAnalise = valor;
         pintar();
       }),
+      secaoAgentesDeIA(dadosAgentes, dadosResposta, filtro),
       secaoDistribuicao(dados, filtro),
       secaoSincronizacao(),
       rodapeDoConsumo(),
@@ -249,28 +262,6 @@ export async function paginaDashboard({ definirAcoes = () => {} } = {}) {
   /* A barra de filtros e montada uma vez so: refazer o dashboard inteiro a cada
      troca roubaria o foco do campo que a pessoa acabou de usar. */
   function barraFiltros() {
-    const modo = grupoAlternado({
-      rotulo: 'Modo de leitura',
-      valor: filtro.modo,
-      opcoes: [
-        {
-          valor: 'evento',
-          rotulo: 'Evento',
-          ajuda: 'Conta o que aconteceu dentro do período, mesmo em conversa que começou antes.',
-        },
-        {
-          valor: 'cohort',
-          rotulo: 'Cohort',
-          ajuda: 'So conversas iniciadas dentro do período, acompanhadas até onde chegaram.',
-        },
-      ],
-      aoTrocar: (valor) => {
-        filtro.modo = valor;
-        carregar();
-      },
-    });
-
-
     const origem = selecaoMultipla('Todas as origens', estado.origens, filtro.origens, (valores) => {
       filtro.origens = valores;
       carregar();
@@ -311,14 +302,14 @@ export async function paginaDashboard({ definirAcoes = () => {} } = {}) {
     });
 
     /*
-     * Os seis controles vao para o cabecalho da tela, na mesma linha do titulo.
+     * Os cinco controles vao para o cabecalho da tela, na mesma linha do titulo.
      *
      * Como cartao dentro do conteudo eles gastavam 150px de altura antes de
      * qualquer numero aparecer, e rolavam junto com a pagina: quem descia para
      * ver o funil perdia o filtro de vista. No cabecalho eles ficam sempre no
      * mesmo lugar e nao tomam nada da area util.
      */
-    return [modo, periodo, origem, conexao, etiqueta, agrupamento];
+    return [periodo, origem, conexao, etiqueta, agrupamento];
   }
 
   /* Tempo real ---------------------------------------------------------
@@ -412,15 +403,13 @@ function normalizarPainel(bruto) {
   const lista = (valor) => (Array.isArray(valor) ? valor : []);
 
   return {
-    modo: painel.modo || 'evento',
     cards,
     /* A base de todo percentual vem do servidor com o nome do que ela
-       representa. Em cohort sao as conversas nascidas no periodo; em evento sao
-       as que tiveram movimento nele, que e o unico denominador que fecha com um
-       numerador contado por evento. */
+       representa: as conversas com movimento no periodo, o unico denominador
+       que fecha com um numerador contado por evento. */
     base: {
       total: Number(base.total ?? cards.nova?.total) || 0,
-      rotulo: base.rotulo || 'novas do periodo',
+      rotulo: base.rotulo || 'conversas com movimento no periodo',
     },
     statusPorTipo: painel.statusPorTipo ?? {},
     distribuicao: {
@@ -829,7 +818,7 @@ function secaoEventos(dados) {
     'div',
     { class: 'metricas' },
     CARTOES.map((definicao) =>
-      cartaoDeEvento(definicao, cards[definicao.chave] ?? {}, statusPorTipo, base, dados.modo),
+      cartaoDeEvento(definicao, cards[definicao.chave] ?? {}, statusPorTipo, base),
     ),
   );
 
@@ -843,7 +832,7 @@ function secaoEventos(dados) {
   );
 }
 
-function cartaoDeEvento(definicao, card, statusPorTipo, base, modo) {
+function cartaoDeEvento(definicao, card, statusPorTipo, base) {
   const cor = corDoCartao(definicao, card);
   const marca = icone(definicao.icone, 15);
   marca.style.color = cor;
@@ -851,10 +840,7 @@ function cartaoDeEvento(definicao, card, statusPorTipo, base, modo) {
   /* Sem serie, a minilinha sai reta: os seis cartoes ficam da mesma altura e o
      zero aparece desenhado, e nao como grafico faltando. */
   const mini = miniLinha(card.serie?.length ? card.serie : [0, 0], { cor });
-  const percentual =
-    definicao.chave === 'nova' && modo === 'cohort'
-      ? 'base'
-      : numero(percentualDoCartao(card, base.total)) + '%';
+  const percentual = numero(percentualDoCartao(card, base.total)) + '%';
 
   return el('div', { class: 'metrica', estilo: { '--metrica-cor': cor } }, [
     el('div', { class: 'metrica-topo' }, [
@@ -965,7 +951,7 @@ function secaoGargalos(dados) {
      possiveis (sem dado, sem gargalo, com gargalo) sao lidos da mesma forma, e
      repetir a mesma dica em cada um seria dizer tres vezes a mesma coisa. */
   const ajuda = dica(
-    'Cada etapa e comparada com a anterior, e nao com o total. Dizer que Proposta esta em 4% das novas nao revela se o problema e a proposta ou a qualificacao antes dela; a passagem de uma etapa para a proxima isola o degrau exato. A faixa esperada de cada passagem sai da referencia de mercado mostrada sob o funil.',
+    'Cada etapa e comparada com a anterior, e nao com o total. Dizer que Proposta esta em 4% das novas nao revela se o problema e a proposta ou a qualificacao antes dela; a passagem de uma etapa para a proxima isola o degrau exato. A faixa esperada de cada passagem sai da referencia de mercado mostrada sob o funil. Nenhum degrau fora da faixa nao quer dizer que nao ha o que melhorar: quer dizer que nenhuma etapa esta perdendo conversa fora do normal.',
     { assunto: 'o diagnostico do funil' },
   );
 
@@ -985,8 +971,7 @@ function secaoGargalos(dados) {
         el('strong', { texto: 'Nenhum degrau abaixo do esperado.' }),
         el('p', {
           class: 'c-suave',
-          texto:
-            'Todas as passagens do funil ficaram dentro ou acima da faixa de referencia no periodo. Isso nao quer dizer que nao ha o que melhorar: quer dizer que nenhuma etapa esta perdendo conversa fora do normal.',
+          texto: 'Nenhuma passagem perdeu conversa fora do normal no periodo.',
         }),
       ]),
     );
@@ -1048,6 +1033,113 @@ function secaoPerformance(dados, filtro, modoAnalise, aoTrocarModo) {
     cartaoFunil(dados, filtro),
     cartaoPorOrigem(dados, filtro),
   );
+}
+
+/* Secao C2, agentes de IA no tempo -------------------------------------
+ *
+ * Dois graficos buscados a parte de /api/dashboard (ver carregar()): um bug
+ * nessas duas contas novas nao pode derrubar o resto da tela, que ja
+ * funcionava antes delas existirem. Por isso cada cartao trata o proprio
+ * "sem dado" sozinho, sem se apoiar no `dados` do painel principal.
+ */
+function secaoAgentesDeIA(dadosAgentes, dadosResposta, filtro) {
+  return secao(null, null, cartaoDesempenhoAgentes(dadosAgentes, filtro), cartaoTempoResposta(dadosResposta, filtro));
+}
+
+function cartaoDesempenhoAgentes(dadosAgentes, filtro) {
+  const conceito =
+    'Quanto cada agente de IA consumiu de credito, periodo a periodo. Os agentes alem dos 5 mais caros entram juntos em "Outros agentes".';
+  const caixa = cartaoComDica({ titulo: 'Desempenho dos agentes de IA', conceito });
+
+  const agentes = dadosAgentes?.agentes || [];
+  if (!agentes.length) {
+    caixa.append(
+      vazio(
+        'Nenhum agente gastou credito ainda',
+        `Nenhum agente de IA respondeu ${faixaEmTexto(filtro)}. ${comoSairDoVazio(filtro)}`,
+      ),
+    );
+    return caixa;
+  }
+
+  const principais = agentes.slice(0, 5);
+  const restante = agentes.slice(5);
+  const principaisIds = new Set(principais.map((a) => a.agenteId));
+  const series = principais.map((a, indice) => ({
+    chave: a.agenteId,
+    nome: a.agenteNome,
+    cor: PALETA[indice % PALETA.length],
+  }));
+  if (restante.length) series.push({ chave: '__outros', nome: 'Outros agentes', cor: COR_SEM_CATEGORIA });
+
+  const linhas = (dadosAgentes.serieCustos || []).map((linha) => {
+    const nova = { periodo: linha.periodo, rotulo: rotuloDoPeriodo(linha.periodo, filtro.agrupamento) };
+    let somaDoRestante = 0;
+    for (const [chave, valor] of Object.entries(linha)) {
+      if (chave === 'periodo') continue;
+      if (principaisIds.has(chave)) nova[chave] = valor;
+      else somaDoRestante += Number(valor) || 0;
+    }
+    if (restante.length) nova.__outros = Number(somaDoRestante.toFixed(2));
+    return nova;
+  });
+
+  const grafico = graficoEvolucao({ serie: linhas, series, altura: 260, rotulo: 'Desempenho dos agentes de IA' });
+  if (!grafico) {
+    caixa.append(
+      vazio(
+        'Nada para desenhar nesta linha do tempo',
+        `Nenhum agente respondeu ${faixaEmTexto(filtro)}. ${comoSairDoVazio(filtro)}`,
+      ),
+    );
+    return caixa;
+  }
+
+  caixa.append(
+    grafico,
+    legenda(series),
+    el('p', { class: 'rodape-nota mt-2' }, [
+      document.createTextNode('Ranking completo em '),
+      el('a', { href: '#/custos-de-agentes', texto: 'Agentes > Custos' }),
+    ]),
+  );
+  return caixa;
+}
+
+function cartaoTempoResposta(dadosResposta, filtro) {
+  const conceito =
+    'A mediana de quanto tempo uma conversa esperou pela resposta, periodo a periodo. Mediana, e nao media: poucas esperas longas (madrugada, troca para humano) nao devem esconder o tempo tipico das demais.';
+  const caixa = cartaoComDica({ titulo: 'Tempo de resposta', conceito });
+
+  if (!dadosResposta?.amostraTotal) {
+    caixa.append(
+      vazio(
+        'Nenhuma resposta registrada ainda',
+        `Nenhuma resposta contabilizada ${faixaEmTexto(filtro)}. ${comoSairDoVazio(filtro)}`,
+      ),
+    );
+    return caixa;
+  }
+
+  const linhas = dadosResposta.serie.map((linha) => ({
+    periodo: linha.periodo,
+    rotulo: rotuloDoPeriodo(linha.periodo, filtro.agrupamento),
+    minutos: linha.medianaMin,
+  }));
+  const series = [{ chave: 'minutos', nome: 'Tempo de resposta (mediana, min)', cor: 'var(--serie-1)' }];
+  const grafico = graficoEvolucao({ serie: linhas, series, altura: 260, rotulo: 'Tempo de resposta' });
+  if (!grafico) {
+    caixa.append(
+      vazio(
+        'Nada para desenhar nesta linha do tempo',
+        `Nenhuma resposta registrada ${faixaEmTexto(filtro)}. ${comoSairDoVazio(filtro)}`,
+      ),
+    );
+    return caixa;
+  }
+
+  caixa.append(grafico);
+  return caixa;
 }
 
 /* Em "Conversoes" cada etapa vira percentual sobre as novas do periodo: e assim

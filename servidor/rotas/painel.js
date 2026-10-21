@@ -1,7 +1,8 @@
 import { TIPOS_STATUS } from '../config.js';
 import { achar, atualizar, listar, remover } from '../nucleo/banco.js';
 import { filtrarConversasVisiveis, podeVerConversa } from '../nucleo/auth.js';
-import { consumoDoWorkspace, custoPorAgente } from '../nucleo/creditos.js';
+import { consumoDoWorkspace, custoPorAgente, evolucaoDeCustoPorAgente } from '../nucleo/creditos.js';
+import { evolucaoDoTempoResposta } from '../nucleo/tempos-resposta.js';
 import { diagnosticar } from '../nucleo/diagnostico.js';
 import { emitir } from '../nucleo/eventos.js';
 import { agora } from '../nucleo/util.js';
@@ -266,7 +267,6 @@ export function registrarPainel(rotas) {
   rotas.get('/api/dashboard', async ({ ctx, query }) => {
     const de = inicioDoDia(query.de);
     const ate = fimDoDia(query.ate);
-    const modo = query.modo === 'cohort' ? 'cohort' : 'evento';
 
     /*
      * Origem aceita mais de uma, separadas por virgula.
@@ -296,22 +296,18 @@ export function registrarPainel(rotas) {
     const criadasNoPeriodo = contatos.filter((c) => dentroDoPeriodo(c.criadoEm, de, ate));
     const idsCriadas = new Set(criadasNoPeriodo.map((c) => c.id));
 
-    const eventosConsiderados =
-      modo === 'cohort'
-        ? eventos.filter((evento) => idsCriadas.has(evento.contatoId))
-        : eventos.filter((evento) => dentroDoPeriodo(evento.criadoEm, de, ate));
+    const eventosConsiderados = eventos.filter((evento) => dentroDoPeriodo(evento.criadoEm, de, ate));
 
     /*
-     * Universo de comparacao, o denominador de todo percentual desta tela.
-     *
-     * Em cohort e o que nasceu no periodo. Em evento sao as conversas que
-     * tiveram movimento dentro dele, tenham nascido quando tiverem: com o
-     * numerador contando evento no periodo e o denominador contando nascimento
-     * no periodo, um dia de mutirao na fila antiga faria o cartao mostrar
-     * 1333%, e um dia sem conversa nova zeraria todos os percentuais.
+     * Universo de comparacao, o denominador de todo percentual desta tela:
+     * toda conversa que teve movimento dentro do periodo, tenha nascido
+     * quando tiver nascido. Com o numerador contando evento no periodo e o
+     * denominador contando so nascimento no periodo, um dia de mutirao na
+     * fila antiga faria o cartao mostrar 1333%, e um dia sem conversa nova
+     * zeraria todos os percentuais.
      */
     const idsUniverso = new Set(idsCriadas);
-    if (modo === 'evento') for (const evento of eventosConsiderados) idsUniverso.add(evento.contatoId);
+    for (const evento of eventosConsiderados) idsUniverso.add(evento.contatoId);
     const universo = contatos.filter((c) => idsUniverso.has(c.id));
 
     /* Evolucao temporal --------------------------------------------------- */
@@ -330,10 +326,9 @@ export function registrarPainel(rotas) {
     };
 
     /*
-     * O eixo nunca sai da janela pedida. No modo cohort o evento pode cair
-     * meses depois de a conversa ter nascido; ele entra no ultimo periodo em
-     * vez de esticar o grafico ate la. Sem isso, quem pede janeiro recebe
-     * barras ate junho e le uma queda de captacao que nao existe.
+     * O eixo nunca sai da janela pedida: todo evento considerado ja esta
+     * dentro do periodo (eventosConsiderados acima), mas o clamp fica como
+     * cinto de seguranca contra qualquer data de borda.
      */
     const primeiraChave = de ? chaveDe(de) : null;
     const ultimaChave = ate ? chaveDe(ate) : null;
@@ -494,7 +489,7 @@ export function registrarPainel(rotas) {
     }
 
     const novas = criadasNoPeriodo.length;
-    const base = modo === 'cohort' ? novas : idsUniverso.size;
+    const base = idsUniverso.size;
     /*
      * Casa decimal so quando a base sustenta. Com 14 conversas, cada uma vale
      * 7,1 pontos: escrever "85,7%" finge uma precisao que o dado nao tem, e uma
@@ -508,8 +503,8 @@ export function registrarPainel(rotas) {
     };
 
     cards.nova.total = novas;
-    // Nada de cravar 100% aqui: em modo evento a base sao as conversas com
-    // movimento no periodo, e as novas sao apenas uma parte delas.
+    // Nada de cravar 100% aqui: a base sao as conversas com movimento no
+    // periodo, e as novas sao apenas uma parte delas.
     cards.nova.percentual = porcentagem(novas);
     cards.nova.serie = linhas.map((linha) => linha.nova);
 
@@ -712,13 +707,12 @@ export function registrarPainel(rotas) {
     }
 
     return {
-      modo,
       agrupamento,
       /* Base de todo percentual da tela, com o nome do que ela representa, para
          o cartao nao dizer "das novas" quando o denominador e outro. */
       base: {
         total: base,
-        rotulo: modo === 'cohort' ? 'novas do periodo' : 'conversas com movimento no periodo',
+        rotulo: 'conversas com movimento no periodo',
       },
       cards: {
         ...cards,
@@ -955,6 +949,17 @@ export function registrarPainel(rotas) {
     };
   });
 
+  /** Mediana do tempo de resposta por periodo — o grafico "Tempo de resposta" do Dashboard. */
+  rotas.get('/api/tempo-resposta', async ({ ctx, query }) => {
+    const visiveis = filtrarConversasVisiveis(ctx, listar('contatos', { workspaceId: ctx.workspaceId }));
+    return evolucaoDoTempoResposta(ctx.workspaceId, {
+      de: inicioDoDia(query.de),
+      ate: fimDoDia(query.ate),
+      agrupamento: query.agrupamento || 'diario',
+      contatosPermitidos: new Set(visiveis.map((c) => c.id)),
+    });
+  });
+
   /** Custo, chamadas e duracao media por agente — a base de "Qualidade e custos dos agentes". */
   rotas.get('/api/agentes/custos', async ({ ctx, query }) => {
     const dados = custoPorAgente(ctx.workspaceId, {
@@ -965,6 +970,26 @@ export function registrarPainel(rotas) {
     return dados
       .map((item) => ({ ...item, agenteNome: agentes.get(item.agenteId)?.nome || 'Agente removido' }))
       .sort((a, b) => b.custo - a.custo);
+  });
+
+  /* A evolucao no tempo, para o grafico "Desempenho dos agentes de IA" do
+     Dashboard — irma de /api/agentes/custos, que so devolve o total do
+     periodo. Rota propria, e nao dentro de /api/dashboard: aquele handler
+     ja e o de maior trafego do sistema, e essa conta nao precisa rodar
+     junto com ela. */
+  rotas.get('/api/agentes/custos/evolucao', async ({ ctx, query }) => {
+    const visiveis = filtrarConversasVisiveis(ctx, listar('contatos', { workspaceId: ctx.workspaceId }));
+    const dados = evolucaoDeCustoPorAgente(ctx.workspaceId, {
+      de: inicioDoDia(query.de),
+      ate: fimDoDia(query.ate),
+      agrupamento: query.agrupamento || 'diario',
+      contatosPermitidos: new Set(visiveis.map((c) => c.id)),
+    });
+    const agentes = new Map(listar('agentes', { workspaceId: ctx.workspaceId }).map((a) => [a.id, a]));
+    return {
+      ...dados,
+      agentes: dados.agentes.map((item) => ({ ...item, agenteNome: agentes.get(item.agenteId)?.nome || 'Agente removido' })),
+    };
   });
 
   /* ---------------- Notificacoes ---------------- */

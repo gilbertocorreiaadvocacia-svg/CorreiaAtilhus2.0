@@ -1,4 +1,5 @@
 import { CUSTO } from '../config.js';
+import { FUSO, partesEm } from '../automacao/horario.js';
 import { inserir, listar } from './banco.js';
 import { novoId } from './util.js';
 
@@ -157,4 +158,69 @@ export function custoPorAgente(workspaceId, { de = null, ate = null } = {}) {
     chamadas: r.chamadas,
     duracaoMediaMs: r.chamadas ? Math.round(r.somaDuracaoMs / r.chamadas) : null,
   }));
+}
+
+/**
+ * Chave do agrupamento temporal, no fuso do escritorio. Mesma logica de
+ * painel.js (rota /api/dashboard): duplicada aqui de proposito, em vez de
+ * virar um helper compartilhado — mexer na rota de maior trafego do sistema
+ * so para emprestar 12 linhas de bucketing para uma tela nova e um risco
+ * maior do que vale a pena.
+ */
+function chaveDoPeriodo(iso, agrupamento) {
+  const data = new Date(iso);
+  const p = partesEm(data, FUSO);
+  const mes = String(p.mes).padStart(2, '0');
+  if (agrupamento === 'mensal') return `${p.ano}-${mes}`;
+  if (agrupamento === 'trimestral') return `${p.ano}-T${Math.floor((p.mes - 1) / 3) + 1}`;
+  if (agrupamento === 'semanal') {
+    const domingo = partesEm(new Date(data.getTime() - p.diaSemana * 86400000), FUSO);
+    return `${domingo.ano}-${String(domingo.mes).padStart(2, '0')}-${String(domingo.dia).padStart(2, '0')}`;
+  }
+  return `${p.ano}-${mes}-${String(p.dia).padStart(2, '0')}`;
+}
+
+/**
+ * Evolucao do custo por agente no tempo — a base do grafico "Desempenho dos
+ * agentes de IA" do Dashboard. Pedido do escritorio em 20/10/2026: nao so o
+ * total do periodo (ja respondido por custoPorAgente), e sim como cada
+ * agente andou ao longo dele.
+ *
+ * `serieCustos` tem uma linha por periodo, com uma chave por agente que teve
+ * algum gasto EM ALGUM periodo da janela — agente sem gasto num periodo
+ * especifico entra com 0 nesse periodo, nao fica faltando.
+ */
+export function evolucaoDeCustoPorAgente(workspaceId, { de = null, ate = null, agrupamento = 'diario', contatosPermitidos = null } = {}) {
+  let lancamentos = listar('creditos', { workspaceId }).filter((l) => l.agenteId);
+  if (de) lancamentos = lancamentos.filter((l) => l.criadoEm >= de);
+  if (ate) lancamentos = lancamentos.filter((l) => l.criadoEm <= ate);
+  if (contatosPermitidos) {
+    lancamentos = lancamentos.filter((l) => !l.contatoId || contatosPermitidos.has(l.contatoId));
+  }
+
+  const custoTotalPorAgente = new Map();
+  const porPeriodo = new Map();
+  for (const l of lancamentos) {
+    custoTotalPorAgente.set(l.agenteId, (custoTotalPorAgente.get(l.agenteId) || 0) + l.quantidade);
+    const periodo = chaveDoPeriodo(l.criadoEm, agrupamento);
+    if (!porPeriodo.has(periodo)) porPeriodo.set(periodo, new Map());
+    const doPeriodo = porPeriodo.get(periodo);
+    doPeriodo.set(l.agenteId, (doPeriodo.get(l.agenteId) || 0) + l.quantidade);
+  }
+
+  const agentes = [...custoTotalPorAgente.entries()]
+    .map(([agenteId, custoTotal]) => ({ agenteId, custoTotal: Number(custoTotal.toFixed(2)) }))
+    .sort((a, b) => b.custoTotal - a.custoTotal);
+
+  const periodos = [...porPeriodo.keys()].sort();
+  const serieCustos = periodos.map((periodo) => {
+    const doPeriodo = porPeriodo.get(periodo);
+    const linha = { periodo };
+    for (const agenteId of custoTotalPorAgente.keys()) {
+      linha[agenteId] = Number((doPeriodo.get(agenteId) || 0).toFixed(2));
+    }
+    return linha;
+  });
+
+  return { periodos, agentes, serieCustos };
 }

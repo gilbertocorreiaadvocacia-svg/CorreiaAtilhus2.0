@@ -35,6 +35,7 @@ const COLECOES = [
   'logs',
   'notificacoes',
   'creditos',
+  'temposResposta',
   'integracoes',
   'vozes',
   'chavesApi',

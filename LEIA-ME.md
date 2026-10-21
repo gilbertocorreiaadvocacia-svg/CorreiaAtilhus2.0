@@ -299,8 +299,7 @@ minuto sorteado**, assim a fila não sai toda junta às 9h.
 
 ### Dashboard
 
-Cards por etapa do funil, conversão com referência de mercado ao lado e
-comparação **Evento × Cohort**.
+Cards por etapa do funil, conversão com referência de mercado ao lado.
 
 O gráfico de evolução tem **dois modos**: *Por período*, que mostra a contagem
 de cada etapa, e *Conversões*, que mostra o percentual sobre as novas conversas

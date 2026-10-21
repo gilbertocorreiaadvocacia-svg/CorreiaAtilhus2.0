@@ -25,6 +25,8 @@ import { testarCreditosMes } from './creditos-mes.js';
 import { testarEduardaRoteamento } from './eduarda-roteamento.js';
 import { testarBateriaDeRoteamento } from './bateria-de-roteamento.js';
 import { testarCustoPorAgente } from './custo-por-agente.js';
+import { testarEvolucaoDeCustoPorAgente } from './evolucao-custo-agente.js';
+import { testarTempoResposta } from './tempo-resposta.js';
 import { testarPromptAoVivo } from './prompt-ao-vivo.js';
 import { testarPacotes } from './pacotes.js';
 import { subirZapsignFalsa } from './zapsign-falsa.js';
@@ -293,6 +295,8 @@ async function principal() {
     suites.push(await testarEduardaRoteamento({ base, anthropic }));
     suites.push(await testarBateriaDeRoteamento({ base, anthropic }));
     suites.push(await testarCustoPorAgente({ raiz: RAIZ }));
+    suites.push(await testarEvolucaoDeCustoPorAgente({ raiz: RAIZ }));
+    suites.push(await testarTempoResposta({ raiz: RAIZ }));
     /* Depois de todas as outras: acrescenta conversas em Ativos, e as suites
        de cima contam fila. */
     suites.push(await testarHistorico({ base, evolucao, chaveEvolucao: CHAVE_EVOLUCAO }));

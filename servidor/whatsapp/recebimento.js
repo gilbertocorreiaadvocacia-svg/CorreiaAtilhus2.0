@@ -12,6 +12,7 @@ import {
 } from '../nucleo/banco.js';
 import { emitir } from '../nucleo/eventos.js';
 import { canalDoRastro, descreverOrigem, origemDoCanal, rastroUtil } from '../nucleo/origens.js';
+import { registrarTempoResposta } from '../nucleo/tempos-resposta.js';
 import { CANAIS, canalDaConexao } from './canais.js';
 import { membrosQuePodemVer } from '../nucleo/auth.js';
 import { notificar } from '../ia/mencoes.js';
@@ -439,16 +440,17 @@ export async function receberMensagem({
   // Audio sem transcricao e uma conversa que o agente nao consegue ler.
   let transcricao = null;
   let transcricaoErro = null;
+  let transcricaoDuvidas = [];
   if (anexo?.tipo === 'audio' && anexo.url) {
     if (transcricaoDisponivel(workspaceId)) {
-      ({ texto: transcricao, erro: transcricaoErro } = await transcrever({
+      ({ texto: transcricao, erro: transcricaoErro, duvidas: transcricaoDuvidas = [] } = await transcrever({
         workspaceId,
         contatoId: contato.id,
         midia: anexo,
         agenteId: contato.responsavel?.tipo === 'agente' ? contato.responsavel.id : null,
       }));
     } else {
-      transcricaoErro = 'Transcrição não configurada — falta a chave da OpenAI em Integrações.';
+      transcricaoErro = 'Transcricao indisponivel — falta o modelo de voz em modelos/ ou a chave da OpenAI.';
     }
   }
 
@@ -460,6 +462,9 @@ export async function receberMensagem({
     conteudo: transcricao || conteudo,
     transcricao,
     transcricaoErro,
+    /* Os trechos que pedem conferencia humana viajam com a mensagem: a tela
+       marca, e quem atende ouve o audio antes de confiar no numero. */
+    transcricaoDuvidas,
     midia: anexo,
     idExterno,
     metadados,
@@ -702,8 +707,18 @@ async function registrarRespostaDoCelular({ workspaceId, conexao, contato, tipo,
    * arquivada: se alguem retomou o assunto pelo celular, ela nao esta mais
    * encerrada. Vai para pendente, e nao para a IA — quem respondeu foi gente.
    */
+  /* Mesma conta de resposta de whatsapp/envio.js, duplicada aqui porque este
+     e um segundo caminho de saida que nao passa por enviarMensagem (ver o
+     comentario no topo desta funcao sobre o porque). Sem isso, toda resposta
+     dada direto pelo celular ficava fora do tempo de resposta do Dashboard. */
+  if (contato.ultimaEntradaEm && (!contato.ultimaSaidaEm || contato.ultimaSaidaEm < contato.ultimaEntradaEm)) {
+    const esperaMs = new Date(mensagem.criadoEm).getTime() - new Date(contato.ultimaEntradaEm).getTime();
+    registrarTempoResposta(workspaceId, contato.id, esperaMs);
+  }
+
   const mudancas = {
     ultimaMensagemEm: mensagem.criadoEm,
+    ultimaSaidaEm: mensagem.criadoEm,
     naoLidas: 0,
     previa: (mensagem.conteudo || `[${tipo}]`).slice(0, 120),
   };
