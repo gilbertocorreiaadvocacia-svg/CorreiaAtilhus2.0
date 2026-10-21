@@ -21,7 +21,14 @@ export async function testarLiderhub({ base }) {
   await api.entrar();
 
   const conexoes = (await api.get('/api/conexoes')).dados || [];
-  const conexao = conexoes[0];
+  /* A mesma escolha do importador de verdade (servidor/integracoes/liderhub.js):
+     o casamento de contato por telefone e por CONEXAO (ver acharOuCriarContato
+     em whatsapp/recebimento.js), entao o contato de fixture abaixo so e achado
+     como "ja existia" se nascer na MESMA conexao que a importacao vai usar. Num
+     workspace com uma conexao so isso nao fazia diferenca, mas na origem (com
+     varias conexoes de outras suites) pegar so conexoes[0] podia cair numa
+     conexao diferente da do importador, e o contato virava "novo" por engano. */
+  const conexao = conexoes.find((c) => c.tipo === 'qrcode') || conexoes[0];
   if (!s.ok('ha uma conexao para receber os contatos', Boolean(conexao))) return s;
 
   const todos = async () => (await api.get('/api/contatos?aba=todas&limite=200')).dados?.contatos || [];

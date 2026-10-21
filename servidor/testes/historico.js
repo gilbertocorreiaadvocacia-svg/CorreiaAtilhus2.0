@@ -192,9 +192,14 @@ export async function testarHistorico({ base, evolucao, chaveEvolucao }) {
 
   /* O sino avisa quando a sincronizacao termina de verdade, e nao a cada
      rodada: senao a pessoa receberia tres avisos iguais para a mesma conexao
-     (rodadas 1, 2 e 3 ate a calmaria encerrar). */
+     (rodadas 1, 2 e 3 ate a calmaria encerrar). Filtrado por esta conexao
+     (pelo texto, que traz o nome dela - ver sincronizar-historico.js): no
+     workspace de origem outras suites (ex. conexoes-qrcode.js) tambem criam
+     conexao QR Code e terminam a propria sincronizacao, com o MESMO titulo. */
   const notificacoes = (await api.get('/api/notificacoes')).dados || [];
-  const avisosDesta = notificacoes.filter((n) => n.titulo === 'Sincronizacao do WhatsApp concluida');
+  const avisosDesta = notificacoes.filter(
+    (n) => n.titulo === 'Sincronizacao do WhatsApp concluida' && n.texto?.includes('Escritorio (QR)'),
+  );
   s.ok('o sino avisa quando a sincronizacao termina', avisosDesta.length === 1, JSON.stringify(avisosDesta));
   s.ok(
     'o aviso cita a conexao e os numeros certos',
