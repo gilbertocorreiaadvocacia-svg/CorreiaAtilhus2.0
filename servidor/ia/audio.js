@@ -3,6 +3,7 @@ import { CUSTO, VOZES } from '../config.js';
 import { achar } from '../nucleo/banco.js';
 import { lancar } from '../nucleo/creditos.js';
 import { caminhoDaMidia, guardarBuffer } from '../nucleo/midia.js';
+import { transcreverLocal, transcricaoLocalDisponivel, motorLocal } from './transcricao-local.js';
 
 /**
  * Audio nas duas direcoes.
@@ -24,8 +25,24 @@ function chaveOpenai(workspaceId) {
   return integracoes?.ia?.chaveOpenai || process.env.OPENAI_API_KEY || '';
 }
 
+/*
+ * Transcricao existe de dois jeitos, e o de casa vem primeiro.
+ *
+ * O motor local nao custa nada e nao manda o audio do cliente para fora. A
+ * OpenAI fica como reserva, para a maquina que nao tiver ffmpeg com whisper
+ * nem modelo baixado. Enquanto um dos dois existir, a tela nao pode dizer que
+ * o audio e ignorado.
+ */
 export function transcricaoDisponivel(workspaceId) {
-  return Boolean(chaveOpenai(workspaceId));
+  return transcricaoLocalDisponivel() || Boolean(chaveOpenai(workspaceId));
+}
+
+/** Qual motor esta valendo, para a tela de Integracoes e para o diagnostico. */
+export function motorDeTranscricao(workspaceId) {
+  const local = motorLocal();
+  if (local.disponivel) return { tipo: 'local', ...local, custo: 0 };
+  if (chaveOpenai(workspaceId)) return { tipo: 'openai', disponivel: true, modelo: 'whisper-1', ffmpeg: local.ffmpeg, filtro: local.filtro };
+  return { tipo: 'nenhum', ...local };
 }
 
 export function vozDisponivel(workspaceId) {
@@ -42,11 +59,39 @@ export function vozDisponivel(workspaceId) {
  * gravada, com o motivo exato da falta de texto, em vez de silencio.
  */
 export async function transcrever({ workspaceId, contatoId, midia, agenteId = null }) {
-  const chave = chaveOpenai(workspaceId);
-  if (!chave) return { texto: null, erro: 'Transcrição não configurada — falta a chave da OpenAI em Integrações.' };
-
   const caminho = caminhoDaMidia(midia?.url);
   if (!caminho) return { texto: null, erro: 'O áudio não pôde ser lido do disco.' };
+
+  /*
+   * O motor de casa vem primeiro, e nao cobra credito.
+   *
+   * Nao e so economia: pelo caminho da OpenAI o audio de um cliente contando
+   * a doenca dele sai do escritorio. Rodando aqui, nao sai. Quando o local
+   * existe e consegue transcrever, nem tentamos a nuvem.
+   *
+   * A lista de duvidas sobe junto com o texto. O filtro do ffmpeg nao devolve
+   * confianca por palavra, entao o que marcamos e onde ele comprovadamente
+   * erra: numero (beneficio, CPF, data) e termo do ramo. Quem atende confere
+   * ouvindo o audio, que continua anexado na conversa.
+   */
+  if (transcricaoLocalDisponivel()) {
+    const local = transcreverLocal(caminho);
+    if (local.texto) {
+      return { texto: local.texto, erro: null, duvidas: local.duvidas || [], motor: 'local' };
+    }
+    /* O local falhou. Havendo chave, a nuvem ainda pode salvar este audio; sem
+       chave, o motivo do local e a resposta mais util que existe. */
+    if (!chaveOpenai(workspaceId)) return { texto: null, erro: local.erro, duvidas: [] };
+  }
+
+  const chave = chaveOpenai(workspaceId);
+  if (!chave) {
+    return {
+      texto: null,
+      erro: 'Transcricao indisponivel — falta o modelo de voz em modelos/ ou a chave da OpenAI em Integracoes.',
+      duvidas: [],
+    };
+  }
 
   try {
     const dados = fs.readFileSync(caminho);
@@ -67,7 +112,11 @@ export async function transcrever({ workspaceId, contatoId, midia, agenteId = nu
     lancar(workspaceId, contatoId, 'transcricao_audio', (CUSTO.transcricaoAudioPorMinuto * segundos) / 60, null, agenteId);
 
     const texto = corpo.text?.trim() || null;
-    return texto ? { texto, erro: null } : { texto: null, erro: 'O serviço de transcrição não devolveu texto.' };
+    /* A OpenAI nao diz de que trecho ela duvidou, entao a lista vem vazia — e
+       vazia aqui quer dizer "nao sei", nunca "esta tudo certo". */
+    return texto
+      ? { texto, erro: null, duvidas: [], motor: 'openai' }
+      : { texto: null, erro: 'O servico de transcricao nao devolveu texto.', duvidas: [] };
   } catch (erro) {
     return { texto: null, erro: `Transcrição falhou: ${erro.message}` };
   }

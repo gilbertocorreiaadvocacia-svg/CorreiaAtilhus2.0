@@ -70,6 +70,7 @@ import { testarMigrarSemIdentificacao } from './sem-identificacao.js';
 import { testarDeduplicarContatos } from './duplicados.js';
 import { testarVoz } from './voz.js';
 import { testarTranscricaoDeAudio } from './transcricao-audio.js';
+import { testarTranscricaoLocal } from './transcricao-local.js';
 import { testarDoisFatores } from './doisfatores.js';
 import { testarDeduplicarVozes, testarVozDosAgentes } from './voz-dos-agentes.js';
 import { testarReorganizarAgentes } from './reorganizar-agentes.js';
@@ -192,6 +193,12 @@ async function principal() {
       CORREIA_ANTHROPIC_URL: anthropic,
       /* A OpenAI de mentira: so o audio (voz do agente e transcricao). */
       CORREIA_OPENAI_URL: openai,
+      /* O motor de transcricao local fica DESLIGADO na suite, de proposito.
+         Ele depende de duas coisas que a maquina pode ou nao ter (ffmpeg com
+         filtro whisper e um modelo de 500 MB em modelos/), e teste que muda de
+         resultado conforme o que esta instalado nao prova nada. O motor local
+         tem suite propria, que se declara pulada quando falta o modelo. */
+      CORREIA_TRANSCRICAO_LOCAL: '0',
       /* A ZapSign de mentira, e o acompanhamento em milissegundos: consulta a
          cada 150 ms, com espera de 100 ms entre consultas do mesmo documento. */
       CORREIA_ZAPSIGN_URL: zapsign,
@@ -285,6 +292,7 @@ async function principal() {
     suites.push(await testarAvaliacao({ base, anthropic }));
     suites.push(await testarVoz({ base, anthropic, openai }));
     suites.push(await testarTranscricaoDeAudio({ base, openai }));
+    suites.push(await testarTranscricaoLocal());
     suites.push(await testarDoisFatores({ base }));
     /* Cria workspaces novos: depois de quem conta agentes e etiquetas da origem. */
     suites.push(await testarWorkspacesPorArea({ base }));

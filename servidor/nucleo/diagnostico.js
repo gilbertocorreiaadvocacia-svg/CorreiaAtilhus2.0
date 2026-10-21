@@ -3,6 +3,7 @@ import { listarBackups } from './backup.js';
 import { normalizar } from './util.js';
 import { analisarPrompt, notificar } from '../ia/mencoes.js';
 import { chavesDoWorkspace } from '../ia/provedores.js';
+import { motorDeTranscricao } from '../ia/audio.js';
 
 /**
  * Diagnostico embutido: o sistema conta o que esta quebrado nele mesmo.
@@ -89,13 +90,27 @@ export function diagnosticar(workspaceId) {
     }
   }
 
-  /* 2. Audio que chega e ignorado sem a chave de transcricao. */
-  if (!chaves.openai) {
+  /*
+   * 2. Audio que chega e ignorado.
+   *
+   * Desde que existe o motor local (ffmpeg com filtro whisper + modelo em
+   * modelos/), a falta da chave da OpenAI deixou de significar "audio
+   * ignorado": o normal passou a ser transcrever aqui mesmo, de graca e sem
+   * mandar a voz do cliente para fora. Entao o aviso so vale quando NENHUM
+   * dos dois caminhos existe.
+   */
+  const motorVoz = motorDeTranscricao(workspaceId);
+  if (!motorVoz.disponivel) {
+    const falta = !motorVoz.ffmpeg
+      ? 'o ffmpeg nao esta instalado'
+      : !motorVoz.filtro
+        ? 'o ffmpeg instalado nao traz o filtro whisper'
+        : 'nenhum modelo de voz foi baixado para a pasta modelos/';
     anotar(
       'alta',
-      'audio-sem-chave',
+      'audio-sem-transcricao',
       'Audio do cliente nao e transcrito',
-      'Sem a chave de transcricao em Integracoes, o audio que o cliente manda no WhatsApp chega e e ignorado pelo agente.',
+      `O audio que o cliente manda no WhatsApp chega e e ignorado pelo agente, porque ${falta}. Da para resolver sem chave e sem mensalidade: ver TRANSCRICAO.md.`,
       '#/integracoes',
     );
   }

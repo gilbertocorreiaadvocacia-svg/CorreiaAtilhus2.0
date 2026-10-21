@@ -87,3 +87,15 @@ segredos.bat
 
 # Rastro dos lotes que o espelho nao conseguiu enviar. Diagnostico local.
 .espelho-pendente.jsonl
+
+# ---------------------------------------------------------------
+# Modelos de voz da transcricao local
+# ---------------------------------------------------------------
+# Sao 600 MB de binario (ggml-base.bin 141 MB + ggml-small.bin 465 MB) que o
+# ffmpeg carrega para transcrever o audio do cliente aqui mesmo, sem chave e
+# sem mandar a voz dele para fora.
+#
+# Nao versionar por dois motivos: o repositorio e PUBLICO, e arquivo desse
+# tamanho no historico nunca mais sai; e eles nao sao nossos, sao baixados do
+# projeto whisper.cpp. Como baixar esta em TRANSCRICAO.md.
+modelos/
