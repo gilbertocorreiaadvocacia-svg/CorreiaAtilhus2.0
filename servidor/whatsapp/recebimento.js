@@ -153,6 +153,27 @@ export function acharOuCriarContato({
   });
 }
 
+/*
+ * A coluna de entrada do workspace, pelo TIPO e nao pelo nome.
+ *
+ * Nenhum status carrega "Novo lead" como nome proprio em todo lugar — um
+ * workspace por area tem "Novo lead Trabalhista", por exemplo (ver
+ * nucleo/workspaces-por-area.js, que ja resolveu esse mesmo engano antes:
+ * buscar pelo nome deixava statusPadraoId sempre nulo). So o `tipo: 'nova'`
+ * e universal.
+ *
+ * Pedido do escritorio em 21/10/2026: todo contato novo cai aqui quando a
+ * conexao nao tem um statusPadraoId proprio configurado — antes ficava
+ * null, e a conversa nascia fora de qualquer coluna do Kanban ("Sem
+ * status"), igual ao numero Trabalhista que a faxina em ferramentas/
+ * higiene.js corrigiu uma vez so. Esta e a correcao de origem: nenhuma
+ * conexao nova volta a cair nesse buraco, mesmo que ninguem configure um
+ * status padrao para ela.
+ */
+function statusDeEntrada(workspaceId) {
+  return listar('status', { workspaceId }).find((s) => s.tipo === 'nova')?.id || null;
+}
+
 /** A conversa nova, com os padroes da conexao. Serve ao WhatsApp e as redes. */
 function criarContato({ workspaceId, conexao, numero, lid, nomeInicial, nomeOrigem, foto, idCanal = null, usuario = null }) {
   const canal = canalDaConexao(conexao);
@@ -170,7 +191,7 @@ function criarContato({ workspaceId, conexao, numero, lid, nomeInicial, nomeOrig
     nomeOrigem,
     ...(canal !== 'whatsapp' ? { canal, idCanal, usuarioCanal: usuario || null } : {}),
     foto,
-    statusId: conexao.statusPadraoId || null,
+    statusId: conexao.statusPadraoId || statusDeEntrada(workspaceId) || null,
     departamentoId: conexao.departamentoPadraoId || null,
     /* A area e do numero: e ela que limita palavra-chave e transferencia. */
     area: conexao.area || null,
@@ -308,7 +329,7 @@ function reiniciarConversa(contato, conexao) {
   }
 
   atualizar('contatos', contato.id, {
-    statusId: conexao.statusPadraoId || null,
+    statusId: conexao.statusPadraoId || statusDeEntrada(contato.workspaceId) || null,
     departamentoId: conexao.departamentoPadraoId || null,
     /* A area e do numero: e ela que limita palavra-chave e transferencia. */
     area: conexao.area || null,

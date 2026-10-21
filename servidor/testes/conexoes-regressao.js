@@ -95,6 +95,17 @@ export async function testarSimuladorEOficial({ base }) {
   const meta = daMeta.find((c) => c.telefone === '5581966665555');
   s.ok('a mensagem da Meta virou conversa', Boolean(meta));
   s.ok('o nome do perfil foi aproveitado', meta?.nome === 'Regressao Meta');
+  /* "Regressao Oficial" nasceu sem statusPadraoId (criada so com nome e tipo,
+     acima). Pedido do escritorio em 21/10/2026: nenhum contato novo nasce
+     mais sem coluna — statusDeEntrada() em recebimento.js cai na coluna tipo
+     'nova' do workspace quando a conexao nao tem a sua propria. */
+  const statusDoWorkspace = (await api.get('/api/status')).dados || [];
+  const colunaDeEntrada = statusDoWorkspace.find((st) => st.tipo === 'nova');
+  s.ok(
+    'conexao sem statusPadraoId ainda assim entra na coluna de entrada do workspace',
+    Boolean(colunaDeEntrada) && meta?.statusId === colunaDeEntrada.id,
+    JSON.stringify({ statusId: meta?.statusId, colunaDeEntrada }),
+  );
   /* Sem o CTWA Clid a Meta nao sabe a qual criativo atribuir o contrato, e a
      campanha volta a otimizar por "conversa iniciada", que e barata e nao paga
      a conta. E o dado mais facil de perder num refatoramento de recebimento. */

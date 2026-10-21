@@ -4207,8 +4207,7 @@ export async function paginaAtendimento({
       const contar = (segmento) =>
         estado.status
           .filter((s) => segmentoDoStatus(s) === segmento)
-          .reduce((soma, s) => soma + (totalPorStatus[s.id] || 0), 0) +
-        (segmento === 'venda' ? totalPorStatus[''] || 0 : 0);
+          .reduce((soma, s) => soma + (totalPorStatus[s.id] || 0), 0);
 
       const partes = el(
         'div',
@@ -4256,16 +4255,21 @@ export async function paginaAtendimento({
 
     const quadro = el('div', { class: 'kanban' });
 
-    /* So as colunas da parte aberta do funil. "Sem status" entra na Venda, e so
-       quando tem alguem: vazia, ela e largura perdida no comeco do quadro. */
-    const semStatus = totalPorStatus[''] ?? contatos.filter((c) => !c.statusId).length;
+    /*
+     * So as colunas da parte aberta do funil.
+     *
+     * Pedido do escritorio em 21/10/2026: tirar "Sem status" do Kanban. A
+     * coluna era so um alerta visual de uma conexao sem statusPadraoId — a
+     * correcao de verdade e statusDeEntrada() em whatsapp/recebimento.js, que
+     * agora nunca deixa um contato novo nascer sem coluna. Conversa antiga
+     * que ainda estiver sem status continua existindo (Contatos, Atendimento
+     * normal), so nao aparece mais aqui — igual ja acontecia com toda outra
+     * coluna escondida da vista de alguem.
+     */
     const ocultas = colunasOcultas();
-    const colunas = [
-      ...(segmentoDoFunil === 'venda' && semStatus ? [{ id: '', nome: 'Sem status', cor: 'var(--texto-fraco)' }] : []),
-      ...estado.status
-        .filter((s) => segmentoDoStatus(s) === segmentoDoFunil && !ocultas.has(s.id))
-        .map((s) => ({ id: s.id, nome: s.nome, cor: s.cor })),
-    ];
+    const colunas = estado.status
+      .filter((s) => segmentoDoStatus(s) === segmentoDoFunil && !ocultas.has(s.id))
+      .map((s) => ({ id: s.id, nome: s.nome, cor: s.cor }));
     quadro.style.setProperty('--colunas', String(Math.max(colunas.length, 1)));
     definirAcoes(acoesDoFunil());
 
@@ -4426,47 +4430,41 @@ export async function paginaAtendimento({
             : 'Mensagens sem resposta somadas nesta coluna';
       }
 
-      /* O ponto da coluna vira botao: clicar troca a cor daquela coluna na hora.
-         "Sem status" nao tem id, entao segue como ponto simples. */
-      const pontoCor = coluna.id
-        ? el('button', {
-            type: 'button',
-            class: 'ponto ponto-botao',
-            estilo: { background: coluna.cor },
-            title: `Trocar a cor de ${coluna.nome}`,
-            'aria-label': `Trocar a cor de ${coluna.nome}`,
-            aoClick: (ev) => {
-              ev.stopPropagation();
-              abrirPaletaCor(ev.currentTarget, coluna.cor, async (cor) => {
-                try {
-                  await api.patch(`/api/status/${coluna.id}`, { cor });
-                  await desenhar();
-                } catch (erro) {
-                  aviso(`Não consegui trocar a cor: ${erro.message}`, 'erro');
-                }
-              });
-            },
-          })
-        : el('span', { class: 'ponto', estilo: { background: coluna.cor } });
+      /* O ponto da coluna vira botao: clicar troca a cor daquela coluna na hora. */
+      const pontoCor = el('button', {
+        type: 'button',
+        class: 'ponto ponto-botao',
+        estilo: { background: coluna.cor },
+        title: `Trocar a cor de ${coluna.nome}`,
+        'aria-label': `Trocar a cor de ${coluna.nome}`,
+        aoClick: (ev) => {
+          ev.stopPropagation();
+          abrirPaletaCor(ev.currentTarget, coluna.cor, async (cor) => {
+            try {
+              await api.patch(`/api/status/${coluna.id}`, { cor });
+              await desenhar();
+            } catch (erro) {
+              aviso(`Não consegui trocar a cor: ${erro.message}`, 'erro');
+            }
+          });
+        },
+      });
 
       /* Menu da coluna. Esconder e de quem olha (todo mundo pode). Renomear e
          mover mudam o funil para todos, entao so para quem pode configurar, e
-         reusam as rotas que ja existem. "Sem status" nao tem menu: nao e uma
-         coluna de verdade, e so aparece quando ha conversa sem status. */
+         reusam as rotas que ja existem. */
       const statusDaColuna = estado.status.find((s) => s.id === coluna.id);
-      const menuColuna = coluna.id
-        ? menuAcoes(
-            [
-              podeConfigurar() ? { rotulo: 'Configurar coluna', icone: 'ajustes', aoClicar: () => editarStatus(statusDaColuna, aposMexerNoStatus) } : null,
-              podeConfigurar() ? { rotulo: 'Mover para a esquerda', icone: 'voltar', aoClicar: () => moverColuna(coluna.id, -1) } : null,
-              podeConfigurar() ? { rotulo: 'Mover para a direita', icone: 'abrir', aoClicar: () => moverColuna(coluna.id, +1) } : null,
-              { rotulo: 'Esconder da minha vista', icone: 'arquivar', aoClicar: () => esconderColuna(coluna.id) },
-              podeConfigurar() ? { separador: true } : null,
-              podeConfigurar() ? { rotulo: 'Excluir coluna', icone: 'lixo', perigo: true, aoClicar: () => excluirColuna(statusDaColuna) } : null,
-            ],
-            { rotulo: `Opções da coluna ${coluna.nome}` },
-          )
-        : null;
+      const menuColuna = menuAcoes(
+        [
+          podeConfigurar() ? { rotulo: 'Configurar coluna', icone: 'ajustes', aoClicar: () => editarStatus(statusDaColuna, aposMexerNoStatus) } : null,
+          podeConfigurar() ? { rotulo: 'Mover para a esquerda', icone: 'voltar', aoClicar: () => moverColuna(coluna.id, -1) } : null,
+          podeConfigurar() ? { rotulo: 'Mover para a direita', icone: 'abrir', aoClicar: () => moverColuna(coluna.id, +1) } : null,
+          { rotulo: 'Esconder da minha vista', icone: 'arquivar', aoClicar: () => esconderColuna(coluna.id) },
+          podeConfigurar() ? { separador: true } : null,
+          podeConfigurar() ? { rotulo: 'Excluir coluna', icone: 'lixo', perigo: true, aoClicar: () => excluirColuna(statusDaColuna) } : null,
+        ],
+        { rotulo: `Opções da coluna ${coluna.nome}` },
+      );
 
       const colunaNo = el('div', { class: 'kanban-coluna', estilo: { '--cor-coluna': coluna.cor } }, [
         el('header', {}, [
@@ -4479,29 +4477,25 @@ export async function paginaAtendimento({
         lista,
       ]);
 
-      /* "Sem status" nao recebe cartao: o servidor nao devolve conversa para
-         status nenhum, e aceitar o solto ali era prometer isso. */
-      if (coluna.id) {
-        colunaNo.dataset.status = coluna.id;
-        colunaNo.addEventListener('dragover', (evento) => {
-          evento.preventDefault();
-          evento.dataTransfer.dropEffect = 'move';
-          colunaNo.classList.add('alvo');
-        });
-        /* Mesma armadilha do quadro: dragleave sobe dos cartoes, entao a coluna
-           perdia o destaque a cada pixel que o cartao andava por dentro dela e
-           a marca de "solta aqui" piscava. So apaga ao sair da coluna mesmo. */
-        colunaNo.addEventListener('dragleave', (evento) => {
-          if (evento.relatedTarget && colunaNo.contains(evento.relatedTarget)) return;
-          colunaNo.classList.remove('alvo');
-        });
-        colunaNo.addEventListener('drop', (evento) => {
-          evento.preventDefault();
-          evento.stopPropagation();
-          colunaNo.classList.remove('alvo');
-          moverCartao(evento.dataTransfer.getData('text/plain') || cartaoEmMovimento, coluna, lista);
-        });
-      }
+      colunaNo.dataset.status = coluna.id;
+      colunaNo.addEventListener('dragover', (evento) => {
+        evento.preventDefault();
+        evento.dataTransfer.dropEffect = 'move';
+        colunaNo.classList.add('alvo');
+      });
+      /* Mesma armadilha do quadro: dragleave sobe dos cartoes, entao a coluna
+         perdia o destaque a cada pixel que o cartao andava por dentro dela e
+         a marca de "solta aqui" piscava. So apaga ao sair da coluna mesmo. */
+      colunaNo.addEventListener('dragleave', (evento) => {
+        if (evento.relatedTarget && colunaNo.contains(evento.relatedTarget)) return;
+        colunaNo.classList.remove('alvo');
+      });
+      colunaNo.addEventListener('drop', (evento) => {
+        evento.preventDefault();
+        evento.stopPropagation();
+        colunaNo.classList.remove('alvo');
+        moverCartao(evento.dataTransfer.getData('text/plain') || cartaoEmMovimento, coluna, lista);
+      });
 
       quadro.append(colunaNo);
     }
