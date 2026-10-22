@@ -788,8 +788,19 @@ export function registrarAtendimento(rotas) {
         case 'status': {
           const status = achar('status', corpo.valor);
           if (!status) break;
-          // Acao em massa nao dispara follow-up: e a trava contra disparo em lote.
-          await aplicarStatus(contato, status, { tipo: 'membro', nome: ctx.usuario.nome }, { dispararFollowups: false });
+          /*
+           * Acao em massa nao dispara follow-up, de regra: reclassificar um
+           * lote de contatos por um motivo qualquer (limpeza de cadastro, por
+           * exemplo) nao pode disparar a sequencia de Qualificado para
+           * duzentas pessoas de uma vez so.
+           *
+           * "Follow up" e a excecao, pedido do escritorio em 22/10/2026: e
+           * justamente o status que a pessoa usa para empurrar um lote inteiro
+           * de volta ao contato, e sem a sequencia disparar aqui o follow-up
+           * nunca saia sozinho — tinha que ser mandado a mao, um por um.
+           */
+          const ehFollowUp = normalizar(status.nome) === normalizar('Follow up');
+          await aplicarStatus(contato, status, { tipo: 'membro', nome: ctx.usuario.nome }, { dispararFollowups: ehFollowUp });
           afetados += 1;
           break;
         }
