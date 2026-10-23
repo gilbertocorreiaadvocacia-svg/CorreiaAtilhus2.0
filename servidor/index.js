@@ -42,6 +42,7 @@ import { retomarMidiaHistorico } from './whatsapp/midia-historico.js';
 import { retomarFotos } from './whatsapp/fotos.js';
 import { retomarHistoricoLiderhub } from './integracoes/liderhub.js';
 import { iniciarRenovacaoDeTokens } from './whatsapp/renovar-tokens.js';
+import { retomarRespostasPendentes } from './ia/motor.js';
 
 iniciarBanco();
 /* Quando ESTA copia subiu. Vai na saude, para dar para distinguir duas. */
@@ -207,6 +208,13 @@ if (fotosRetomadas) console.log(`Fotos de perfil: ${fotosRetomadas} contato(s) d
    por idExterno, entao so repete trabalho ja feito. */
 const historicoLiderhubRetomado = retomarHistoricoLiderhub();
 if (historicoLiderhubRetomado) console.log(`Historico LiderHub: ${historicoLiderhubRetomado} workspace(s) retomado(s).`);
+/* E o cronometro de resposta do agente: tambem so vive em memoria. Conversa
+   que estava no meio do delay de resposta na hora da queda fica com
+   responsavel/estado certos no banco, mas muda para sempre sem isto — e o
+   "ficou tudo bugado nas conversas depois que voltou" que o escritorio
+   relatou em 23/10/2026. */
+const { retomados: respostasRetomadas } = retomarRespostasPendentes();
+if (respostasRetomadas) console.log(`Respostas de agente: ${respostasRetomadas} conversa(s) de volta no cronometro.`);
 
 const MIMES = {
   '.jpg': 'image/jpeg',

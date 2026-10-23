@@ -61,6 +61,7 @@ import { testarAtivarAgentesSemEquipe } from './ativar-agentes-sem-equipe.js';
 import { testarPosVenda } from './posvenda.js';
 import { testarMigrarDepartamentoPosVenda } from './migrar-posvenda.js';
 import { testarReatribuirPendentes } from './reatribuir-pendentes.js';
+import { testarRetomarRespostasPendentes } from './retomar-respostas-pendentes.js';
 import { testarAgentesDasAreas } from './agentes-das-areas.js';
 import { testarStatusDasAreas } from './status-das-areas.js';
 import { testarSituacaoExterna } from './situacao-externa.js';
@@ -347,6 +348,7 @@ async function principal() {
     suites.push(await testarPosVenda({ raiz: RAIZ }));
     suites.push(await testarMigrarDepartamentoPosVenda({ raiz: RAIZ }));
     suites.push(await testarReatribuirPendentes({ raiz: RAIZ }));
+    suites.push(await testarRetomarRespostasPendentes({ raiz: RAIZ }));
     suites.push(await testarAgentesDasAreas({ raiz: RAIZ }));
     suites.push(await testarStatusDasAreas({ raiz: RAIZ }));
     suites.push(await testarSituacaoExterna({ raiz: RAIZ }));

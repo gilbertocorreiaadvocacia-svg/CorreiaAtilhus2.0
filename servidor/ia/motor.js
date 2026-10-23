@@ -557,6 +557,43 @@ export async function forcarResposta(contatoId) {
 }
 
 /**
+ * Depois de uma queda do servidor, `cronometros` (o Map ali no topo) volta
+ * vazio — ele so vive em memoria, nunca e espelhado em disco. O contato
+ * continua no banco com responsavel:agente e estado:'ia' (isso sobrevive),
+ * mas o cronometro que ia chamar executarAgente morreu junto com o
+ * processo: ninguem jamais agenda aquela resposta de novo. A conversa fica
+ * parada, parecendo "sendo atendida pela IA" para quem olha a tela, sem
+ * nenhuma acao futura — a menos que o cliente escreva outra mensagem (o que
+ * reagenda pelo caminho normal, em whatsapp/recebimento.js). Era esse o
+ * motivo de "quando o sistema voltou da queda, ficou tudo bugado nas
+ * conversas": um lote de conversas que estavam no meio do delay de resposta
+ * na hora da queda ficou mudo, do jeito que estava, para sempre.
+ *
+ * Chamada uma vez no boot (servidor/index.js), do mesmo jeito que
+ * retomarFotos/retomarSincronizacoes/retomarHistoricoLiderhub recuperam os
+ * outros estados que so existem em memoria.
+ *
+ * So agenda quem tem MESMO uma mensagem do cliente esperando (ultima
+ * entrada mais nova que a ultima saida, o mesmo calculo que envio.js usa
+ * para medir tempo de resposta) — uma conversa 'ia' em repouso, cuja ultima
+ * fala foi do proprio agente, nao deve ganhar uma mensagem do nada so
+ * porque o servidor reiniciou.
+ */
+export function retomarRespostasPendentes() {
+  let retomados = 0;
+  for (const contato of listar('contatos', { estado: 'ia' })) {
+    if (contato.responsavel?.tipo !== 'agente') continue;
+    const agente = achar('agentes', contato.responsavel.id);
+    if (!agente?.ativo) continue;
+    const semResposta = contato.ultimaEntradaEm && (!contato.ultimaSaidaEm || contato.ultimaSaidaEm < contato.ultimaEntradaEm);
+    if (!semResposta) continue;
+    agendarResposta(contato);
+    retomados += 1;
+  }
+  return { retomados };
+}
+
+/**
  * Qual agente uma palavra-chave ativa. Vale so para quem inicia a conversa, e
  * so dentro da area do numero: "auxilio" no numero trabalhista nao chama o
  * especialista previdenciario.
