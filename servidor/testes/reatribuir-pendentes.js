@@ -12,14 +12,18 @@ import { suite } from './apoio.js';
  * agentes; se for uma conversa antiga, o agente deve ler e, conforme o
  * beneficio, vai atender". Toda conversa pendente (de qualquer origem,
  * inclusive uma que o agente tirou da IA de proposito com desativar_ia)
- * volta a ter o agente padrao da conexao, sem mandar nenhuma mensagem.
+ * volta a ter o agente padrao da conexao, e o agente responde de verdade
+ * (pedido do escritorio em 23/10/2026 - "quero que os agentes atendam de
+ * verdade": so trocar o responsavel por dentro nao bastava, o cliente
+ * continuava sem ver resposta nenhuma).
  *
  * O que nao pode falhar: pendente sem responsavel, e pendente com uma
- * PESSOA como responsavel, ambos ganham o agente padrao e viram
- * estado:'ia'; pendente cuja conexao nao tem agente padrao, ou cujo agente
- * padrao esta desligado, NAO e tocado; grupo nao e tocado; contato que ja
- * nao esta pendente (ia, ativo, arquivado) nao e tocado; nenhuma mensagem e
- * criada; rodar de novo nao mexe em quem ja foi reatribuido.
+ * PESSOA como responsavel, ambos ganham o agente padrao, viram estado:'ia'
+ * e recebem uma resposta; pendente cuja conexao nao tem agente padrao, ou
+ * cujo agente padrao esta desligado, NAO e tocado (nem ganha resposta);
+ * grupo nao e tocado; contato que ja nao esta pendente (ia, ativo,
+ * arquivado) nao e tocado; rodar de novo nao mexe em quem ja foi
+ * reatribuido (nem manda uma segunda resposta).
  */
 export async function testarReatribuirPendentes({ raiz }) {
   const s = suite('Conversa pendente volta para o agente padrao (qualquer origem)');
@@ -44,7 +48,7 @@ iniciarBanco();
 inserir('workspaces', { id: 'w1', nome: 'Teste' });
 
 const padrao = { tipo: 'agente', id: 'ag-triagem', nome: 'Triagem' };
-inserir('agentes', { id: 'ag-triagem', workspaceId: 'w1', nome: 'Triagem', ativo: true });
+inserir('agentes', { id: 'ag-triagem', workspaceId: 'w1', nome: 'Triagem', ativo: true, delaySegundos: 1 });
 inserir('agentes', { id: 'ag-desligado', workspaceId: 'w1', nome: 'Desligado', ativo: false });
 
 inserir('conexoes', { id: 'conx-com-padrao', workspaceId: 'w1', tipo: 'qrcode', responsavelPadrao: padrao });
@@ -74,6 +78,10 @@ await encerrarBanco();
 import { reatribuirPendentes } from ${JSON.stringify(urlDoModulo)};
 iniciarBanco();
 const resultado = reatribuirPendentes();
+/* O agente de teste tem delaySegundos:1, mas agendarResposta impoe um piso
+   de 1s mesmo para quem pedir menos — por isso a espera generosa aqui, so
+   para o timer ter chance de disparar dentro deste processo descartavel. */
+await new Promise((resolver) => setTimeout(resolver, 1800));
 const contatos = listar('contatos');
 const mensagens = Object.fromEntries(contatos.map((c) => [c.id, mensagensDe(c.id).length]));
 console.log(JSON.stringify({ resultado, contatos, mensagens }));
@@ -116,11 +124,25 @@ process.exit(0);
     const eva = porId('c-ja-ia');
     s.ok('quem ja estava com IA nao muda', eva?.estado === 'ia' && eva?.responsavel?.id === 'ag-triagem', JSON.stringify(eva));
 
-    s.ok('nenhuma mensagem foi criada para ninguem', Object.values(b.mensagens).every((n) => n === 0), JSON.stringify(b.mensagens));
+    s.ok(
+      'a Ana e o Beto (reatribuidos) recebem uma resposta de verdade do agente',
+      b.mensagens['c-sem-responsavel'] > 0 && b.mensagens['c-com-pessoa'] > 0,
+      JSON.stringify(b.mensagens),
+    );
+    s.ok(
+      'quem nao foi reatribuido (Carla, Dani, o grupo, a Eva) nao recebe mensagem nenhuma',
+      ['c-sem-padrao-na-conexao', 'c-agente-desligado', 'c-grupo', 'c-ja-ia'].every((id) => b.mensagens[id] === 0),
+      JSON.stringify(b.mensagens),
+    );
 
     const r2 = await rodar(rodarMigracao);
     const c = JSON.parse(r2.texto.trim().split('\n').pop());
     s.ok('rodar de novo nao reativa mais ninguem (ja viraram ia)', c.resultado.reativados === 0, JSON.stringify(c.resultado));
+    s.ok(
+      'rodar de novo nao manda uma segunda resposta para quem ja foi atendido',
+      c.mensagens['c-sem-responsavel'] === b.mensagens['c-sem-responsavel'] && c.mensagens['c-com-pessoa'] === b.mensagens['c-com-pessoa'],
+      JSON.stringify({ antes: b.mensagens, depois: c.mensagens }),
+    );
   } finally {
     fs.rmSync(pasta, { recursive: true, force: true });
   }

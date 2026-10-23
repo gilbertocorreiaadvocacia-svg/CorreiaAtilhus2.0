@@ -1,5 +1,6 @@
-import { achar, atualizar, listar, registrarLog } from '../nucleo/banco.js';
+import { achar, atualizar, listar, mensagensDe, registrarLog } from '../nucleo/banco.js';
 import { emitir } from '../nucleo/eventos.js';
+import { agendarResposta, agentePorPalavraChave } from '../ia/motor.js';
 
 /**
  * Toda conversa pendente (sem agente) volta a ter o agente padrao da
@@ -7,20 +8,32 @@ import { emitir } from '../nucleo/eventos.js';
  * 19/10/2026: "toda mensagem nova vai para os agentes; se for uma conversa
  * antiga, o agente deve ler e, conforme o beneficio, vai atender".
  *
- * NAO manda mensagem nenhuma: so troca responsavel/estado. O agente, ao
- * responder (quando a PESSOA escrever de novo), ja monta o contexto a
- * partir do historico INTEIRO da conversa (mensagensDe, em ia/motor.js) —
- * entao ja le tudo e roteia pelo beneficio certo sozinho, pelas mesmas
- * regras do prompt de Triagem que ja usa para lead novo. Nenhuma logica de
- * classificacao nova precisa existir aqui.
+ * Pedido do escritorio em 23/10/2026: so trocar responsavel/estado nao
+ * bastava — "quero que os agentes atendam de verdade". Uma conversa que ja
+ * tinha mensagem do cliente esperando ficava com o responsavel certo por
+ * dentro, mas o cliente continuava sem ver resposta nenhuma ate escrever de
+ * novo (e muitos nao escrevem de novo, so desistem). Agora, depois de
+ * reatribuir, chama agendarResposta (ia/motor.js) para o agente responder
+ * de verdade, no mesmo delay configurado nele — o agente ja monta o
+ * contexto a partir do historico INTEIRO da conversa (mensagensDe), entao
+ * ja le tudo e roteia pelo beneficio certo sozinho, pelas mesmas regras do
+ * prompt de Triagem que ja usa para lead novo.
  *
  * Escopo (decidido com o escritorio): TODA conversa pendente, de qualquer
  * origem — inclusive as que um agente tirou da IA de proposito
  * (desativar_ia, transferencia para pessoa). Uma decisao explicita anterior
  * pode ser revertida por isto; e intencional.
  *
+ * Qual agente ganha a conversa (pedido do escritorio em 23/10/2026 —
+ * "atendido 100% pelo agente com beneficio determinado, por palavra-chave"):
+ * primeiro tenta achar o especialista pelo que o cliente ja escreveu
+ * (agentePorPalavraChave, sobre o historico inteiro da conversa — ela pode
+ * ter ficado pendente antes de mencionar o beneficio); so cai no agente
+ * padrao da conexao quando nenhuma palavra-chave bate.
+ *
  * So nao mexe quando nao ha para onde mandar: grupo (sem fluxo de agente
- * individual), conexao sem agente padrao configurado, ou agente padrao
+ * individual), nenhuma palavra-chave bateu E conexao sem agente padrao
+ * configurado, ou o agente escolhido (por palavra-chave ou padrao) esta
  * desligado.
  */
 export function reatribuirPendentes() {
@@ -28,8 +41,17 @@ export function reatribuirPendentes() {
   for (const contato of listar('contatos', { estado: 'pendente' })) {
     if (contato.grupo) continue;
     const conexao = achar('conexoes', contato.conexaoId);
-    if (conexao?.responsavelPadrao?.tipo !== 'agente') continue;
-    const agente = achar('agentes', conexao.responsavelPadrao.id);
+
+    const textoDoCliente = mensagensDe(contato.id)
+      .filter((m) => m.direcao === 'entrada' && m.conteudo)
+      .map((m) => m.conteudo)
+      .join(' ');
+    const porPalavraChave = textoDoCliente
+      ? agentePorPalavraChave(contato.workspaceId, textoDoCliente, contato.area || conexao?.area)
+      : null;
+
+    const agente =
+      porPalavraChave || (conexao?.responsavelPadrao?.tipo === 'agente' ? achar('agentes', conexao.responsavelPadrao.id) : null);
     if (!agente?.ativo) continue;
 
     atualizar('contatos', contato.id, {
@@ -37,8 +59,16 @@ export function reatribuirPendentes() {
       estado: 'ia',
       aceitoPor: null,
     });
-    registrarLog(contato.workspaceId, contato.id, 'reativacao', `Reatribuido ao agente ${agente.nome} (fila de pendentes)`);
+    registrarLog(
+      contato.workspaceId,
+      contato.id,
+      'reativacao',
+      porPalavraChave
+        ? `Reatribuido ao agente ${agente.nome} por palavra-chave (fila de pendentes)`
+        : `Reatribuido ao agente ${agente.nome} (fila de pendentes)`,
+    );
     emitir(contato.workspaceId, 'contato', { contatoId: contato.id });
+    agendarResposta(contato);
     reativados += 1;
   }
   return { reativados };
