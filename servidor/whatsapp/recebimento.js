@@ -588,10 +588,23 @@ export async function receberMensagem({
     registrarLog(workspaceId, contato.id, 'desarquivar', 'Conversa reaberta porque o cliente escreveu');
   }
 
-  // Palavra-chave so ativa agente na abertura da conversa, nunca no meio dela.
-  if (primeira && mensagem.conteudo) {
+  /*
+   * Palavra-chave ativa (ou reve) o agente especialista sempre que ninguem
+   * engajado esta de fato conduzindo a conversa: na abertura, numa pendente
+   * que o cliente insiste em escrever, ou numa arquivada que acabou de
+   * reabrir. Pedido do escritorio em 23/10/2026 — "se for salario
+   * maternidade, logo e o agente de salario maternidade" — nao vale so na
+   * primeira mensagem de todas: uma conversa que ficou presa em pendente
+   * (sem agente nenhum) e o cliente escreve de novo merece a mesma chance.
+   * Nunca no meio de uma conversa com humano ou que um agente ja esta de
+   * fato conduzindo (estado 'ia'/'ativo' preexistente) — so revisita quando
+   * nao ha dono engajado (pendente/arquivada).
+   */
+  const semDonoEngajado = !contato.responsavel || contato.responsavel.tipo === 'agente';
+  const podeRevisarPorPalavraChave = primeira || contato.estado === 'pendente' || contato.estado === 'arquivado';
+  if (mensagem.conteudo && semDonoEngajado && podeRevisarPorPalavraChave) {
     const agente = agentePorPalavraChave(workspaceId, mensagem.conteudo, contato.area || conexao.area);
-    if (agente && (!contato.responsavel || contato.responsavel.tipo === 'agente')) {
+    if (agente) {
       mudancas.responsavel = { tipo: 'agente', id: agente.id, nome: agente.nome };
       mudancas.estado = 'ia';
       registrarLog(workspaceId, contato.id, 'palavra_chave', `Agente ${agente.nome} ativado por palavra-chave`);
