@@ -134,11 +134,19 @@ export function diagnosticar(workspaceId) {
   const citaContrato = ligados.some((a) => analisarPrompt(a.prompt || '', workspaceId).mencoes.some((m) => m.tipo === 'sistema' && m.chave === 'gerarcontrato'));
   const zapsign = integracoes?.zapsign;
   if (citaContrato && !zapsign?.chave) {
+    /*
+     * Achado em 23/10/2026: o texto antigo dizia "o agente tenta gerar o
+     * contrato e falha, sem avisar o cliente por que" — nao e o que
+     * acontece (conferido lendo integracoes/zapsign.js: pedirContrato()
+     * nunca olha a chave, so aprovarContrato() olha, e devolve erro claro
+     * na tela de quem tenta aprovar). O pedido ao cliente SEMPRE funciona;
+     * so a aprovacao (o envio do link de assinatura) fica bloqueada.
+     */
     anotar(
       'critica',
       'contrato-sem-chave',
       'Os agentes nao conseguem fechar contrato',
-      'Pelo menos um agente ligado usa @gerarcontrato, mas a chave da ZapSign nao esta cadastrada em Integracoes. O agente tenta gerar o contrato e falha, sem avisar o cliente por que.',
+      'Pelo menos um agente ligado usa @gerarcontrato. O pedido ao cliente funciona normalmente (ele e avisado que a equipe vai conferir), mas sem a chave da ZapSign em Integracoes ninguem consegue aprovar e mandar o link de assinatura — o contrato fica parado em conferencia.',
       '#/integracoes',
     );
   } else if (citaContrato && zapsign?.chave && !zapsign?.modeloPadraoId && !Object.keys(zapsign?.modelosPorCaso || {}).length) {

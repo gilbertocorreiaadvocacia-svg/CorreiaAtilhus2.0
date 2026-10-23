@@ -331,6 +331,16 @@ export async function testarDiagnostico({ base, anthropic }) {
     achar(semZapsign, 'contrato-sem-chave')?.severidade === 'critica',
     JSON.stringify(achar(semZapsign, 'contrato-sem-chave')),
   );
+  /* O texto antigo dizia que o agente "falha, sem avisar o cliente por
+     que" — nao e o que pedirContrato() faz (zapsign.js). Guarda contra essa
+     imprecisao voltar: o pedido ao cliente funciona, so a aprovacao que
+     fica bloqueada. */
+  s.ok(
+    'o texto do achado descreve o pedido funcionando, nao uma falha silenciosa',
+    (achar(semZapsign, 'contrato-sem-chave')?.detalhe || '').includes('funciona normalmente') &&
+      !(achar(semZapsign, 'contrato-sem-chave')?.detalhe || '').includes('falha, sem avisar'),
+    JSON.stringify(achar(semZapsign, 'contrato-sem-chave')),
+  );
 
   await api.patch('/api/integracoes', { zapsign: { chave: 'zs-de-mentira-para-o-teste' } });
   const comChaveSemModelo = await diagnosticar();
