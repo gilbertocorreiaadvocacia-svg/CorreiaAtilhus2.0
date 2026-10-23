@@ -174,6 +174,17 @@ function blocoIa(integracoes, recarregarTela) {
           'Sem chave, os agentes seguem o prompt numerado — uma etapa por resposta do cliente, sem entender o que ele escreveu.',
       };
 
+  /* Compartilhada entre "Salvar" e "Testar conexão" — ver blocoZapsign. */
+  async function salvar() {
+    await api.patch('/api/integracoes', {
+      ia: {
+        chaveAnthropic: chaveAnthropic.value.trim(),
+        chaveOpenai: chaveOpenai.value.trim(),
+        workspaceAnthropic: workspaceAnthropic.value.trim(),
+      },
+    });
+  }
+
   return cartaoAjustes(
     'Inteligência artificial',
     'É esta chave que faz os agentes pensarem. Sem ela nada para de funcionar: os agentes caem no roteiro por regras, seguindo o prompt numerado etapa por etapa.',
@@ -238,13 +249,7 @@ function blocoIa(integracoes, recarregarTela) {
             tipo: 'principal',
             pequeno: true,
             aoClicar: async () => {
-              await api.patch('/api/integracoes', {
-                ia: {
-                  chaveAnthropic: chaveAnthropic.value.trim(),
-                  chaveOpenai: chaveOpenai.value.trim(),
-                  workspaceAnthropic: workspaceAnthropic.value.trim(),
-                },
-              });
+              await salvar();
               aviso('Chaves salvas.', 'sucesso');
               await recarregarTela();
             },
@@ -257,6 +262,11 @@ function blocoIa(integracoes, recarregarTela) {
         ? botao('Testar conexão', {
             pequeno: true,
             aoClicar: async () => {
+              /* Achado em 23/10/2026, mesmo bug do ZapSign: quem digita a
+                 chave e clica direto aqui, sem "Salvar" antes, batia em
+                 "chave nao configurada" porque o teste so lia o que ja
+                 estava gravado no servidor. Salva primeiro, sempre. */
+              await salvar();
               const resultado = await api.post('/api/integracoes/ia/testar', {});
               aviso(resultado.ok ? `Respondeu: ${resultado.resposta}` : resultado.erro, resultado.ok ? 'sucesso' : 'erro');
               await recarregarTela();
@@ -471,6 +481,13 @@ function blocoAtilhusJuri(integracoes, recarregarTela) {
   const ativo = el('input', { type: 'checkbox' });
   ativo.checked = Boolean(juri.ativo);
 
+  /* Compartilhada entre "Salvar" e "Testar conexão" — ver blocoZapsign. */
+  async function salvar() {
+    await api.patch('/api/integracoes', {
+      atilhusJuri: { url: url.value.trim(), segredo: segredo.value.trim(), ativo: ativo.checked },
+    });
+  }
+
   return cartaoAjustes(
     'Atilhus Juri (contrato assinado vira caso)',
     'Assinado o contrato, o cliente vai sozinho para o Atilhus Juri: contato com o resumo da conversa, caso na coluna A validar e tarefa para a pós-venda de Timbaúba. Se o Juri estiver fora do ar, o envio fica na fila e é tentado de novo.',
@@ -485,9 +502,7 @@ function blocoAtilhusJuri(integracoes, recarregarTela) {
             tipo: 'principal',
             pequeno: true,
             aoClicar: async () => {
-              await api.patch('/api/integracoes', {
-                atilhusJuri: { url: url.value.trim(), segredo: segredo.value.trim(), ativo: ativo.checked },
-              });
+              await salvar();
               aviso('Integracao salva.', 'sucesso');
               await recarregarTela();
             },
@@ -497,6 +512,9 @@ function blocoAtilhusJuri(integracoes, recarregarTela) {
         ? botao('Testar conexão', {
             pequeno: true,
             aoClicar: async () => {
+              /* Mesmo bug do ZapSign (achado em 23/10/2026): salva o
+                 formulario antes, senao o teste lia o segredo antigo. */
+              await salvar();
               const resultado = await api.post('/api/integracoes/atilhus-juri/testar', {});
               aviso(resultado.ok ? 'O Atilhus Juri respondeu e aceitou a assinatura.' : resultado.erro, resultado.ok ? 'sucesso' : 'erro');
             },
@@ -890,6 +908,22 @@ function blocoMetaConversoes(integracoes, recarregarTela) {
     el('div', { class: 'mt-1', texto: 'Nome, CPF e conteudo de conversa não saem. Nada disso e necessário para a atribuição funcionar.' }),
   ]);
 
+  /* Compartilhada entre "Salvar" e "Testar credenciais" — ver blocoZapsign. */
+  async function salvar() {
+    const eventos = {};
+    for (const [tipo, entrada] of Object.entries(eventosPorTipo)) {
+      if (entrada.value.trim()) eventos[tipo] = entrada.value.trim();
+    }
+    await api.patch('/api/integracoes', {
+      metaConversoes: {
+        ativo: ativo.checked,
+        pixelId: pixelId.value.trim(),
+        token: token.value.trim(),
+        eventos,
+      },
+    });
+  }
+
   return cartaoAjustes(
     'Meta. API de Conversao',
     balao,
@@ -912,18 +946,7 @@ function blocoMetaConversoes(integracoes, recarregarTela) {
             tipo: 'principal',
             pequeno: true,
             aoClicar: async () => {
-              const eventos = {};
-              for (const [tipo, entrada] of Object.entries(eventosPorTipo)) {
-                if (entrada.value.trim()) eventos[tipo] = entrada.value.trim();
-              }
-              await api.patch('/api/integracoes', {
-                metaConversoes: {
-                  ativo: ativo.checked,
-                  pixelId: pixelId.value.trim(),
-                  token: token.value.trim(),
-                  eventos,
-                },
-              });
+              await salvar();
               aviso('Integracao salva.', 'sucesso');
               await recarregarTela();
             },
@@ -933,6 +956,9 @@ function blocoMetaConversoes(integracoes, recarregarTela) {
         ? botao('Testar credenciais', {
             pequeno: true,
             aoClicar: async () => {
+              /* Mesmo bug do ZapSign (achado em 23/10/2026): salva o
+                 formulario antes, senao o teste lia o token antigo. */
+              await salvar();
               const resultado = await api.post('/api/integracoes/meta-conversoes/testar', {});
               aviso(resultado.ok ? `Conectado a "${resultado.nome}".` : resultado.erro, resultado.ok ? 'sucesso' : 'erro');
             },
@@ -970,6 +996,24 @@ function blocoTikTokEventos(integracoes, recarregarTela) {
     el('div', { class: 'mt-1', texto: 'Na DM do TikTok a conversa nasce sem telefone: o evento só sai depois que o agente coletar o telefone ou o e-mail.' }),
   ]);
 
+  /* Compartilhada entre "Salvar" e "Testar" — ver blocoZapsign. */
+  async function salvar() {
+    const eventos = {};
+    for (const [tipo, entrada] of Object.entries(eventosPorTipo)) {
+      if (entrada.value.trim()) eventos[tipo] = entrada.value.trim();
+    }
+    await api.patch('/api/integracoes', {
+      tiktokEventos: {
+        ativo: ativo.checked,
+        conjuntoId: conjuntoId.value.trim(),
+        token: token.value.trim(),
+        codigoDeTeste: codigoDeTeste.value.trim(),
+        fonte: 'crm',
+        eventos,
+      },
+    });
+  }
+
   return cartaoAjustes(
     'TikTok. API de Eventos',
     balao,
@@ -985,20 +1029,7 @@ function blocoTikTokEventos(integracoes, recarregarTela) {
             tipo: 'principal',
             pequeno: true,
             aoClicar: async () => {
-              const eventos = {};
-              for (const [tipo, entrada] of Object.entries(eventosPorTipo)) {
-                if (entrada.value.trim()) eventos[tipo] = entrada.value.trim();
-              }
-              await api.patch('/api/integracoes', {
-                tiktokEventos: {
-                  ativo: ativo.checked,
-                  conjuntoId: conjuntoId.value.trim(),
-                  token: token.value.trim(),
-                  codigoDeTeste: codigoDeTeste.value.trim(),
-                  fonte: 'crm',
-                  eventos,
-                },
-              });
+              await salvar();
               aviso('Integracao salva.', 'sucesso');
               await recarregarTela();
             },
@@ -1008,6 +1039,9 @@ function blocoTikTokEventos(integracoes, recarregarTela) {
         ? botao('Testar', {
             pequeno: true,
             aoClicar: async () => {
+              /* Mesmo bug do ZapSign (achado em 23/10/2026): salva o
+                 formulario antes, senao o teste lia o token antigo. */
+              await salvar();
               const resultado = await api.post('/api/integracoes/tiktok-eventos/testar', {});
               aviso(resultado.ok ? 'Evento de teste aceito pelo TikTok.' : resultado.erro, resultado.ok ? 'sucesso' : 'erro');
             },
