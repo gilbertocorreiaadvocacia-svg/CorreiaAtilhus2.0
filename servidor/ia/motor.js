@@ -5,7 +5,7 @@ import { emitir } from '../nucleo/eventos.js';
 import { lancar } from '../nucleo/creditos.js';
 import { caminhoDaMidia } from '../nucleo/midia.js';
 import { avisarMencaoInvalida, avisarModoDegradado } from '../nucleo/diagnostico.js';
-import { agora, formatarTelefone } from '../nucleo/util.js';
+import { agora, formatarTelefone, slug } from '../nucleo/util.js';
 import { enviarMensagem } from '../whatsapp/envio.js';
 import { sintetizar, vozDisponivel } from './audio.js';
 import { membrosQuePodemVer } from '../nucleo/auth.js';
@@ -597,14 +597,23 @@ export function retomarRespostasPendentes() {
  * Qual agente uma palavra-chave ativa. Vale so para quem inicia a conversa, e
  * so dentro da area do numero: "auxilio" no numero trabalhista nao chama o
  * especialista previdenciario.
+ *
+ * Comparado em slug (acento fora, hifen e espaco tratados iguais): a conversa
+ * e digitada por um cliente, nao por quem configurou a palavra-chave — "quero
+ * saber sobre auxílio-acidente" e a palavra-chave "auxilio acidente" sao a
+ * MESMA coisa para quem le, e tem que casar aqui tambem. Achado em producao
+ * em 23/10/2026: um lead de auxilio-acidente ficou parado em Pendente porque
+ * a comparacao era texto cru (so toLowerCase) — o acento e o hifen bastavam
+ * para nunca bater.
  */
 export function agentePorPalavraChave(workspaceId, texto, area = null) {
-  const alvo = String(texto || '').toLowerCase();
-  if (!alvo.trim()) return null;
+  const alvo = slug(texto || '');
+  if (!alvo) return null;
   for (const agente of listar('agentes', { workspaceId, ativo: true })) {
     if (area && agente.area && agente.area !== area) continue;
     for (const palavra of agente.palavrasChave || []) {
-      if (palavra && alvo.includes(String(palavra).toLowerCase())) return agente;
+      const palavraSlug = slug(palavra || '');
+      if (palavraSlug && alvo.includes(palavraSlug)) return agente;
     }
   }
   return null;
