@@ -1561,13 +1561,32 @@ export async function paginaAtendimento({
       mensagem.conteudo ? el('div', { texto: mensagem.conteudo }) : null,
       anexo,
       mensagem.transcricao
-        ? el('div', {
-            class: 't-xs c-suave mt-1',
-            // O italico e a unica coisa que sobra no atributo style deste
-            // balao: nao existe utilitaria de estilo de fonte.
-            estilo: { fontStyle: 'italic' },
-            texto: 'Transcrito automaticamente do áudio.',
-          })
+        ? el('div', { class: 'linha-p mt-1' }, [
+            el('span', {
+              class: 't-xs c-suave',
+              // O italico e a unica coisa que sobra no atributo style deste
+              // balao: nao existe utilitaria de estilo de fonte.
+              estilo: { fontStyle: 'italic' },
+              texto: 'Transcrito automaticamente do áudio.',
+            }),
+            /*
+             * Achado em 23/10/2026, diagnostico completo: o motor local ja
+             * calculava e gravava transcricaoDuvidas (numero ou termo
+             * juridico que ele erra mais, ver transcricao-local.js), mas
+             * nenhuma tela mostrava isso — o aviso documentado em
+             * TRANSCRICAO.md ("marcado, nunca corrigido no escuro") se
+             * perdia no caminho. O audio continua anexado logo acima,
+             * exatamente para isso: ouvir e conferir.
+             */
+            mensagem.transcricaoDuvidas?.length
+              ? (() => {
+                  const motivos = [...new Set(mensagem.transcricaoDuvidas.flatMap((d) => d.motivos || []))];
+                  const s = selo('Conferir', 'alerta');
+                  s.title = `${motivos.join(' e ')} marcados para conferência — ouça o áudio antes de confiar no texto.`;
+                  return s;
+                })()
+              : null,
+          ])
         : null,
       /* Sem a transcricao, dizer PORQUE — "sem chave", "a API recusou", "sem
          fala nenhuma" pedem reacoes diferentes de quem atende, e nada e pior
