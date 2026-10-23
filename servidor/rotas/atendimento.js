@@ -262,8 +262,16 @@ export function registrarAtendimento(rotas) {
     // kanban desenha so o lote que coube na resposta: sem este numero, a coluna
     // "Contrato assinado" com 900 conversas antigas mostrava o selo 3, que e
     // quantas entraram no lote, e o socio lia isso como tres contratos.
+    //
+    // Pedido do escritorio em 23/10/2026: conversa concluida (arquivada) some
+    // do Kanban — ela so volta a contar se o cliente escrever de novo, porque
+    // ai receberMensagem() (whatsapp/recebimento.js) ja tira o arquivado
+    // sozinho. So o Kanban usa este numero (so consumidor de porStatus no
+    // frontend); a tabela de Contatos conta por conta propria, a partir do
+    // que ja carregou, e continua mostrando arquivada normalmente.
     const porStatus = {};
     for (const contato of contatos) {
+      if (contato.estado === 'arquivado') continue;
       const chave = contato.statusId || '';
       porStatus[chave] = (porStatus[chave] || 0) + 1;
     }

@@ -53,6 +53,7 @@ import { testarExcluirConexaoComConversas } from './excluir-conexao-com-conversa
 import { testarApagarConversasDaConexao } from './apagar-conversas-da-conexao.js';
 import { testarExcluirEmMassa } from './excluir-em-massa.js';
 import { testarStatusEmMassa } from './status-em-massa.js';
+import { testarKanbanConcluido } from './kanban-concluido.js';
 import { testarExcluirTodosOsContatos } from './excluir-todos-contatos.js';
 import { testarHigiene } from './higiene.js';
 import { testarBaseEStatus } from './base-e-status.js';
@@ -321,6 +322,7 @@ async function principal() {
     suites.push(await testarApagarConversasDaConexao({ base }));
     suites.push(await testarExcluirEmMassa({ base }));
     suites.push(await testarStatusEmMassa({ base }));
+    suites.push(await testarKanbanConcluido({ base }));
     suites.push(await testarExcluirTodosOsContatos({ base }));
     suites.push(await testarHigiene({ base }));
     suites.push(await testarAtalhos({ base }));

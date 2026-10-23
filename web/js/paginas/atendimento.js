@@ -4310,7 +4310,11 @@ export async function paginaAtendimento({
     }
 
     for (const coluna of colunas) {
-      const daColuna = contatos.filter((c) => (c.statusId || '') === coluna.id);
+      /* Pedido do escritorio em 23/10/2026: conversa concluida (arquivada)
+         some do Kanban. Volta sozinha se o cliente escrever de novo —
+         receberMensagem() (whatsapp/recebimento.js) ja tira o arquivado e
+         religa para a IA nesse momento, antes mesmo do redesenho acontecer. */
+      const daColuna = contatos.filter((c) => (c.statusId || '') === coluna.id && c.estado !== 'arquivado');
       // A soma que o dado permite e a das mensagens esperando resposta. E ela
       // que separa a coluna cheia da coluna parada: cem conversas fechadas nao
       // pedem nada, tres conversas com cliente esperando pedem hoje.
