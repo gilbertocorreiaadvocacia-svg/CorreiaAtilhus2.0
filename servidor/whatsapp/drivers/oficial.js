@@ -38,6 +38,12 @@ async function chamarGraph(conexao, caminho, carga) {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ messaging_product: 'whatsapp', ...carga }),
+    /* Achado em 23/10/2026: sem isso, a Graph API travada (nao so recusando
+       — sem responder nunca) prendia a conversa para sempre, sem disparar o
+       aviso de "a IA nao respondeu" (esse so olha chamada que FALHA, nunca
+       uma que so nao volta). Mesmos 20s que integracoes/personalizada.js ja
+       usa para chamada externa simples. */
+    signal: AbortSignal.timeout(20000),
   });
   const corpo = await resposta.json().catch(() => ({}));
   if (!resposta.ok) {
@@ -74,6 +80,7 @@ async function subirMidia(conexao, midia) {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
     body: formulario,
+    signal: AbortSignal.timeout(20000),
   });
   const corpo = await resposta.json().catch(() => ({}));
   if (!resposta.ok) {
@@ -142,7 +149,7 @@ export const driverOficial = {
     try {
       const resposta = await fetch(
         `${GRAPH}/${phoneNumberId}?fields=display_phone_number,quality_rating,verified_name`,
-        { headers: { Authorization: `Bearer ${token}` } },
+        { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(20000) },
       );
       const dados = await resposta.json().catch(() => ({}));
       if (!resposta.ok) return { ok: false, erro: dados?.error?.message || `Graph API ${resposta.status}` };

@@ -31,6 +31,7 @@ export async function consultarProcessos({ workspaceId, cpf }) {
   try {
     const resposta = await fetch(`${base}/lawsuits?cpf=${numero}`, {
       headers: { Authorization: `Bearer ${cfg.chave}`, Accept: 'application/json' },
+      signal: AbortSignal.timeout(20000),
     });
     if (!resposta.ok) {
       return { erro: `A consulta respondeu ${resposta.status}. Verifique com a equipe.` };

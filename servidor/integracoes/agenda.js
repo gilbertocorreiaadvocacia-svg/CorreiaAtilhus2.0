@@ -114,6 +114,7 @@ async function criarNoGoogle(cfg, evento) {
       refresh_token: cred.refreshToken,
       grant_type: 'refresh_token',
     }),
+    signal: AbortSignal.timeout(20000),
   });
   const tokenDados = await tokenResposta.json().catch(() => ({}));
   if (!tokenResposta.ok || !tokenDados.access_token) return null;
@@ -137,6 +138,7 @@ async function criarNoGoogle(cfg, evento) {
               },
             }),
       }),
+      signal: AbortSignal.timeout(20000),
     },
   );
   const dados = await resposta.json().catch(() => ({}));
