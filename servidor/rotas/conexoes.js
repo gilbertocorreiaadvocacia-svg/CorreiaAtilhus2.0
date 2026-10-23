@@ -917,7 +917,16 @@ export function registrarConexoes(rotas) {
     }
 
     for (const mensagem of eventos.mensagens || []) {
-      await receberMensagem({ workspaceId: conexao.workspaceId, conexao, ...mensagem }).catch(() => {});
+      /*
+       * Achado em 23/10/2026, diagnostico completo: este catch ficava vazio.
+       * Se receberMensagem falhasse no meio (baixar uma midia, reagendar
+       * follow-up — nenhum dos dois protegido dentro da funcao), a mensagem
+       * do cliente sumia sem rastro nenhum, nem no log. Diferente da falha
+       * de IA (que tem aviso proprio), esta nao aparecia em lugar nenhum.
+       */
+      await receberMensagem({ workspaceId: conexao.workspaceId, conexao, ...mensagem }).catch((erro) =>
+        registrarEvento(conexao, 'erro', `Mensagem recebida mas nao processada: ${erro.message}`),
+      );
     }
 
     for (const situacao of eventos.situacoes || []) {
