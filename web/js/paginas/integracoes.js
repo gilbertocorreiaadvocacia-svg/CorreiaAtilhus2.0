@@ -364,6 +364,36 @@ function blocoZapsign(integracoes, recarregarTela) {
     integracoes.zapsign?.posAssinatura?.templateId || '',
   );
 
+  /* Compartilhada entre "Salvar" e "Sincronizar modelos": os dois precisam
+     mandar o formulario inteiro para o servidor antes de fazer o que e
+     deles, senao o botao de sincronizar lia a chave antiga (ou nenhuma). */
+  async function salvar() {
+    const [tipoResp, idResp] = responsavelPos.value ? responsavelPos.value.split(':') : [null, null];
+    await api.patch('/api/integracoes', {
+      zapsign: {
+        chave: chave.value.trim(),
+        modeloPadraoId: modelo.value || null,
+        procuracaoPadraoId: procuracao.value || null,
+        modelosPorCaso: Object.fromEntries(
+          porCaso
+            .filter((linha) => linha.contrato.value || linha.procuracao.value)
+            .map((linha) => [
+              linha.tipo.caso,
+              { contratoId: linha.contrato.value || null, procuracaoId: linha.procuracao.value || null },
+            ]),
+        ),
+        videoTutorial: video,
+        urlWebhook: urlWebhook.value.trim() || null,
+        segredoWebhook: segredo.value.trim(),
+        posAssinatura: {
+          statusId: statusPos.value || null,
+          responsavel: tipoResp ? { tipo: tipoResp, id: idResp } : null,
+          templateId: templatePos.value || null,
+        },
+      },
+    });
+  }
+
   return cartaoAjustes(
     'ZapSign (contrato e procuração com assinatura eletrônica)',
     'O agente pede o contrato com os dados coletados; uma pessoa confere no cartão da conversa e só então o link sai no WhatsApp, com o vídeo de como assinar. O sistema consulta a ZapSign até a assinatura e guarda os PDFs assinados na conversa.',
@@ -398,30 +428,7 @@ function blocoZapsign(integracoes, recarregarTela) {
             tipo: 'principal',
             pequeno: true,
             aoClicar: async () => {
-              const [tipoResp, idResp] = responsavelPos.value ? responsavelPos.value.split(':') : [null, null];
-              await api.patch('/api/integracoes', {
-                zapsign: {
-                  chave: chave.value.trim(),
-                  modeloPadraoId: modelo.value || null,
-                  procuracaoPadraoId: procuracao.value || null,
-                  modelosPorCaso: Object.fromEntries(
-                    porCaso
-                      .filter((linha) => linha.contrato.value || linha.procuracao.value)
-                      .map((linha) => [
-                        linha.tipo.caso,
-                        { contratoId: linha.contrato.value || null, procuracaoId: linha.procuracao.value || null },
-                      ]),
-                  ),
-                  videoTutorial: video,
-                  urlWebhook: urlWebhook.value.trim() || null,
-                  segredoWebhook: segredo.value.trim(),
-                  posAssinatura: {
-                    statusId: statusPos.value || null,
-                    responsavel: tipoResp ? { tipo: tipoResp, id: idResp } : null,
-                    templateId: templatePos.value || null,
-                  },
-                },
-              });
+              await salvar();
               aviso('Integracao salva.', 'sucesso');
               await recarregarTela();
             },
@@ -431,6 +438,16 @@ function blocoZapsign(integracoes, recarregarTela) {
         ? botao('Sincronizar modelos', {
             pequeno: true,
             aoClicar: async () => {
+              /*
+               * Quem digita a chave e clica direto aqui, sem passar por
+               * "Salvar" antes, nao pode cair no erro "chave nao
+               * configurada": o valor ja esta na tela, so falta chegar no
+               * servidor. Salva primeiro, do mesmo jeito que o botao Salvar
+               * — sem isso o pedido de sincronizar sempre falhava com a
+               * chave antiga (ou nenhuma), e o recarregarTela() do fim
+               * ainda apagava o que a pessoa tinha acabado de digitar.
+               */
+              await salvar();
               const resultado = await api.post('/api/integracoes/zapsign/sincronizar', {});
               aviso(resultado.ok ? `${resultado.modelos.length} modelos encontrados.` : resultado.erro, resultado.ok ? 'sucesso' : 'erro');
               await recarregarTela();
