@@ -101,11 +101,21 @@ export function diagnosticar(workspaceId) {
    */
   const motorVoz = motorDeTranscricao(workspaceId);
   if (!motorVoz.disponivel) {
+    /*
+     * Achado em 23/10/2026: a hospedagem (Alpine) NUNCA tem o filtro whisper
+     * do ffmpeg, de proposito (ver TRANSCRICAO.md) — so o whisper-cli
+     * compilado a parte serve la. Um `!motorVoz.filtro` sozinho, sem olhar
+     * o cli, dava sempre a mesma frase ("ffmpeg sem filtro") na hospedagem,
+     * escondesse ali um whisper-cli que nao compilou ou so a falta do
+     * modelo — as duas causas mais prováveis, e bem diferentes de corrigir.
+     */
     const falta = !motorVoz.ffmpeg
       ? 'o ffmpeg nao esta instalado'
-      : !motorVoz.filtro
-        ? 'o ffmpeg instalado nao traz o filtro whisper'
-        : 'nenhum modelo de voz foi baixado para a pasta modelos/';
+      : !motorVoz.filtro && !motorVoz.cli
+        ? 'nem o filtro whisper do ffmpeg nem o whisper-cli estao disponiveis nesta maquina'
+        : !motorVoz.modelo
+          ? 'nenhum modelo de voz foi baixado para a pasta modelos/'
+          : 'a transcricao local foi desligada (CORREIA_TRANSCRICAO_LOCAL=0)';
     anotar(
       'alta',
       'audio-sem-transcricao',

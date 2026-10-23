@@ -287,6 +287,28 @@ export async function testarDiagnostico({ base, anthropic }) {
     `antes tinha aviso: ${tinhaAviso}`,
   );
 
+  /* --- Audio sem transcricao: a mensagem conta a causa certa ----------- */
+
+  /*
+   * A suite inteira roda com CORREIA_TRANSCRICAO_LOCAL=0 (executar.js, de
+   * proposito: o motor depende de 600 MB que nao estao no git). Entao,
+   * aqui, o motivo real e sempre "desligado por env var" — e exatamente o
+   * ramo que o texto antigo (so `!motorVoz.filtro`) nunca conseguia dizer,
+   * porque caia sempre na frase de "ffmpeg sem filtro" antes de checar o
+   * resto.
+   */
+  const semAudio = await diagnosticar();
+  s.ok(
+    'sem motor local disponivel, o achado de audio aparece como alta',
+    achar(semAudio, 'audio-sem-transcricao')?.severidade === 'alta',
+    JSON.stringify(achar(semAudio, 'audio-sem-transcricao')),
+  );
+  s.ok(
+    'a mensagem conta que a transcricao local foi desligada, nao mente sobre o filtro',
+    (achar(semAudio, 'audio-sem-transcricao')?.detalhe || '').includes('transcricao local foi desligada'),
+    JSON.stringify(achar(semAudio, 'audio-sem-transcricao')),
+  );
+
   /* --- Fechar contrato: chave e modelo da ZapSign ---------------------- */
 
   /* Outras suites (Contratos, Juri, Workspaces por area) usam esta mesma base
