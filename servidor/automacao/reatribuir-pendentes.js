@@ -1,6 +1,7 @@
 import { achar, atualizar, listar, mensagensDe, registrarLog } from '../nucleo/banco.js';
 import { emitir } from '../nucleo/eventos.js';
 import { agendarResposta, agentePorPalavraChave } from '../ia/motor.js';
+import { ligarNumerosDasAreas } from '../nucleo/agentes-por-escritorio.js';
 
 /**
  * Toda conversa pendente (sem agente) volta a ter o agente padrao da
@@ -76,11 +77,34 @@ export function reatribuirPendentes() {
 
 let laco = null;
 
+/*
+ * Antes de reatribuir, religa todo numero de area sem responsavel padrao ao
+ * agente de entrada (Triagem) da area dele — a mesma coisa que
+ * ligarNumerosDasAreas ja faz, so que ate 23/10/2026 so rodava por um
+ * script de linha de comando, com o servidor PARADO (ferramentas/
+ * ligar-numeros-das-areas.js), o que na pratica significa que nunca
+ * rodava: ninguem desliga o sistema soh para rodar um script de manutencao.
+ * Pedido do escritorio em 23/10/2026: "quero que todos os pendentes vão
+ * para a IA, com seus devidos agentes em relação ao benefício" — sem isto,
+ * um numero novo sem responsavel padrao configurado (ex.: uma conexao de
+ * anuncio recem-criada) ficava pendente para sempre, mesmo com a
+ * reatribuicao rodando, porque nao havia para quem reatribuir.
+ *
+ * So mexe em numero sem responsavel, e so quando o agente de entrada da
+ * area existe e esta ativo — nao inventa agente nem area (ver a funcao, em
+ * nucleo/agentes-por-escritorio.js). Guarda copia de toda conexao que
+ * mudar em dados/copias-de-agentes antes de gravar.
+ */
+function varrerFila() {
+  ligarNumerosDasAreas();
+  reatribuirPendentes();
+}
+
 /** Varre a fila na hora (cuida do estoque atual) e dali em diante de tempos em tempos. */
 export function iniciarReatribuicaoDePendentes(intervalo) {
   if (laco) return;
-  reatribuirPendentes();
-  laco = setInterval(reatribuirPendentes, intervalo);
+  varrerFila();
+  laco = setInterval(varrerFila, intervalo);
   if (typeof laco.unref === 'function') laco.unref();
 }
 
