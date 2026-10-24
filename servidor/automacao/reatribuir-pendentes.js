@@ -1,7 +1,7 @@
 import { achar, atualizar, listar, mensagensDe, registrarLog } from '../nucleo/banco.js';
 import { emitir } from '../nucleo/eventos.js';
 import { agendarResposta, agentePorPalavraChave } from '../ia/motor.js';
-import { ligarNumerosDasAreas } from '../nucleo/agentes-por-escritorio.js';
+import { garantirTriagemNoEscritorioGeral, ligarNumerosDasAreas } from '../nucleo/agentes-por-escritorio.js';
 
 /**
  * Toda conversa pendente (sem agente) volta a ter o agente padrao da
@@ -94,8 +94,14 @@ let laco = null;
  * area existe e esta ativo — nao inventa agente nem area (ver a funcao, em
  * nucleo/agentes-por-escritorio.js). Guarda copia de toda conexao que
  * mudar em dados/copias-de-agentes antes de gravar.
+ *
+ * Antes disso ainda, garantirTriagemNoEscritorioGeral (mesmo arquivo)
+ * cobre quem ligarNumerosDasAreas por desenho pula: o escritorio geral,
+ * sem area, cujos numeros de anuncio tambem precisam de alguem atendendo —
+ * pedido do escritorio em 23/10/2026, ver o comentario da funcao.
  */
 function varrerFila() {
+  garantirTriagemNoEscritorioGeral();
   ligarNumerosDasAreas();
   reatribuirPendentes();
 }

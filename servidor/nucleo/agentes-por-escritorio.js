@@ -190,6 +190,64 @@ export function garantirAvaliacaoNosEscritorios() {
 }
 
 /**
+ * O escritorio geral (sem area, ESCRITORIO_GERAL) tambem recebe lead de
+ * verdade — um numero de anuncio, por exemplo, que mistura beneficios
+ * variados num so numero, ao contrario dos escritorios ja separados por
+ * area. Por desenho ele nasce so com o agente de avaliacao (pos-venda),
+ * sem nenhum agente capaz de ATENDER um lead novo — e um lead que cai la
+ * fica pendente para sempre. Achado em producao em 23/10/2026: "Ricardo",
+ * perguntando sobre auxílio-acidente pelo numero "Trafego pago - Facebook"
+ * (nesse escritorio geral), preso sem ninguem.
+ *
+ * Pedido do escritorio, depois de eu propor desenhar um agente novo do
+ * zero para isso: "eu não quero, eu só quero que essas conversas passem
+ * para a IA somente. E para cada mensagem que for chegando, a IA que vai
+ * atender" — ou seja, reaproveitar o que ja funciona, sem inventar prompt
+ * nem logica de classificacao nova nenhuma.
+ *
+ * Instala (uma vez por escritorio, nunca reinstala por cima do que a
+ * pessoa customizar depois — mesma guarda de garantirAvaliacaoNosEscritorios,
+ * acima) o MESMO pacote do Previdenciario que ja atende sozinho no
+ * escritorio dedicado: Eduarda identifica o assunto por palavra-chave
+ * (auxílio-acidente, BPC, maternidade, ...) e passa para o especialista
+ * certo; trabalhista e fora do escopo vao para uma pessoa (@responsavel
+ * "distribuir"). Previdenciario foi a escolha pela area com mais casos do
+ * escritorio (15 agentes, contra 8 do Trabalhista e 4 do Civel na ultima
+ * contagem) — nao cobre tudo, mas atende a maior fatia sem inventar nada.
+ *
+ * Religa Eduarda como responsavel padrao de todo numero de verdade (nao
+ * simulador) do escritorio geral que ainda nao tem um — isso roda TODA
+ * VEZ que a funcao e chamada (nao so uma), para um numero novo que a
+ * pessoa adicionar depois tambem ser pego, do mesmo jeito que
+ * ligarNumerosDasAreas ja faz para os escritorios de area.
+ */
+export function garantirTriagemNoEscritorioGeral() {
+  let ligados = 0;
+  for (const workspace of listar('workspaces')) {
+    if (workspace.area) continue;
+    const conexoesDeVerdade = listar('conexoes', { workspaceId: workspace.id }).filter((c) => c.tipo !== 'simulador');
+    if (!conexoesDeVerdade.length) continue;
+
+    if (!workspace.triagemGeralInstaladaEm) {
+      instalarPacote({ workspaceId: workspace.id, area: 'previdenciario', pacote: PACOTES.previdenciario, ligar: true });
+      atualizar('workspaces', workspace.id, { triagemGeralInstaladaEm: new Date().toISOString() });
+    }
+
+    const eduarda = listar('agentes', { workspaceId: workspace.id }).find(
+      (a) => a.ativo && normalizar(a.nome) === normalizar(PACOTES.previdenciario.agentes[0].nome),
+    );
+    if (!eduarda) continue;
+
+    for (const conexao of conexoesDeVerdade) {
+      if (conexao.responsavelPadrao?.id) continue;
+      atualizar('conexoes', conexao.id, { responsavelPadrao: { tipo: 'agente', id: eduarda.id, nome: eduarda.nome } });
+      ligados += 1;
+    }
+  }
+  return ligados;
+}
+
+/**
  * Instala, num workspace que JA tem a area certa, as bases e os agentes do
  * pacote dessa area — a mesma coisa que montarWorkspace faz para um
  * workspace novo (ver nucleo/workspaces-por-area.js), mas so para quem ja
