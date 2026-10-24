@@ -586,11 +586,34 @@ export function retomarRespostasPendentes() {
     const agente = achar('agentes', contato.responsavel.id);
     if (!agente?.ativo) continue;
     const semResposta = contato.ultimaEntradaEm && (!contato.ultimaSaidaEm || contato.ultimaSaidaEm < contato.ultimaEntradaEm);
-    if (!semResposta) continue;
+    if (!semResposta && !respostaNaoSaiu(contato)) continue;
     agendarResposta(contato);
     retomados += 1;
   }
   return { retomados };
+}
+
+/*
+ * A ultima fala da conversa e uma resposta do agente que NAO saiu (situacao
+ * erro): o cliente nunca a viu. ultimaSaidaEm conta a tentativa mesmo quando
+ * ela falha (whatsapp/envio.js), entao so a data nao basta. Achado em
+ * 24/10/2026: as respostas para conversas @lid falharam com erro 400 e, com o
+ * envio corrigido, ninguem respondia de novo. montarHistorico ja deixa a fala
+ * que falhou de fora, entao o agente responde como se fosse a primeira vez.
+ * So por 48 horas: falha antiga nao volta a cada deploy.
+ */
+const RETOMA_FALHA_POR_MS = 48 * 60 * 60 * 1000;
+
+function respostaNaoSaiu(contato) {
+  const falas = mensagensDe(contato.id).filter((m) => !m.nota && m.direcao !== 'interna');
+  const ultima = falas[falas.length - 1];
+  return Boolean(
+    ultima &&
+      ultima.direcao === 'saida' &&
+      ultima.situacao === 'erro' &&
+      ultima.autor?.tipo === 'agente' &&
+      Date.now() - new Date(ultima.criadoEm).getTime() < RETOMA_FALHA_POR_MS,
+  );
 }
 
 /**

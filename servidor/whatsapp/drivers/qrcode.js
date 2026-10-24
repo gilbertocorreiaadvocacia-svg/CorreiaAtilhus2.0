@@ -89,7 +89,7 @@ async function chamar(cfg, caminho, { metodo = 'GET', corpo = null, prazoMs = 20
     if (!resposta.ok) {
       const detalhe =
         dados?.response?.message?.[0] || dados?.message || dados?.error || dados?.mensagem || `HTTP ${resposta.status}`;
-      throw Object.assign(new Error(String(detalhe)), { codigoWhatsapp: String(resposta.status) });
+      throw Object.assign(new Error(explicarRecusa(detalhe)), { codigoWhatsapp: String(resposta.status) });
     }
     return dados;
   } catch (erro) {
@@ -102,6 +102,37 @@ async function chamar(cfg, caminho, { metodo = 'GET', corpo = null, prazoMs = 20
   } finally {
     clearTimeout(prazo);
   }
+}
+
+/*
+ * O motivo da recusa, em frase. A Evolution devolve o motivo como texto OU
+ * como objeto — quando o numero nao tem WhatsApp, vem { exists: false,
+ * number, jid } — e String(objeto) aparecia na conversa como "[object
+ * Object]" (achado em producao em 24/10/2026).
+ */
+function explicarRecusa(detalhe) {
+  if (!detalhe || typeof detalhe !== 'object') return String(detalhe);
+  if (detalhe.exists === false) {
+    return `O WhatsApp nao encontrou ${detalhe.number || detalhe.jid || 'este numero'}: o numero nao tem WhatsApp, ou a conversa chegou por um endereco sem telefone.`;
+  }
+  try {
+    return JSON.stringify(detalhe).slice(0, 200);
+  } catch {
+    return 'O servico de WhatsApp recusou o envio.';
+  }
+}
+
+/*
+ * O endereco de quem recebe. Conversa que chegou so pelo codigo @lid (sem o
+ * telefone junto) tem esse codigo gravado no lugar do telefone, e ele nao e
+ * um numero: mandar para ele dava erro 400 (achado em producao em
+ * 24/10/2026). Para essa conversa o endereco e o proprio @lid, que a
+ * Evolution aceita no lugar do numero — o mesmo criterio de whatsapp/fotos.js.
+ */
+function enderecoDe(contato) {
+  const lid = String(contato?.lid || '');
+  const soCodigo = Boolean(lid) && (!contato.telefone || contato.telefone === lid.split('@')[0]);
+  return soCodigo ? lid : contato?.telefone;
 }
 
 /** `open` la dentro e `conectado` aqui. O resto do sistema so conhece dois. */
@@ -131,7 +162,7 @@ export const driverQrCode = {
     const falta = faltaConfigurar(cfg);
     if (falta) throw Object.assign(new Error(falta), { codigoWhatsapp: 'config' });
 
-    const numero = contato.telefone;
+    const numero = enderecoDe(contato);
 
     /* Audio vai por uma porta propria: mandado como documento, chega no celular
        do cliente como um arquivo para baixar, e nao como a bolinha de audio que
@@ -196,12 +227,13 @@ export const driverQrCode = {
   async marcarLida({ conexao, idExterno, contato }) {
     const cfg = configuracao(conexao);
     if (faltaConfigurar(cfg) || !idExterno) return;
+    const endereco = String(enderecoDe(contato) || '');
     try {
       await chamar(cfg, `/chat/markMessageAsRead/${cfg.instancia}`, {
         metodo: 'POST',
         corpo: {
           readMessages: [
-            { remoteJid: `${contato?.telefone}@s.whatsapp.net`, fromMe: false, id: idExterno },
+            { remoteJid: endereco.includes('@') ? endereco : `${endereco}@s.whatsapp.net`, fromMe: false, id: idExterno },
           ],
         },
         prazoMs: 8000,

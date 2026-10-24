@@ -39,7 +39,7 @@ export async function testarRetomarRespostasPendentes({ raiz }) {
   const montagem = path.join(pasta, 'montar.mjs');
   fs.writeFileSync(
     montagem,
-    `import { iniciarBanco, inserir, encerrarBanco } from ${JSON.stringify(urlDoBanco)};
+    `import { iniciarBanco, inserir, inserirMensagem, encerrarBanco } from ${JSON.stringify(urlDoBanco)};
 iniciarBanco();
 inserir('workspaces', { id: 'w1', nome: 'Teste' });
 
@@ -74,6 +74,23 @@ inserir('contatos', {
   id: 'c-pendente', workspaceId: 'w1', conexaoId: 'conx-sim', telefone: '5581977770004', nome: 'Dani',
   estado: 'pendente', responsavel: null, ultimaEntradaEm: agora, etiquetas: [],
 });
+/* 'ia', a resposta do agente FALHOU no envio (o caso @lid de 24/10/2026): a
+   tentativa conta como saida, mas o cliente nunca a viu. Tem que ser
+   respondido de novo. */
+inserir('contatos', {
+  id: 'c-resposta-falhou', workspaceId: 'w1', conexaoId: 'conx-sim', telefone: '5581977770005', nome: 'Eva',
+  estado: 'ia', responsavel: responsavelAtivo, ultimaEntradaEm: antes, ultimaSaidaEm: agora, etiquetas: [],
+});
+inserirMensagem('c-resposta-falhou', { direcao: 'entrada', tipo: 'texto', conteudo: 'Quero saber do auxilio-acidente', autor: { tipo: 'cliente', nome: 'Eva' }, situacao: 'recebida', criadoEm: antes });
+inserirMensagem('c-resposta-falhou', { direcao: 'saida', tipo: 'texto', conteudo: 'Ola! Sou a Eduarda', autor: { tipo: 'agente', id: 'ag-ativo', nome: 'Ativo' }, situacao: 'erro', erro: { mensagem: 'nao encontrou', codigo: '400' }, criadoEm: agora });
+/* A mesma coisa, mas ha tres dias: falha antiga nao volta a cada deploy. */
+const tresDias = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
+inserir('contatos', {
+  id: 'c-falha-antiga', workspaceId: 'w1', conexaoId: 'conx-sim', telefone: '5581977770006', nome: 'Fabi',
+  estado: 'ia', responsavel: responsavelAtivo, ultimaEntradaEm: tresDias, ultimaSaidaEm: tresDias, etiquetas: [],
+});
+inserirMensagem('c-falha-antiga', { direcao: 'entrada', tipo: 'texto', conteudo: 'Oi', autor: { tipo: 'cliente', nome: 'Fabi' }, situacao: 'recebida', criadoEm: tresDias });
+inserirMensagem('c-falha-antiga', { direcao: 'saida', tipo: 'texto', conteudo: 'Ola!', autor: { tipo: 'agente', id: 'ag-ativo', nome: 'Ativo' }, situacao: 'erro', criadoEm: tresDias });
 await encerrarBanco();
 `,
   );
@@ -104,8 +121,10 @@ process.exit(0);
     if (!s.ok('a retomada roda sem erro', r.codigo === 0, r.texto.slice(-500))) return s;
     const b = JSON.parse(r.texto.trim().split('\n').pop());
 
-    s.ok('so a Ana (sem resposta) e retomada — Beto, Carla e Dani nao contam', b.resultado.retomados === 1, JSON.stringify(b.resultado));
+    s.ok('sao retomadas a Ana (sem resposta) e a Eva (resposta que falhou) — mais ninguem', b.resultado.retomados === 2, JSON.stringify(b.resultado));
     s.ok('a Ana (sem resposta) ganha a resposta de verdade do agente', b.mensagens['c-sem-resposta'] > 0, JSON.stringify(b.mensagens));
+    s.ok('a Eva, cuja resposta falhou no envio, e respondida de novo', b.mensagens['c-resposta-falhou'] > 2, JSON.stringify(b.mensagens));
+    s.ok('a Fabi (falha de tres dias atras) nao e retomada', b.mensagens['c-falha-antiga'] === 2, JSON.stringify(b.mensagens));
     s.ok(
       'o Beto (em repouso), a Carla (agente desligado) e a Dani (pendente, nao ia) nao ganham mensagem nenhuma',
       ['c-em-repouso', 'c-agente-desligado', 'c-pendente'].every((id) => b.mensagens[id] === 0),

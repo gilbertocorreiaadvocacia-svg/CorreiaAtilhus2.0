@@ -66,6 +66,7 @@ import { testarPalavraChaveRevisita } from './palavra-chave-revisita.js';
 import { testarLigarNumerosDasAreasNaVarredura } from './ligar-numeros-das-areas-sweep.js';
 import { testarTriagemEscritorioGeral } from './triagem-escritorio-geral.js';
 import { testarTodaMensagemVaiParaIa } from './toda-mensagem-vai-para-ia.js';
+import { testarEnvioLid } from './envio-lid.js';
 import { testarAgentesDasAreas } from './agentes-das-areas.js';
 import { testarStatusDasAreas } from './status-das-areas.js';
 import { testarSituacaoExterna } from './situacao-externa.js';
@@ -357,6 +358,7 @@ async function principal() {
     suites.push(await testarLigarNumerosDasAreasNaVarredura({ raiz: RAIZ }));
     suites.push(await testarTriagemEscritorioGeral({ raiz: RAIZ }));
     suites.push(await testarTodaMensagemVaiParaIa({ raiz: RAIZ }));
+    suites.push(await testarEnvioLid({ raiz: RAIZ }));
     suites.push(await testarAgentesDasAreas({ raiz: RAIZ }));
     suites.push(await testarStatusDasAreas({ raiz: RAIZ }));
     suites.push(await testarSituacaoExterna({ raiz: RAIZ }));
