@@ -709,14 +709,27 @@ export async function paginaAgentes({ parametros, definirAcoes, definirPrincipal
     lado.dataset.agente = agente.id;
     lado.dataset.aba = aba;
 
-    /* Configuracao salva na hora e recarrega a lista e o painel. */
+    /*
+     * Configuracao salva na hora e recarrega a lista e o painel.
+     *
+     * O interruptor (ui.js) muda a aparencia na hora do clique, antes de
+     * qualquer resposta do servidor — nao espera recarregarTudo() para
+     * parecer ligado. Pedido que falhar (sem permissao, rede, o que for)
+     * tinha so o aviso passageiro: a chave ficava "ligada" na tela, o rotulo
+     * do lado continuava "Agente desligado" (texto fixo, escrito uma vez), e
+     * sem reparar no aviso a pessoa jurava que clicou em ligar e nada
+     * aconteceu. recarregarTudo() AQUI TAMBEM, e nao so no sucesso, redesenha
+     * o painel inteiro a partir do estado real — falhou, a chave volta
+     * sozinha para onde estava; funcionou, ela fica onde foi posta.
+     */
     const salvarConfig = async (mudancas, mensagem) => {
       try {
         await api.patch(`/api/agentes/${agente.id}`, mudancas);
         if (mensagem) aviso(mensagem, 'sucesso');
-        await recarregarTudo();
       } catch (erro) {
         aviso(erro.message, 'erro');
+      } finally {
+        await recarregarTudo();
       }
     };
 
