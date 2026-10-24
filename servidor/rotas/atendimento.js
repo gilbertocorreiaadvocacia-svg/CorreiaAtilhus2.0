@@ -496,6 +496,7 @@ export function registrarAtendimento(rotas) {
       atualizar('contatos', contato.id, {
         responsavel: { tipo: 'membro', id: ctx.membro.id, nome: ctx.usuario.nome },
         aceitoPor: ctx.membro.id,
+        aceitoEm: agora(),
         estado: 'ativo',
       });
       cancelarResposta(contato.id);
@@ -567,6 +568,7 @@ export function registrarAtendimento(rotas) {
         mudancas.responsavel = { tipo: 'membro', id: responsavel.id, nome: usuario?.nome || 'Membro' };
         mudancas.estado = responsavel.id === ctx.membro?.id ? 'ativo' : 'pendente';
         mudancas.aceitoPor = responsavel.id === ctx.membro?.id ? ctx.membro.id : null;
+        if (mudancas.aceitoPor) mudancas.aceitoEm = agora();
         cancelarResposta(contato.id);
         if (responsavel.id !== ctx.membro?.id) {
           notificar(ctx.workspaceId, responsavel.id, 'atribuicao', 'Conversa atribuida a voce', `${contato.nome} foi transferido para voce.`, contato.id);
@@ -602,6 +604,7 @@ export function registrarAtendimento(rotas) {
     const contato = conversaOu404(ctx, params.id);
     atualizar('contatos', contato.id, {
       aceitoPor: ctx.membro.id,
+      aceitoEm: agora(),
       estado: 'ativo',
       responsavel: { tipo: 'membro', id: ctx.membro.id, nome: ctx.usuario.nome },
     });

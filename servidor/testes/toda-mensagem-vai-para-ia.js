@@ -45,7 +45,7 @@ export async function testarTodaMensagemVaiParaIa({ raiz }) {
   const roteiro = path.join(pasta, 'roteiro.mjs');
   fs.writeFileSync(
     roteiro,
-    `import { iniciarBanco, inserir, achar, listar, encerrarBanco } from ${JSON.stringify(url('servidor/nucleo/banco.js'))};
+    `import { iniciarBanco, inserir, inserirMensagem, achar, listar, encerrarBanco } from ${JSON.stringify(url('servidor/nucleo/banco.js'))};
 import { receberMensagem } from ${JSON.stringify(url('servidor/whatsapp/recebimento.js'))};
 import { iniciarReatribuicaoDePendentes, pararReatribuicaoDePendentes, situacaoDaVarredura } from ${JSON.stringify(url('servidor/automacao/reatribuir-pendentes.js'))};
 iniciarBanco();
@@ -58,7 +58,14 @@ inserir('membros', { id: 'mbr-leticia', workspaceId: 'w-geral', usuarioId: 'usr-
 inserir('agentes', { id: 'ag-avaliacao', workspaceId: 'w-geral', nome: 'Avaliação · Escritório geral', objetivo: 'avaliar', ativo: true });
 inserir('conexoes', { id: 'conx-anuncios', workspaceId: 'w-geral', tipo: 'qrcode', nome: 'WhatsApp dos anuncios', responsavelPadrao: leticia });
 inserir('contatos', { id: 'c-saulo', workspaceId: 'w-geral', conexaoId: 'conx-anuncios', telefone: '5581987937761', nome: 'Saulo', estado: 'pendente', responsavel: leticia, ultimaEntradaEm: agora, etiquetas: [] });
-inserir('contatos', { id: 'c-aceito', workspaceId: 'w-geral', conexaoId: 'conx-anuncios', telefone: '5581955550000', nome: 'Cliente da Leticia', estado: 'ativo', responsavel: leticia, aceitoPor: 'mbr-leticia', ultimaEntradaEm: agora, etiquetas: [] });
+inserir('contatos', { id: 'c-aceito', workspaceId: 'w-geral', conexaoId: 'conx-anuncios', telefone: '5581955550000', nome: 'Cliente da Leticia', estado: 'ativo', responsavel: leticia, aceitoPor: 'mbr-leticia', aceitoEm: agora, ultimaEntradaEm: agora, etiquetas: [] });
+/* Ativos parado ha dias (como o historico importado): vai para a IA quando o cliente escreve. */
+const tresDiasAtras = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
+inserir('contatos', { id: 'c-ativo-parado', workspaceId: 'w-geral', conexaoId: 'conx-anuncios', telefone: '5581966660000', nome: 'Ativo parado', estado: 'ativo', responsavel: leticia, aceitoPor: 'mbr-leticia', aceitoEm: tresDiasAtras, etiquetas: [] });
+inserirMensagem('c-ativo-parado', { direcao: 'saida', tipo: 'texto', conteudo: 'Qualquer coisa me chama', autor: { tipo: 'membro', id: 'mbr-leticia', nome: 'Leticia Rocha' }, situacao: 'enviada', criadoEm: tresDiasAtras });
+/* Ativos em que a Leticia escreveu ha 10 minutos (aceite antigo, sem data): fica com ela. */
+inserir('contatos', { id: 'c-ativo-conversando', workspaceId: 'w-geral', conexaoId: 'conx-anuncios', telefone: '5581977770000', nome: 'Conversando com a Leticia', estado: 'ativo', responsavel: leticia, aceitoPor: 'mbr-leticia', etiquetas: [] });
+inserirMensagem('c-ativo-conversando', { direcao: 'saida', tipo: 'texto', conteudo: 'Me manda o laudo por aqui', autor: { tipo: 'membro', id: 'mbr-leticia', nome: 'Leticia Rocha' }, situacao: 'enviada', criadoEm: new Date(Date.now() - 10 * 60 * 1000).toISOString() });
 inserir('contatos', { id: 'c-grupo', workspaceId: 'w-geral', conexaoId: 'conx-anuncios', telefone: '120363000000000000', nome: 'Grupo da familia', estado: 'pendente', responsavel: leticia, grupo: true, etiquetas: [] });
 
 const conexao = () => achar('conexoes', 'conx-anuncios');
@@ -77,8 +84,10 @@ const situacao = situacaoDaVarredura();
 /* 3. Lead novo depois da varredura. */
 const rita = (await receberMensagem({ workspaceId: 'w-geral', conexao: conexao(), telefone: '5581912345678', nome: 'Rita', conteudo: 'Oi, boa tarde' })).contato.id;
 
-/* 4. O cliente que a Leticia aceitou escreve de novo. */
+/* 4. Clientes de Ativos escrevem de novo. */
 await receberMensagem({ workspaceId: 'w-geral', conexao: conexao(), telefone: '5581955550000', nome: 'Cliente da Leticia', conteudo: 'Bom dia, alguma novidade?' });
+await receberMensagem({ workspaceId: 'w-geral', conexao: conexao(), telefone: '5581966660000', nome: 'Ativo parado', conteudo: 'Oi, voltei' });
+await receberMensagem({ workspaceId: 'w-geral', conexao: conexao(), telefone: '5581977770000', nome: 'Conversando com a Leticia', conteudo: 'Ja te mando' });
 
 console.log(JSON.stringify({
   antes,
@@ -88,6 +97,8 @@ console.log(JSON.stringify({
   rita: resumo(rita),
   avisosRita: avisos(rita),
   aceito: resumo('c-aceito'),
+  ativoParado: resumo('c-ativo-parado'),
+  ativoConversando: resumo('c-ativo-conversando'),
   grupo: resumo('c-grupo'),
   padraoDoNumero: conexao().responsavelPadrao,
   agentesDoGeral: listar('agentes', { workspaceId: 'w-geral' }).filter((a) => a.ativo).map((a) => a.nome),
@@ -118,9 +129,19 @@ process.exit(0);
     s.ok('e, com a IA atendendo, a pessoa nao e acordada', b.avisosRita === 0, JSON.stringify(b.avisosRita));
 
     s.ok(
-      'conversa que a pessoa ja aceitou continua com ela',
+      'conversa que a pessoa aceitou agora continua com ela',
       b.aceito.responsavel?.id === 'mbr-leticia' && b.aceito.aceitoPor === 'mbr-leticia' && b.aceito.estado === 'ativo',
       JSON.stringify(b.aceito),
+    );
+    s.ok(
+      'conversa de Ativos parada ha dias vai para a IA quando o cliente escreve',
+      eduarda(b.ativoParado) && b.ativoParado.aceitoPor === null,
+      JSON.stringify(b.ativoParado),
+    );
+    s.ok(
+      'conversa de Ativos em que a pessoa escreveu ha pouco continua com ela',
+      b.ativoConversando.responsavel?.id === 'mbr-leticia' && b.ativoConversando.estado === 'ativo',
+      JSON.stringify(b.ativoConversando),
     );
     s.ok('grupo nao e tocado', b.grupo.responsavel?.id === 'mbr-leticia' && b.grupo.estado === 'pendente', JSON.stringify(b.grupo));
     s.ok('o padrao do numero (a pessoa) nao e alterado', b.padraoDoNumero?.id === 'mbr-leticia', JSON.stringify(b.padraoDoNumero));

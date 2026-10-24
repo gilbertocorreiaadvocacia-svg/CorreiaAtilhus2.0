@@ -303,9 +303,18 @@ export async function testarHistorico({ base, evolucao, chaveEvolucao }) {
   });
   await esperar(800);
 
+  /* Ate 24/10/2026 o cliente antigo que voltava ficava em Ativos com quem
+     conectou o numero. Pedido do escritorio nesse dia: "caso algum numero
+     mande mensagem em ativos, pode direcionar para a IA tambem" — ninguem da
+     equipe esta atendendo esta conversa importada, entao ela vai para a IA,
+     e pela palavra-chave ("meu processo") cai no agente de pos-venda. */
   const aVolta = (await api.get(`/api/contatos/${a?.id}`)).dados;
-  s.ok('cliente antigo que volta continua em Ativos', aVolta?.aba === 'ativos', aVolta?.aba);
-  s.ok('com a mesma pessoa responsavel, e nao com a Recepcao', aVolta?.responsavel?.tipo === 'membro', JSON.stringify(aVolta?.responsavel));
+  s.ok('cliente antigo que volta, sem ninguem da equipe atendendo, vai para a IA', aVolta?.aba === 'ia', aVolta?.aba);
+  s.ok(
+    'e cai no agente de andamento do processo, pela palavra-chave',
+    aVolta?.responsavel?.tipo === 'agente' && /andamento/i.test(aVolta?.responsavel?.nome || ''),
+    JSON.stringify(aVolta?.responsavel),
+  );
 
   const depoisDeB = (await api.get(`/api/contatos?conexao=${id}&limite=500`)).dados?.contatos || [];
   s.ok('mensagem @lid sem telefone cai na conversa que ja existia', depoisDeB.filter((x) => x.lid === B).length === 1);
