@@ -17,7 +17,11 @@ import { cliente, suite } from './apoio.js';
  *    @responsavel ou nao (o pos-venda dizia "transfira" so em texto);
  *  - o agente que escreve "ja vou te encaminhar" sem passar ganha uma volta
  *    para passar de verdade, e a promessa solta nao sai;
- *  - quem recebe se apresenta e pede os detalhes na primeira fala, e so nela;
+ *  - quem recebe se apresenta e pede os detalhes na primeira fala, e so nela,
+ *    quando o cliente foi avisado da passagem — a passagem calada, dentro de
+ *    uma equipe, continua calada;
+ *  - um agente de area passa para a equipe sem area (a Eduarda passando o
+ *    trabalhista para a equipe trabalhista do escritorio geral);
  *  - a conversa que ja ficou parada numa promessa dessas segue sozinha quando
  *    o sistema sobe (retomarRespostasPendentes, no boot).
  *
@@ -66,7 +70,7 @@ export async function testarPassagemDeVerdade({ base, anthropic, raiz }) {
   /* ---------------- Prometeu sem passar: ganha a volta e passa ---------------- */
 
   const PROMESSA = 'Isso quem cuida e a nossa especialista, ja vou te encaminhar.';
-  const TRANSICAO = 'Ja te passo para a nossa especialista!';
+  const TRANSICAO = 'Ja te encaminho para a nossa especialista!';
   const APRESENTACAO = 'Oi! Sou a Especialista da Passagem. Me conta os detalhes do seu caso.';
   await roteiro([
     { status: 200, texto: PROMESSA },
@@ -131,7 +135,56 @@ export async function testarPassagemDeVerdade({ base, anthropic, raiz }) {
     { status: 200, texto: 'Oi, sou a especialista!' },
   ]);
   await api.post(`/api/agentes/${recepcao.id}/responder-agora`, { contatoId: outro });
-  s.ok('quando a passagem vem junto com a promessa, nao ha volta extra (2 chamadas)', (await registro()).total === 2, `chamadas: ${(await registro()).total}`);
+  const junto = await registro();
+  s.ok('quando a passagem vem junto com a promessa, nao ha volta extra (2 chamadas)', junto.total === 2, `chamadas: ${junto.total}`);
+  /* A fala normal nao sai quando a passagem e para agente: o cliente nao foi avisado de nada. */
+  const calada = junto.chamadas[1]?.sistemaCompleto || '';
+  s.ok(
+    'passagem calada (o cliente nao foi avisado): quem recebe segue sem se apresentar',
+    calada.includes('Continue de onde ele parou') && !calada.includes('VOCE ACABOU DE RECEBER'),
+  );
+
+  /* ---------------- De uma area para a equipe sem area ---------------- */
+
+  /* O caso de 24/10/2026: a Eduarda (previdenciario) passando o
+     trabalhista para a equipe trabalhista do escritorio geral, que mora sem area. */
+  const semArea = (await api.post('/api/agentes', { nome: 'Equipe Sem Area' })).dados;
+  await api.patch(`/api/agentes/${semArea.id}`, { delaySegundos: 60, prompt: `${MARCA}. Cuide do trabalhista.` });
+  const demitida = (
+    await api.post('/api/simulador/mensagem', {
+      conexaoId: simulador.id,
+      agenteId: recepcao.id,
+      telefone: TELEFONE(3),
+      nome: 'Cliente Trabalhista',
+      conteudo: 'Fui demitida e nao recebi nada',
+    })
+  ).dados?.contatoId;
+  await roteiro([
+    {
+      status: 200,
+      texto: '',
+      chamadas: [
+        {
+          nome: 'transferir_conversa',
+          argumentos: {
+            destino: 'Equipe Sem Area',
+            resumo_para_proximo: 'Demitida, nao recebeu as verbas.',
+            mensagem_de_transicao: 'Isso quem cuida e a nossa equipe trabalhista, ja vou te encaminhar.',
+          },
+        },
+      ],
+    },
+    { status: 200, texto: 'Oi! Aqui e da equipe trabalhista. Me conta os detalhes do que aconteceu?' },
+  ]);
+  await api.post(`/api/agentes/${recepcao.id}/responder-agora`, { contatoId: demitida });
+  const daDemitida = await registro();
+  s.ok(
+    'o agente de uma area enxerga a equipe sem area como destino',
+    (daDemitida.chamadas[0]?.destinos || []).includes('Equipe Sem Area'),
+    JSON.stringify(daDemitida.chamadas[0]?.destinos),
+  );
+  s.ok('e a passagem para ela nao e recusada', (await conversa(demitida))?.responsavel?.id === semArea.id, JSON.stringify((await conversa(demitida))?.responsavel));
+  s.ok('avisado o cliente, a equipe que recebe se apresenta', /VOCE ACABOU DE RECEBER ESTA CONVERSA/.test(daDemitida.chamadas[1]?.sistemaCompleto || ''));
 
   /* ---------------- Ficou parada numa promessa: o boot retoma ---------------- */
 
@@ -208,6 +261,10 @@ process.exit(0);
     );
     s.ok('a conversa passa para a especialista', b.parado?.id === 'ag-esp', JSON.stringify(b.parado));
     s.ok(
+      'a especialista sabe que o cliente foi avisado e esta esperando',
+      /VOCE ACABOU DE RECEBER ESTA CONVERSA/.test(parada.chamadas[1]?.sistemaCompleto || ''),
+    );
+    s.ok(
       'e a especialista se apresenta, pedindo os detalhes',
       b.falasParado.some((f) => f.autor === 'ag-esp' && /Me conta os detalhes/.test(f.conteudo)),
       JSON.stringify(b.falasParado),
@@ -221,7 +278,7 @@ process.exit(0);
 
   await falsa.post('/__roteiro', { roteiro: [] });
   await api.patch('/api/integracoes', { ia: { chaveAnthropic: null } });
-  for (const id of [contatoId, outro]) await api.delete(`/api/contatos/${id}`);
-  for (const agente of [recepcao, especialista]) await api.delete(`/api/agentes/${agente.id}`);
+  for (const id of [contatoId, outro, demitida]) await api.delete(`/api/contatos/${id}`);
+  for (const agente of [recepcao, especialista, semArea]) await api.delete(`/api/agentes/${agente.id}`);
   return s;
 }

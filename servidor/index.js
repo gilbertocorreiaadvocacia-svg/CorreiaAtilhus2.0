@@ -4,7 +4,7 @@ import path from 'node:path';
 import { monitorEventLoopDelay } from 'node:perf_hooks';
 import { HOSPEDADO, HOST, INTERVALO_AGENDADOR, INTERVALO_REATRIBUICAO, PORTA, RAIZ, enderecoPermitido } from './config.js';
 import { prepararHospedagem } from './nucleo/hospedagem.js';
-import { ativarAgentesSemEquipe, garantirAgentesDasAreas, garantirAvaliacaoNosEscritorios, garantirPosVendaNosEscritorios, garantirStatusDasAreas, garantirTestesDeRoteamento, migrarDepartamentoPosVenda } from './nucleo/agentes-por-escritorio.js';
+import { ativarAgentesSemEquipe, garantirAgentesDasAreas, garantirAvaliacaoNosEscritorios, garantirPosVendaNosEscritorios, garantirStatusDasAreas, garantirTestesDeRoteamento, garantirTriagemNoEscritorioGeral, migrarDepartamentoPosVenda } from './nucleo/agentes-por-escritorio.js';
 import { iniciarAvaliacoes } from './automacao/avaliacao.js';
 import { caminhoDaMidia } from './nucleo/midia.js';
 import { atualizar, encerrarBanco, iniciarBanco, listar } from './nucleo/banco.js';
@@ -156,6 +156,13 @@ if (reorganizacaoDeAgentes.renomeados || reorganizacaoDeAgentes.removidos) {
     `Agentes: ${reorganizacaoDeAgentes.renomeados} renomeado(s), ${reorganizacaoDeAgentes.pastas} pasta(s) corrigida(s), ${reorganizacaoDeAgentes.removidos} sobra(s) removida(s).`,
   );
 }
+/* O escritorio geral (um numero para tudo) com a Eduarda e a equipe
+   trabalhista, e a Eduarda passando o trabalhista para ela (24/10/2026). Ja
+   no boot, e nao so na varredura de pendentes: antes das vozes e da base, que
+   acertam os agentes recem-instalados, e antes de retomar as respostas — a
+   Eduarda retomada numa passagem parada precisa enxergar a equipe trabalhista. */
+const numerosDoGeral = garantirTriagemNoEscritorioGeral();
+if (numerosDoGeral) console.log(`Escritorio geral: ${numerosDoGeral} numero(s) ligado(s) a Eduarda.`);
 /* Vozes dos agentes: cadastra as duas vozes padrao e liga a regra do canal de
    voz em quem atende cliente e ainda nao tinha (achado de 08/10/2026). So
    falta a chave da OpenAI em Integracoes para o audio sair de fato. */
@@ -292,7 +299,7 @@ rotas.get(
       /* Muda a cada entrega que mexe no atendimento. A imagem nao leva o .git
          (.dockerignore), e sem isto nao havia como saber, de fora, se o
          deploy da hospedagem pegou o codigo novo ou ficou no antigo. */
-      codigo: '2026-10-24.3',
+      codigo: '2026-10-24.4',
       agora: new Date().toISOString(),
       raiz: RAIZ,
       pid: process.pid,

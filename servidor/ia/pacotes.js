@@ -135,6 +135,9 @@ const TEMPLATES = {
   ],
 };
 
+/* O roteiro trabalhista, da Triagem Trabalhista a Assinatura e Reunião. */
+const EQUIPE_TRABALHISTA = TRABALHISTA.map((agente) => ({ ...agente, pasta: 'Trabalhista' }));
+
 export const PACOTES = {
   previdenciario: {
     nome: 'Previdenciário',
@@ -216,7 +219,7 @@ export const PACOTES = {
       ['doc_reclamada', 'CNPJ da empresa', 'CNPJ da empresa, se o cliente souber.'],
     ],
     agentes: [
-      ...TRABALHISTA.map((agente) => ({ ...agente, pasta: 'Trabalhista' })),
+      ...EQUIPE_TRABALHISTA,
       posVendaDoEscritorio('Trabalhista'),
       avaliadorDoEscritorio('Trabalhista'),
     ],
@@ -324,6 +327,26 @@ export const ESCRITORIO_GERAL = {
   templates: ['avaliacao'],
   variaveis: [['cpf', 'CPF', 'CPF do cliente, so numeros.']],
   agentes: [AGENTE_26, avaliadorDoEscritorio('Escritório geral')],
+};
+
+/**
+ * A equipe trabalhista que mora no escritorio geral, junto da Eduarda (ver
+ * garantirTriagemNoEscritorioGeral em nucleo/agentes-por-escritorio.js): o
+ * escritorio geral recebe tudo num numero so, e sem ela o trabalhista que a
+ * Eduarda identificava ia para uma pessoa e ficava parado.
+ *
+ * Instalada SEM area: agente sem area serve a todas, e a Eduarda (area
+ * previdenciario) so passa a conversa para quem e da area dela ou de nenhuma
+ * (ia/mencoes.js). Sem base: a de objecoes do escritorio geral e a
+ * previdenciaria, e o rascunho trabalhista entra pelo processarBaseEStatus
+ * (nucleo/base-e-status.js), no boot. Pos-venda e avaliacao o escritorio
+ * geral ja tem, e o departamento "Pos-venda" saiu de proposito em 19/10/2026.
+ */
+export const EQUIPE_TRABALHISTA_NO_GERAL = {
+  ...PACOTES.trabalhista,
+  bases: [],
+  departamentos: PACOTES.trabalhista.departamentos.filter(([nome]) => nome !== 'Pos-venda'),
+  agentes: EQUIPE_TRABALHISTA,
 };
 
 /**

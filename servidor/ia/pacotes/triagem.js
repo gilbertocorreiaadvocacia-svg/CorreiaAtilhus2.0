@@ -35,6 +35,26 @@ import { DADOS_DO_ESCRITORIO, OBJECOES_DE_CONFIANCA, PASSAGEM, REGRAS_INSTITUCIO
  * e passar para pessoa manda o texto normal antes, entao avisar e o que
  * evita o lead no vacuo.
  */
+
+/*
+ * O item TRABALHISTA tem duas versoes. No escritorio do Previdenciario o
+ * trabalhista mora em outro escritorio e vai para uma pessoa (a do pacote,
+ * abaixo). No escritorio geral, que recebe tudo num numero so, a equipe
+ * trabalhista mora junto e a Eduarda passa para ela: garantirTriagemNoEscritorioGeral
+ * (nucleo/agentes-por-escritorio.js) troca uma pela outra no prompt. Pedido
+ * do escritorio em 24/10/2026, depois de leads trabalhistas parados no "ja vou
+ * te encaminhar" sem ninguem da equipe trabalhista aparecer.
+ */
+export const TRABALHISTA_PARA_PESSOA =
+  'TRABALHISTA - contra o empregador. Gatilhos: patrão, empresa, chefe, demitido, justa causa, rescisão, verbas, FGTS, horas extras, assédio, carteira não assinada. Este número é do atendimento previdenciário, e este caso vai para uma PESSOA (não há agente trabalhista aqui): diga Isso quem cuida é a nossa equipe trabalhista, já vou te encaminhar. Adicione a @tag "Trabalhista" e passe com @responsavel para "distribuir".';
+export const TRABALHISTA_PARA_AGENTE =
+  'TRABALHISTA - contra o empregador. Gatilhos: patrão, empresa, chefe, demitido, justa causa, rescisão, verbas, FGTS, horas extras, assédio, carteira não assinada. Adicione a @tag "Trabalhista" e chame @responsavel para @Triagem Trabalhista com a mensagem de transição: sua apresentação, se ainda não se apresentou, e Isso quem cuida é a nossa equipe trabalhista, já vou te encaminhar. Nada no texto normal da resposta: a equipe trabalhista assume a conversa e conduz a partir daqui.';
+/* O mesmo item como o pacote saiu de 15/09 a 09/10/2026: Eduarda instalada nessa epoca ainda tem este texto. */
+export const TRABALHISTA_PARA_PESSOA_ATE_09_10 =
+  'TRABALHISTA - contra o empregador. Gatilhos: patrão, empresa, chefe, demitido, justa causa, rescisão, verbas, FGTS, horas extras, assédio, carteira não assinada. Este número é do atendimento previdenciário: diga Isso quem cuida é a nossa equipe trabalhista, já vou te encaminhar. Adicione a @tag "Trabalhista" e passe com @responsavel para "distribuir".';
+export const TRAVA_PARA_PESSOA = 'TRAVA ANTI-LOOP: NUNCA entregue lead novo para pessoa, fora o trabalhista e o fora do escopo.';
+export const TRAVA_PARA_AGENTE = 'TRAVA ANTI-LOOP: NUNCA entregue lead novo para pessoa, a não ser no FORA DO ESCOPO.';
+
 export const EDUARDA = {
   nome: 'Eduarda (Triagem)',
   objetivo: 'recepcionar',
@@ -90,13 +110,13 @@ Avalie nesta ordem.
 
 MATERNIDADE - vence todas. Gatilhos: maternidade, salário-maternidade, grávida, nasceu, parto, adoção, licença-maternidade. Vale MESMO que fale também em trabalho, carteira assinada ou INSS. NUNCA desqualifique dizendo que o escritório não atende. Chame @responsavel para @Juliana (Materno 1) com sua apresentação na mensagem de transição (nada no texto normal da resposta); ela assume a conversa e conduz a partir daqui.
 
-TRABALHISTA - contra o empregador. Gatilhos: patrão, empresa, chefe, demitido, justa causa, rescisão, verbas, FGTS, horas extras, assédio, carteira não assinada. Este número é do atendimento previdenciário, e este caso vai para uma PESSOA (não há agente trabalhista aqui): diga Isso quem cuida é a nossa equipe trabalhista, já vou te encaminhar. Adicione a @tag "Trabalhista" e passe com @responsavel para "distribuir".
+${TRABALHISTA_PARA_PESSOA}
 
 AUXÍLIO-ACIDENTE - benefício do INSS por sequela. Gatilhos: auxílio-acidente, acidente, fratura, amputação, sequela, LER, hérnia de disco, doença do trabalho, doença ocupacional, auxílio-doença, encostado, INSS cortou, CAT. Chame @responsavel para @Beatriz (Triagem) com sua apresentação na mensagem de transição (nada no texto normal da resposta); ela assume a conversa e conduz a partir daqui.
 
 BPC/LOAS - benefício assistencial. Gatilhos: BPC, LOAS, benefício assistencial, deficiência, autismo, CadÚnico, CRAS, Bolsa Família, idoso, nunca contribuiu. Chame @responsavel para @Andreia (BPC 1) Triagem com sua apresentação na mensagem de transição (nada no texto normal da resposta); ela assume a conversa e conduz a partir daqui.
 
-TRAVA ANTI-LOOP: NUNCA entregue lead novo para pessoa, fora o trabalhista e o fora do escopo. Ambíguo após DUAS tentativas: escolha a área mais provável pelo que ele falou e passe para o agente dela. Sem nenhuma pista, mova para o @departamento "Suporte" e passe com @responsavel para "distribuir".
+${TRAVA_PARA_PESSOA} Ambíguo após DUAS tentativas: escolha a área mais provável pelo que ele falou e passe para o agente dela. Sem nenhuma pista, mova para o @departamento "Suporte" e passe com @responsavel para "distribuir".
 
 DESEMPATE
 

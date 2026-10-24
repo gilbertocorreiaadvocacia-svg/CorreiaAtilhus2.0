@@ -41,9 +41,13 @@ export function escolherAgente({ workspaceId, contato = null, conexao = null, te
 
   const ligados = listar('agentes', { workspaceId }).filter((a) => a.ativo);
   const pacotes = area && PACOTES[area] ? [PACOTES[area]] : Object.values(PACOTES);
-  const nomesDeEntrada = pacotes.map((pacote) => normalizar(pacote.agentes[0].nome));
-  const entrada = ligados.find((a) => nomesDeEntrada.includes(normalizar(a.nome)));
-  if (entrada) return { agente: entrada, motivo: 'entrada da área' };
+  /* Na ordem dos pacotes, nao na ordem em que os agentes foram criados: no
+     escritorio geral a Eduarda e a entrada mesmo com a Triagem Trabalhista
+     morando junto — e ela quem passa o trabalhista para la. */
+  for (const pacote of pacotes) {
+    const entrada = ligados.find((a) => normalizar(a.nome) === normalizar(pacote.agentes[0].nome));
+    if (entrada) return { agente: entrada, motivo: 'entrada da área' };
+  }
 
   const recepcao = ligados.find((a) => a.objetivo === 'recepcionar');
   if (recepcao) return { agente: recepcao, motivo: 'recepção' };

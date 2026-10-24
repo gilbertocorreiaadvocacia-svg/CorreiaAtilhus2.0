@@ -1,3 +1,4 @@
+import { TRABALHISTA } from '../ia/pacotes/trabalhista.js';
 import { atualizar, inserir, listar } from './banco.js';
 import { normalizar, novoId } from './util.js';
 
@@ -37,6 +38,11 @@ const CONTEUDO_TRABALHISTA = [
 
 const ehPerda = (s) => ['desistencia', 'desqualificado'].includes(s.tipo) || normalizar(s.nome) === 'nao qualificado';
 
+/* A equipe trabalhista do escritorio geral mora sem area (ver
+   EQUIPE_TRABALHISTA_NO_GERAL em ia/pacotes.js): ali ela e reconhecida pelo nome. */
+const NOMES_DA_EQUIPE_TRABALHISTA = new Set(TRABALHISTA.map((a) => normalizar(a.nome)));
+const ehTrabalhista = (a) => a.area === 'trabalhista' || NOMES_DA_EQUIPE_TRABALHISTA.has(normalizar(a.nome));
+
 /**
  * `aplicar: false` so relata o que faria. `log`, se passado, recebe cada
  * linha do relatorio; sem ele roda calado e devolve so os totais.
@@ -49,7 +55,7 @@ export function processarBaseEStatus({ aplicar = false, log = () => {}, departam
 
   for (const workspace of listar('workspaces')) {
     const w = workspace.id;
-    const agentesTrabalhistas = listar('agentes', { workspaceId: w }).filter((a) => a.area === 'trabalhista');
+    const agentesTrabalhistas = listar('agentes', { workspaceId: w }).filter(ehTrabalhista);
 
     /*
      * 1. Base previdenciaria nos agentes trabalhistas ----------------------

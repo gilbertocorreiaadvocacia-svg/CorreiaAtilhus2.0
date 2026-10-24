@@ -1,7 +1,8 @@
 import path from 'node:path';
 import { PASTA_DADOS, areaValida } from '../config.js';
-import { ESCRITORIO_GERAL, PACOTES, prepararEscritorio } from '../ia/pacotes.js';
+import { EQUIPE_TRABALHISTA_NO_GERAL, ESCRITORIO_GERAL, PACOTES, prepararEscritorio } from '../ia/pacotes.js';
 import { posVendaDoEscritorio } from '../ia/pacotes/posvenda.js';
+import { TRABALHISTA_PARA_AGENTE, TRABALHISTA_PARA_PESSOA, TRABALHISTA_PARA_PESSOA_ATE_09_10, TRAVA_PARA_AGENTE, TRAVA_PARA_PESSOA } from '../ia/pacotes/triagem.js';
 import { achar, atualizar, inserir, listar, remover } from './banco.js';
 import { gravarAtomico, normalizar, novoId } from './util.js';
 import { criarWorkspacesPorArea, WORKSPACES_POR_AREA } from './workspaces-por-area.js';
@@ -210,10 +211,17 @@ export function garantirAvaliacaoNosEscritorios() {
  * acima) o MESMO pacote do Previdenciario que ja atende sozinho no
  * escritorio dedicado: Eduarda identifica o assunto por palavra-chave
  * (auxílio-acidente, BPC, maternidade, ...) e passa para o especialista
- * certo; trabalhista e fora do escopo vao para uma pessoa (@responsavel
- * "distribuir"). Previdenciario foi a escolha pela area com mais casos do
- * escritorio (15 agentes, contra 8 do Trabalhista e 4 do Civel na ultima
- * contagem) — nao cobre tudo, mas atende a maior fatia sem inventar nada.
+ * certo; fora do escopo vai para uma pessoa (@responsavel "distribuir").
+ * Previdenciario foi a escolha pela area com mais casos do escritorio (15
+ * agentes, contra 8 do Trabalhista e 4 do Civel na ultima contagem).
+ *
+ * E, tambem uma vez, a equipe trabalhista (EQUIPE_TRABALHISTA_NO_GERAL, em
+ * ia/pacotes.js), com a Eduarda passando o trabalhista para ela em vez de
+ * para uma pessoa (eduardaPassaTrabalhistaParaAgente, abaixo). Achado em
+ * producao em 24/10/2026: a Eduarda dizia "Isso quem cuida e a nossa equipe
+ * trabalhista, ja vou te encaminhar", passava para o Administrador, a
+ * varredura devolvia a conversa para ela e o cliente ficava sem ninguem —
+ * e o escritorio quer o trabalhista atendido pelo agente trabalhista.
  *
  * Religa Eduarda como responsavel padrao de todo numero de verdade (nao
  * simulador) do escritorio geral que ainda nao tem um — isso roda TODA
@@ -232,6 +240,11 @@ export function garantirTriagemNoEscritorioGeral() {
       instalarPacote({ workspaceId: workspace.id, area: 'previdenciario', pacote: PACOTES.previdenciario, ligar: true });
       atualizar('workspaces', workspace.id, { triagemGeralInstaladaEm: new Date().toISOString() });
     }
+    if (!workspace.equipeTrabalhistaInstaladaEm) {
+      instalarPacote({ workspaceId: workspace.id, area: null, pacote: EQUIPE_TRABALHISTA_NO_GERAL, ligar: true });
+      atualizar('workspaces', workspace.id, { equipeTrabalhistaInstaladaEm: new Date().toISOString() });
+    }
+    eduardaPassaTrabalhistaParaAgente(workspace.id);
 
     const eduarda = listar('agentes', { workspaceId: workspace.id }).find(
       (a) => a.ativo && normalizar(a.nome) === normalizar(PACOTES.previdenciario.agentes[0].nome),
@@ -245,6 +258,39 @@ export function garantirTriagemNoEscritorioGeral() {
     }
   }
   return ligados;
+}
+
+const doEscritorio = (workspaceId, nome) => listar('agentes', { workspaceId }).find((a) => normalizar(a.nome) === normalizar(nome));
+
+/* O item TRABALHISTA "vai para uma pessoa" em cada versao que o pacote ja teve. */
+const TRABALHISTA_PARA_PESSOA_DO_PACOTE = [TRABALHISTA_PARA_PESSOA, TRABALHISTA_PARA_PESSOA_ATE_09_10];
+
+/*
+ * Na Eduarda do escritorio geral, troca o item TRABALHISTA que manda para uma
+ * pessoa pelo que passa para a Triagem Trabalhista (ver TRABALHISTA_PARA_AGENTE
+ * em ia/pacotes/triagem.js). So com a Triagem Trabalhista ligada ali, e so se o
+ * trecho ainda for o do pacote: escritorio que reescreveu esse item fica como
+ * esta. Roda em toda varredura; depois da troca nao acha mais o texto antigo.
+ */
+function eduardaPassaTrabalhistaParaAgente(workspaceId) {
+  const triagem = doEscritorio(workspaceId, EQUIPE_TRABALHISTA_NO_GERAL.agentes[0].nome);
+  const eduarda = doEscritorio(workspaceId, PACOTES.previdenciario.agentes[0].nome);
+  const antigo = TRABALHISTA_PARA_PESSOA_DO_PACOTE.find((texto) => String(eduarda?.prompt || '').includes(texto));
+  if (!triagem?.ativo || !antigo) return false;
+  atualizar('agentes', eduarda.id, {
+    prompt: eduarda.prompt.replace(antigo, TRABALHISTA_PARA_AGENTE).replace(TRAVA_PARA_PESSOA, TRAVA_PARA_AGENTE),
+  });
+  return true;
+}
+
+/** Para onde a Eduarda do escritorio passa o trabalhista, para conferir de fora (/api/saude). */
+export function comoEduardaPassaOTrabalhista(workspaceId) {
+  const eduarda = doEscritorio(workspaceId, PACOTES.previdenciario.agentes[0].nome);
+  if (!eduarda) return null;
+  const prompt = String(eduarda.prompt || '');
+  if (prompt.includes(TRABALHISTA_PARA_AGENTE)) return 'agente';
+  if (TRABALHISTA_PARA_PESSOA_DO_PACOTE.some((texto) => prompt.includes(texto))) return 'pessoa';
+  return 'texto do escritorio';
 }
 
 /**

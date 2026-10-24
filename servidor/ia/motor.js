@@ -172,6 +172,16 @@ function montarSistema({ agente, contato, workspace }) {
     !mensagensDe(contato.id).some(
       (m) => m.direcao === 'saida' && m.situacao !== 'erro' && m.autor?.tipo === 'agente' && m.autor.id === agente.id && m.criadoEm > passagem.em,
     );
+  /* E o cliente espera quem assume: a ultima fala que ele recebeu, de outro
+     agente, avisava a passagem ("ja vou te encaminhar"). */
+  const ultimaFalaAoCliente = mensagensDe(contato.id)
+    .filter((m) => m.direcao === 'saida' && !m.nota && m.situacao !== 'erro')
+    .at(-1);
+  const clienteEsperaQuemAssume =
+    acabouDeReceber &&
+    ultimaFalaAoCliente?.autor?.tipo === 'agente' &&
+    ultimaFalaAoCliente.autor.id !== agente.id &&
+    prometePassagem(ultimaFalaAoCliente.conteudo);
   const faltam = (agente.requisitos || []).filter((chave) => !String(contato.variaveis?.[chave] ?? '').trim());
   const variaveis = Object.entries(contato.variaveis || {})
     .map(([chave, valor]) => `- ${chave}: ${valor}`)
@@ -227,20 +237,28 @@ function montarSistema({ agente, contato, workspace }) {
     'DOCUMENTOS JA RECEBIDOS NESTA CONVERSA (nunca peca de novo um que ja esta aqui; so as ultimas imagens aparecem com o conteudo legivel mais abaixo — as mais antigas voce ve so pelo nome e pela data, mas elas EXISTEM e foram recebidas):',
     documentos.length ? documentos.join('\n') : '- nenhum documento recebido ainda',
     /*
-     * Quem recebe a conversa se apresenta. Pedido do escritorio em 24/10/2026:
-     * "o outro agente manda mensagem em seguida, se apresentando e pedindo
-     * para contar os detalhes". Ate entao esta linha dizia o contrario ("nao
-     * se apresente"), e o cliente via uma pessoa nova falando sem saber quem
-     * era. So na primeira fala depois da passagem; dali em diante, nunca mais.
+     * Quem recebe a conversa se apresenta quando o cliente foi avisado da
+     * passagem. Pedido do escritorio em 24/10/2026: "quando a gente disser
+     * que vai encaminhar para outro agente, o outro manda mensagem em
+     * seguida, se apresentando e pedindo para contar os detalhes". So na
+     * primeira fala depois da passagem; dali em diante, nunca mais.
+     *
+     * Passagem calada continua calada: as equipes foram desenhadas para
+     * parecer um atendimento so (a Triagem Trabalhista passando para o
+     * Direito Suprimido, a Juliana para a Mariana), e quem recebe se
+     * apresentar ali soaria como troca de atendente no meio do caso — e os
+     * agentes do Trabalhista nem tem nome de gente, so o da etapa.
      */
     ...(passagem
       ? [
           '',
           `PASSAGEM DO AGENTE ANTERIOR (${passagem.deNome}):`,
           passagem.resumo,
-          acabouDeReceber
-            ? 'VOCE ACABOU DE RECEBER ESTA CONVERSA e ainda nao falou com o cliente. Na sua primeira mensagem, agora: apresente-se pelo seu nome, em uma frase, e peca ao cliente para contar os detalhes do caso dele. Se ele ja contou no historico, nao peca de novo: diga que ja esta a par do que ele contou e siga com a proxima pergunta do seu roteiro.'
-            : 'Continue de onde parou: nao se apresente de novo e nao repita pergunta ja respondida.',
+          clienteEsperaQuemAssume
+            ? 'VOCE ACABOU DE RECEBER ESTA CONVERSA, e o cliente foi avisado de que ela ia ser passada: ele esta esperando quem assume. Na sua primeira mensagem, agora: apresente-se em uma frase (pelo seu nome, se for nome de gente; se o seu nome for o de uma etapa, como da equipe do escritorio que vai cuidar do caso dele) e peca ao cliente para contar os detalhes do caso. Se ele ja contou no historico, nao peca de novo: diga que ja esta a par do que ele contou e siga com a proxima pergunta do seu roteiro.'
+            : acabouDeReceber
+              ? 'Continue de onde ele parou: nao se apresente como se a conversa comecasse agora e nao repita pergunta ja respondida.'
+              : 'Continue de onde parou: nao se apresente de novo e nao repita pergunta ja respondida.',
         ]
       : []),
     '',

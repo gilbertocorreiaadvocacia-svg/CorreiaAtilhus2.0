@@ -2,7 +2,7 @@ import { achar, atualizar, listar, mensagensDe, registrarLog } from '../nucleo/b
 import { emitir } from '../nucleo/eventos.js';
 import { agendarResposta } from '../ia/motor.js';
 import { escolherAgente, pessoaCuidandoAgora } from '../ia/escolher-agente.js';
-import { garantirTriagemNoEscritorioGeral, ligarNumerosDasAreas } from '../nucleo/agentes-por-escritorio.js';
+import { comoEduardaPassaOTrabalhista, garantirTriagemNoEscritorioGeral, ligarNumerosDasAreas } from '../nucleo/agentes-por-escritorio.js';
 
 /**
  * Toda conversa pendente volta para um agente de IA. Pedidos do escritorio:
@@ -94,6 +94,8 @@ function resumirEscritorios() {
       agentesLigados: listar('agentes', { workspaceId: workspace.id }).filter((a) => a.ativo).length,
       agenteDeEntrada: escolha ? `${escolha.agente.nome} (${escolha.motivo})` : null,
       triagemGeralInstalada: Boolean(workspace.triagemGeralInstaladaEm),
+      equipeTrabalhistaInstalada: Boolean(workspace.equipeTrabalhistaInstaladaEm),
+      eduardaPassaTrabalhistaPara: comoEduardaPassaOTrabalhista(workspace.id),
       pendentes: contatos.filter((c) => c.estado === 'pendente' && !c.aceitoPor).length,
       naIa: contatos.filter((c) => c.responsavel?.tipo === 'agente' && c.estado !== 'arquivado').length,
     };
