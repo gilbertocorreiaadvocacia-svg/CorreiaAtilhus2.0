@@ -23,7 +23,7 @@ import { criarRoteador, lerCookies, lerCorpo, responderErro, responderJson, serv
 import { inscrever } from './nucleo/eventos.js';
 import { semearSePrecisar } from './nucleo/seed.js';
 import { iniciarAgendador } from './automacao/followup.js';
-import { iniciarReatribuicaoDePendentes } from './automacao/reatribuir-pendentes.js';
+import { iniciarReatribuicaoDePendentes, situacaoDaVarredura } from './automacao/reatribuir-pendentes.js';
 import { iniciarAcompanhamento } from './integracoes/zapsign-acompanhamento.js';
 import { iniciarIntegracaoJuri } from './integracoes/atilhus-juri.js';
 import { COOKIE_SESSAO, registrarSessao } from './rotas/sessao.js';
@@ -289,6 +289,10 @@ rotas.get(
     return {
       ok: true,
       versao: '0.1.0',
+      /* Muda a cada entrega que mexe no atendimento. A imagem nao leva o .git
+         (.dockerignore), e sem isto nao havia como saber, de fora, se o
+         deploy da hospedagem pegou o codigo novo ou ficou no antigo. */
+      codigo: '2026-10-24.1',
       agora: new Date().toISOString(),
       raiz: RAIZ,
       pid: process.pid,
@@ -315,6 +319,10 @@ rotas.get(
         ultimoErro: estadoDoEspelho.ultimoErro ? String(estadoDoEspelho.ultimoErro).slice(0, 150) : null,
         ultimoEnvioEm: estadoDoEspelho.ultimoEnvioEm,
       },
+      /* A varredura que manda pendente para a IA (automacao/reatribuir-
+         pendentes.js): quando rodou, o que cada etapa fez ou o erro dela, e
+         por escritorio so contagens — nenhum nome de cliente. */
+      varredura: situacaoDaVarredura(),
     };
   },
   { publica: true },

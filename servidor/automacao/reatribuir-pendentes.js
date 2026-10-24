@@ -1,117 +1,139 @@
 import { achar, atualizar, listar, mensagensDe, registrarLog } from '../nucleo/banco.js';
 import { emitir } from '../nucleo/eventos.js';
-import { agendarResposta, agentePorPalavraChave } from '../ia/motor.js';
+import { agendarResposta } from '../ia/motor.js';
+import { escolherAgente } from '../ia/escolher-agente.js';
 import { garantirTriagemNoEscritorioGeral, ligarNumerosDasAreas } from '../nucleo/agentes-por-escritorio.js';
 
 /**
- * Toda conversa pendente (sem agente) volta a ter o agente padrao da
- * conexao — normalmente a Triagem da area. Pedido do escritorio em
- * 19/10/2026: "toda mensagem nova vai para os agentes; se for uma conversa
- * antiga, o agente deve ler e, conforme o beneficio, vai atender".
- *
- * Pedido do escritorio em 23/10/2026: so trocar responsavel/estado nao
- * bastava — "quero que os agentes atendam de verdade". Uma conversa que ja
- * tinha mensagem do cliente esperando ficava com o responsavel certo por
- * dentro, mas o cliente continuava sem ver resposta nenhuma ate escrever de
- * novo (e muitos nao escrevem de novo, so desistem). Agora, depois de
- * reatribuir, chama agendarResposta (ia/motor.js) para o agente responder
- * de verdade, no mesmo delay configurado nele — o agente ja monta o
- * contexto a partir do historico INTEIRO da conversa (mensagensDe), entao
- * ja le tudo e roteia pelo beneficio certo sozinho, pelas mesmas regras do
- * prompt de Triagem que ja usa para lead novo.
+ * Toda conversa pendente volta para um agente de IA. Pedidos do escritorio:
+ * 19/10/2026 ("toda mensagem nova vai para os agentes"), 23/10/2026 ("quero
+ * que os agentes atendam de verdade") e 24/10/2026 ("todo contato que manda
+ * mensagem vai para a IA, não vai para pendente").
  *
  * Escopo (decidido com o escritorio): TODA conversa pendente, de qualquer
  * origem — inclusive as que um agente tirou da IA de proposito
- * (desativar_ia, transferencia para pessoa). Uma decisao explicita anterior
- * pode ser revertida por isto; e intencional.
+ * (desativar_ia, transferencia para pessoa). So nao mexe na que uma pessoa
+ * ja ACEITOU (aceitoPor): ali ha alguem atendendo.
  *
- * Qual agente ganha a conversa (pedido do escritorio em 23/10/2026 —
- * "atendido 100% pelo agente com beneficio determinado, por palavra-chave"):
- * primeiro tenta achar o especialista pelo que o cliente ja escreveu
- * (agentePorPalavraChave, sobre o historico inteiro da conversa — ela pode
- * ter ficado pendente antes de mencionar o beneficio); so cai no agente
- * padrao da conexao quando nenhuma palavra-chave bate.
+ * Qual agente: ia/escolher-agente.js (palavra-chave sobre o historico
+ * inteiro do cliente, padrao do numero, entrada da area, recepcao). Ate
+ * 24/10/2026 so a palavra-chave e o padrao do numero valiam — e o numero
+ * dos anuncios tinha uma PESSOA como padrao, entao o lead ficava pendente
+ * para sempre.
  *
- * So nao mexe quando nao ha para onde mandar: grupo (sem fluxo de agente
- * individual), nenhuma palavra-chave bateu E conexao sem agente padrao
- * configurado, ou o agente escolhido (por palavra-chave ou padrao) esta
- * desligado.
+ * O agente so RESPONDE quando ha mensagem do cliente sem resposta (ultima
+ * entrada mais nova que a ultima saida, o mesmo calculo de envio.js). Sem
+ * essa guarda, uma conversa que o agente passou de proposito para uma
+ * pessoa voltava a ele a cada varredura, e ele a passava de novo — mandando
+ * a mesma despedida ao cliente a cada 10 minutos. Reatribuir sem responder
+ * e silencioso: quando o cliente escrever, o agente ja e o responsavel.
  */
 export function reatribuirPendentes() {
   let reativados = 0;
   for (const contato of listar('contatos', { estado: 'pendente' })) {
-    if (contato.grupo) continue;
+    if (contato.grupo || contato.aceitoPor) continue;
     const conexao = achar('conexoes', contato.conexaoId);
 
     const textoDoCliente = mensagensDe(contato.id)
       .filter((m) => m.direcao === 'entrada' && m.conteudo)
       .map((m) => m.conteudo)
       .join(' ');
-    const porPalavraChave = textoDoCliente
-      ? agentePorPalavraChave(contato.workspaceId, textoDoCliente, contato.area || conexao?.area)
-      : null;
-
-    const agente =
-      porPalavraChave || (conexao?.responsavelPadrao?.tipo === 'agente' ? achar('agentes', conexao.responsavelPadrao.id) : null);
-    if (!agente?.ativo) continue;
+    const escolha = escolherAgente({ workspaceId: contato.workspaceId, contato, conexao, texto: textoDoCliente });
+    if (!escolha) continue;
+    const { agente, motivo } = escolha;
 
     atualizar('contatos', contato.id, {
       responsavel: { tipo: 'agente', id: agente.id, nome: agente.nome },
       estado: 'ia',
       aceitoPor: null,
     });
-    registrarLog(
-      contato.workspaceId,
-      contato.id,
-      'reativacao',
-      porPalavraChave
-        ? `Reatribuido ao agente ${agente.nome} por palavra-chave (fila de pendentes)`
-        : `Reatribuido ao agente ${agente.nome} (fila de pendentes)`,
-    );
+    registrarLog(contato.workspaceId, contato.id, 'reativacao', `Reatribuido ao agente ${agente.nome} (${motivo}, fila de pendentes)`);
     emitir(contato.workspaceId, 'contato', { contatoId: contato.id });
-    agendarResposta(contato);
+
+    const semResposta = contato.ultimaEntradaEm && (!contato.ultimaSaidaEm || contato.ultimaSaidaEm < contato.ultimaEntradaEm);
+    if (semResposta) agendarResposta(contato);
     reativados += 1;
   }
   return { reativados };
 }
 
-let laco = null;
-
 /*
- * Antes de reatribuir, religa todo numero de area sem responsavel padrao ao
- * agente de entrada (Triagem) da area dele — a mesma coisa que
- * ligarNumerosDasAreas ja faz, so que ate 23/10/2026 so rodava por um
- * script de linha de comando, com o servidor PARADO (ferramentas/
- * ligar-numeros-das-areas.js), o que na pratica significa que nunca
- * rodava: ninguem desliga o sistema soh para rodar um script de manutencao.
- * Pedido do escritorio em 23/10/2026: "quero que todos os pendentes vão
- * para a IA, com seus devidos agentes em relação ao benefício" — sem isto,
- * um numero novo sem responsavel padrao configurado (ex.: uma conexao de
- * anuncio recem-criada) ficava pendente para sempre, mesmo com a
- * reatribuicao rodando, porque nao havia para quem reatribuir.
- *
- * So mexe em numero sem responsavel, e so quando o agente de entrada da
- * area existe e esta ativo — nao inventa agente nem area (ver a funcao, em
- * nucleo/agentes-por-escritorio.js). Guarda copia de toda conexao que
- * mudar em dados/copias-de-agentes antes de gravar.
- *
- * Antes disso ainda, garantirTriagemNoEscritorioGeral (mesmo arquivo)
- * cobre quem ligarNumerosDasAreas por desenho pula: o escritorio geral,
- * sem area, cujos numeros de anuncio tambem precisam de alguem atendendo —
- * pedido do escritorio em 23/10/2026, ver o comentario da funcao.
+ * O que a ultima varredura fez, para /api/saude (index.js). A hospedagem nao
+ * mostra o log do processo para quem atende, e foi exatamente isso que
+ * escondeu, em 23/10/2026, que a varredura nao estava instalando nada no ar:
+ * so com o resultado de cada etapa exposto da para saber, de fora, se ela
+ * rodou, o que fez e onde falhou.
  */
-function varrerFila() {
-  garantirTriagemNoEscritorioGeral();
-  ligarNumerosDasAreas();
-  reatribuirPendentes();
+const situacao = { iniciadaEm: null, ultimaEm: null, etapas: {}, escritorios: [] };
+
+/* Uma etapa que falha nao pode levar as outras junto. Antes, um erro aqui
+   subia pelo callback do listen (index.js), caia no uncaughtException — que
+   so registra — e todo o resto do boot depois desta linha nunca rodava. */
+function etapa(nome, executar) {
+  try {
+    situacao.etapas[nome] = { ok: true, resultado: executar(), em: new Date().toISOString() };
+  } catch (erro) {
+    situacao.etapas[nome] = { ok: false, erro: erro.message, em: new Date().toISOString() };
+    console.error(`[varredura] ${nome} falhou:`, erro);
+  }
 }
 
-/** Varre a fila na hora (cuida do estoque atual) e dali em diante de tempos em tempos. */
+/* So contagens, sem nome de cliente nem de pessoa: a rota de saude e aberta. */
+function resumirEscritorios() {
+  return listar('workspaces').map((workspace) => {
+    const numeros = listar('conexoes', { workspaceId: workspace.id }).filter((c) => c.tipo !== 'simulador');
+    const escolha = escolherAgente({ workspaceId: workspace.id });
+    const contatos = listar('contatos', { workspaceId: workspace.id }).filter((c) => !c.grupo);
+    return {
+      area: workspace.area || null,
+      numeros: numeros.length,
+      numerosComPessoaPadrao: numeros.filter((c) => c.responsavelPadrao && c.responsavelPadrao.tipo !== 'agente').length,
+      numerosSemPadrao: numeros.filter((c) => !c.responsavelPadrao).length,
+      agentesLigados: listar('agentes', { workspaceId: workspace.id }).filter((a) => a.ativo).length,
+      agenteDeEntrada: escolha ? `${escolha.agente.nome} (${escolha.motivo})` : null,
+      triagemGeralInstalada: Boolean(workspace.triagemGeralInstaladaEm),
+      pendentes: contatos.filter((c) => c.estado === 'pendente' && !c.aceitoPor).length,
+      naIa: contatos.filter((c) => c.responsavel?.tipo === 'agente' && c.estado !== 'arquivado').length,
+    };
+  });
+}
+
+/*
+ * Antes de reatribuir: garantirTriagemNoEscritorioGeral instala a Triagem no
+ * escritorio geral (sem area) que nao tem nenhuma, e ligarNumerosDasAreas
+ * religa numero de area sem responsavel ao agente de entrada da area (ver as
+ * duas em nucleo/agentes-por-escritorio.js). Ate 23/10/2026 a segunda so
+ * rodava por script com o servidor parado — na pratica, nunca.
+ */
+function varrerFila() {
+  etapa('triagemNoEscritorioGeral', () => garantirTriagemNoEscritorioGeral());
+  etapa('numerosDasAreas', () => ligarNumerosDasAreas().length);
+  etapa('pendentes', () => reatribuirPendentes().reativados);
+  try {
+    situacao.escritorios = resumirEscritorios();
+  } catch (erro) {
+    situacao.escritorios = [{ erro: erro.message }];
+  }
+  situacao.ultimaEm = new Date().toISOString();
+}
+
+export function situacaoDaVarredura() {
+  return situacao;
+}
+
+let laco = null;
+
+/**
+ * Varre a fila na hora (cuida do estoque atual) e dali em diante de tempos
+ * em tempos. O intervalo e armado ANTES da primeira varredura: se ela
+ * demorar ou algo der errado nela, a seguinte continua marcada.
+ */
 export function iniciarReatribuicaoDePendentes(intervalo) {
   if (laco) return;
-  varrerFila();
   laco = setInterval(varrerFila, intervalo);
   if (typeof laco.unref === 'function') laco.unref();
+  situacao.iniciadaEm = new Date().toISOString();
+  varrerFila();
 }
 
 export function pararReatribuicaoDePendentes() {

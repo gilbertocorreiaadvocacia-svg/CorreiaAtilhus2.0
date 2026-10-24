@@ -18,6 +18,7 @@ import { membrosQuePodemVer } from '../nucleo/auth.js';
 import { notificar } from '../ia/mencoes.js';
 import { agora, normalizar, normalizarTelefone, normalizarTelefoneDoWhatsApp, novoId } from '../nucleo/util.js';
 import { agendarResposta, agentePorPalavraChave, cancelarResposta } from '../ia/motor.js';
+import { escolherAgente } from '../ia/escolher-agente.js';
 import { nomeNaAgenda } from './agenda.js';
 import { agendarFoto } from './fotos.js';
 import { SEM_IDENTIFICACAO, nomeEhProvisorio, podeTrocarNome } from './nomes.js';
@@ -608,6 +609,31 @@ export async function receberMensagem({
       mudancas.responsavel = { tipo: 'agente', id: agente.id, nome: agente.nome };
       mudancas.estado = 'ia';
       registrarLog(workspaceId, contato.id, 'palavra_chave', `Agente ${agente.nome} ativado por palavra-chave`);
+    }
+  }
+
+  /*
+   * Toda mensagem de cliente vai para a IA. Pedido do escritorio em
+   * 24/10/2026: "toda hora, todo contato que manda mensagem vai para a IA,
+   * não vai para pendente" — inclusive quando o numero tem uma PESSOA como
+   * responsavel padrao. Era o caso do numero dos anuncios: todo lead nascia
+   * pendente com a pessoa (criarContato copia o padrao do numero), e o bloco
+   * de palavra-chave acima de proposito nao passa por cima de pessoa.
+   *
+   * Fica com a pessoa so a conversa que ela ja ACEITOU (aceitoPor, aba
+   * Ativos): ali ha alguem atendendo de verdade. Grupo nao tem agente. A
+   * escolha do agente (palavra-chave, padrao do numero, entrada da area,
+   * recepcao) esta em ia/escolher-agente.js.
+   */
+  const responsavelAgora = 'responsavel' in mudancas ? mudancas.responsavel : contato.responsavel;
+  const comAgenteLigado = responsavelAgora?.tipo === 'agente' && Boolean(achar('agentes', responsavelAgora.id)?.ativo);
+  if (!contato.grupo && !contato.aceitoPor && !comAgenteLigado) {
+    const escolha = escolherAgente({ workspaceId, contato, conexao, texto: mensagem.conteudo });
+    if (escolha) {
+      mudancas.responsavel = { tipo: 'agente', id: escolha.agente.id, nome: escolha.agente.nome };
+      mudancas.estado = 'ia';
+      mudancas.aceitoPor = null;
+      registrarLog(workspaceId, contato.id, 'ia_automatica', `Conversa entregue a ${escolha.agente.nome} (${escolha.motivo})`);
     }
   }
 

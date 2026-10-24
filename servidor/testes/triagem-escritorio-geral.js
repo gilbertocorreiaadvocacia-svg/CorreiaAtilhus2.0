@@ -57,7 +57,7 @@ inserir('workspaces', { id: 'w-vazio', nome: 'Filial Teste' });
 inserir('conexoes', { id: 'conx-sim-vazio', workspaceId: 'w-vazio', tipo: 'simulador', nome: 'Chat de teste', responsavelPadrao: null });
 
 /* O "Ricardo": pendente, perguntando sobre auxilio-acidente. */
-inserir('contatos', { id: 'c-ricardo', workspaceId: 'w-geral', conexaoId: 'conx-facebook', telefone: '5548920056366', nome: 'Ricardo', estado: 'pendente', responsavel: null, etiquetas: [] });
+inserir('contatos', { id: 'c-ricardo', workspaceId: 'w-geral', conexaoId: 'conx-facebook', telefone: '5548920056366', nome: 'Ricardo', estado: 'pendente', responsavel: null, ultimaEntradaEm: new Date().toISOString(), etiquetas: [] });
 await encerrarBanco();
 `,
   );

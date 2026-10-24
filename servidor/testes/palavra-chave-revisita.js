@@ -54,25 +54,51 @@ export async function testarPalavraChaveRevisita({ base }) {
     JSON.stringify({ responsavel: depois1.dados?.responsavel, estado: depois1.dados?.estado }),
   );
 
-  /* ---------------- Caso 2: nunca passa por cima de humano ---------------- */
+  /* ---------------- Caso 2: pessoa de responsavel, mas ninguem aceitou ---------------- */
 
+  /* Ate 23/10/2026 a palavra-chave nunca passava por cima de uma pessoa. Em
+     24/10/2026 o escritorio pediu o contrario ("todo contato que manda
+     mensagem vai para a IA, não vai para pendente"): o numero dos anuncios
+     tinha uma pessoa como padrao, e todo lead ficava pendente com ela sem
+     resposta. So quem a pessoa ACEITOU fica com ela (caso 2b). */
   const tel2 = numeroNovo();
   const abertura2 = await mandar(tel2, 'oi, bom dia');
   const id2 = abertura2.dados?.contatoId;
   await api.patch(`/api/contatos/${id2}`, { responsavel: { tipo: 'membro', id: 'mbr-inexistente-teste' } });
   const comHumano = await api.get(`/api/contatos/${id2}`);
   s.ok(
-    'precondicao: pendente, mas com humano como responsavel',
-    comHumano.dados?.estado === 'pendente' && comHumano.dados?.responsavel?.tipo === 'membro',
+    'precondicao: pendente, com uma pessoa de responsavel que ainda nao aceitou',
+    comHumano.dados?.estado === 'pendente' && comHumano.dados?.responsavel?.tipo === 'membro' && !comHumano.dados?.aceitoPor,
     JSON.stringify(comHumano.dados),
   );
 
   await mandar(tel2, 'quero saber sobre zzzpalavrachaveteste-a');
   const depois2 = await api.get(`/api/contatos/${id2}`);
   s.ok(
-    'com humano como responsavel, a palavra-chave NAO toma a conversa',
-    depois2.dados?.responsavel?.tipo === 'membro' && depois2.dados?.responsavel?.id === 'mbr-inexistente-teste',
-    JSON.stringify(depois2.dados?.responsavel),
+    'a pessoa ainda nao aceitou: o cliente escreve e a conversa vai para o especialista da palavra-chave',
+    depois2.dados?.responsavel?.id === especialistaA.id && depois2.dados?.estado === 'ia',
+    JSON.stringify({ responsavel: depois2.dados?.responsavel, estado: depois2.dados?.estado }),
+  );
+
+  /* ---------------- Caso 2b: a pessoa ACEITOU — fica com ela ---------------- */
+
+  const tel2b = numeroNovo();
+  const abertura2b = await mandar(tel2b, 'oi, bom dia');
+  const id2b = abertura2b.dados?.contatoId;
+  await api.post(`/api/contatos/${id2b}/aceitar`);
+  const aceito = await api.get(`/api/contatos/${id2b}`);
+  s.ok(
+    'precondicao: uma pessoa aceitou a conversa',
+    Boolean(aceito.dados?.aceitoPor) && aceito.dados?.responsavel?.tipo === 'membro',
+    JSON.stringify({ aceitoPor: aceito.dados?.aceitoPor, responsavel: aceito.dados?.responsavel }),
+  );
+
+  await mandar(tel2b, 'quero saber sobre zzzpalavrachaveteste-a');
+  const depois2b = await api.get(`/api/contatos/${id2b}`);
+  s.ok(
+    'conversa que a pessoa aceitou continua com ela, mesmo com a palavra-chave',
+    depois2b.dados?.responsavel?.tipo === 'membro' && depois2b.dados?.aceitoPor === aceito.dados?.aceitoPor,
+    JSON.stringify(depois2b.dados?.responsavel),
   );
 
   /* ---------------- Caso 3: arquivada reabre e revisita por palavra-chave nova ---------------- */

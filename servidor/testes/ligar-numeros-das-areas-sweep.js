@@ -64,7 +64,7 @@ inserir('workspaces', { id: 'w-geral', nome: 'Geral' });
 inserir('conexoes', { id: 'conx-geral', workspaceId: 'w-geral', tipo: 'oficial', nome: 'Numero geral', responsavelPadrao: null, area: null });
 
 /* Pendente de verdade na conexao do Facebook, igual ao "Ricardo" relatado. */
-inserir('contatos', { id: 'c-ricardo', workspaceId: 'w-prev', conexaoId: 'conx-facebook', telefone: '5548920056366', nome: 'Ricardo', estado: 'pendente', responsavel: null, etiquetas: [] });
+inserir('contatos', { id: 'c-ricardo', workspaceId: 'w-prev', conexaoId: 'conx-facebook', telefone: '5548920056366', nome: 'Ricardo', estado: 'pendente', responsavel: null, ultimaEntradaEm: new Date().toISOString(), etiquetas: [] });
 await encerrarBanco();
 `,
   );

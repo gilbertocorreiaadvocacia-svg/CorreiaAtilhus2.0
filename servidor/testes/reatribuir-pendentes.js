@@ -19,11 +19,12 @@ import { suite } from './apoio.js';
  *
  * O que nao pode falhar: pendente sem responsavel, e pendente com uma
  * PESSOA como responsavel, ambos ganham o agente padrao, viram estado:'ia'
- * e recebem uma resposta; pendente cuja conexao nao tem agente padrao, ou
- * cujo agente padrao esta desligado, NAO e tocado (nem ganha resposta);
- * grupo nao e tocado; contato que ja nao esta pendente (ia, ativo,
- * arquivado) nao e tocado; rodar de novo nao mexe em quem ja foi
- * reatribuido (nem manda uma segunda resposta).
+ * e recebem uma resposta quando o cliente esta esperando uma; quem o agente
+ * passou para uma pessoa (ultima fala dele) volta para a IA SEM mensagem
+ * nova; quem uma pessoa ja aceitou fica com ela; pendente sem nenhum agente
+ * ligado para escolher (ia/escolher-agente.js) NAO e tocado; grupo nao e
+ * tocado; contato que ja nao esta pendente nao e tocado; rodar de novo nao
+ * mexe em quem ja foi reatribuido (nem manda uma segunda resposta).
  */
 export async function testarReatribuirPendentes({ raiz }) {
   const s = suite('Conversa pendente volta para o agente padrao (qualquer origem)');
@@ -55,10 +56,19 @@ inserir('conexoes', { id: 'conx-com-padrao', workspaceId: 'w1', tipo: 'qrcode', 
 inserir('conexoes', { id: 'conx-sem-padrao', workspaceId: 'w1', tipo: 'qrcode', responsavelPadrao: null });
 inserir('conexoes', { id: 'conx-padrao-desligado', workspaceId: 'w1', tipo: 'qrcode', responsavelPadrao: { tipo: 'agente', id: 'ag-desligado', nome: 'Desligado' } });
 
-/* Pendente "normal": nunca teve responsavel. */
-inserir('contatos', { id: 'c-sem-responsavel', workspaceId: 'w1', conexaoId: 'conx-com-padrao', telefone: '5581977770000', nome: 'Ana', estado: 'pendente', responsavel: null, etiquetas: [] });
-/* Pendente que um agente tirou da IA de proposito (desativar_ia / transferencia para pessoa). */
-inserir('contatos', { id: 'c-com-pessoa', workspaceId: 'w1', conexaoId: 'conx-com-padrao', telefone: '5581988880000', nome: 'Beto', estado: 'pendente', responsavel: { tipo: 'membro', id: 'mbr1', nome: 'Fulana' }, etiquetas: [] });
+const antes = new Date(Date.now() - 60000).toISOString();
+const agora = new Date().toISOString();
+
+/* Pendente "normal": nunca teve responsavel, e o cliente escreveu sem resposta. */
+inserir('contatos', { id: 'c-sem-responsavel', workspaceId: 'w1', conexaoId: 'conx-com-padrao', telefone: '5581977770000', nome: 'Ana', estado: 'pendente', responsavel: null, ultimaEntradaEm: agora, etiquetas: [] });
+/* Pendente com uma PESSOA de responsavel, cliente esperando resposta. */
+inserir('contatos', { id: 'c-com-pessoa', workspaceId: 'w1', conexaoId: 'conx-com-padrao', telefone: '5581988880000', nome: 'Beto', estado: 'pendente', responsavel: { tipo: 'membro', id: 'mbr1', nome: 'Fulana' }, ultimaEntradaEm: agora, etiquetas: [] });
+/* O agente passou de proposito para uma pessoa, e a ULTIMA fala foi a dele:
+   volta para a IA, mas sem resposta nova — senao a mesma despedida saia de
+   novo a cada varredura. */
+inserir('contatos', { id: 'c-passado-a-pessoa', workspaceId: 'w1', conexaoId: 'conx-com-padrao', telefone: '5581944440000', nome: 'Caio', estado: 'pendente', responsavel: { tipo: 'membro', id: 'mbr1', nome: 'Fulana' }, ultimaEntradaEm: antes, ultimaSaidaEm: agora, etiquetas: [] });
+/* Uma pessoa ja ACEITOU: fica com ela. */
+inserir('contatos', { id: 'c-aceito', workspaceId: 'w1', conexaoId: 'conx-com-padrao', telefone: '5581955550000', nome: 'Fabi', estado: 'pendente', responsavel: { tipo: 'membro', id: 'mbr1', nome: 'Fulana' }, aceitoPor: 'mbr1', ultimaEntradaEm: agora, etiquetas: [] });
 /* Conexao sem agente padrao: nao tocar. */
 inserir('contatos', { id: 'c-sem-padrao-na-conexao', workspaceId: 'w1', conexaoId: 'conx-sem-padrao', telefone: '5581999990000', nome: 'Carla', estado: 'pendente', responsavel: null, etiquetas: [] });
 /* Agente padrao da conexao esta desligado: nao tocar. */
@@ -99,7 +109,7 @@ process.exit(0);
     const b = JSON.parse(r1.texto.trim().split('\n').pop());
     const porId = (id) => b.contatos.find((c) => c.id === id);
 
-    s.ok('reativa os dois pendentes elegiveis (Ana e Beto)', b.resultado.reativados === 2, JSON.stringify(b.resultado));
+    s.ok('reativa os tres pendentes elegiveis (Ana, Beto e Caio)', b.resultado.reativados === 3, JSON.stringify(b.resultado));
 
     const ana = porId('c-sem-responsavel');
     s.ok('a Ana (sem responsavel) ganha o agente padrao', ana?.responsavel?.id === 'ag-triagem', JSON.stringify(ana?.responsavel));
@@ -124,14 +134,25 @@ process.exit(0);
     const eva = porId('c-ja-ia');
     s.ok('quem ja estava com IA nao muda', eva?.estado === 'ia' && eva?.responsavel?.id === 'ag-triagem', JSON.stringify(eva));
 
+    const caio = porId('c-passado-a-pessoa');
+    s.ok('o Caio (o agente tinha passado para uma pessoa) volta para a IA', caio?.responsavel?.id === 'ag-triagem' && caio?.estado === 'ia', JSON.stringify(caio));
+
+    const fabi = porId('c-aceito');
+    s.ok('a Fabi (uma pessoa ja aceitou) continua com a pessoa', fabi?.responsavel?.tipo === 'membro' && fabi?.estado === 'pendente', JSON.stringify(fabi));
+
     s.ok(
-      'a Ana e o Beto (reatribuidos) recebem uma resposta de verdade do agente',
+      'a Ana e o Beto (cliente esperando resposta) recebem uma resposta de verdade do agente',
       b.mensagens['c-sem-responsavel'] > 0 && b.mensagens['c-com-pessoa'] > 0,
       JSON.stringify(b.mensagens),
     );
     s.ok(
-      'quem nao foi reatribuido (Carla, Dani, o grupo, a Eva) nao recebe mensagem nenhuma',
-      ['c-sem-padrao-na-conexao', 'c-agente-desligado', 'c-grupo', 'c-ja-ia'].every((id) => b.mensagens[id] === 0),
+      'o Caio NAO recebe mensagem de novo: a ultima fala ja era do agente (sem reenvio a cada varredura)',
+      b.mensagens['c-passado-a-pessoa'] === 0,
+      JSON.stringify(b.mensagens),
+    );
+    s.ok(
+      'quem nao foi reatribuido (Carla, Dani, o grupo, a Eva, a Fabi) nao recebe mensagem nenhuma',
+      ['c-sem-padrao-na-conexao', 'c-agente-desligado', 'c-grupo', 'c-ja-ia', 'c-aceito'].every((id) => b.mensagens[id] === 0),
       JSON.stringify(b.mensagens),
     );
 

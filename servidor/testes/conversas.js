@@ -141,6 +141,10 @@ export async function testarConversas({ base }) {
    * atendimento dado por encerrado reabre sozinho se o cliente voltar a
    * falar. Se isso parar de valer, cliente que responde depois do fim do
    * atendimento cai num silencio que ninguem ve.
+   *
+   * Desde 24/10/2026 ("todo contato que manda mensagem vai para a IA, não
+   * vai para pendente") ela reabre na IA, e nao mais em Pendentes: sem
+   * responsavel, quem assume e o agente de recepcao do escritorio.
    */
   const voltou = await criar(5, 'Teste Reabre');
   await api.patch(`/api/contatos/${voltou.id}`, { responsavel: null });
@@ -153,8 +157,9 @@ export async function testarConversas({ base }) {
   });
   await esperar(1200);
   s.ok(
-    'conversa arquivada reabre quando o cliente escreve de novo',
-    (await abasDe(voltou.id)).join() === 'pendentes',
+    'conversa arquivada reabre quando o cliente escreve de novo (e reabre na IA)',
+    (await abasDe(voltou.id)).join() === 'ia',
+    (await abasDe(voltou.id)).join(),
   );
 
   /* ---------------- Dados que a linha da lista desenha ---------------- */
@@ -436,12 +441,18 @@ export async function testarConversas({ base }) {
   s.ok('conversa que a IA esta atendendo nao gera aviso',
     (await naoLidasDe(comAgente.id)).length === 0);
 
-  /* Sem dono: quem pode atender precisa ver. */
+  /* Sem dono: desde 24/10/2026 a IA assume quando o cliente escreve ("todo
+     contato que manda mensagem vai para a IA"), e conversa com a IA nao
+     acorda ninguem — a regra de cima. O aviso para a equipe continua valendo
+     quando o escritorio nao tem agente nenhum para assumir: isso esta em
+     testes/toda-mensagem-vai-para-ia.js, com um escritorio sem agentes. */
   const semDono = await criar(12, 'Teste Aviso Fila');
   await api.patch(`/api/contatos/${semDono.id}`, { responsavel: null });
   await escrever(TELEFONE(12), 'alguem me atende?');
-  s.ok('conversa sem responsavel avisa quem pode atende-la',
-    (await naoLidasDe(semDono.id)).length >= 1);
+  s.ok('conversa sem responsavel vai para a IA quando o cliente escreve',
+    (await abasDe(semDono.id)).join() === 'ia', (await abasDe(semDono.id)).join());
+  s.ok('e, com a IA atendendo, nao gera aviso para a equipe',
+    (await naoLidasDe(semDono.id)).length === 0);
 
   /* Depois de lido, a proxima mensagem avisa de novo — senao o segundo dia de
      conversa passaria em silencio. */
