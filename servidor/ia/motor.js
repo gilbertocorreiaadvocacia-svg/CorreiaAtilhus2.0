@@ -5,7 +5,7 @@ import { emitir } from '../nucleo/eventos.js';
 import { lancar } from '../nucleo/creditos.js';
 import { caminhoDaMidia } from '../nucleo/midia.js';
 import { avisarMencaoInvalida, avisarModoDegradado } from '../nucleo/diagnostico.js';
-import { agora, formatarTelefone, slug } from '../nucleo/util.js';
+import { agora, formatarTelefone, normalizar, slug } from '../nucleo/util.js';
 import { enviarMensagem } from '../whatsapp/envio.js';
 import { sintetizar, vozDisponivel } from './audio.js';
 import { membrosQuePodemVer } from '../nucleo/auth.js';
@@ -31,7 +31,46 @@ const pendentes = new Set();
  */
 const MAX_SALTOS = 3;
 
-export function agendarResposta(contato) {
+/*
+ * O agente escreveu ao cliente que vai passar a conversa adiante ("ja vou te
+ * encaminhar", "seu atendimento passa para a nossa equipe"). Pedido do
+ * escritorio em 24/10/2026: havia conversas em que o agente dizia isso e a
+ * passagem nao acontecia — ou ele so escrevia sem chamar transferir_conversa,
+ * ou nem tinha a ferramenta — e o cliente ficava esperando alguem que nunca
+ * vinha.
+ *
+ * Fala que pergunta algo ao cliente nao conta: ali o agente esta esperando a
+ * resposta, e a Eduarda abre toda conversa sem assunto com "me conta o que
+ * voce precisa, que eu ja te direciono certo".
+ */
+const PROMESSA_DE_PASSAGEM = new RegExp(
+  [
+    '(vou|ja vou|irei) (te |lhe |o |a )?(encaminhar|transferir|direcionar|repassar)',
+    'ja (te |lhe )?(encaminho|transfiro|direciono|repasso)',
+    '(vou|ja vou|irei) (te |lhe )?passar (voce|seu atendimento|sua conversa|seu caso|o seu caso|a conversa|o atendimento) para',
+    '(vou|ja vou|irei) (te |lhe )?passar para (a|o|nossa|nosso) ',
+    '(atendimento|conversa|caso) (passa|vai passar|sera passad[ao]|segue) para',
+    '(encaminhando|transferindo|repassando) (voce|seu atendimento|sua conversa|seu caso|para)',
+    '(vou|irei) verificar com (a|nossa) equipe',
+    '(especialista|colega|equipe|setor|time|advogad[ao]|responsavel)[^.!\\n]{0,40} (ja )?(vai|ira|vao|irao|continua|assume) (te |lhe )?(atender|continuar|orientar|chamar|falar|assumir|entrar em contato|seu atendimento)',
+  ].join('|'),
+);
+
+export function prometePassagem(texto) {
+  const alvo = normalizar(texto || '');
+  if (!alvo || alvo.includes('?') || /\bme (conta|diga|fala|explica)\b/.test(alvo)) return false;
+  return PROMESSA_DE_PASSAGEM.test(alvo);
+}
+
+/* O que o agente le quando prometeu a passagem na resposta que ia mandar. */
+const PROMETEU_SEM_PASSAR =
+  '(sistema: sua resposta diz ao cliente que a conversa vai ser passada adiante, mas voce nao chamou transferir_conversa — sem a ferramenta ninguem recebe a conversa e o cliente fica esperando. Chame transferir_conversa agora, com o destino certo e o resumo_para_proximo; o aviso ao cliente vai em mensagem_de_transicao. Se na verdade nao e para passar a conversa agora, reescreva sua resposta sem prometer passagem.)';
+
+/* O que o agente le quando a promessa ja saiu e a conversa ficou parada (retomada no boot). */
+const PASSAGEM_FICOU_PARADA =
+  '(sistema: nas suas ultimas mensagens voce avisou o cliente que a conversa ia ser passada adiante, mas a passagem nao aconteceu e ele esta esperando. Chame transferir_conversa agora, com o destino certo e o resumo_para_proximo — o cliente ja foi avisado, entao deixe mensagem_de_transicao vazia. Se nao for o caso de passar, continue o atendimento normalmente.)';
+
+export function agendarResposta(contato, opcoes = {}) {
   const agente = contato.responsavel?.tipo === 'agente' ? achar('agentes', contato.responsavel.id) : null;
   if (!agente || !agente.ativo) return;
 
@@ -41,7 +80,7 @@ export function agendarResposta(contato) {
   const espera = Math.max(1, Number(agente.delaySegundos ?? 15)) * 1000;
   const cronometro = setTimeout(() => {
     cronometros.delete(contato.id);
-    executarAgente(contato.id).catch((erro) => {
+    executarAgente(contato.id, opcoes).catch((erro) => {
       registrarLog(contato.workspaceId, contato.id, 'erro_ia', `Falha do agente: ${erro.message}`, {
         tipo: 'agente',
         id: agente.id,
@@ -127,6 +166,12 @@ function montarSistema({ agente, contato, workspace }) {
   /* O que o agente anterior deixou para este: so a passagem feita PARA ele, a
      mais recente. As notas comuns continuam fora do modelo. */
   const passagem = [...(contato.passagens || [])].reverse().find((p) => p.paraId === agente.id);
+  /* Acabou de receber: ainda nao saiu fala dele depois da passagem. */
+  const acabouDeReceber =
+    Boolean(passagem) &&
+    !mensagensDe(contato.id).some(
+      (m) => m.direcao === 'saida' && m.situacao !== 'erro' && m.autor?.tipo === 'agente' && m.autor.id === agente.id && m.criadoEm > passagem.em,
+    );
   const faltam = (agente.requisitos || []).filter((chave) => !String(contato.variaveis?.[chave] ?? '').trim());
   const variaveis = Object.entries(contato.variaveis || {})
     .map(([chave, valor]) => `- ${chave}: ${valor}`)
@@ -181,12 +226,21 @@ function montarSistema({ agente, contato, workspace }) {
     '',
     'DOCUMENTOS JA RECEBIDOS NESTA CONVERSA (nunca peca de novo um que ja esta aqui; so as ultimas imagens aparecem com o conteudo legivel mais abaixo — as mais antigas voce ve so pelo nome e pela data, mas elas EXISTEM e foram recebidas):',
     documentos.length ? documentos.join('\n') : '- nenhum documento recebido ainda',
+    /*
+     * Quem recebe a conversa se apresenta. Pedido do escritorio em 24/10/2026:
+     * "o outro agente manda mensagem em seguida, se apresentando e pedindo
+     * para contar os detalhes". Ate entao esta linha dizia o contrario ("nao
+     * se apresente"), e o cliente via uma pessoa nova falando sem saber quem
+     * era. So na primeira fala depois da passagem; dali em diante, nunca mais.
+     */
     ...(passagem
       ? [
           '',
           `PASSAGEM DO AGENTE ANTERIOR (${passagem.deNome}):`,
           passagem.resumo,
-          'Continue de onde ele parou: nao se apresente como se a conversa comecasse agora e nao repita pergunta ja respondida.',
+          acabouDeReceber
+            ? 'VOCE ACABOU DE RECEBER ESTA CONVERSA e ainda nao falou com o cliente. Na sua primeira mensagem, agora: apresente-se pelo seu nome, em uma frase, e peca ao cliente para contar os detalhes do caso dele. Se ele ja contou no historico, nao peca de novo: diga que ja esta a par do que ele contou e siga com a proxima pergunta do seu roteiro.'
+            : 'Continue de onde parou: nao se apresente de novo e nao repita pergunta ja respondida.',
         ]
       : []),
     '',
@@ -235,7 +289,7 @@ function montarSistema({ agente, contato, workspace }) {
  * foto, o agente pergunta de novo o que ja esta na tela, e o lead desiste.
  * Vao apenas as ultimas, para nao estourar custo em conversa longa.
  */
-function montarHistorico(contato, { comImagens = false } = {}) {
+function montarHistorico(contato, { comImagens = false, fechamento = null } = {}) {
   const mensagens = mensagensDe(contato.id)
     .filter((m) => !m.nota && m.situacao !== 'erro')
     .slice(-HISTORICO_MAXIMO);
@@ -274,7 +328,7 @@ function montarHistorico(contato, { comImagens = false } = {}) {
      do agente anterior). O modelo precisa de uma vez de falar, e nao de
      continuar a frase de outro. */
   if (historico[historico.length - 1].papel === 'assistente') {
-    historico.push({ papel: 'usuario', texto: '(a conversa acabou de ser passada para voce; continue o atendimento)' });
+    historico.push({ papel: 'usuario', texto: fechamento || '(a conversa acabou de ser passada para voce; continue o atendimento)' });
   }
   return historico;
 }
@@ -295,7 +349,7 @@ function lerImagem(midia) {
  * Roda o agente responsavel pela conversa: monta contexto, deixa o modelo
  * decidir, executa as ferramentas que ele pedir e manda o texto final.
  */
-export async function executarAgente(contatoId, { saltos = 0 } = {}) {
+export async function executarAgente(contatoId, { saltos = 0, corrigirPassagem = false } = {}) {
   if (rodando.has(contatoId)) {
     pendentes.add(contatoId);
     return null;
@@ -305,7 +359,7 @@ export async function executarAgente(contatoId, { saltos = 0 } = {}) {
   const passo = { encadear: false };
   let texto = null;
   try {
-    texto = await rodarAgente(contatoId, passo);
+    texto = await rodarAgente(contatoId, passo, { corrigirPassagem });
   } finally {
     rodando.delete(contatoId);
   }
@@ -370,7 +424,7 @@ async function seguirCadeia(contatoId, saltos) {
  * modelo decidir, executa as ferramentas que ele pedir e manda o texto final.
  * `passo.encadear` volta ligado quando ele passou a conversa a outro agente.
  */
-async function rodarAgente(contatoId, passo) {
+async function rodarAgente(contatoId, passo, { corrigirPassagem = false } = {}) {
   {
     const contato = achar('contatos', contatoId);
     if (!contato) return null;
@@ -393,7 +447,10 @@ async function rodarAgente(contatoId, passo) {
        ser oferecida, entao o modelo segue a instrucao no vazio. A conversa
        passa a registrar isso uma vez, para quem ler depois entender. */
     avisarMencaoInvalida(contato, agente, analisarPrompt(agente.prompt || '', contato.workspaceId).invalidas);
-    const mensagens = montarHistorico(contato, { comImagens: usaModelo && modelo.visao !== false });
+    const mensagens = montarHistorico(contato, {
+      comImagens: usaModelo && modelo.visao !== false,
+      fechamento: corrigirPassagem ? PASSAGEM_FICOU_PARADA : null,
+    });
 
     const imagensLidas = mensagens.reduce((soma, m) => soma + (m.imagens?.length || 0), 0);
     if (imagensLidas) {
@@ -445,54 +502,76 @@ async function rodarAgente(contatoId, passo) {
       }
       if (resposta.texto) falas.push(resposta.texto);
     } else {
-      for (let volta = 0; volta < MAX_VOLTAS; volta += 1) {
-        const inicioDaVolta = Date.now();
-        const resposta = await conversar({
-          modeloId: agente.modelo,
-          workspaceId: contato.workspaceId,
-          sistema,
-          mensagens,
-          ferramentas,
-        });
-
-        lancar(
-          contato.workspaceId,
-          contato.id,
-          'processamento_ia',
-          modelo.creditos || CUSTO.processamentoIA,
-          { duracaoMs: Date.now() - inicioDaVolta },
-          agente.id,
-        );
-
-        if (resposta.texto) falas.push(resposta.texto);
-
-        if (!resposta.chamadas?.length) break;
-
-        mensagens.push({
-          papel: 'assistente',
-          texto: resposta.texto,
-          chamadas: resposta.chamadas,
-          bruto: resposta.bruto,
-        });
-
-        const resultados = [];
-        for (const chamada of resposta.chamadas) {
-          const atual = achar('contatos', contatoId);
-          const resultado = await executarFerramenta({
-            nome: chamada.nome,
-            argumentos: chamada.argumentos,
-            contato: atual || contato,
-            agente,
-            conexao,
+      const rodarVoltas = async (limite) => {
+        for (let volta = 0; volta < limite; volta += 1) {
+          const inicioDaVolta = Date.now();
+          const resposta = await conversar({
+            modeloId: agente.modelo,
             workspaceId: contato.workspaceId,
+            sistema,
+            mensagens,
+            ferramentas,
           });
-          if (resultado?.pare_de_responder) paraDeResponder = true;
-          if (resultado?.encadear) passo.encadear = true;
-          resultados.push({ id: chamada.id, resultado });
-        }
-        mensagens.push({ papel: 'ferramenta', resultados });
 
-        if (paraDeResponder) break;
+          lancar(
+            contato.workspaceId,
+            contato.id,
+            'processamento_ia',
+            modelo.creditos || CUSTO.processamentoIA,
+            { duracaoMs: Date.now() - inicioDaVolta },
+            agente.id,
+          );
+
+          if (resposta.texto) falas.push(resposta.texto);
+
+          if (!resposta.chamadas?.length) return;
+
+          mensagens.push({
+            papel: 'assistente',
+            texto: resposta.texto,
+            chamadas: resposta.chamadas,
+            bruto: resposta.bruto,
+          });
+
+          const resultados = [];
+          for (const chamada of resposta.chamadas) {
+            const atual = achar('contatos', contatoId);
+            const resultado = await executarFerramenta({
+              nome: chamada.nome,
+              argumentos: chamada.argumentos,
+              contato: atual || contato,
+              agente,
+              conexao,
+              workspaceId: contato.workspaceId,
+            });
+            if (resultado?.pare_de_responder) paraDeResponder = true;
+            if (resultado?.encadear) passo.encadear = true;
+            resultados.push({ id: chamada.id, resultado });
+          }
+          mensagens.push({ papel: 'ferramenta', resultados });
+
+          if (paraDeResponder) return;
+        }
+      };
+
+      await rodarVoltas(MAX_VOLTAS);
+
+      /*
+       * Prometeu a passagem e nao passou: antes de a promessa sair, o agente
+       * ganha uma volta para fazer a passagem de verdade (ver
+       * PROMESSA_DE_PASSAGEM). A promessa sai da fala: se ele passar para
+       * outro agente, quem recebe se apresenta na hora; se passar para uma
+       * pessoa, a despedida e a desta volta; se reescrever sem passar, vai a
+       * reescrita. Se a volta nao produzir fala nenhuma, a original volta.
+       */
+      const prometida = falas.filter(Boolean).join('\n\n');
+      if (!paraDeResponder && !passo.encadear && prometePassagem(prometida)) {
+        registrarLog(contato.workspaceId, contato.id, 'passagem_prometida', `${agente.nome} disse que ia passar a conversa sem chamar a transferencia; pedindo a passagem de verdade`);
+        mensagens.push({ papel: 'assistente', texto: prometida });
+        mensagens.push({ papel: 'usuario', texto: PROMETEU_SEM_PASSAR });
+        falas.length = 0;
+        await rodarVoltas(2);
+        if (!falas.some(Boolean)) falas.push(prometida);
       }
     }
 
@@ -586,11 +665,34 @@ export function retomarRespostasPendentes() {
     const agente = achar('agentes', contato.responsavel.id);
     if (!agente?.ativo) continue;
     const semResposta = contato.ultimaEntradaEm && (!contato.ultimaSaidaEm || contato.ultimaSaidaEm < contato.ultimaEntradaEm);
-    if (!semResposta && !respostaNaoSaiu(contato)) continue;
-    agendarResposta(contato);
-    retomados += 1;
+    if (semResposta || respostaNaoSaiu(contato)) {
+      agendarResposta(contato);
+      retomados += 1;
+    } else if (passagemFicouParada(contato, agente)) {
+      registrarLog(contato.workspaceId, contato.id, 'passagem_prometida', `${agente.nome} tinha avisado que ia passar a conversa e ela ficou parada; retomando`);
+      agendarResposta(contato, { corrigirPassagem: true });
+      retomados += 1;
+    }
   }
   return { retomados };
+}
+
+/*
+ * Depois da ultima fala do cliente, o agente que ainda e o responsavel avisou
+ * que ia passar a conversa adiante — e nada mais aconteceu: se a passagem
+ * tivesse saido, o responsavel seria outro. Pedido do escritorio em
+ * 24/10/2026: ao republicar, essas conversas seguem sozinhas. So nas ultimas
+ * 48 horas, como respostaNaoSaiu.
+ */
+function passagemFicouParada(contato, agente) {
+  const falas = mensagensDe(contato.id).filter((m) => !m.nota && m.direcao !== 'interna');
+  const depoisDoCliente = [];
+  for (let i = falas.length - 1; i >= 0 && falas[i].direcao === 'saida'; i -= 1) depoisDoCliente.push(falas[i]);
+  if (!depoisDoCliente.length) return false;
+  if (Date.now() - new Date(depoisDoCliente[0].criadoEm).getTime() > RETOMA_FALHA_POR_MS) return false;
+  return depoisDoCliente.some(
+    (m) => m.situacao !== 'erro' && m.autor?.tipo === 'agente' && m.autor.id === agente.id && prometePassagem(m.conteudo),
+  );
 }
 
 /*

@@ -63,10 +63,16 @@ const agora = new Date().toISOString();
 inserir('contatos', { id: 'c-sem-responsavel', workspaceId: 'w1', conexaoId: 'conx-com-padrao', telefone: '5581977770000', nome: 'Ana', estado: 'pendente', responsavel: null, ultimaEntradaEm: agora, etiquetas: [] });
 /* Pendente com uma PESSOA de responsavel, cliente esperando resposta. */
 inserir('contatos', { id: 'c-com-pessoa', workspaceId: 'w1', conexaoId: 'conx-com-padrao', telefone: '5581988880000', nome: 'Beto', estado: 'pendente', responsavel: { tipo: 'membro', id: 'mbr1', nome: 'Fulana' }, ultimaEntradaEm: agora, etiquetas: [] });
-/* O agente passou de proposito para uma pessoa, e a ULTIMA fala foi a dele:
-   volta para a IA, mas sem resposta nova — senao a mesma despedida saia de
-   novo a cada varredura. */
+/* Pendente com uma pessoa, e a ULTIMA fala foi nossa: volta para a IA, mas
+   sem resposta nova — senao a mesma fala saia de novo a cada varredura. */
 inserir('contatos', { id: 'c-passado-a-pessoa', workspaceId: 'w1', conexaoId: 'conx-com-padrao', telefone: '5581944440000', nome: 'Caio', estado: 'pendente', responsavel: { tipo: 'membro', id: 'mbr1', nome: 'Fulana' }, ultimaEntradaEm: antes, ultimaSaidaEm: agora, etiquetas: [] });
+/* Um AGENTE passou para a pessoa de proposito ha pouco (passagem gravada):
+   fica com ela por 24 horas, para ela conseguir atender. */
+const passagem = (em) => [{ deId: 'ag-triagem', deNome: 'Triagem', paraId: 'mbr1', paraNome: 'Fulana', paraTipo: 'membro', resumo: 'Ja e cliente.', em }];
+inserir('contatos', { id: 'c-passado-agora', workspaceId: 'w1', conexaoId: 'conx-com-padrao', telefone: '5581966660000', nome: 'Gabi', estado: 'pendente', responsavel: { tipo: 'membro', id: 'mbr1', nome: 'Fulana' }, passagens: passagem(agora), ultimaEntradaEm: antes, ultimaSaidaEm: agora, etiquetas: [] });
+/* A mesma passagem, mas de dois dias atras e ninguem pegou: volta para a IA. */
+const doisDias = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
+inserir('contatos', { id: 'c-passado-ha-dias', workspaceId: 'w1', conexaoId: 'conx-com-padrao', telefone: '5581977770009', nome: 'Hugo', estado: 'pendente', responsavel: { tipo: 'membro', id: 'mbr1', nome: 'Fulana' }, passagens: passagem(doisDias), ultimaEntradaEm: doisDias, ultimaSaidaEm: doisDias, etiquetas: [] });
 /* Uma pessoa ja ACEITOU: fica com ela. */
 inserir('contatos', { id: 'c-aceito', workspaceId: 'w1', conexaoId: 'conx-com-padrao', telefone: '5581955550000', nome: 'Fabi', estado: 'pendente', responsavel: { tipo: 'membro', id: 'mbr1', nome: 'Fulana' }, aceitoPor: 'mbr1', ultimaEntradaEm: agora, etiquetas: [] });
 /* Conexao sem agente padrao: nao tocar. */
@@ -109,7 +115,7 @@ process.exit(0);
     const b = JSON.parse(r1.texto.trim().split('\n').pop());
     const porId = (id) => b.contatos.find((c) => c.id === id);
 
-    s.ok('reativa os tres pendentes elegiveis (Ana, Beto e Caio)', b.resultado.reativados === 3, JSON.stringify(b.resultado));
+    s.ok('reativa os quatro pendentes elegiveis (Ana, Beto, Caio e Hugo)', b.resultado.reativados === 4, JSON.stringify(b.resultado));
 
     const ana = porId('c-sem-responsavel');
     s.ok('a Ana (sem responsavel) ganha o agente padrao', ana?.responsavel?.id === 'ag-triagem', JSON.stringify(ana?.responsavel));
@@ -140,6 +146,12 @@ process.exit(0);
     const fabi = porId('c-aceito');
     s.ok('a Fabi (uma pessoa ja aceitou) continua com a pessoa', fabi?.responsavel?.tipo === 'membro' && fabi?.estado === 'pendente', JSON.stringify(fabi));
 
+    const gabi = porId('c-passado-agora');
+    s.ok('a Gabi (um agente passou para a pessoa ha pouco) continua com a pessoa', gabi?.responsavel?.tipo === 'membro' && gabi?.estado === 'pendente', JSON.stringify(gabi));
+
+    const hugo = porId('c-passado-ha-dias');
+    s.ok('o Hugo (passado para a pessoa ha dois dias, ninguem pegou) volta para a IA', hugo?.responsavel?.id === 'ag-triagem' && hugo?.estado === 'ia', JSON.stringify(hugo));
+
     s.ok(
       'a Ana e o Beto (cliente esperando resposta) recebem uma resposta de verdade do agente',
       b.mensagens['c-sem-responsavel'] > 0 && b.mensagens['c-com-pessoa'] > 0,
@@ -151,10 +163,11 @@ process.exit(0);
       JSON.stringify(b.mensagens),
     );
     s.ok(
-      'quem nao foi reatribuido (Carla, Dani, o grupo, a Eva, a Fabi) nao recebe mensagem nenhuma',
-      ['c-sem-padrao-na-conexao', 'c-agente-desligado', 'c-grupo', 'c-ja-ia', 'c-aceito'].every((id) => b.mensagens[id] === 0),
+      'quem nao foi reatribuido (Carla, Dani, o grupo, a Eva, a Fabi, a Gabi) nao recebe mensagem nenhuma',
+      ['c-sem-padrao-na-conexao', 'c-agente-desligado', 'c-grupo', 'c-ja-ia', 'c-aceito', 'c-passado-agora'].every((id) => b.mensagens[id] === 0),
       JSON.stringify(b.mensagens),
     );
+    s.ok('o Hugo volta sem mensagem nova (a ultima fala ja era nossa)', b.mensagens['c-passado-ha-dias'] === 0, JSON.stringify(b.mensagens));
 
     const r2 = await rodar(rodarMigracao);
     const c = JSON.parse(r2.texto.trim().split('\n').pop());

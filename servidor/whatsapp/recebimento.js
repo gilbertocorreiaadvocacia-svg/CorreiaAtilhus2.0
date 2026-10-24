@@ -18,7 +18,7 @@ import { membrosQuePodemVer } from '../nucleo/auth.js';
 import { notificar } from '../ia/mencoes.js';
 import { agora, normalizar, normalizarTelefone, normalizarTelefoneDoWhatsApp, novoId } from '../nucleo/util.js';
 import { agendarResposta, agentePorPalavraChave, cancelarResposta } from '../ia/motor.js';
-import { escolherAgente } from '../ia/escolher-agente.js';
+import { escolherAgente, pessoaCuidandoAgora } from '../ia/escolher-agente.js';
 import { nomeNaAgenda } from './agenda.js';
 import { agendarFoto } from './fotos.js';
 import { SEM_IDENTIFICACAO, nomeEhProvisorio, podeTrocarNome } from './nomes.js';
@@ -362,31 +362,6 @@ function reiniciarConversa(contato, conexao) {
   return atualizado;
 }
 
-/*
- * Ha alguem da equipe atendendo esta conversa agora? Aceitou (ou assumiu) nas
- * ultimas 24 horas, ou escreveu nela — pela tela ou pelo celular — nesse
- * tempo. Pedido do escritorio em 24/10/2026: "caso algum numero mande
- * mensagem em ativos, pode direcionar para a IA tambem". Sem esta guarda, a
- * IA tomava de volta, a cada resposta do cliente, a conversa que alguem
- * acabou de assumir para atender pessoalmente. Conversa de Ativos parada
- * (a maioria e historico importado, com quem conectou o numero) vai para a IA.
- */
-const PESSOA_SEGURA_A_CONVERSA_MS = 24 * 60 * 60 * 1000;
-
-function pessoaAtendendoAgora(contato) {
-  if (!contato.aceitoPor) return false;
-  const limite = Date.now() - PESSOA_SEGURA_A_CONVERSA_MS;
-  if (contato.aceitoEm && new Date(contato.aceitoEm).getTime() > limite) return true;
-  const mensagens = mensagensDe(contato.id);
-  for (let i = mensagens.length - 1; i >= 0; i -= 1) {
-    const mensagem = mensagens[i];
-    if (mensagem.direcao === 'saida' && mensagem.autor?.tipo === 'membro') {
-      return new Date(mensagem.criadoEm).getTime() > limite;
-    }
-  }
-  return false;
-}
-
 /**
  * Processa uma mensagem que chegou. Devolve o contato e a mensagem gravada.
  */
@@ -645,15 +620,17 @@ export async function receberMensagem({
    * pendente com a pessoa (criarContato copia o padrao do numero), e o bloco
    * de palavra-chave acima de proposito nao passa por cima de pessoa.
    *
-   * Vale tambem para Ativos (mesmo dia, segundo pedido): fica com a pessoa
-   * so a conversa que alguem da equipe esta atendendo agora — ver
-   * pessoaAtendendoAgora, acima. Grupo nao tem agente. A escolha do agente
-   * (palavra-chave, padrao do numero, entrada da area, recepcao) esta em
-   * ia/escolher-agente.js.
+   * Vale tambem para Ativos (mesmo dia, segundo pedido: "caso algum numero
+   * mande mensagem em ativos, pode direcionar para a IA tambem"). Fica com a
+   * pessoa so a conversa de que alguem da equipe esta cuidando agora — sem
+   * isso a IA tomava de volta, a cada resposta do cliente, a conversa que
+   * alguem acabou de assumir. Os sinais e o prazo estao em
+   * pessoaCuidandoAgora; a escolha do agente, em escolherAgente (os dois em
+   * ia/escolher-agente.js). Grupo nao tem agente.
    */
   const responsavelAgora = 'responsavel' in mudancas ? mudancas.responsavel : contato.responsavel;
   const comAgenteLigado = responsavelAgora?.tipo === 'agente' && Boolean(achar('agentes', responsavelAgora.id)?.ativo);
-  if (!contato.grupo && !comAgenteLigado && !pessoaAtendendoAgora(contato)) {
+  if (!contato.grupo && !comAgenteLigado && !pessoaCuidandoAgora(contato)) {
     const escolha = escolherAgente({ workspaceId, contato, conexao, texto: mensagem.conteudo });
     if (escolha) {
       mudancas.responsavel = { tipo: 'agente', id: escolha.agente.id, nome: escolha.agente.nome };

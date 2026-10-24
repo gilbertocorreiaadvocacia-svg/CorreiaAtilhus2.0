@@ -20,6 +20,7 @@ import { testarIa } from './ia.js';
 import { testarHistorico } from './historico.js';
 import { testarCasos } from './casos.js';
 import { testarEncadeamento } from './encadeamento.js';
+import { testarPassagemDeVerdade } from './passagem-de-verdade.js';
 import { testarDocumentosRecebidos } from './documentos-recebidos.js';
 import { testarCreditosMes } from './creditos-mes.js';
 import { testarEduardaRoteamento } from './eduarda-roteamento.js';
@@ -290,6 +291,7 @@ async function principal() {
     suites.push(await testarIa(base, anthropic));
     /* Depois da IA: poe a chave de mentira de volta e tira no fim. */
     suites.push(await testarEncadeamento({ base, anthropic }));
+    suites.push(await testarPassagemDeVerdade({ base, anthropic, raiz: RAIZ }));
     suites.push(await testarDocumentosRecebidos({ base, anthropic }));
     suites.push(await testarCreditosMes({ base, anthropic }));
     /* Mesmo esquema do encadeamento: roteiro na Anthropic de mentira, chave posta e tirada. */

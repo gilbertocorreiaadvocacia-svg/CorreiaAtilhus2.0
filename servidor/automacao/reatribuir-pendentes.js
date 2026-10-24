@@ -1,7 +1,7 @@
 import { achar, atualizar, listar, mensagensDe, registrarLog } from '../nucleo/banco.js';
 import { emitir } from '../nucleo/eventos.js';
 import { agendarResposta } from '../ia/motor.js';
-import { escolherAgente } from '../ia/escolher-agente.js';
+import { escolherAgente, pessoaCuidandoAgora } from '../ia/escolher-agente.js';
 import { garantirTriagemNoEscritorioGeral, ligarNumerosDasAreas } from '../nucleo/agentes-por-escritorio.js';
 
 /**
@@ -11,9 +11,11 @@ import { garantirTriagemNoEscritorioGeral, ligarNumerosDasAreas } from '../nucle
  * mensagem vai para a IA, não vai para pendente").
  *
  * Escopo (decidido com o escritorio): TODA conversa pendente, de qualquer
- * origem — inclusive as que um agente tirou da IA de proposito
- * (desativar_ia, transferencia para pessoa). So nao mexe na que uma pessoa
- * ja ACEITOU (aceitoPor): ali ha alguem atendendo.
+ * origem. So nao mexe na que uma pessoa ja ACEITOU (aceitoPor), nem na que
+ * alguem da equipe esta cuidando agora (pessoaCuidandoAgora, em
+ * ia/escolher-agente.js) — entre elas a que um agente passou de proposito
+ * para uma pessoa nas ultimas 24 horas. Ate 24/10/2026 essa voltava para a
+ * IA em ate 10 minutos, antes de a pessoa conseguir abrir.
  *
  * Qual agente: ia/escolher-agente.js (palavra-chave sobre o historico
  * inteiro do cliente, padrao do numero, entrada da area, recepcao). Ate
@@ -31,7 +33,7 @@ import { garantirTriagemNoEscritorioGeral, ligarNumerosDasAreas } from '../nucle
 export function reatribuirPendentes() {
   let reativados = 0;
   for (const contato of listar('contatos', { estado: 'pendente' })) {
-    if (contato.grupo || contato.aceitoPor) continue;
+    if (contato.grupo || contato.aceitoPor || pessoaCuidandoAgora(contato)) continue;
     const conexao = achar('conexoes', contato.conexaoId);
 
     const textoDoCliente = mensagensDe(contato.id)

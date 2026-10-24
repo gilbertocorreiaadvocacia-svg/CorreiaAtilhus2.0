@@ -338,7 +338,14 @@ export function ferramentasDoAgente(agente, workspaceId) {
       },
     });
   }
-  if (tipos.has('agente') || tipos.has('membro') || tipos.has('responsavel')) {
+  /*
+   * Passar a conversa vale para TODO agente, cite o prompt @responsavel ou
+   * nao. Ate 24/10/2026 so quem citava ganhava a ferramenta, e o agente de
+   * pos-venda — cujo prompt diz "verifique com a equipe e transfira", em
+   * texto — avisava o cliente que ia passar a conversa e nao tinha como
+   * passar: o cliente ficava esperando alguem que nunca vinha.
+   */
+  {
     /* So os agentes que atendem a mesma area: a secretaria do previdenciario
        nao enxerga o especialista trabalhista. Agente sem area serve a todas. */
     const agentesPossiveis = porTipo('agente').filter((item) => {
