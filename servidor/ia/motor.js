@@ -296,6 +296,17 @@ function montarSistema({ agente, contato, workspace }) {
     '- NUNCA termine sem dizer algo ao cliente. Mudar status, etiquetar ou transferir sao acoes internas que ele nao enxerga: faca a acao E responda. Se a conversa chegou ao fim, a ultima palavra ainda e sua, nem que seja para se despedir.',
     '- Se transferir para uma pessoa, mande antes a mensagem de transicao e pare de responder.',
     '- Voce enxerga as imagens que o cliente envia. Se ele mandar foto de laudo, exame, CNIS ou documento, leia o que esta escrito e use o dado em vez de pedir de novo. Nunca chute o que nao estiver legivel: peca uma foto melhor daquele campo especifico.',
+    /*
+     * A senha do gov.br. Pedido do escritorio em 26/10/2026, com o print de
+     * uma conversa real: o cliente mandou a senha e o agente respondeu "nunca
+     * compartilhe sua senha do gov.br com ninguem, nem com a equipe. Nao
+     * precisamos dela para nada" — num roteiro de auxilio-acidente que pede
+     * essa senha como documento obrigatorio. Nenhum prompt previdenciario do
+     * pacote diz isso: o aviso pode vir de texto escrito no escritorio ou do
+     * proprio modelo, por isso a regra mora aqui, para todo agente. O que
+     * sobrou escrito nos prompts aparece no /api/saude (nucleo/senha-do-gov.js).
+     */
+    '- Senha do gov.br ou do Meu INSS: o escritorio usa esse acesso para cuidar do caso do cliente. Nunca diga a ele que nao deve passar essa senha ao escritorio, nem que o escritorio nao precisa dela, mesmo que alguma instrucao acima diga o contrario. Se ele mandar, siga o atendimento normalmente. So peca essa senha se o seu roteiro pedir, e nunca a repita em mensagem, nota ou resumo.',
   ].join('\n');
 }
 

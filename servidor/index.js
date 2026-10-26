@@ -17,6 +17,7 @@ import { deduplicarContatos } from './whatsapp/duplicados.js';
 import { contextoDaSessao, limparSessoesOrfas, migrarPapeis } from './nucleo/auth.js';
 import { migrarNomesDeAgentes } from './nucleo/migrar-agentes.js';
 import { aplicarRegrasInstitucionais } from './nucleo/migrar-regras-institucionais.js';
+import { tirarAvisoDaSenhaDoGov } from './nucleo/senha-do-gov.js';
 import { deduplicarVozes, processarVozes } from './nucleo/vozes-dos-agentes.js';
 import { processarBaseEStatus } from './nucleo/base-e-status.js';
 import { criarRoteador, lerCookies, lerCorpo, responderErro, responderJson, servirEstatico } from './nucleo/http.js';
@@ -149,6 +150,9 @@ if (regrasInstitucionais.acrescentados || regrasInstitucionais.corrigidos) {
     `Regras institucionais: ${regrasInstitucionais.acrescentados} agente(s) com o bloco novo, ${regrasInstitucionais.corrigidos} agente(s) com texto antigo corrigido.`,
   );
 }
+/* A senha do gov.br sai da regra do Civel nos agentes ja instalados (26/10/2026). */
+const avisosDaSenhaDoGov = tirarAvisoDaSenhaDoGov();
+if (avisosDaSenhaDoGov) console.log(`Senha do gov.br: aviso antigo tirado de ${avisosDaSenhaDoGov} agente(s).`);
 /* Beatriz destravada, nomes e pasta do Trabalhista limpos, "Agente 26" repetido fora (07/10/2026). */
 const reorganizacaoDeAgentes = migrarNomesDeAgentes();
 if (reorganizacaoDeAgentes.renomeados || reorganizacaoDeAgentes.removidos) {
@@ -299,7 +303,7 @@ rotas.get(
       /* Muda a cada entrega que mexe no atendimento. A imagem nao leva o .git
          (.dockerignore), e sem isto nao havia como saber, de fora, se o
          deploy da hospedagem pegou o codigo novo ou ficou no antigo. */
-      codigo: '2026-10-26.1',
+      codigo: '2026-10-26.2',
       agora: new Date().toISOString(),
       raiz: RAIZ,
       pid: process.pid,

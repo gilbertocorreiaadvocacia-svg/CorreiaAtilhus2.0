@@ -3,6 +3,7 @@ import { emitir } from '../nucleo/eventos.js';
 import { agendarResposta } from '../ia/motor.js';
 import { escolherAgente, pessoaCuidandoAgora } from '../ia/escolher-agente.js';
 import { comoEduardaPassaOTrabalhista, garantirTriagemNoEscritorioGeral, ligarNumerosDasAreas } from '../nucleo/agentes-por-escritorio.js';
+import { agentesComAvisoDaSenhaDoGov } from '../nucleo/senha-do-gov.js';
 
 /**
  * Toda conversa pendente volta para um agente de IA. Pedidos do escritorio:
@@ -96,6 +97,7 @@ function resumirEscritorios() {
       triagemGeralInstalada: Boolean(workspace.triagemGeralInstaladaEm),
       equipeTrabalhistaInstalada: Boolean(workspace.equipeTrabalhistaInstaladaEm),
       eduardaPassaTrabalhistaPara: comoEduardaPassaOTrabalhista(workspace.id),
+      avisoDaSenhaDoGov: agentesComAvisoDaSenhaDoGov(workspace.id),
       pendentes: contatos.filter((c) => c.estado === 'pendente' && !c.aceitoPor).length,
       naIa: contatos.filter((c) => c.responsavel?.tipo === 'agente' && c.estado !== 'arquivado').length,
     };

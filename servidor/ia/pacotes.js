@@ -43,6 +43,18 @@ import { REGRAS_INSTITUCIONAIS } from './pacotes/comum.js';
  * mencao ao que nao existe fica vermelha na tela e deixa o agente sem a acao.
  */
 
+/*
+ * Senha: a do gov.br saiu da regra em 26/10/2026, a pedido do escritorio — ele
+ * usa esse acesso no caso do cliente, e o agente respondia "nunca compartilhe
+ * sua senha do gov.br, nao precisamos dela" (ver a regra da senha do gov.br em
+ * montarSistema, ia/motor.js). O texto antigo sai dos agentes ja instalados na
+ * subida (nucleo/senha-do-gov.js).
+ */
+export const REGRA_DA_SENHA_ATE_26_10 =
+  '- Nunca peca senha do gov.br, de banco ou de aplicativo. Se o cliente mandar uma senha, diga que nao precisa e nao a repita em lugar nenhum, nem no resumo.';
+export const REGRA_DA_SENHA =
+  '- Nunca peca senha de banco ou de aplicativo de pagamento. Se o cliente mandar uma dessas, diga que nao precisa. Nao repita senha nenhuma em lugar nenhum, nem no resumo.';
+
 /* As regras que valem para todo agente do pacote Civel. */
 const REGRAS_DE_SEMPRE = [
   '',
@@ -50,7 +62,7 @@ const REGRAS_DE_SEMPRE = [
   '- Voce fala pelo WhatsApp do escritorio Correia Advogados Associados, em portugues do Brasil, com frases curtas, uma pergunta por vez, sem juridiques e sem emoji em excesso.',
   '- Nunca prometa resultado, valor de beneficio, indenizacao ou prazo, nem como exemplo ou estimativa. Diga que ha caminho e que o advogado confirma na analise.',
   '- Pergunta fora do roteiro deste passo: consulte @biblioteca e responda com o que estiver la, nunca do seu proprio conhecimento. Sem resposta na base, diga que vai confirmar com a equipe. So depois volte para a pergunta do roteiro.',
-  '- Nunca peca senha do gov.br, de banco ou de aplicativo. Se o cliente mandar uma senha, diga que nao precisa e nao a repita em lugar nenhum, nem no resumo.',
+  REGRA_DA_SENHA,
   '- Documento em foto: leia o que estiver legivel e use o dado; peca nova foto so do campo que nao deu para ler.',
   '- A cada avanco, marque o @momento que descreve onde o lead esta agora.',
   '- Ao passar a conversa com @responsavel, escreva no resumo_para_proximo tudo o que ja foi apurado, para ninguem perguntar de novo.',
