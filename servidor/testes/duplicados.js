@@ -74,6 +74,30 @@ inserirMensagem('c-com-55', { workspaceId: 'w1', direcao: 'entrada', tipo: 'text
 /* Contato sem par nenhum: nao pode ser tocado. */
 inserir('contatos', { id: 'c-unico', workspaceId: 'w1', conexaoId: 'conx-qrcode', telefone: '5581999990000', nome: 'Carla', criadoEm: '2026-01-01T10:00:00.000Z' });
 
+/* 26/10/2026: o nono digito. O celular sem o 9 (como o WhatsApp enderecava
+   conta antiga) e com o 9 sao a mesma pessoa. O antigo, do historico do
+   celular, tem mais mensagem; o novo e a conversa que anda agora, com a IA. */
+inserir('contatos', { id: 'c-sem-9', workspaceId: 'w1', conexaoId: 'conx-qrcode', telefone: '558197776666', nome: 'Eva', nomeOrigem: 'agenda', importado: true, estado: 'ativo', aceitoPor: 'mbr-x', responsavel: { tipo: 'membro', id: 'mbr-x', nome: 'Pessoa' }, criadoEm: '2026-01-01T10:00:00.000Z', ultimaMensagemEm: '2026-01-10T10:00:00.000Z' });
+inserirMensagem('c-sem-9', { workspaceId: 'w1', direcao: 'entrada', tipo: 'texto', conteudo: 'antiga 1', autor: { tipo: 'cliente' }, situacao: 'recebida' });
+inserirMensagem('c-sem-9', { workspaceId: 'w1', direcao: 'entrada', tipo: 'texto', conteudo: 'antiga 2', autor: { tipo: 'cliente' }, situacao: 'recebida' });
+inserir('contatos', { id: 'c-com-9', workspaceId: 'w1', conexaoId: 'conx-qrcode', telefone: '5581997776666', nome: '5581997776666', estado: 'ia', aceitoPor: null, responsavel: { tipo: 'agente', id: 'ag-1', nome: 'Eduarda' }, criadoEm: '2026-03-10T10:00:00.000Z', ultimaMensagemEm: '2026-03-10T10:00:00.000Z' });
+inserirMensagem('c-com-9', { workspaceId: 'w1', direcao: 'entrada', tipo: 'texto', conteudo: 'oi de novo', autor: { tipo: 'cliente' }, situacao: 'recebida' });
+
+/* Fixo (comeca com 3) e o celular 9 3333-...: numeros diferentes, ficam. */
+inserir('contatos', { id: 'c-fixo', workspaceId: 'w1', conexaoId: 'conx-qrcode', telefone: '558133334444', nome: 'Escritorio Fixo', criadoEm: '2026-01-01T10:00:00.000Z' });
+inserir('contatos', { id: 'c-celular-parecido', workspaceId: 'w1', conexaoId: 'conx-qrcode', telefone: '5581933334444', nome: 'Celular Parecido', criadoEm: '2026-01-01T10:00:00.000Z' });
+
+/* O @lid: a conversa do historico so com o codigo, e a do numero que ganhou o
+   mesmo codigo quando a pessoa escreveu. */
+inserir('contatos', { id: 'c-so-lid', workspaceId: 'w1', conexaoId: 'conx-qrcode', telefone: '', lid: '43260000000001@lid', nome: 'Fabio', nomeOrigem: 'agenda', importado: true, criadoEm: '2026-01-01T10:00:00.000Z', ultimaMensagemEm: '2026-01-02T10:00:00.000Z' });
+inserirMensagem('c-so-lid', { workspaceId: 'w1', direcao: 'entrada', tipo: 'texto', conteudo: 'historico 1', autor: { tipo: 'cliente' }, situacao: 'recebida' });
+inserirMensagem('c-so-lid', { workspaceId: 'w1', direcao: 'entrada', tipo: 'texto', conteudo: 'historico 2', autor: { tipo: 'cliente' }, situacao: 'recebida' });
+inserir('contatos', { id: 'c-numero-do-lid', workspaceId: 'w1', conexaoId: 'conx-qrcode', telefone: '5581966665555', lid: '43260000000001@lid', nome: 'Fabio', criadoEm: '2026-02-01T10:00:00.000Z', ultimaMensagemEm: '2026-02-01T10:00:00.000Z' });
+inserirMensagem('c-numero-do-lid', { workspaceId: 'w1', direcao: 'entrada', tipo: 'texto', conteudo: 'oi', autor: { tipo: 'cliente' }, situacao: 'recebida' });
+
+/* So o codigo, sem par: fica. Mesmo nome de outra pessoa nao junta. */
+inserir('contatos', { id: 'c-outro-lid', workspaceId: 'w1', conexaoId: 'conx-qrcode', telefone: '', lid: '43260000000002@lid', nome: 'Carla', nomeOrigem: 'agenda', criadoEm: '2026-01-01T10:00:00.000Z' });
+
 /* Mesmo numero, workspace DIFERENTE: nao e duplicado entre escritorios. */
 inserir('contatos', { id: 'c-w2-a', workspaceId: 'w2', conexaoId: 'conx-w2', telefone: '5581977770000', nome: 'Ana em outro escritorio', criadoEm: '2026-01-01T10:00:00.000Z' });
 
@@ -86,12 +110,13 @@ await encerrarBanco();
     fs.writeFileSync(
       script,
       `import { iniciarBanco, listar, mensagensDe, encerrarBanco } from ${JSON.stringify(urlDoBanco)};
-import { deduplicarContatos } from ${JSON.stringify(urlDoModulo)};
+import { deduplicarContatos, retratoDasConversas } from ${JSON.stringify(urlDoModulo)};
 iniciarBanco();
 const resultado = deduplicarContatos();
 const contatos = listar('contatos');
 const mensagensPorContato = Object.fromEntries(contatos.map((c) => [c.id, mensagensDe(c.id).length]));
-console.log(JSON.stringify({ resultado, contatos, mensagensPorContato }));
+const retrato = retratoDasConversas('w1');
+console.log(JSON.stringify({ resultado, contatos, mensagensPorContato, retrato }));
 await encerrarBanco();
 process.exit(0);
 `,
@@ -108,8 +133,8 @@ process.exit(0);
     const j1 = JSON.parse(r1.texto.trim().split('\n').pop());
     const porId = (lista, id) => lista.find((c) => c.id === id);
 
-    s.ok('funde os dois pares de w1 (4 contatos -> 2 removidos)', j1.resultado.fundidos === 2, JSON.stringify(j1.resultado));
-    s.ok('move a mensagem do contato removido para o sobrevivente', j1.resultado.mensagensMovidas === 1, JSON.stringify(j1.resultado));
+    s.ok('funde os quatro pares de w1', j1.resultado.fundidos === 4, JSON.stringify(j1.resultado));
+    s.ok('move as mensagens dos removidos para os sobreviventes', j1.resultado.mensagensMovidas === 3, JSON.stringify(j1.resultado));
 
     s.ok('o contato mais fraco (menos mensagem) foi removido', !porId(j1.contatos, 'c-fraco'), 'c-fraco ainda existe');
     const forte = porId(j1.contatos, 'c-forte');
@@ -128,12 +153,50 @@ process.exit(0);
 
     s.ok('o contato sem par nenhum nao foi tocado', porId(j1.contatos, 'c-unico')?.nome === 'Carla', JSON.stringify(porId(j1.contatos, 'c-unico')));
     s.ok('o mesmo telefone em outro workspace nao foi fundido', porId(j1.contatos, 'c-w2-a')?.nome === 'Ana em outro escritorio', JSON.stringify(porId(j1.contatos, 'c-w2-a')));
-    s.ok('total de contatos depois (6 - 2 fundidos)', j1.contatos.length === 4, j1.contatos.length);
+    s.ok('total de contatos depois (13 - 4 fundidos)', j1.contatos.length === 9, j1.contatos.length);
+
+    const eva = porId(j1.contatos, 'c-sem-9');
+    s.ok('o celular com e sem o nono digito vira uma conversa so', eva && !porId(j1.contatos, 'c-com-9') && j1.mensagensPorContato['c-sem-9'] === 3, JSON.stringify({ eva, msgs: j1.mensagensPorContato['c-sem-9'] }));
+    s.ok(
+      'e quem atende e o da conversa mais recente (a IA), nao o da importacao antiga',
+      eva?.responsavel?.tipo === 'agente' && eva?.estado === 'ia' && !eva?.aceitoPor,
+      JSON.stringify({ responsavel: eva?.responsavel, estado: eva?.estado, aceitoPor: eva?.aceitoPor }),
+    );
+    s.ok('o fixo e o celular parecido nao se juntam', Boolean(porId(j1.contatos, 'c-fixo') && porId(j1.contatos, 'c-celular-parecido')));
+    const fabio = porId(j1.contatos, 'c-so-lid');
+    s.ok(
+      'a conversa so com o codigo @lid e a do numero com o mesmo codigo viram uma, com o telefone',
+      fabio && !porId(j1.contatos, 'c-numero-do-lid') && fabio.telefone === '5581966665555' && j1.mensagensPorContato['c-so-lid'] === 3,
+      JSON.stringify({ fabio, msgs: j1.mensagensPorContato['c-so-lid'] }),
+    );
+    s.ok('o @lid sem par e o mesmo nome de outra pessoa nao juntam ninguem', Boolean(porId(j1.contatos, 'c-outro-lid')) && Boolean(porId(j1.contatos, 'c-unico')));
+    s.ok(
+      'o retrato da aba Ativos conta sem nome de ninguem',
+      j1.retrato.total === 8 && j1.retrato.soComCodigoDoWhatsapp === 1 && j1.retrato.mesmoNome === 2,
+      JSON.stringify(j1.retrato),
+    );
 
     const r2 = await aplicar();
     s.ok('a segunda aplicacao roda sem erro', r2.codigo === 0, r2.texto.slice(-500));
     const j2 = JSON.parse(r2.texto.trim().split('\n').pop());
     s.ok('rodar de novo nao funde mais nada (idempotente)', j2.resultado.fundidos === 0, JSON.stringify(j2.resultado));
+
+    /* A origem: a mensagem que chega sem o 9 acha a conversa que ja existe. */
+    const buscar = path.join(pasta, 'buscar.mjs');
+    fs.writeFileSync(
+      buscar,
+      `import { iniciarBanco, encerrarBanco } from ${JSON.stringify(urlDoBanco)};
+import { acharOuCriarContato } from ${JSON.stringify(pathToFileURL(path.join(raiz, 'servidor/whatsapp/recebimento.js')).href)};
+iniciarBanco();
+const achado = acharOuCriarContato({ workspaceId: 'w1', conexao: { id: 'conx-qrcode', workspaceId: 'w1', tipo: 'qrcode' }, telefone: '558199990000', doWhatsApp: true });
+console.log(JSON.stringify({ id: achado.contato.id, novo: achado.novo }));
+await encerrarBanco();
+process.exit(0);
+`,
+    );
+    const r3 = await rodar(buscar);
+    const j3 = JSON.parse(r3.texto.trim().split('\n').pop() || '{}');
+    s.ok('a mensagem que chega sem o nono digito cai na conversa que ja existe', j3.id === 'c-unico' && j3.novo === false, r3.texto.slice(-400));
   } finally {
     fs.rmSync(pasta, { recursive: true, force: true });
   }

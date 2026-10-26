@@ -16,7 +16,7 @@ import { registrarTempoResposta } from '../nucleo/tempos-resposta.js';
 import { CANAIS, canalDaConexao } from './canais.js';
 import { membrosQuePodemVer } from '../nucleo/auth.js';
 import { notificar } from '../ia/mencoes.js';
-import { agora, normalizar, normalizarTelefone, normalizarTelefoneDoWhatsApp, novoId } from '../nucleo/util.js';
+import { agora, chaveDoTelefone, normalizar, normalizarTelefone, normalizarTelefoneDoWhatsApp, novoId } from '../nucleo/util.js';
 import { agendarResposta, agentePorPalavraChave, cancelarResposta } from '../ia/motor.js';
 import { escolherAgente, pessoaCuidandoAgora } from '../ia/escolher-agente.js';
 import { nomeNaAgenda } from './agenda.js';
@@ -92,7 +92,7 @@ export function acharOuCriarContato({
   const soCodigo = Boolean(lid) && numero === String(lid).split('@')[0];
   let contato = soCodigo
     ? null
-    : listar('contatos', { workspaceId }).find((c) => c.telefone === numero && c.conexaoId === conexao.id);
+    : listar('contatos', { workspaceId }).find((c) => c.conexaoId === conexao.id && chaveDoTelefone(c.telefone) === chaveDoTelefone(numero));
   if (contato) {
     costurarLid(contato, lid);
     return { contato, novo: false };

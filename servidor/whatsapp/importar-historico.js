@@ -1,5 +1,5 @@
 import { atualizar, inserir, inserirMensagem, listar, mensagensDe, registrarLog } from '../nucleo/banco.js';
-import { agora, normalizarTelefoneDoWhatsApp, novoId } from '../nucleo/util.js';
+import { agora, chaveDoTelefone, normalizarTelefoneDoWhatsApp, novoId } from '../nucleo/util.js';
 import { extrairMensagem } from './drivers/qrcode.js';
 import { mapaDaAgenda } from './agenda.js';
 import { agendarFoto } from './fotos.js';
@@ -285,7 +285,7 @@ export async function importarHistorico({
     const escolhido = escolherNome({ jid, telefone, chat, registros, agenda, daEvolution });
 
     let contato = listar('contatos', { workspaceId }).find((c) =>
-      telefone ? c.telefone === telefone : c.lid === chaveLid,
+      telefone ? chaveDoTelefone(c.telefone) === chaveDoTelefone(telefone) : c.lid === chaveLid,
     ) || null;
     const jaExistia = Boolean(contato);
 

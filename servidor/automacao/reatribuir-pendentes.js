@@ -6,6 +6,7 @@ import { PASTA_PADRAO, comoEduardaPassaOTrabalhista, garantirTriagemNoEscritorio
 import { resumoDosTemplates } from '../nucleo/diagnostico.js';
 import { templatesDoPacoteGanhamOArquivo } from '../ia/pacotes.js';
 import { agentesComAvisoDaSenhaDoGov } from '../nucleo/senha-do-gov.js';
+import { retratoDasConversas } from '../whatsapp/duplicados.js';
 
 /**
  * Toda conversa pendente volta para um agente de IA. Pedidos do escritorio:
@@ -105,6 +106,7 @@ function resumirEscritorios() {
       eduardaPassaTrabalhistaPara: comoEduardaPassaOTrabalhista(workspace.id),
       avisoDaSenhaDoGov: agentesComAvisoDaSenhaDoGov(workspace.id),
       templates: resumoDosTemplates(workspace.id),
+      conversas: retratoDasConversas(workspace.id),
       pendentes: contatos.filter((c) => c.estado === 'pendente' && !c.aceitoPor).length,
       naIa: contatos.filter((c) => c.responsavel?.tipo === 'agente' && c.estado !== 'arquivado').length,
     };

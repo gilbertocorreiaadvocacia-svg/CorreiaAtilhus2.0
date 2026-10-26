@@ -1,5 +1,6 @@
 import { atualizar, listar, mensagensDe, moverMensagens, registrarLog, remover } from '../nucleo/banco.js';
 import { umTipoDeCaso } from '../nucleo/casos.js';
+import { chaveDoTelefone, normalizar } from '../nucleo/util.js';
 import { nomeEhProvisorio } from './nomes.js';
 
 /**
@@ -23,16 +24,15 @@ import { nomeEhProvisorio } from './nomes.js';
  * (motivo 1). Roda no boot, idempotente — sem duplicado, nao muda nada.
  */
 
-const soDigitos = (t) => String(t || '').replace(/\D+/g, '');
-
-/** Duas strings de telefone sao a mesma pessoa real: iguais, ou uma e a outra com o 55 do Brasil na frente. */
-function mesmoTelefone(a, b) {
-  const x = soDigitos(a);
-  const y = soDigitos(b);
-  if (!x || !y) return false;
-  if (x === y) return true;
-  return x === `55${y}` || y === `55${x}`;
-}
+/*
+ * Em 26/10/2026 ("mais de 1410 ativos, parece que esta duplicado") a mesma
+ * pessoa passou a ser reconhecida tambem pelo nono digito do celular (ver
+ * chaveDoTelefone, em nucleo/util.js) e pelo codigo @lid do WhatsApp: a
+ * importacao do historico do celular cria uma conversa por endereco, e a
+ * mesma conta pode vir pelo numero e pelo @lid. O mesmo @lid e a mesma conta,
+ * sem duvida nenhuma. Nome igual NAO junta ninguem: duas pessoas podem ter o
+ * mesmo nome, e juntar errado mistura a conversa de dois clientes.
+ */
 
 /** Quanto este contato "pesa" ao decidir quem fica: mais mensagens, mais antigo. */
 function pesoDoContato(contato) {
@@ -68,7 +68,18 @@ function fundirContato(canonico, duplicado) {
   if (duplicado.ultimaMensagemEm && (!canonico.ultimaMensagemEm || duplicado.ultimaMensagemEm > canonico.ultimaMensagemEm)) {
     mudancas.ultimaMensagemEm = duplicado.ultimaMensagemEm;
     mudancas.previa = duplicado.previa;
+    /* A conversa que esta andando agora e a do duplicado: quem atende fica
+       quem atende ali (a IA no lead novo, nao a pessoa da importacao antiga). */
+    for (const campo of ['responsavel', 'estado', 'aceitoPor', 'aceitoEm', 'atribuidoEm', 'passagens', 'ultimaEntradaEm', 'ultimaSaidaEm']) {
+      if (duplicado[campo] !== undefined) mudancas[campo] = duplicado[campo];
+    }
   }
+  /* O telefone e o @lid sao o endereco da conversa: o que um tem e o outro
+     nao, fica. Sem isso, juntar a conversa do @lid na do numero (ou o
+     contrario) deixava a sobrevivente sem como responder. */
+  if (!canonico.telefone && duplicado.telefone) mudancas.telefone = duplicado.telefone;
+  if (!canonico.lid && duplicado.lid) mudancas.lid = duplicado.lid;
+  if (duplicado.naoLidas) mudancas.naoLidas = (canonico.naoLidas || 0) + duplicado.naoLidas;
 
   const movidas = moverMensagens(duplicado.id, canonico.id);
   if (Object.keys(mudancas).length) {
@@ -95,55 +106,82 @@ export function deduplicarContatos() {
     const contatos = listar('contatos', { workspaceId: workspace.id });
 
     /*
-     * Indice antes de comparar par a par: milhares de contatos por
-     * workspace tornavam o duplo loop original (todo par contra todo par)
-     * caro demais para rodar em TODO boot (achado em 19/10/2026).
+     * Indice, e nao comparacao par a par: milhares de contatos por workspace
+     * tornavam o duplo loop original caro demais para rodar em TODO boot
+     * (achado em 19/10/2026).
      *
-     * Os ULTIMOS 10 digitos do telefone sao iguais com ou sem o 55 do
-     * Brasil na frente — exatamente a ambiguidade que mesmoTelefone trata.
-     * Dois contatos que mesmoTelefone consideraria o mesmo SEMPRE caem no
-     * mesmo grupo aqui: ou o telefone e identico (mesmos 10 ultimos
-     * digitos), ou um e o outro com 55 na frente (mesmos 10 ultimos
-     * digitos tambem). Um grupo com 1 contato nao tem par possivel e sai
-     * do caminho sem nenhuma comparacao — so grupos com 2+ (raro, depois
-     * da primeira limpeza) pagam a comparacao par a par de verdade.
+     * Uma chave por endereco (o telefone na forma de chaveDoTelefone, e o
+     * @lid): contatos que dividem qualquer chave sao a mesma pessoa, inclusive
+     * em cadeia — o numero sem o 9, o numero com o 9 e o @lid da mesma conta
+     * viram um so. Grupo e conversa de rede social ficam de fora.
      */
-    const porChave = new Map();
+    const pai = new Map(contatos.map((c) => [c.id, c.id]));
+    const raiz = (id) => {
+      while (pai.get(id) !== id) id = pai.get(id);
+      return id;
+    };
+    const dono = new Map();
     for (const contato of contatos) {
-      if (!contato.telefone) continue;
-      const chave = soDigitos(contato.telefone).slice(-10);
-      if (!chave) continue;
-      const grupo = porChave.get(chave);
-      if (grupo) grupo.push(contato);
-      else porChave.set(chave, [contato]);
+      if (contato.grupo || contato.idCanal) continue;
+      const chaves = [chaveDoTelefone(contato.telefone) && `tel:${chaveDoTelefone(contato.telefone)}`, contato.lid && `lid:${contato.lid}`].filter(Boolean);
+      for (const chave of chaves) {
+        if (!dono.has(chave)) dono.set(chave, contato.id);
+        else pai.set(raiz(contato.id), raiz(dono.get(chave)));
+      }
     }
 
-    for (const grupo of porChave.values()) {
-      if (grupo.length < 2) continue;
-      const usados = new Set();
+    const grupos = new Map();
+    for (const contato of contatos) {
+      const r = raiz(contato.id);
+      if (!grupos.has(r)) grupos.set(r, []);
+      grupos.get(r).push(contato);
+    }
 
-      for (let i = 0; i < grupo.length; i += 1) {
-        const atual = grupo[i];
-        if (usados.has(atual.id)) continue;
-
-        const pares = [atual];
-        for (let j = i + 1; j < grupo.length; j += 1) {
-          const outro = grupo[j];
-          if (usados.has(outro.id)) continue;
-          if (mesmoTelefone(atual.telefone, outro.telefone)) pares.push(outro);
-        }
-        if (pares.length < 2) continue;
-
-        const canonico = pares.reduce((melhor, candidato) => maisPesado(melhor, candidato));
-        for (const contato of pares) {
-          usados.add(contato.id);
-          if (contato.id === canonico.id) continue;
-          mensagensMovidas += fundirContato(canonico, contato);
-          fundidos += 1;
-        }
+    for (const pares of grupos.values()) {
+      if (pares.length < 2) continue;
+      const canonico = pares.reduce((melhor, candidato) => maisPesado(melhor, candidato));
+      /* Do mais antigo para o mais recente: quem atende (fundirContato) fica
+         o da conversa mais recente de todas. */
+      const resto = pares.filter((c) => c.id !== canonico.id).sort((a, b) => String(a.ultimaMensagemEm || '').localeCompare(String(b.ultimaMensagemEm || '')));
+      for (const contato of resto) {
+        mensagensMovidas += fundirContato(canonico, contato);
+        fundidos += 1;
       }
     }
   }
 
   return { fundidos, mensagensMovidas };
+}
+
+const TRINTA_DIAS = 30 * 24 * 60 * 60 * 1000;
+
+/**
+ * De onde vem a aba Ativos, em numeros, para conferir de fora (/api/saude).
+ * Pedido do escritorio em 26/10/2026: "mais de 1410 ativos, parece que esta
+ * duplicado". So contagens, sem nome de ninguem: a rota de saude e aberta.
+ *
+ * `mesmoNome` conta as conversas cujo nome aparece em outra conversa do
+ * escritorio — e um indicio de pessoa repetida, nao prova: ninguem e juntado
+ * por nome (ver o comentario do topo).
+ */
+export function retratoDasConversas(workspaceId) {
+  const contatos = listar('contatos', { workspaceId }).filter((c) => !c.grupo && !c.idCanal);
+  const ativos = contatos.filter((c) => c.estado !== 'arquivado' && c.responsavel?.tipo !== 'agente' && c.aceitoPor);
+  const limite = Date.now() - TRINTA_DIAS;
+
+  const porNome = new Map();
+  for (const contato of contatos) {
+    const nome = normalizar(contato.nome);
+    if (!nome || nomeEhProvisorio(contato) || !/[a-z]/.test(nome)) continue;
+    porNome.set(nome, (porNome.get(nome) || 0) + 1);
+  }
+
+  return {
+    total: contatos.length,
+    ativos: ativos.length,
+    ativosDoHistoricoDoCelular: ativos.filter((c) => c.importado).length,
+    ativosSemMensagemHa30Dias: ativos.filter((c) => !c.ultimaMensagemEm || Date.parse(c.ultimaMensagemEm) < limite).length,
+    soComCodigoDoWhatsapp: contatos.filter((c) => c.lid && !c.telefone).length,
+    mesmoNome: contatos.filter((c) => (porNome.get(normalizar(c.nome)) || 0) > 1).length,
+  };
 }

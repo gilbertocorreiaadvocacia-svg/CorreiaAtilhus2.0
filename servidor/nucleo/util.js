@@ -98,6 +98,23 @@ export function normalizarTelefoneDoWhatsApp(entrada = '') {
   return String(entrada).replace(/\D+/g, '');
 }
 
+/**
+ * A chave para comparar telefones: as formas do mesmo numero dao a mesma
+ * chave. Cobre o 55 que falta (numero digitado sem o pais) e o nono digito do
+ * celular brasileiro — o WhatsApp ainda enderecava muita conta antiga sem ele
+ * (55 81 9999-8888), quem cadastra digita com ele (55 81 99999-8888), e a mesma
+ * pessoa virava duas conversas. Pedido do escritorio em 26/10/2026: "mais de
+ * 1410 ativos, parece que esta duplicado". So celular ganha o 9: os 8 digitos
+ * que comecam de 6 a 9; o fixo comeca de 2 a 5 e fica como esta.
+ */
+export function chaveDoTelefone(entrada = '') {
+  let digitos = String(entrada).replace(/\D+/g, '');
+  if (!digitos) return '';
+  if (digitos.length === 10 || digitos.length === 11) digitos = `55${digitos}`;
+  if (digitos.length === 12 && digitos.startsWith('55') && /[6-9]/.test(digitos[4])) digitos = `${digitos.slice(0, 4)}9${digitos.slice(4)}`;
+  return digitos;
+}
+
 export function formatarTelefone(numero = '') {
   const d = String(numero).replace(/\D+/g, '');
   if (d.length < 12) return numero;
