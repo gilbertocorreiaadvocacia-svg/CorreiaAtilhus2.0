@@ -18,6 +18,7 @@ import { contextoDaSessao, limparSessoesOrfas, migrarPapeis } from './nucleo/aut
 import { migrarNomesDeAgentes } from './nucleo/migrar-agentes.js';
 import { aplicarRegrasInstitucionais } from './nucleo/migrar-regras-institucionais.js';
 import { tirarAvisoDaSenhaDoGov } from './nucleo/senha-do-gov.js';
+import { templatesDoPacoteGanhamOArquivo } from './ia/pacotes.js';
 import { deduplicarVozes, processarVozes } from './nucleo/vozes-dos-agentes.js';
 import { processarBaseEStatus } from './nucleo/base-e-status.js';
 import { criarRoteador, lerCookies, lerCorpo, responderErro, responderJson, servirEstatico } from './nucleo/http.js';
@@ -167,6 +168,11 @@ if (reorganizacaoDeAgentes.renomeados || reorganizacaoDeAgentes.removidos) {
    Eduarda retomada numa passagem parada precisa enxergar a equipe trabalhista. */
 const numerosDoGeral = garantirTriagemNoEscritorioGeral();
 if (numerosDoGeral) console.log(`Escritorio geral: ${numerosDoGeral} numero(s) ligado(s) a Eduarda.`);
+/* Template de pacote que ainda e o texto de exemplo ganha o video que o
+   escritorio ja tem — o @bemvindo, o do @boas-vindas (26/10/2026). Depois da
+   instalacao acima, que cria o que falta so com o texto. */
+const templatesPreenchidos = templatesDoPacoteGanhamOArquivo();
+if (templatesPreenchidos) console.log(`Templates: ${templatesPreenchidos} ganharam o video que o escritorio ja tinha.`);
 /* Vozes dos agentes: cadastra as duas vozes padrao e liga a regra do canal de
    voz em quem atende cliente e ainda nao tinha (achado de 08/10/2026). So
    falta a chave da OpenAI em Integracoes para o audio sair de fato. */
@@ -303,7 +309,7 @@ rotas.get(
       /* Muda a cada entrega que mexe no atendimento. A imagem nao leva o .git
          (.dockerignore), e sem isto nao havia como saber, de fora, se o
          deploy da hospedagem pegou o codigo novo ou ficou no antigo. */
-      codigo: '2026-10-26.2',
+      codigo: '2026-10-26.3',
       agora: new Date().toISOString(),
       raiz: RAIZ,
       pid: process.pid,

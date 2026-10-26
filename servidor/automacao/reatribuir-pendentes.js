@@ -2,7 +2,9 @@ import { achar, atualizar, listar, mensagensDe, registrarLog } from '../nucleo/b
 import { emitir } from '../nucleo/eventos.js';
 import { agendarResposta } from '../ia/motor.js';
 import { escolherAgente, pessoaCuidandoAgora } from '../ia/escolher-agente.js';
-import { comoEduardaPassaOTrabalhista, garantirTriagemNoEscritorioGeral, ligarNumerosDasAreas } from '../nucleo/agentes-por-escritorio.js';
+import { PASTA_PADRAO, comoEduardaPassaOTrabalhista, garantirTriagemNoEscritorioGeral, ligarNumerosDasAreas } from '../nucleo/agentes-por-escritorio.js';
+import { resumoDosTemplates } from '../nucleo/diagnostico.js';
+import { templatesDoPacoteGanhamOArquivo } from '../ia/pacotes.js';
 import { agentesComAvisoDaSenhaDoGov } from '../nucleo/senha-do-gov.js';
 
 /**
@@ -87,17 +89,22 @@ function resumirEscritorios() {
     const numeros = listar('conexoes', { workspaceId: workspace.id }).filter((c) => c.tipo !== 'simulador');
     const escolha = escolherAgente({ workspaceId: workspace.id });
     const contatos = listar('contatos', { workspaceId: workspace.id }).filter((c) => !c.grupo);
+    const ligados = listar('agentes', { workspaceId: workspace.id }).filter((a) => a.ativo);
+    const pastasLigadas = {};
+    for (const agente of ligados) pastasLigadas[agente.pasta || PASTA_PADRAO] = (pastasLigadas[agente.pasta || PASTA_PADRAO] || 0) + 1;
     return {
       area: workspace.area || null,
       numeros: numeros.length,
       numerosComPessoaPadrao: numeros.filter((c) => c.responsavelPadrao && c.responsavelPadrao.tipo !== 'agente').length,
       numerosSemPadrao: numeros.filter((c) => !c.responsavelPadrao).length,
-      agentesLigados: listar('agentes', { workspaceId: workspace.id }).filter((a) => a.ativo).length,
+      agentesLigados: ligados.length,
+      pastasLigadas,
       agenteDeEntrada: escolha ? `${escolha.agente.nome} (${escolha.motivo})` : null,
       triagemGeralInstalada: Boolean(workspace.triagemGeralInstaladaEm),
       equipeTrabalhistaInstalada: Boolean(workspace.equipeTrabalhistaInstaladaEm),
       eduardaPassaTrabalhistaPara: comoEduardaPassaOTrabalhista(workspace.id),
       avisoDaSenhaDoGov: agentesComAvisoDaSenhaDoGov(workspace.id),
+      templates: resumoDosTemplates(workspace.id),
       pendentes: contatos.filter((c) => c.estado === 'pendente' && !c.aceitoPor).length,
       naIa: contatos.filter((c) => c.responsavel?.tipo === 'agente' && c.estado !== 'arquivado').length,
     };
@@ -113,6 +120,7 @@ function resumirEscritorios() {
  */
 function varrerFila() {
   etapa('triagemNoEscritorioGeral', () => garantirTriagemNoEscritorioGeral());
+  etapa('videosDosTemplates', () => templatesDoPacoteGanhamOArquivo());
   etapa('numerosDasAreas', () => ligarNumerosDasAreas().length);
   etapa('pendentes', () => reatribuirPendentes().reativados);
   try {

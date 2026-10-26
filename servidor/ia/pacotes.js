@@ -1,4 +1,5 @@
-import { inserir, listar } from '../nucleo/banco.js';
+import { atualizar, inserir, listar } from '../nucleo/banco.js';
+import { caminhoDaMidia } from '../nucleo/midia.js';
 import { normalizar, novoId } from '../nucleo/util.js';
 import { AUXILIO_ACIDENTE } from './pacotes/auxilio-acidente.js';
 import { avaliadorDoEscritorio } from './pacotes/avaliacao.js';
@@ -402,4 +403,38 @@ export function prepararEscritorio(workspaceId, pacote) {
     criados.templates += 1;
   }
   return criados;
+}
+
+/* O arquivo do template ainda esta no servidor? Endereco de fora (o S3 da
+   LiderHub, por exemplo) nao da para conferir daqui: conta como existente. */
+export const arquivoDoTemplateSumiu = (midia) => String(midia?.url || '').startsWith('/midia/') && !caminhoDaMidia(midia.url);
+export const arquivoDoTemplateExiste = (midia) => Boolean(midia?.url) && !arquivoDoTemplateSumiu(midia);
+
+/* @bemvindo e o @boas-vindas sao o mesmo template: o escritorio o renomeou
+   (ver ferramentas/consertar-mencoes.js). */
+const MESMO_TEMPLATE = { bemvindo: ['bemvindo', 'boas-vindas'] };
+
+/**
+ * Template de pacote que ainda e o texto de exemplo (TEMPLATES, acima) e nao
+ * tem arquivo ganha o template de verdade do escritorio, texto e video junto:
+ * o mesmo atalho em outro escritorio (o daqui primeiro) ou, para @bemvindo, o
+ * @boas-vindas. Achado em 26/10/2026, procurando o video de boas-vindas: os
+ * agentes que entraram no escritorio geral mandavam o texto de exemplo, porque
+ * a instalacao cria so com o texto o template que falta (prepararEscritorio).
+ * Template que alguem ja editou fica como esta. Roda na subida e na varredura.
+ */
+export function templatesDoPacoteGanhamOArquivo() {
+  const todos = listar('templates');
+  let preenchidos = 0;
+  for (const template of todos) {
+    const exemplo = TEMPLATES[template.atalho]?.[1];
+    if (!exemplo || template.conteudo !== exemplo || arquivoDoTemplateExiste(template.midia)) continue;
+    const atalhos = MESMO_TEMPLATE[template.atalho] || [template.atalho];
+    const fontes = todos.filter((t) => t.id !== template.id && atalhos.includes(normalizar(t.atalho)) && arquivoDoTemplateExiste(t.midia));
+    const fonte = fontes.find((t) => t.workspaceId === template.workspaceId) || fontes[0];
+    if (!fonte) continue;
+    atualizar('templates', template.id, { conteudo: fonte.conteudo, midia: fonte.midia });
+    preenchidos += 1;
+  }
+  return preenchidos;
 }

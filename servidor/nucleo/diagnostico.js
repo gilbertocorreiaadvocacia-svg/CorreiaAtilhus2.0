@@ -2,6 +2,7 @@ import { listar, registrarLog } from './banco.js';
 import { listarBackups } from './backup.js';
 import { normalizar } from './util.js';
 import { analisarPrompt, notificar } from '../ia/mencoes.js';
+import { arquivoDoTemplateSumiu } from '../ia/pacotes.js';
 import { chavesDoWorkspace } from '../ia/provedores.js';
 import { motorDeTranscricao } from '../ia/audio.js';
 
@@ -171,15 +172,32 @@ export function diagnosticar(workspaceId) {
    */
   const templates = listar('templates', { workspaceId });
   const semVideo = [];
+  const arquivoSumiu = [];
   for (const agente of ligados) {
     const { mencoes } = analisarPrompt(agente.prompt || '', workspaceId);
     for (const mencao of mencoes) {
       if (mencao.tipo !== 'template') continue;
       const template = templates.find((t) => t.id === mencao.id);
-      if (!template || template.midia) continue;
+      if (!template) continue;
+      if (template.midia) {
+        if (arquivoDoTemplateSumiu(template.midia)) arquivoSumiu.push(`${agente.nome} → @${template.atalho} ("${template.nome}")`);
+        continue;
+      }
       if (!/video/.test(normalizar(template.conteudo || ''))) continue;
       semVideo.push(`${agente.nome} → @${template.atalho} ("${template.nome}")`);
     }
+  }
+  /* O template diz que tem o video, mas o arquivo nao esta mais no servidor.
+     Ate 26/10/2026, excluir uma conversa que recebeu o video apagava o
+     arquivo do template junto (ver excluirConversa, em rotas/atendimento.js). */
+  if (arquivoSumiu.length) {
+    anotar(
+      'alta',
+      'template-com-arquivo-sumido',
+      'O vídeo de um template sumiu do servidor',
+      `${[...new Set(arquivoSumiu)].join('; ')}. O template continua dizendo que tem o arquivo, mas ele nao esta mais no servidor, e o cliente fica sem o video. Anexe o arquivo de novo em Configuracoes > Templates.`,
+      '#/configuracoes/templates',
+    );
   }
   if (semVideo.length) {
     anotar(
@@ -484,4 +502,26 @@ export function avisarModoDegradado(contato, agente) {
       contato.id,
     );
   }
+}
+
+/**
+ * Os templates do escritorio e o que cada um leva, para conferir de fora
+ * (/api/saude): o tipo do arquivo, "texto" sem arquivo, ou "arquivo sumiu"; e
+ * se algum agente ligado manda. Sem os de follow-up (fup_). Achado em
+ * 26/10/2026: daqui nao se via se o video de boas-vindas existia.
+ */
+export function resumoDosTemplates(workspaceId) {
+  const usados = new Set();
+  for (const agente of listar('agentes', { workspaceId }).filter((a) => a.ativo)) {
+    for (const mencao of analisarPrompt(agente.prompt || '', workspaceId).mencoes) {
+      if (mencao.tipo === 'template') usados.add(mencao.id);
+    }
+  }
+  const resumo = {};
+  for (const template of listar('templates', { workspaceId })) {
+    if (!template.atalho || /^fup_/.test(template.atalho)) continue;
+    const leva = !template.midia ? 'texto' : arquivoDoTemplateSumiu(template.midia) ? 'arquivo sumiu' : template.midia.tipo || 'arquivo';
+    resumo[template.atalho] = usados.has(template.id) ? `${leva}, agentes usam` : leva;
+  }
+  return resumo;
 }

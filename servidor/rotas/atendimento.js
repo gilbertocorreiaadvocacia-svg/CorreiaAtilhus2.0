@@ -155,8 +155,14 @@ export function excluirConversa(ctx, contato) {
       /* arquivo ja nao estava la */
     }
   }
+  /* O video de um template (boas-vindas, proposta) e UM arquivo so: a mensagem
+     enviada aponta para ele, nao para uma copia (ia/mencoes.js, follow-up).
+     Apagar a conversa apagava o video do template para todo mundo — achado em
+     26/10/2026, procurando o video de boas-vindas. Fica o arquivo que veio de
+     template, o de agora ou o de antes de trocarem o video. */
+  const deTemplate = new Set(listar('templates').map((t) => t.midia?.url).filter(Boolean));
   for (const mensagem of mensagensDe(contato.id)) {
-    if (mensagem.midia?.url) apagarMidia(mensagem.midia.url);
+    if (mensagem.midia?.url && !mensagem.templateId && !deTemplate.has(mensagem.midia.url)) apagarMidia(mensagem.midia.url);
   }
 
   apagarMensagens(contato.id);
