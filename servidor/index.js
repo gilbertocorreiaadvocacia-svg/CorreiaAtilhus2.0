@@ -317,7 +317,7 @@ rotas.get(
       /* Muda a cada entrega que mexe no atendimento. A imagem nao leva o .git
          (.dockerignore), e sem isto nao havia como saber, de fora, se o
          deploy da hospedagem pegou o codigo novo ou ficou no antigo. */
-      codigo: '2026-10-26.9',
+      codigo: '2026-10-26.10',
       agora: new Date().toISOString(),
       raiz: RAIZ,
       pid: process.pid,
