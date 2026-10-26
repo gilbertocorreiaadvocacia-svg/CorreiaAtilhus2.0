@@ -575,6 +575,7 @@ export function registrarAtendimento(rotas) {
         mudancas.estado = responsavel.id === ctx.membro?.id ? 'ativo' : 'pendente';
         mudancas.aceitoPor = responsavel.id === ctx.membro?.id ? ctx.membro.id : null;
         if (mudancas.aceitoPor) mudancas.aceitoEm = agora();
+        else mudancas.atribuidoEm = agora();
         cancelarResposta(contato.id);
         if (responsavel.id !== ctx.membro?.id) {
           notificar(ctx.workspaceId, responsavel.id, 'atribuicao', 'Conversa atribuida a voce', `${contato.nome} foi transferido para voce.`, contato.id);
@@ -834,11 +835,18 @@ export function registrarAtendimento(rotas) {
               tipo === 'agente'
                 ? achar('agentes', id)?.nome
                 : achar('usuarios', achar('membros', id)?.usuarioId)?.nome;
+            /* Igual a escolher o responsavel na conversa (PATCH, acima): quem se
+               escolhe assume; para outra pessoa, a conversa espera ela aceitar,
+               sem a IA tomar de volta (atribuidoEm, ver pessoaCuidandoAgora). */
+            const eu = tipo === 'membro' && id === ctx.membro?.id;
             atualizar('contatos', contato.id, {
               responsavel: { tipo, id, nome: nome || 'Responsavel' },
-              estado: tipo === 'agente' ? 'ia' : 'pendente',
-              aceitoPor: null,
+              estado: tipo === 'agente' ? 'ia' : eu ? 'ativo' : 'pendente',
+              aceitoPor: eu ? id : null,
+              ...(eu ? { aceitoEm: agora() } : {}),
+              ...(tipo === 'membro' && !eu ? { atribuidoEm: agora() } : {}),
             });
+            if (tipo === 'membro') cancelarResposta(contato.id);
           }
           afetados += 1;
           break;

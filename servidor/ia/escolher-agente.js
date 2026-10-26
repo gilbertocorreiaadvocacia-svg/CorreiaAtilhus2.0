@@ -67,7 +67,10 @@ const PESSOA_SEGURA_A_CONVERSA_MS = 24 * 60 * 60 * 1000;
  *    para ela) — sem isto a varredura a devolvia para a IA em ate 10 minutos,
  *    antes de a pessoa conseguir abrir, e o agente voltava a repetir que ia
  *    passar (pedido do escritorio em 24/10/2026: a passagem tem que acontecer);
- *  - a pessoa escreveu na conversa, pela tela ou pelo celular.
+ *  - a pessoa escreveu na conversa, pela tela ou pelo celular;
+ *  - alguem da equipe deu a conversa para ela (atribuidoEm) — sem isto a
+ *    varredura a devolvia para a IA antes de ela aceitar. Pedido de
+ *    26/10/2026: "quando a Leticia tenta assumir a conversa ela nao consegue".
  * Lead que so nasceu com a pessoa por ser o padrao do numero nao tem nenhum
  * desses sinais, e vai para a IA.
  */
@@ -77,6 +80,7 @@ export function pessoaCuidandoAgora(contato) {
   const recente = (quando) => Boolean(quando) && new Date(quando).getTime() > limite;
 
   if (contato.aceitoPor && recente(contato.aceitoEm)) return true;
+  if (contato.responsavel?.tipo === 'membro' && recente(contato.atribuidoEm)) return true;
   const passagem = (contato.passagens || []).at(-1);
   if (passagem?.paraTipo === 'membro' && passagem.paraId === contato.responsavel?.id && recente(passagem.em)) return true;
 

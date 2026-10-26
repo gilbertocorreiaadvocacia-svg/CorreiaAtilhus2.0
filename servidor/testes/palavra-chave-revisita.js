@@ -54,13 +54,15 @@ export async function testarPalavraChaveRevisita({ base }) {
     JSON.stringify({ responsavel: depois1.dados?.responsavel, estado: depois1.dados?.estado }),
   );
 
-  /* ---------------- Caso 2: pessoa de responsavel, mas ninguem aceitou ---------------- */
+  /* ---------------- Caso 2: alguem deu a conversa a uma pessoa, que ainda nao aceitou ---------------- */
 
   /* Ate 23/10/2026 a palavra-chave nunca passava por cima de uma pessoa. Em
      24/10/2026 o escritorio pediu o contrario ("todo contato que manda
-     mensagem vai para a IA, não vai para pendente"): o numero dos anuncios
-     tinha uma pessoa como padrao, e todo lead ficava pendente com ela sem
-     resposta. So quem a pessoa ACEITOU fica com ela (caso 2b). */
+     mensagem vai para a IA, não vai para pendente"): o lead que nasce
+     pendente com a pessoa do padrao do numero vai para a IA (ver
+     toda-mensagem-vai-para-ia.js). Mas a conversa que ALGUEM DA EQUIPE deu a
+     uma pessoa fica com ela por 24 horas, esperando o aceite (26/10/2026:
+     "quando a Leticia tenta assumir a conversa ela nao consegue"). */
   const tel2 = numeroNovo();
   const abertura2 = await mandar(tel2, 'oi, bom dia');
   const id2 = abertura2.dados?.contatoId;
@@ -75,8 +77,8 @@ export async function testarPalavraChaveRevisita({ base }) {
   await mandar(tel2, 'quero saber sobre zzzpalavrachaveteste-a');
   const depois2 = await api.get(`/api/contatos/${id2}`);
   s.ok(
-    'a pessoa ainda nao aceitou: o cliente escreve e a conversa vai para o especialista da palavra-chave',
-    depois2.dados?.responsavel?.id === especialistaA.id && depois2.dados?.estado === 'ia',
+    'dada a ela por alguem da equipe: o cliente escreve com a palavra-chave e a conversa continua com a pessoa',
+    depois2.dados?.responsavel?.id === 'mbr-inexistente-teste' && depois2.dados?.estado === 'pendente',
     JSON.stringify({ responsavel: depois2.dados?.responsavel, estado: depois2.dados?.estado }),
   );
 

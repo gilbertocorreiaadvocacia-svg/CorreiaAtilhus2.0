@@ -546,6 +546,11 @@ async function rodarAgente(contatoId, passo, { corrigirPassagem = false } = {}) 
       }
       if (resposta.texto) falas.push(resposta.texto);
     } else {
+      /* Alguem da equipe assumiu a conversa enquanto o modelo pensava? Pedido de
+         26/10/2026: "quando a Leticia tenta assumir a conversa ela nao
+         consegue" — a resposta que ja estava sendo escrita saia mesmo assim, e
+         uma passagem feita nela levava a conversa de volta para a IA. */
+      const assumida = () => achar('contatos', contatoId)?.responsavel?.tipo === 'membro';
       const rodarVoltas = async (limite) => {
         for (let volta = 0; volta < limite; volta += 1) {
           const inicioDaVolta = Date.now();
@@ -568,6 +573,10 @@ async function rodarAgente(contatoId, passo, { corrigirPassagem = false } = {}) 
 
           if (resposta.texto) falas.push(resposta.texto);
 
+          if (assumida()) {
+            falas.length = 0;
+            return;
+          }
           if (!resposta.chamadas?.length) return;
 
           mensagens.push({
