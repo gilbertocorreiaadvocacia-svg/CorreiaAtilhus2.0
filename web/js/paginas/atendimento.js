@@ -2336,6 +2336,32 @@ export async function paginaAtendimento({
       }
     };
 
+    /*
+     * Trocar o nome do contato aqui mesmo. Pedido do escritorio em 26/10/2026:
+     * o servidor ja aceitava o nome digitado (e ele passa a valer mais que o
+     * da agenda do celular, ver whatsapp/nomes.js), mas a conversa nao tinha
+     * onde escrever.
+     */
+    const editarNome = () => {
+      const entrada = entradaTexto(contato.nome || '', { placeholder: 'Nome do contato', 'aria-label': 'Nome do contato', maxlength: 80 });
+      modal({
+        titulo: 'Nome do contato',
+        corpo: el('div', {}, [
+          campo('Nome', entrada, 'Muda só aqui no sistema: o WhatsApp do cliente continua como está. A agenda do celular não passa mais por cima deste nome.'),
+        ]),
+        confirmar: 'Salvar nome',
+        aoConfirmar: async () => {
+          const nome = entrada.value.trim();
+          if (!nome) throw new Error('Escreva o nome do contato.');
+          if (nome === contato.nome) return;
+          await salvar({ nome });
+          aviso('Nome salvo.', 'sucesso');
+        },
+      });
+      entrada.focus();
+      entrada.select();
+    };
+
     const pessoa = el('div', { class: 'painel-pessoa' }, [
       rostoQueAmplia(contato, avatar(contato, 84, marcaDoAvatar(contato))),
       el('div', { class: 'painel-pessoa-nome', texto: contato.nome }),
@@ -2343,11 +2369,10 @@ export async function paginaAtendimento({
         String(contato.telefone || '').startsWith('55') ? el('span', { class: 'bandeira-brasil', 'aria-hidden': 'true' }) : null,
         el('span', { texto: identificacaoDo(contato) }),
       ]),
-      oQueCopiar
-        ? el('div', { class: 'painel-pessoa-acoes' }, [
-            el('button', { type: 'button', class: 'acao-pilula', aoClick: copiar }, [icone('copiar', 14), oQueCopiar.rotulo]),
-          ])
-        : null,
+      el('div', { class: 'painel-pessoa-acoes' }, [
+        el('button', { type: 'button', class: 'acao-pilula', aoClick: editarNome }, [icone('contrato', 14), 'Editar nome']),
+        oQueCopiar ? el('button', { type: 'button', class: 'acao-pilula', aoClick: copiar }, [icone('copiar', 14), oQueCopiar.rotulo]) : null,
+      ]),
     ]);
 
     /*
