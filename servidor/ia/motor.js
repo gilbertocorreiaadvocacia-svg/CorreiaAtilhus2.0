@@ -11,6 +11,7 @@ import { sintetizar, vozDisponivel } from './audio.js';
 import { membrosQuePodemVer } from '../nucleo/auth.js';
 import { analisarPrompt, executarFerramenta, ferramentasDoAgente, notificar, sortearResponsavel } from './mencoes.js';
 import { conversar, modeloDe, provedorDisponivel, responderPorRegras } from './provedores.js';
+import { ehPdf, lerPdfsNovos } from './leitura-pdf.js';
 
 const MAX_VOLTAS = 6;
 const HISTORICO_MAXIMO = 40;
@@ -234,7 +235,7 @@ function montarSistema({ agente, contato, workspace }) {
     variaveis || '- nenhum ainda',
     ...(faltam.length ? ['', `FALTA COLETAR antes de avancar: ${faltam.join(', ')}`] : []),
     '',
-    'DOCUMENTOS JA RECEBIDOS NESTA CONVERSA (nunca peca de novo um que ja esta aqui; so as ultimas imagens aparecem com o conteudo legivel mais abaixo — as mais antigas voce ve so pelo nome e pela data, mas elas EXISTEM e foram recebidas):',
+    'DOCUMENTOS JA RECEBIDOS NESTA CONVERSA (nunca peca de novo um que ja esta aqui; so as ultimas imagens aparecem com o conteudo legivel mais abaixo — as mais antigas voce ve so pelo nome e pela data, mas elas EXISTEM e foram recebidas; o PDF aparece na conversa com o que esta escrito nele):',
     documentos.length ? documentos.join('\n') : '- nenhum documento recebido ainda',
     /*
      * Quem recebe a conversa se apresenta quando o cliente foi avisado da
@@ -295,7 +296,7 @@ function montarSistema({ agente, contato, workspace }) {
      */
     '- NUNCA termine sem dizer algo ao cliente. Mudar status, etiquetar ou transferir sao acoes internas que ele nao enxerga: faca a acao E responda. Se a conversa chegou ao fim, a ultima palavra ainda e sua, nem que seja para se despedir.',
     '- Se transferir para uma pessoa, mande antes a mensagem de transicao e pare de responder.',
-    '- Voce enxerga as imagens que o cliente envia. Se ele mandar foto de laudo, exame, CNIS ou documento, leia o que esta escrito e use o dado em vez de pedir de novo. Nunca chute o que nao estiver legivel: peca uma foto melhor daquele campo especifico.',
+    '- Voce enxerga as imagens que o cliente envia, e le os PDFs: o que esta escrito em cada PDF aparece logo abaixo do nome do arquivo. Se ele mandar laudo, exame, CNIS ou documento, em foto ou PDF, use o dado em vez de pedir de novo. Nunca chute o que nao estiver legivel: peca uma foto melhor daquele campo especifico.',
     /*
      * A senha do gov.br. Pedido do escritorio em 26/10/2026, com o print de
      * uma conversa real: o cliente mandou a senha e o agente respondeu "nunca
@@ -332,7 +333,18 @@ function montarHistorico(contato, { comImagens = false, fechamento = null } = {}
   const historico = [];
   for (const mensagem of mensagens) {
     const rotulo = mensagem.midia ? `[${mensagem.tipo}: ${mensagem.midia.nome || 'arquivo'}]` : '';
-    const texto = mensagem.conteudo || rotulo;
+    let texto = mensagem.conteudo || rotulo;
+    /* O PDF do cliente vem com o que ele diz, lido uma vez (ia/leitura-pdf.js). */
+    if (mensagem.direcao === 'entrada' && ehPdf(mensagem.midia) && (mensagem.leitura || mensagem.leituraErro)) {
+      const legenda = mensagem.conteudo && mensagem.conteudo !== mensagem.midia.nome ? `${mensagem.conteudo}
+` : '';
+      texto = mensagem.leitura
+        ? `${legenda}${rotulo}
+O QUE ESTA ESCRITO NESTE PDF (lido pelo sistema):
+${mensagem.leitura}`
+        : `${legenda}${rotulo}
+(o sistema nao conseguiu ler este PDF: ${mensagem.leituraErro}. Se precisar do que esta nele, peca fotos das paginas.)`;
+    }
 
     if (mensagem.direcao === 'entrada') {
       const imagem = idsComImagem.includes(mensagem.id) ? lerImagem(mensagem.midia) : null;
@@ -476,6 +488,9 @@ async function rodarAgente(contatoId, passo, { corrigirPassagem = false } = {}) 
        ser oferecida, entao o modelo segue a instrucao no vazio. A conversa
        passa a registrar isso uma vez, para quem ler depois entender. */
     avisarMencaoInvalida(contato, agente, analisarPrompt(agente.prompt || '', contato.workspaceId).invalidas);
+    /* O PDF que o cliente mandou e lido uma vez, antes da resposta, e fica
+       gravado na mensagem (ia/leitura-pdf.js). */
+    if (usaModelo && modelo.visao !== false) await lerPdfsNovos({ contato, agente });
     const mensagens = montarHistorico(contato, {
       comImagens: usaModelo && modelo.visao !== false,
       fechamento: corrigirPassagem ? PASSAGEM_FICOU_PARADA : null,

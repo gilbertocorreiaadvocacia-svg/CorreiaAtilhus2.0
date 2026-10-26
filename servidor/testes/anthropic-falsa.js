@@ -147,6 +147,8 @@ export function subirAnthropicFalsa(porta) {
         destinos:
           (corpo?.tools || []).find((t) => t.name === 'transferir_conversa')?.input_schema?.properties?.destino?.enum || null,
         ultimaMensagem: JSON.stringify(corpo?.messages?.[corpo.messages.length - 1] ?? null).slice(0, 4000),
+        /* A conversa inteira, para quem precisa ver o que veio antes da ultima. */
+        mensagens: JSON.stringify(corpo?.messages ?? []).slice(0, 20000),
       };
 
       /* Agente que disparou sozinho recebe um sucesso simples e vai embora sem

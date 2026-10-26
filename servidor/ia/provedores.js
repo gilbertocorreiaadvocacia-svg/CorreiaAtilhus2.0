@@ -153,7 +153,9 @@ export function provedorDisponivel(modeloId, workspaceId) {
   return Boolean(chaves[modelo.provedor]);
 }
 
-export async function conversar({ modeloId, workspaceId, sistema, mensagens, ferramentas = [] }) {
+/* `aceitaCorte`: a leitura de um documento longo (ia/leitura-pdf.js) fica com o
+   que deu para ler, em vez de virar erro como a resposta ao cliente. */
+export async function conversar({ modeloId, workspaceId, sistema, mensagens, ferramentas = [], aceitaCorte = false }) {
   const modelo = modeloDe(modeloId);
   const chaves = chavesDoWorkspace(workspaceId);
 
@@ -173,7 +175,7 @@ export async function conversar({ modeloId, workspaceId, sistema, mensagens, fer
     return { texto: null, chamadas: [], semProvedor: true };
   }
 
-  conferirSeTerminou(resposta);
+  if (!aceitaCorte || resposta.parada !== 'max_tokens') conferirSeTerminou(resposta);
   return resposta;
 }
 
@@ -264,15 +266,19 @@ function paraAnthropic(mensagem) {
   if (mensagem.papel === 'assistente' && mensagem.bruto) {
     return { role: 'assistant', content: mensagem.bruto };
   }
-  if (mensagem.imagens?.length) {
+  if (mensagem.imagens?.length || mensagem.documentos?.length) {
     return {
       role: 'user',
       content: [
-        ...mensagem.imagens.map((imagem) => ({
+        ...(mensagem.imagens || []).map((imagem) => ({
           type: 'image',
           source: { type: 'base64', media_type: imagem.mime, data: imagem.base64 },
         })),
-        { type: 'text', text: mensagem.texto || 'Leia esta imagem.' },
+        ...(mensagem.documentos || []).map((documento) => ({
+          type: 'document',
+          source: { type: 'base64', media_type: 'application/pdf', data: documento.base64 },
+        })),
+        { type: 'text', text: mensagem.texto || 'Leia este anexo.' },
       ],
     };
   }
@@ -301,14 +307,18 @@ async function conversarOpenai({ modelo, chave, sistema, mensagens, ferramentas 
         }));
       }
       lista.push(item);
-    } else if (mensagem.imagens?.length) {
+    } else if (mensagem.imagens?.length || mensagem.documentos?.length) {
       lista.push({
         role: 'user',
         content: [
-          { type: 'text', text: mensagem.texto || 'Leia esta imagem.' },
-          ...mensagem.imagens.map((imagem) => ({
+          { type: 'text', text: mensagem.texto || 'Leia este anexo.' },
+          ...(mensagem.imagens || []).map((imagem) => ({
             type: 'image_url',
             image_url: { url: `data:${imagem.mime};base64,${imagem.base64}` },
+          })),
+          ...(mensagem.documentos || []).map((documento) => ({
+            type: 'file',
+            file: { filename: documento.nome || 'documento.pdf', file_data: `data:application/pdf;base64,${documento.base64}` },
           })),
         ],
       });

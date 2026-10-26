@@ -169,6 +169,7 @@ export const CUSTO = {
   audioPorMinuto: 120,
   transcricaoAudioPorMinuto: 6,
   transcricaoImagem: 4,
+  leituraDocumento: 12,
   mencaoLeve: 9,
   mencaoBiblioteca: 11.9,
   mencaoContrato: 13.1,
