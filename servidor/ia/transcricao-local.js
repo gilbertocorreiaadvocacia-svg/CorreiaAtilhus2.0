@@ -22,7 +22,7 @@ const AQUI = path.dirname(fileURLToPath(import.meta.url));
 const RAIZ = path.resolve(AQUI, '..', '..');
 
 /** Onde os modelos ficam. Pasta fora do git: sao 600 MB de binario. */
-const PASTA_MODELOS = process.env.CORREIA_MODELOS_DIR || path.join(RAIZ, 'modelos');
+export const PASTA_MODELOS = process.env.CORREIA_MODELOS_DIR || path.join(RAIZ, 'modelos');
 
 /*
  * Qual modelo usar.
@@ -204,6 +204,11 @@ function filtroWhisperExiste() {
     filtroLembrado = false;
   }
   return filtroLembrado;
+}
+
+/** O motor roda aqui e so falta o modelo? E quando a hospedagem o baixa (ia/modelo-de-voz.js). */
+export function faltaSoOModelo() {
+  return ligado() && Boolean(acharFfmpeg()) && !acharModelo() && (filtroWhisperExiste() || Boolean(acharWhisperCli()));
 }
 
 /** Descricao do motor para a tela de Integracoes e para o diagnostico. */

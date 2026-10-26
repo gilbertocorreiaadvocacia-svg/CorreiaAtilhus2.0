@@ -19,6 +19,8 @@ import { migrarNomesDeAgentes } from './nucleo/migrar-agentes.js';
 import { aplicarRegrasInstitucionais } from './nucleo/migrar-regras-institucionais.js';
 import { tirarAvisoDaSenhaDoGov } from './nucleo/senha-do-gov.js';
 import { templatesDoPacoteGanhamOArquivo } from './ia/pacotes.js';
+import { garantirModeloDeVoz, situacaoDoModeloDeVoz } from './ia/modelo-de-voz.js';
+import { motorLocal } from './ia/transcricao-local.js';
 import { deduplicarVozes, processarVozes } from './nucleo/vozes-dos-agentes.js';
 import { processarBaseEStatus } from './nucleo/base-e-status.js';
 import { criarRoteador, lerCookies, lerCorpo, responderErro, responderJson, servirEstatico } from './nucleo/http.js';
@@ -309,7 +311,7 @@ rotas.get(
       /* Muda a cada entrega que mexe no atendimento. A imagem nao leva o .git
          (.dockerignore), e sem isto nao havia como saber, de fora, se o
          deploy da hospedagem pegou o codigo novo ou ficou no antigo. */
-      codigo: '2026-10-26.5',
+      codigo: '2026-10-26.6',
       agora: new Date().toISOString(),
       raiz: RAIZ,
       pid: process.pid,
@@ -340,6 +342,9 @@ rotas.get(
          pendentes.js): quando rodou, o que cada etapa fez ou o erro dela, e
          por escritorio so contagens — nenhum nome de cliente. */
       varredura: situacaoDaVarredura(),
+      /* O audio do cliente e transcrito aqui? ffmpeg, whisper e o modelo, e o
+         download do modelo na hospedagem (ia/modelo-de-voz.js). */
+      transcricao: { ...motorLocal(), modeloDeVoz: situacaoDoModeloDeVoz() },
     };
   },
   { publica: true },
@@ -625,6 +630,9 @@ servidor.listen(PORTA, HOST, () => {
   /* Toda conversa pendente volta para o agente padrao da conexao — ela so
      fala quando a pessoa escrever de novo (ver reatribuir-pendentes.js). */
   iniciarReatribuicaoDePendentes(INTERVALO_REATRIBUICAO);
+  /* Na hospedagem, o modelo de voz que falta e baixado uma vez, em segundo
+     plano: sem ele o audio do cliente nao e transcrito (26/10/2026). */
+  garantirModeloDeVoz().catch((erro) => console.error('[transcricao] o modelo de voz nao baixou:', erro));
   /* Os contratos enviados: consulta a ZapSign ate saber que foi assinado. */
   iniciarAcompanhamento();
   /* Assinado, o contrato vai para o Atilhus Juri; o que falhar fica na fila. */

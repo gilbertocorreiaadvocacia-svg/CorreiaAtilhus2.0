@@ -84,6 +84,7 @@ import { testarDeduplicarContatos } from './duplicados.js';
 import { testarVoz } from './voz.js';
 import { testarTranscricaoDeAudio } from './transcricao-audio.js';
 import { testarTranscricaoLocal } from './transcricao-local.js';
+import { testarModeloDeVoz } from './modelo-de-voz.js';
 import { testarDoisFatores } from './doisfatores.js';
 import { testarDeduplicarVozes, testarVozDosAgentes } from './voz-dos-agentes.js';
 import { testarReorganizarAgentes } from './reorganizar-agentes.js';
@@ -311,6 +312,7 @@ async function principal() {
     suites.push(await testarVoz({ base, anthropic, openai }));
     suites.push(await testarTranscricaoDeAudio({ base, openai }));
     suites.push(await testarTranscricaoLocal());
+    suites.push(await testarModeloDeVoz());
     suites.push(await testarDoisFatores({ base }));
     /* Cria workspaces novos: depois de quem conta agentes e etiquetas da origem. */
     suites.push(await testarWorkspacesPorArea({ base }));
