@@ -394,3 +394,53 @@ export async function importarHistorico({
 
   return relato;
 }
+
+const TRINTA_DIAS = 30 * 24 * 60 * 60 * 1000;
+/* O que ele aprovou foi a arrumacao do que existia em 26/10/2026: historico
+   importado depois nao e concluido sozinho. */
+const ARRUMACAO_ATE = '2026-10-27T03:00:00.000Z';
+
+/**
+ * A arrumacao de Ativos, uma vez por escritorio.
+ *
+ * Pedido do escritorio em 26/10/2026: "o sistema tem mais de 1410 ativos,
+ * parece que esta duplicado". Nao era duplicado: 1408 eram as conversas do
+ * historico do celular, que entram em Ativos (ver o topo deste arquivo) e
+ * sem o telefone, so com o codigo do WhatsApp. Aprovado por ele ("pode
+ * fazer, nao desorganize, que nao ocorra regressao"): concluir as do
+ * historico que estao em Ativos sem mensagem ha mais de 30 dias.
+ *
+ * Concluir aqui e o mesmo que o "Concluir" em massa da tela: so muda a aba.
+ * Nada e apagado, nada e enviado ao cliente, nem pedido de avaliacao, e se o
+ * cliente escrever a conversa reabre sozinha (ver receberMensagem). Fica fora
+ * o que nao veio do historico, o que esta com a IA, grupo e rede social.
+ *
+ * UMA vez por escritorio (historicoParadoConcluidoEm): rodar em toda subida
+ * concluiria, com o tempo, conversa que ninguem decidiu concluir.
+ */
+export function concluirHistoricoParado({ agora = Date.now() } = {}) {
+  let concluidas = 0;
+  for (const workspace of listar('workspaces')) {
+    if (workspace.historicoParadoConcluidoEm) continue;
+    let doEscritorio = 0;
+    for (const contato of listar('contatos', { workspaceId: workspace.id })) {
+      if (!contato.importado || contato.grupo || contato.idCanal || String(contato.criadoEm || '') >= ARRUMACAO_ATE) continue;
+      if (contato.estado === 'arquivado' || contato.responsavel?.tipo === 'agente' || !contato.aceitoPor) continue;
+      if (contato.ultimaMensagemEm && Date.parse(contato.ultimaMensagemEm) >= agora - TRINTA_DIAS) continue;
+      atualizar('contatos', contato.id, { estado: 'arquivado' });
+      registrarLog(
+        workspace.id,
+        contato.id,
+        'arquivo',
+        'Concluida na arrumacao de Ativos: conversa do historico do celular sem mensagem ha mais de 30 dias. Reabre sozinha se o cliente escrever.',
+      );
+      doEscritorio += 1;
+    }
+    if (doEscritorio) {
+      registrarLog(workspace.id, null, 'massa', `Arrumacao de Ativos: ${doEscritorio} conversas do historico do celular, sem mensagem ha mais de 30 dias, concluidas`);
+    }
+    atualizar('workspaces', workspace.id, { historicoParadoConcluidoEm: new Date(agora).toISOString() });
+    concluidas += doEscritorio;
+  }
+  return concluidas;
+}

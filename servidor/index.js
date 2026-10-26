@@ -14,6 +14,7 @@ import { migrarTiposDeCaso } from './nucleo/casos.js';
 import { migrarCanaisDeOrigem } from './nucleo/origens.js';
 import { migrarSemIdentificacaoParaNumero } from './whatsapp/migrar-nomes.js';
 import { deduplicarContatos } from './whatsapp/duplicados.js';
+import { concluirHistoricoParado } from './whatsapp/importar-historico.js';
 import { contextoDaSessao, limparSessoesOrfas, migrarPapeis } from './nucleo/auth.js';
 import { migrarNomesDeAgentes } from './nucleo/migrar-agentes.js';
 import { aplicarRegrasInstitucionais } from './nucleo/migrar-regras-institucionais.js';
@@ -96,6 +97,11 @@ const contatosFundidos = deduplicarContatos();
 if (contatosFundidos.fundidos) {
   console.log(`Contatos duplicados: ${contatosFundidos.fundidos} fundido(s), ${contatosFundidos.mensagensMovidas} mensagem(ns) movida(s).`);
 }
+/* A arrumacao de Ativos aprovada em 26/10/2026, uma vez: o historico do
+   celular parado ha mais de 30 dias vai para Concluidos. Depois da fusao
+   acima, para concluir ja a conversa inteira. */
+const historicoConcluido = concluirHistoricoParado();
+if (historicoConcluido) console.log(`Ativos: ${historicoConcluido} conversa(s) antiga(s) do historico do celular concluida(s).`);
 /* O agente de avaliacao do atendimento, uma vez em cada escritorio. */
 const avaliadores = garantirAvaliacaoNosEscritorios();
 if (avaliadores) console.log(`Avaliacao do atendimento: agente instalado em ${avaliadores} escritorio(s).`);
@@ -311,7 +317,7 @@ rotas.get(
       /* Muda a cada entrega que mexe no atendimento. A imagem nao leva o .git
          (.dockerignore), e sem isto nao havia como saber, de fora, se o
          deploy da hospedagem pegou o codigo novo ou ficou no antigo. */
-      codigo: '2026-10-26.7',
+      codigo: '2026-10-26.8',
       agora: new Date().toISOString(),
       raiz: RAIZ,
       pid: process.pid,
