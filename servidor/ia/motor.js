@@ -699,15 +699,20 @@ export function retomarRespostasPendentes() {
  * Depois da ultima fala do cliente, o agente que ainda e o responsavel avisou
  * que ia passar a conversa adiante — e nada mais aconteceu: se a passagem
  * tivesse saido, o responsavel seria outro. Pedido do escritorio em
- * 24/10/2026: ao republicar, essas conversas seguem sozinhas. So nas ultimas
- * 48 horas, como respostaNaoSaiu.
+ * 24/10/2026: ao republicar, essas conversas seguem sozinhas. Por 7 dias, e
+ * nao 48 horas como respostaNaoSaiu: a correcao foi ao ar dias depois do
+ * pedido, e ha conversa parada no aviso desde 23/10. Se alguem da equipe
+ * respondeu depois do aviso, pela tela ou pelo celular, a conversa esta com
+ * gente e fica como esta.
  */
+const RETOMA_PASSAGEM_POR_MS = 7 * 24 * 60 * 60 * 1000;
+
 function passagemFicouParada(contato, agente) {
   const falas = mensagensDe(contato.id).filter((m) => !m.nota && m.direcao !== 'interna');
   const depoisDoCliente = [];
   for (let i = falas.length - 1; i >= 0 && falas[i].direcao === 'saida'; i -= 1) depoisDoCliente.push(falas[i]);
-  if (!depoisDoCliente.length) return false;
-  if (Date.now() - new Date(depoisDoCliente[0].criadoEm).getTime() > RETOMA_FALHA_POR_MS) return false;
+  if (!depoisDoCliente.length || depoisDoCliente.some((m) => m.autor?.tipo === 'membro')) return false;
+  if (Date.now() - new Date(depoisDoCliente[0].criadoEm).getTime() > RETOMA_PASSAGEM_POR_MS) return false;
   return depoisDoCliente.some(
     (m) => m.situacao !== 'erro' && m.autor?.tipo === 'agente' && m.autor.id === agente.id && prometePassagem(m.conteudo),
   );

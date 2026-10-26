@@ -216,8 +216,9 @@ export function garantirAvaliacaoNosEscritorios() {
  * agentes, contra 8 do Trabalhista e 4 do Civel na ultima contagem).
  *
  * E, tambem uma vez, a equipe trabalhista (EQUIPE_TRABALHISTA_NO_GERAL, em
- * ia/pacotes.js), com a Eduarda passando o trabalhista para ela em vez de
- * para uma pessoa (eduardaPassaTrabalhistaParaAgente, abaixo). Achado em
+ * ia/pacotes.js), no estado da Eduarda, com ela passando o trabalhista para a
+ * equipe em vez de para uma pessoa enquanto a equipe estiver ligada
+ * (trabalhistaDaEduardaSegueAEquipe, abaixo). Achado em
  * producao em 24/10/2026: a Eduarda dizia "Isso quem cuida e a nossa equipe
  * trabalhista, ja vou te encaminhar", passava para o Administrador, a
  * varredura devolvia a conversa para ela e o cliente ficava sem ninguem —
@@ -241,10 +242,10 @@ export function garantirTriagemNoEscritorioGeral() {
       atualizar('workspaces', workspace.id, { triagemGeralInstaladaEm: new Date().toISOString() });
     }
     if (!workspace.equipeTrabalhistaInstaladaEm) {
-      instalarPacote({ workspaceId: workspace.id, area: null, pacote: EQUIPE_TRABALHISTA_NO_GERAL, ligar: true });
+      instalarPacote({ workspaceId: workspace.id, area: null, pacote: equipeNoEstadoDaEduarda(workspace.id), ligar: true });
       atualizar('workspaces', workspace.id, { equipeTrabalhistaInstaladaEm: new Date().toISOString() });
     }
-    eduardaPassaTrabalhistaParaAgente(workspace.id);
+    trabalhistaDaEduardaSegueAEquipe(workspace.id);
 
     const eduarda = listar('agentes', { workspaceId: workspace.id }).find(
       (a) => a.ativo && normalizar(a.nome) === normalizar(PACOTES.previdenciario.agentes[0].nome),
@@ -266,20 +267,38 @@ const doEscritorio = (workspaceId, nome) => listar('agentes', { workspaceId }).f
 const TRABALHISTA_PARA_PESSOA_DO_PACOTE = [TRABALHISTA_PARA_PESSOA, TRABALHISTA_PARA_PESSOA_ATE_09_10];
 
 /*
- * Na Eduarda do escritorio geral, troca o item TRABALHISTA que manda para uma
- * pessoa pelo que passa para a Triagem Trabalhista (ver TRABALHISTA_PARA_AGENTE
- * em ia/pacotes/triagem.js). So com a Triagem Trabalhista ligada ali, e so se o
- * trecho ainda for o do pacote: escritorio que reescreveu esse item fica como
- * esta. Roda em toda varredura; depois da troca nao acha mais o texto antigo.
+ * A equipe trabalhista nasce no estado da Eduarda do escritorio. Achado em
+ * producao em 26/10/2026: o escritorio tinha desligado todos os agentes do
+ * geral ("Desligar todos"), e a equipe nascendo ligada sozinha faria da Triagem
+ * Trabalhista a entrada de todo lead (ia/escolher-agente.js), maternidade e BPC
+ * inclusive. Desligada, ela volta junto com o resto no "Ativar todos".
  */
-function eduardaPassaTrabalhistaParaAgente(workspaceId) {
+function equipeNoEstadoDaEduarda(workspaceId) {
+  if (doEscritorio(workspaceId, PACOTES.previdenciario.agentes[0].nome)?.ativo) return EQUIPE_TRABALHISTA_NO_GERAL;
+  return { ...EQUIPE_TRABALHISTA_NO_GERAL, agentes: EQUIPE_TRABALHISTA_NO_GERAL.agentes.map((agente) => ({ ...agente, ativo: false })) };
+}
+
+/*
+ * Na Eduarda do escritorio geral, o item TRABALHISTA acompanha a Triagem
+ * Trabalhista dali: com ela ligada, passa para ela (TRABALHISTA_PARA_AGENTE em
+ * ia/pacotes/triagem.js); desligada, volta a passar para uma pessoa — senao a
+ * Eduarda avisaria "ja vou te encaminhar" e a passagem seria recusada, porque
+ * agente desligado nao recebe conversa (ia/mencoes.js). So mexe no trecho que
+ * veio do pacote: escritorio que reescreveu esse item fica como esta. Roda em
+ * toda varredura, a cada 10 minutos.
+ */
+function trabalhistaDaEduardaSegueAEquipe(workspaceId) {
   const triagem = doEscritorio(workspaceId, EQUIPE_TRABALHISTA_NO_GERAL.agentes[0].nome);
   const eduarda = doEscritorio(workspaceId, PACOTES.previdenciario.agentes[0].nome);
-  const antigo = TRABALHISTA_PARA_PESSOA_DO_PACOTE.find((texto) => String(eduarda?.prompt || '').includes(texto));
-  if (!triagem?.ativo || !antigo) return false;
-  atualizar('agentes', eduarda.id, {
-    prompt: eduarda.prompt.replace(antigo, TRABALHISTA_PARA_AGENTE).replace(TRAVA_PARA_PESSOA, TRAVA_PARA_AGENTE),
-  });
+  const prompt = String(eduarda?.prompt || '');
+  if (triagem?.ativo) {
+    const antigo = TRABALHISTA_PARA_PESSOA_DO_PACOTE.find((texto) => prompt.includes(texto));
+    if (!antigo) return false;
+    atualizar('agentes', eduarda.id, { prompt: prompt.replace(antigo, TRABALHISTA_PARA_AGENTE).replace(TRAVA_PARA_PESSOA, TRAVA_PARA_AGENTE) });
+    return true;
+  }
+  if (!prompt.includes(TRABALHISTA_PARA_AGENTE)) return false;
+  atualizar('agentes', eduarda.id, { prompt: prompt.replace(TRABALHISTA_PARA_AGENTE, TRABALHISTA_PARA_PESSOA).replace(TRAVA_PARA_AGENTE, TRAVA_PARA_PESSOA) });
   return true;
 }
 

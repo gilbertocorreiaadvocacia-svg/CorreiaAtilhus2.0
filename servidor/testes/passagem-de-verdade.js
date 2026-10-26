@@ -23,7 +23,8 @@ import { cliente, suite } from './apoio.js';
  *  - um agente de area passa para a equipe sem area (a Eduarda passando o
  *    trabalhista para a equipe trabalhista do escritorio geral);
  *  - a conversa que ja ficou parada numa promessa dessas segue sozinha quando
- *    o sistema sobe (retomarRespostasPendentes, no boot).
+ *    o sistema sobe (retomarRespostasPendentes, no boot), por ate 7 dias, se
+ *    ninguem da equipe respondeu depois do aviso.
  *
  * A Anthropic e a de mentira, com roteiro (ver encadeamento.js).
  */
@@ -196,15 +197,26 @@ export async function testarPassagemDeVerdade({ base, anthropic, raiz }) {
     `import { iniciarBanco, inserir, inserirMensagem, encerrarBanco } from ${JSON.stringify(url('servidor/nucleo/banco.js'))};
 iniciarBanco();
 const ha = (min) => new Date(Date.now() - min * 60000).toISOString();
+const DIA = 24 * 60;
 inserir('workspaces', { id: 'w1', nome: 'Teste' });
 inserir('integracoes', { id: 'int1', workspaceId: 'w1', ia: { chaveAnthropic: 'sk-ant-de-mentira' } });
 inserir('conexoes', { id: 'conx-sim', workspaceId: 'w1', tipo: 'simulador' });
 inserir('agentes', { id: 'ag-rec', workspaceId: 'w1', nome: 'Recepcao Parada', ativo: true, delaySegundos: 1, modelo: 'claude-sonnet-5', area: 'previdenciario', prompt: '${MARCA}. Recepcao.' });
 inserir('agentes', { id: 'ag-esp', workspaceId: 'w1', nome: 'Especialista Parada', ativo: true, delaySegundos: 1, modelo: 'claude-sonnet-5', area: 'previdenciario', prompt: '${MARCA}. Especialista.' });
 const rec = { tipo: 'agente', id: 'ag-rec', nome: 'Recepcao Parada' };
-inserir('contatos', { id: 'c-parado', workspaceId: 'w1', conexaoId: 'conx-sim', telefone: '5581931110001', nome: 'Parado', estado: 'ia', responsavel: rec, ultimaEntradaEm: ha(10), ultimaSaidaEm: ha(9), etiquetas: [] });
-inserirMensagem('c-parado', { direcao: 'entrada', tipo: 'texto', conteudo: 'Quero saber do auxilio-acidente', autor: { tipo: 'cliente' }, situacao: 'recebida', criadoEm: ha(10) });
-inserirMensagem('c-parado', { direcao: 'saida', tipo: 'texto', conteudo: 'Ja vou te encaminhar para a nossa especialista.', autor: rec, situacao: 'enviada', criadoEm: ha(9) });
+/* Parada ha 3 dias: a correcao foi ao ar dias depois do pedido, e 48 horas nao bastavam. */
+inserir('contatos', { id: 'c-parado', workspaceId: 'w1', conexaoId: 'conx-sim', telefone: '5581931110001', nome: 'Parado', estado: 'ia', responsavel: rec, ultimaEntradaEm: ha(3 * DIA + 10), ultimaSaidaEm: ha(3 * DIA + 9), etiquetas: [] });
+inserirMensagem('c-parado', { direcao: 'entrada', tipo: 'texto', conteudo: 'Quero saber do auxilio-acidente', autor: { tipo: 'cliente' }, situacao: 'recebida', criadoEm: ha(3 * DIA + 10) });
+inserirMensagem('c-parado', { direcao: 'saida', tipo: 'texto', conteudo: 'Ja vou te encaminhar para a nossa especialista.', autor: rec, situacao: 'enviada', criadoEm: ha(3 * DIA + 9) });
+/* Alguem da equipe respondeu pelo celular depois do aviso: esta com gente. */
+inserir('contatos', { id: 'c-com-gente', workspaceId: 'w1', conexaoId: 'conx-sim', telefone: '5581931110003', nome: 'Com Gente', estado: 'ia', responsavel: rec, ultimaEntradaEm: ha(10), ultimaSaidaEm: ha(5), etiquetas: [] });
+inserirMensagem('c-com-gente', { direcao: 'entrada', tipo: 'texto', conteudo: 'Fui demitido', autor: { tipo: 'cliente' }, situacao: 'recebida', criadoEm: ha(10) });
+inserirMensagem('c-com-gente', { direcao: 'saida', tipo: 'texto', conteudo: 'Ja vou te encaminhar para a nossa especialista.', autor: rec, situacao: 'enviada', criadoEm: ha(9) });
+inserirMensagem('c-com-gente', { direcao: 'saida', tipo: 'texto', conteudo: 'Oi, aqui e do escritorio, ja estou vendo o seu caso.', autor: { tipo: 'membro', nome: 'Pelo celular' }, situacao: 'enviada', criadoEm: ha(5) });
+/* Parada ha mais de 7 dias: fica como esta. */
+inserir('contatos', { id: 'c-antigo', workspaceId: 'w1', conexaoId: 'conx-sim', telefone: '5581931110004', nome: 'Antigo', estado: 'ia', responsavel: rec, ultimaEntradaEm: ha(8 * DIA + 10), ultimaSaidaEm: ha(8 * DIA + 9), etiquetas: [] });
+inserirMensagem('c-antigo', { direcao: 'entrada', tipo: 'texto', conteudo: 'Quero saber do BPC', autor: { tipo: 'cliente' }, situacao: 'recebida', criadoEm: ha(8 * DIA + 10) });
+inserirMensagem('c-antigo', { direcao: 'saida', tipo: 'texto', conteudo: 'Ja vou te encaminhar para a nossa especialista.', autor: rec, situacao: 'enviada', criadoEm: ha(8 * DIA + 9) });
 inserir('contatos', { id: 'c-esperando', workspaceId: 'w1', conexaoId: 'conx-sim', telefone: '5581931110002', nome: 'Esperando', estado: 'ia', responsavel: rec, ultimaEntradaEm: ha(10), ultimaSaidaEm: ha(9), etiquetas: [] });
 inserirMensagem('c-esperando', { direcao: 'entrada', tipo: 'texto', conteudo: 'Oi', autor: { tipo: 'cliente' }, situacao: 'recebida', criadoEm: ha(10) });
 inserirMensagem('c-esperando', { direcao: 'saida', tipo: 'texto', conteudo: 'Qual e o seu nome completo?', autor: rec, situacao: 'enviada', criadoEm: ha(9) });
@@ -220,7 +232,7 @@ iniciarBanco();
 const resultado = retomarRespostasPendentes();
 await new Promise((ok) => setTimeout(ok, 3500));
 const falas = (id) => mensagensDe(id).filter((m) => m.direcao === 'saida' && !m.nota).map((m) => ({ autor: m.autor?.id, conteudo: m.conteudo }));
-console.log(JSON.stringify({ resultado, parado: achar('contatos', 'c-parado').responsavel, falasParado: falas('c-parado'), falasEsperando: falas('c-esperando') }));
+console.log(JSON.stringify({ resultado, parado: achar('contatos', 'c-parado').responsavel, falasParado: falas('c-parado'), falasEsperando: falas('c-esperando'), falasComGente: falas('c-com-gente'), falasAntigo: falas('c-antigo') }));
 await encerrarBanco();
 process.exit(0);
 `,
@@ -253,7 +265,9 @@ process.exit(0);
     const b = JSON.parse(r.saida.trim().split('\n').pop());
     const parada = await registro();
 
-    s.ok('a conversa parada na promessa e retomada (e so ela)', b.resultado.retomados === 1, JSON.stringify(b.resultado));
+    s.ok('a conversa parada na promessa ha 3 dias e retomada (e so ela)', b.resultado.retomados === 1, JSON.stringify(b.resultado));
+    s.ok('a que alguem da equipe respondeu depois do aviso fica com a equipe', b.falasComGente.length === 2, JSON.stringify(b.falasComGente));
+    s.ok('a parada ha mais de 7 dias fica como esta', b.falasAntigo.length === 1, JSON.stringify(b.falasAntigo));
     s.ok(
       'o agente le que avisou da passagem e ela nao aconteceu',
       /a passagem nao aconteceu/.test(parada.chamadas[0]?.ultimaMensagem || ''),

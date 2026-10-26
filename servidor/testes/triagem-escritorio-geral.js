@@ -28,6 +28,11 @@ import { suite } from './apoio.js';
  * objecoes previdenciaria; a Eduarda do escritorio geral passando o
  * trabalhista para a Triagem Trabalhista e continuando a entrada do
  * escritorio; a Eduarda do escritorio Previdenciario intocada.
+ *
+ * E o escritorio geral como estava no ar em 26/10/2026, com todos os agentes
+ * desligados: a equipe entra desligada e nao vira a entrada de todo lead,
+ * volta junto no "Ativar todos", e a Eduarda so passa o trabalhista para a
+ * Triagem Trabalhista enquanto ela estiver ligada.
  */
 export async function testarTriagemEscritorioGeral({ raiz }) {
   const s = suite('Escritorio geral sem area ganha a Triagem do Previdenciario para atender de verdade');
@@ -37,9 +42,9 @@ export async function testarTriagemEscritorioGeral({ raiz }) {
   const url = (arquivo) => JSON.stringify(pathToFileURL(path.join(raiz, arquivo)).href);
   const pasta = fs.mkdtempSync(path.join(os.tmpdir(), 'triagem-geral-'));
 
-  const rodar = (arquivo, args = []) =>
+  const rodar = (arquivo, args = [], dados = pasta) =>
     new Promise((resolve) => {
-      const p = spawn(process.execPath, [arquivo, ...args], { env: { ...process.env, CORREIA_DADOS: pasta }, stdio: ['ignore', 'pipe', 'pipe'] });
+      const p = spawn(process.execPath, [arquivo, ...args], { env: { ...process.env, CORREIA_DADOS: dados }, stdio: ['ignore', 'pipe', 'pipe'] });
       let texto = '';
       p.stdout.on('data', (d) => (texto += d));
       p.stderr.on('data', (d) => (texto += d));
@@ -205,6 +210,93 @@ process.exit(0);
     );
   } finally {
     fs.rmSync(pasta, { recursive: true, force: true });
+  }
+
+  /* ---------------- Escritorio geral com a IA desligada (26/10/2026) ---------------- */
+
+  const pastaDesligada = fs.mkdtempSync(path.join(os.tmpdir(), 'triagem-geral-desligada-'));
+  const desligado = path.join(pastaDesligada, 'desligado.mjs');
+  fs.writeFileSync(
+    desligado,
+    `import { iniciarBanco, achar, atualizar, inserir, listar, encerrarBanco } from ${JSON.stringify(urlDoBanco)};
+import { comoEduardaPassaOTrabalhista, garantirTriagemNoEscritorioGeral } from ${JSON.stringify(urlDoAgentesPorEscritorio)};
+import { reatribuirPendentes } from ${JSON.stringify(urlDoReatribuir)};
+import { escolherAgente } from ${url('servidor/ia/escolher-agente.js')};
+import { EQUIPE_TRABALHISTA_NO_GERAL } from ${url('servidor/ia/pacotes.js')};
+import { EDUARDA } from ${url('servidor/ia/pacotes/triagem.js')};
+iniciarBanco();
+
+/* Como estava no ar: o Previdenciario ja instalado, a equipe trabalhista
+   ainda nao, todos os agentes desligados ("Desligar todos"), uma pessoa como
+   padrao do numero e um lead pendente. */
+inserir('workspaces', { id: 'w-geral', nome: 'Correia Advogados', triagemGeralInstaladaEm: '2026-10-23T12:00:00.000Z' });
+inserir('conexoes', { id: 'conx-anuncio', workspaceId: 'w-geral', tipo: 'oficial', nome: 'Trafego pago', responsavelPadrao: { tipo: 'membro', id: 'mbr-1', nome: 'Atendente' } });
+inserir('agentes', { id: 'ag-eduarda', workspaceId: 'w-geral', nome: EDUARDA.nome, ativo: false, area: 'previdenciario', prompt: EDUARDA.prompt, conhecimentoIds: [] });
+inserir('agentes', { id: 'ag-avaliacao', workspaceId: 'w-geral', nome: 'Avaliação · Escritório geral', ativo: false, objetivo: 'avaliar' });
+inserir('contatos', { id: 'c-lead', workspaceId: 'w-geral', conexaoId: 'conx-anuncio', telefone: '5500000000001', nome: 'Lead Pendente', estado: 'pendente', responsavel: { tipo: 'membro', id: 'mbr-1', nome: 'Atendente' }, ultimaEntradaEm: new Date().toISOString(), etiquetas: [] });
+
+const doGeral = () => listar('agentes', { workspaceId: 'w-geral' });
+const retrato = (reativados) => {
+  const equipe = EQUIPE_TRABALHISTA_NO_GERAL.agentes.map((modelo) => doGeral().find((a) => a.nome === modelo.nome));
+  const lead = achar('contatos', 'c-lead');
+  return {
+    reativados,
+    equipeInstalada: equipe.every(Boolean),
+    equipeToda: equipe.length,
+    equipeLigada: equipe.filter((a) => a?.ativo).length,
+    equipeSemArea: equipe.every((a) => a && !a.area),
+    comoPassa: comoEduardaPassaOTrabalhista('w-geral'),
+    promptDoPacote: achar('agentes', 'ag-eduarda').prompt === EDUARDA.prompt,
+    entrada: escolherAgente({ workspaceId: 'w-geral' })?.agente?.nome || null,
+    lead: { estado: lead.estado, com: lead.responsavel?.nome },
+  };
+};
+
+garantirTriagemNoEscritorioGeral();
+const desligado = retrato(reatribuirPendentes().reativados);
+
+/* "Ativar todos" (rotas/automacoes.js) e a varredura seguinte. */
+for (const agente of doGeral()) atualizar('agentes', agente.id, { ativo: true });
+garantirTriagemNoEscritorioGeral();
+const ligado = retrato(reatribuirPendentes().reativados);
+
+/* So a Triagem Trabalhista desligada, e a varredura seguinte. */
+atualizar('agentes', doGeral().find((a) => a.nome === EQUIPE_TRABALHISTA_NO_GERAL.agentes[0].nome).id, { ativo: false });
+garantirTriagemNoEscritorioGeral();
+const semTriagem = retrato(0);
+
+console.log(JSON.stringify({ desligado, ligado, semTriagem }));
+await encerrarBanco();
+process.exit(0);
+`,
+  );
+
+  try {
+    const r = await rodar(desligado, [], pastaDesligada);
+    if (!s.ok('o escritorio geral desligado roda sem erro', r.codigo === 0, r.texto.slice(-500))) return s;
+    const { desligado: d, ligado: l, semTriagem: t } = JSON.parse(r.texto.trim().split('\n').pop());
+
+    s.ok('com a IA do escritorio desligada, a equipe trabalhista entra desligada e sem area', d.equipeInstalada && d.equipeLigada === 0 && d.equipeSemArea, JSON.stringify(d));
+    s.ok(
+      'e ninguem vira a entrada: o lead pendente nao vai para a Triagem Trabalhista',
+      d.entrada === null && d.reativados === 0 && d.lead.estado === 'pendente',
+      JSON.stringify(d),
+    );
+    s.ok('a Eduarda desligada fica como esta, passando o trabalhista para uma pessoa', d.comoPassa === 'pessoa' && d.promptDoPacote, JSON.stringify(d));
+    s.ok('no "Ativar todos" a equipe volta junto', l.equipeLigada === l.equipeToda, JSON.stringify(l));
+    s.ok('e na varredura seguinte a Eduarda passa o trabalhista para a Triagem Trabalhista', l.comoPassa === 'agente', JSON.stringify(l));
+    s.ok(
+      'a Eduarda e a entrada e fica com o lead pendente',
+      l.entrada === 'Eduarda (Triagem)' && l.reativados === 1 && l.lead.com === 'Eduarda (Triagem)',
+      JSON.stringify(l),
+    );
+    s.ok(
+      'com a Triagem Trabalhista desligada, a Eduarda volta a passar o trabalhista para uma pessoa, com o prompt do pacote',
+      t.comoPassa === 'pessoa' && t.promptDoPacote,
+      JSON.stringify(t),
+    );
+  } finally {
+    fs.rmSync(pastaDesligada, { recursive: true, force: true });
   }
   return s;
 }
