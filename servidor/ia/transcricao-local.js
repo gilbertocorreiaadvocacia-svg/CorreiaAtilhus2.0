@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -77,6 +77,35 @@ const GRAFIA_SEGURA = [
   [/\bINCSS\b/gi, 'INSS'],
   [/\bI[nm]SS\b/g, 'INSS'],
 ];
+
+/*
+ * Transcrever roda FORA do servidor, sem segura-lo. Achado em 26/10/2026 ("deixe
+ * mais otimizado", depois de "sistema esta muito lento"): o ffmpeg e o
+ * whisper-cli rodavam com execFileSync, e o Node inteiro parava esperando —
+ * de 10 a 60 segundos por audio na VPS de 1 vCPU, com a tela de todo mundo
+ * congelada e o WhatsApp sem entrega. Agora o programa roda a parte, com
+ * prioridade baixa no processador (quem atende passa na frente), e um audio por
+ * vez: dois whisper juntos disputam o unico nucleo e a memoria da maquina.
+ */
+function rodarPrograma(programa, argumentos, { cwd, timeout }) {
+  return new Promise((resolver, rejeitar) => {
+    const filho = execFile(programa, argumentos, { cwd, timeout, maxBuffer: 16 * 1024 * 1024, windowsHide: true }, (erro, _saida, avisos) => {
+      if (erro) {
+        erro.stderr = avisos;
+        rejeitar(erro);
+      } else {
+        resolver();
+      }
+    });
+    try {
+      os.setPriority(filho.pid, os.constants.priority.PRIORITY_BELOW_NORMAL);
+    } catch {
+      /* sem como baixar a prioridade aqui: roda na normal, sem travar do mesmo jeito */
+    }
+  });
+}
+
+let fila = Promise.resolve();
 
 /* Sondagem e barata e nao toca em arquivo: saida curta, limite de 10 s. */
 const OPCOES_SONDAGEM = { encoding: 'utf8', timeout: 10000, stdio: ['ignore', 'pipe', 'ignore'] };
@@ -298,16 +327,16 @@ function marcarDuvidas(trechos) {
  * O resultado sai no MESMO formato do outro caminho, de proposito: quem chama
  * nao precisa saber por onde foi, e a marcacao de duvida vale igual nos dois.
  */
-function porLinhaDeComando({ ffmpeg, modelo, entradaOriginal, pasta }) {
+async function porLinhaDeComando({ ffmpeg, modelo, entradaOriginal, pasta }) {
   const cli = acharWhisperCli();
   const wav = path.join(pasta, 'audio.wav');
 
   /* 16 kHz mono PCM: o formato que o whisper.cpp exige. Mandar outra coisa faz
      ele aceitar e transcrever lixo, em vez de reclamar. */
-  execFileSync(
+  await rodarPrograma(
     ffmpeg,
     ['-hide_banner', '-loglevel', 'error', '-y', '-i', entradaOriginal, '-ar', '16000', '-ac', '1', '-c:a', 'pcm_s16le', wav],
-    { timeout: 2 * 60 * 1000, stdio: ['ignore', 'ignore', 'pipe'] },
+    { timeout: 2 * 60 * 1000 },
   );
 
   /* -oj grava <arquivo>.json ao lado do wav. -nt tira o carimbo de tempo do
@@ -323,9 +352,9 @@ function porLinhaDeComando({ ffmpeg, modelo, entradaOriginal, pasta }) {
    */
   const ehLote = /\.(cmd|bat)$/i.test(cli);
   if (ehLote) {
-    execFileSync('cmd.exe', ['/c', cli, ...argumentos], { timeout: 15 * 60 * 1000, stdio: ['ignore', 'ignore', 'pipe'] });
+    await rodarPrograma('cmd.exe', ['/c', cli, ...argumentos], { timeout: 15 * 60 * 1000 });
   } else {
-    execFileSync(cli, argumentos, { timeout: 15 * 60 * 1000, stdio: ['ignore', 'ignore', 'pipe'] });
+    await rodarPrograma(cli, argumentos, { timeout: 15 * 60 * 1000 });
   }
 
   const arquivoJson = `${wav}.json`;
@@ -363,7 +392,13 @@ function porLinhaDeComando({ ffmpeg, modelo, entradaOriginal, pasta }) {
  * confianca por palavra, a unica garantia honesta e a de que ninguem
  * conferiu ainda.
  */
-export function transcreverLocal(caminhoDoAudio, { janela = JANELA_SEGUNDOS } = {}) {
+export function transcreverLocal(caminhoDoAudio, opcoes = {}) {
+  const vez = fila.then(() => transcreverAgora(caminhoDoAudio, opcoes));
+  fila = vez.catch(() => {});
+  return vez;
+}
+
+async function transcreverAgora(caminhoDoAudio, { janela = JANELA_SEGUNDOS } = {}) {
   const ffmpeg = acharFfmpeg();
   const modelo = acharModelo();
   if (!ffmpeg) return { texto: null, erro: 'O ffmpeg nao foi encontrado nesta maquina.', duvidas: [] };
@@ -430,7 +465,10 @@ export function transcreverLocal(caminhoDoAudio, { janela = JANELA_SEGUNDOS } = 
       }
     }
     try {
-      return porLinhaDeComando({ ffmpeg, modelo, entradaOriginal: caminhoDoAudio, pasta });
+      return await porLinhaDeComando({ ffmpeg, modelo, entradaOriginal: caminhoDoAudio, pasta });
+    } catch (erro) {
+      const detalhe = erro?.stderr ? String(erro.stderr).trim().split('\n').pop() : erro.message;
+      return { texto: null, erro: `A transcricao local falhou: ${detalhe}`, duvidas: [] };
     } finally {
       try {
         fs.rmSync(pasta, { recursive: true, force: true });
@@ -457,10 +495,10 @@ export function transcreverLocal(caminhoDoAudio, { janela = JANELA_SEGUNDOS } = 
     const pastaDoModelo = path.dirname(modelo);
     fs.copyFileSync(entrada, path.join(pastaDoModelo, path.basename(entrada)));
 
-    execFileSync(
+    await rodarPrograma(
       ffmpeg,
       ['-hide_banner', '-loglevel', 'error', '-y', '-i', path.basename(entrada), '-af', filtro, '-f', 'null', '-'],
-      { cwd: pastaDoModelo, timeout: 10 * 60 * 1000, stdio: ['ignore', 'ignore', 'pipe'] },
+      { cwd: pastaDoModelo, timeout: 10 * 60 * 1000 },
     );
 
     const bruto = fs.readFileSync(path.join(pastaDoModelo, path.basename(saida)), 'utf8');

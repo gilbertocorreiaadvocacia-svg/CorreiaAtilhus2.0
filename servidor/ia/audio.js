@@ -75,7 +75,7 @@ export async function transcrever({ workspaceId, contatoId, midia, agenteId = nu
    * ouvindo o audio, que continua anexado na conversa.
    */
   if (transcricaoLocalDisponivel()) {
-    const local = transcreverLocal(caminho);
+    const local = await transcreverLocal(caminho);
     if (local.texto) {
       return { texto: local.texto, erro: null, duvidas: local.duvidas || [], motor: 'local' };
     }

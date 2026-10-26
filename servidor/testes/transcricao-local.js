@@ -60,7 +60,7 @@ export async function testarTranscricaoLocal() {
       );
       s.ok('o audio de teste foi gerado em Opus, como o do WhatsApp', fs.existsSync(ogg));
 
-      const semFala = motor.transcreverLocal(ogg);
+      const semFala = await motor.transcreverLocal(ogg);
       s.ok(
         'audio sem fala nao quebra e nao inventa texto',
         !semFala.texto || semFala.texto.length < 40,
@@ -71,12 +71,12 @@ export async function testarTranscricaoLocal() {
       /* Arquivo que nao e audio: tem de falhar com motivo, nunca em silencio. */
       const lixo = path.join(pasta, 'naoeaudio.ogg');
       fs.writeFileSync(lixo, 'isto nao e audio nenhum');
-      const invalido = motor.transcreverLocal(lixo);
+      const invalido = await motor.transcreverLocal(lixo);
       s.ok('arquivo invalido devolve erro', Boolean(invalido.erro), String(invalido.erro));
       s.ok('e nao devolve texto inventado', !invalido.texto, String(invalido.texto));
 
       /* Arquivo que nem existe. */
-      const sumido = motor.transcreverLocal(path.join(pasta, 'nao-existe.ogg'));
+      const sumido = await motor.transcreverLocal(path.join(pasta, 'nao-existe.ogg'));
       s.ok('arquivo inexistente devolve erro claro', /nao pode ser lido|nao existe/i.test(sumido.erro || ''), String(sumido.erro));
     } finally {
       fs.rmSync(pasta, { recursive: true, force: true });
@@ -150,7 +150,28 @@ async function testarCaminhoDoCli(s, motor) {
       { timeout: 60000, stdio: ['ignore', 'ignore', 'pipe'] },
     );
 
-    const r = novo.transcreverLocal(ogg);
+    /* Enquanto transcreve, o servidor segue de pe (26/10/2026: o execFileSync
+       congelava tudo por ate um minuto). Um relogio de 20 ms nao pode ficar
+       parado o tempo inteiro da transcricao. */
+    let anterior = Date.now();
+    let maiorParada = 0;
+    const relogio = setInterval(() => {
+      const agora = Date.now();
+      maiorParada = Math.max(maiorParada, agora - anterior);
+      anterior = agora;
+    }, 20);
+    const comecou = Date.now();
+    const r = await novo.transcreverLocal(ogg);
+    const durou = Date.now() - comecou;
+    clearInterval(relogio);
+    s.ok(
+      'enquanto o audio e transcrito, o servidor continua respondendo',
+      durou < 150 || maiorParada < Math.min(150, durou / 2),
+      JSON.stringify({ durou, maiorParada }),
+    );
+
+    const [um, outro] = await Promise.all([novo.transcreverLocal(ogg), novo.transcreverLocal(ogg)]);
+    s.ok('dois audios ao mesmo tempo entram na fila e os dois saem transcritos', Boolean(um.texto && outro.texto), JSON.stringify([um.erro, outro.erro]));
 
     s.ok('o cli aceitou os argumentos e devolveu texto', Boolean(r.texto), JSON.stringify(r).slice(0, 220));
     s.ok('e o resultado diz que veio pelo cli', r.motor?.via === 'cli', JSON.stringify(r.motor));
@@ -173,7 +194,7 @@ async function testarCaminhoDoCli(s, motor) {
     let lancou = null;
     let resposta = null;
     try {
-      resposta = semCli.transcreverLocal(ogg);
+      resposta = await semCli.transcreverLocal(ogg);
     } catch (erro) {
       lancou = erro;
     }
