@@ -27,8 +27,14 @@ RUN git clone --depth 1 --branch ${WHISPER_VERSAO} https://github.com/ggml-org/w
 WORKDIR /fonte
 # BUILD_SHARED_LIBS=OFF deixa um binario que nao depende de .so do /fonte, que
 # nao existe na imagem final. Sem isso o whisper-cli nao abre la.
-RUN cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_EXAMPLES=ON \
- && cmake --build build --config Release --target whisper-cli -j"$(nproc)" \
+#
+# nice -n 19: a hospedagem refaz esta compilacao a cada implantacao, na MESMA
+# VPS de 1 vCPU em que o sistema atende. Em 26/10/2026 foram uns 3 minutos com
+# o processador em 100% e o atendimento travando ("sistema esta muito lento").
+# Com a prioridade mais baixa, o sistema no ar passa na frente e a compilacao
+# usa so o que sobra.
+RUN nice -n 19 cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_EXAMPLES=ON \
+ && nice -n 19 cmake --build build --config Release --target whisper-cli -j"$(nproc)" \
  && find build -name 'whisper-cli' -type f -exec cp {} /whisper-cli \; \
  && /whisper-cli --help > /dev/null 2>&1 || true \
  && test -x /whisper-cli
