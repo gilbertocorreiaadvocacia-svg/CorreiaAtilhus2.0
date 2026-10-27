@@ -1519,6 +1519,30 @@ export async function paginaAtendimento({
     ]);
   }
 
+  /*
+   * Transcrever pela tela, embaixo do audio. Pedido do escritorio em
+   * 27/10/2026. O audio que chegou antes do programa de voz estar pronto, o
+   * que falhou ou o que saiu ruim: um clique e o texto entra no balao.
+   */
+  function botaoTranscrever(mensagem, aoTranscrever) {
+    const rotulo = mensagem.transcricao ? 'Transcrever de novo' : 'Transcrever';
+    const transcrever = botao(rotulo, { pequeno: true, icone: 'microfone' });
+    transcrever.addEventListener('click', async () => {
+      transcrever.disabled = true;
+      transcrever.lastChild.textContent = 'Transcrevendo…';
+      try {
+        const atualizada = await api.post(`/api/contatos/${mensagem.contatoId}/mensagens/${mensagem.id}/transcrever`, {});
+        if (!atualizada.transcricao) aviso(atualizada.transcricaoErro || 'Não consegui transcrever este áudio.', 'alerta');
+        aoTranscrever(atualizada);
+      } catch (erro) {
+        aviso(erro.message, 'erro');
+        transcrever.disabled = false;
+        transcrever.lastChild.textContent = rotulo;
+      }
+    });
+    return el('div', { class: 'mt-1' }, [transcrever]);
+  }
+
   function balao(mensagem) {
     const classes = ['balao'];
     /* Fala de agente de IA sai em roxo, a cor que e so da IA no sistema. */
@@ -1593,6 +1617,9 @@ export async function paginaAtendimento({
          que um audio mudo sem explicacao nenhuma (padrao do Atilhus Juri). */
       !mensagem.transcricao && mensagem.transcricaoErro && mensagem.midia?.tipo === 'audio'
         ? el('div', { class: 't-xs c-suave mt-1', estilo: { fontStyle: 'italic' }, texto: `Não transcrito: ${mensagem.transcricaoErro}` })
+        : null,
+      mensagem.midia?.tipo === 'audio' && mensagem.midia.url && !mensagem.nota
+        ? botaoTranscrever(mensagem, (atualizada) => elemento.replaceWith(balao(atualizada)))
         : null,
       el('div', { class: 'balao-rodape' }, [
         estrelaDa(mensagem),

@@ -26,6 +26,25 @@ function chaveOpenai(workspaceId) {
 }
 
 /*
+ * A nuvem (OpenAI) so transcreve com CORREIA_TRANSCRICAO_NUVEM=1. Pedido do
+ * escritorio em 27/10/2026: "quero que transcreva audio sem usar nenhuma IA".
+ * Reconhecer fala sempre pede um modelo de voz treinado; o que da para tirar
+ * e o servico de IA de fora — e aqui ele sai: o audio do cliente e transcrito
+ * pelo programa de voz instalado no servidor do escritorio, sem chave, sem
+ * custo e sem sair de la. A suite de testes liga a nuvem para conferir esse
+ * caminho com a OpenAI de mentira. A voz das respostas (sintetizar) nao muda.
+ */
+const nuvemLigada = () => process.env.CORREIA_TRANSCRICAO_NUVEM === '1';
+const chaveDeTranscricao = (workspaceId) => (nuvemLigada() ? chaveOpenai(workspaceId) : '');
+
+/** Por que nao ha transcricao nesta maquina, dito do jeito que vale para ela. */
+export function motivoSemTranscricao() {
+  return nuvemLigada()
+    ? 'Transcricao indisponivel — falta o modelo de voz em modelos/ ou a chave da OpenAI em Integracoes.'
+    : 'Transcricao indisponivel — o programa de voz do servidor ainda nao esta pronto.';
+}
+
+/*
  * Transcricao existe de dois jeitos, e o de casa vem primeiro.
  *
  * O motor local nao custa nada e nao manda o audio do cliente para fora. A
@@ -34,14 +53,14 @@ function chaveOpenai(workspaceId) {
  * o audio e ignorado.
  */
 export function transcricaoDisponivel(workspaceId) {
-  return transcricaoLocalDisponivel() || Boolean(chaveOpenai(workspaceId));
+  return transcricaoLocalDisponivel() || Boolean(chaveDeTranscricao(workspaceId));
 }
 
 /** Qual motor esta valendo, para a tela de Integracoes e para o diagnostico. */
 export function motorDeTranscricao(workspaceId) {
   const local = motorLocal();
   if (local.disponivel) return { tipo: 'local', ...local, custo: 0 };
-  if (chaveOpenai(workspaceId)) return { tipo: 'openai', disponivel: true, modelo: 'whisper-1', ffmpeg: local.ffmpeg, filtro: local.filtro };
+  if (chaveDeTranscricao(workspaceId)) return { tipo: 'openai', disponivel: true, modelo: 'whisper-1', ffmpeg: local.ffmpeg, filtro: local.filtro };
   return { tipo: 'nenhum', ...local };
 }
 
@@ -58,7 +77,30 @@ export function vozDisponivel(workspaceId) {
  * Padrao visto no Atilhus Juri (irmao deste sistema): a mensagem SEMPRE e
  * gravada, com o motivo exato da falta de texto, em vez de silencio.
  */
-export async function transcrever({ workspaceId, contatoId, midia, agenteId = null }) {
+/*
+ * As ultimas tentativas, para conferir de fora (/api/saude): quando, se deu
+ * texto, quanto demorou e o motivo da falha — nunca o texto nem o audio.
+ * 27/10/2026: "ainda nao esta transcrevendo", e daqui nao dava para saber se
+ * o audio nem chegava ao motor, se o motor falhava ou se so demorava.
+ */
+const ultimas = [];
+export const ultimasTranscricoes = () => [...ultimas];
+
+export async function transcrever(argumentos) {
+  const inicio = Date.now();
+  const resultado = await transcreverAgora(argumentos);
+  ultimas.push({
+    em: new Date(inicio).toISOString(),
+    ok: Boolean(resultado.texto),
+    segundos: Math.round((Date.now() - inicio) / 100) / 10,
+    motor: resultado.motor || null,
+    erro: resultado.texto ? null : String(resultado.erro || '').slice(0, 160),
+  });
+  if (ultimas.length > 10) ultimas.shift();
+  return resultado;
+}
+
+async function transcreverAgora({ workspaceId, contatoId, midia, agenteId = null }) {
   const caminho = caminhoDaMidia(midia?.url);
   if (!caminho) return { texto: null, erro: 'O áudio não pôde ser lido do disco.' };
 
@@ -81,14 +123,14 @@ export async function transcrever({ workspaceId, contatoId, midia, agenteId = nu
     }
     /* O local falhou. Havendo chave, a nuvem ainda pode salvar este audio; sem
        chave, o motivo do local e a resposta mais util que existe. */
-    if (!chaveOpenai(workspaceId)) return { texto: null, erro: local.erro, duvidas: [] };
+    if (!chaveDeTranscricao(workspaceId)) return { texto: null, erro: local.erro, duvidas: [] };
   }
 
-  const chave = chaveOpenai(workspaceId);
+  const chave = chaveDeTranscricao(workspaceId);
   if (!chave) {
     return {
       texto: null,
-      erro: 'Transcricao indisponivel — falta o modelo de voz em modelos/ ou a chave da OpenAI em Integracoes.',
+      erro: motivoSemTranscricao(),
       duvidas: [],
     };
   }

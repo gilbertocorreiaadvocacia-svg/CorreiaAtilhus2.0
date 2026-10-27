@@ -129,7 +129,7 @@ export function criarRoteador() {
             break;
           }
         }
-        if (casou) return { manipulador: rota.manipulador, parametros };
+        if (casou) return { manipulador: rota.manipulador, parametros, padrao: rota.padrao };
       }
       return null;
     },

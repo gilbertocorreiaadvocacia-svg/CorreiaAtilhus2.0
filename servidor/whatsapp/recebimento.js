@@ -24,7 +24,7 @@ import { agendarFoto } from './fotos.js';
 import { SEM_IDENTIFICACAO, nomeEhProvisorio, podeTrocarNome } from './nomes.js';
 import { agendarFollowupsDoStatus, cancelarFollowups, limparAgendamentosDoContato, reagendarFollowups } from '../automacao/followup.js';
 import { driverDa } from './drivers/index.js';
-import { transcrever, transcricaoDisponivel } from '../ia/audio.js';
+import { motivoSemTranscricao, transcrever, transcricaoDisponivel } from '../ia/audio.js';
 
 /**
  * Porta de entrada unica: tanto o webhook da Meta quanto o simulador chamam
@@ -472,7 +472,7 @@ export async function receberMensagem({
         agenteId: contato.responsavel?.tipo === 'agente' ? contato.responsavel.id : null,
       }));
     } else {
-      transcricaoErro = 'Transcricao indisponivel — falta o modelo de voz em modelos/ ou a chave da OpenAI.';
+      transcricaoErro = motivoSemTranscricao();
     }
   }
 

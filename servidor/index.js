@@ -1,13 +1,13 @@
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
-import { monitorEventLoopDelay } from 'node:perf_hooks';
+import { monitorEventLoopDelay, performance } from 'node:perf_hooks';
 import { HOSPEDADO, HOST, INTERVALO_AGENDADOR, INTERVALO_REATRIBUICAO, PORTA, RAIZ, enderecoPermitido } from './config.js';
 import { prepararHospedagem } from './nucleo/hospedagem.js';
 import { ativarAgentesSemEquipe, garantirAgentesDasAreas, garantirAvaliacaoNosEscritorios, garantirPosVendaNosEscritorios, garantirStatusDasAreas, garantirTestesDeRoteamento, garantirTriagemNoEscritorioGeral, migrarDepartamentoPosVenda } from './nucleo/agentes-por-escritorio.js';
 import { iniciarAvaliacoes } from './automacao/avaliacao.js';
 import { caminhoDaMidia } from './nucleo/midia.js';
-import { atualizar, encerrarBanco, iniciarBanco, listar } from './nucleo/banco.js';
+import { atualizar, encerrarBanco, iniciarBanco, listar, tabela } from './nucleo/banco.js';
 import { estado as estadoDoEspelho, ligado as espelhoLigado } from './nucleo/espelho.js';
 import { migrarCoresParaTokens } from './nucleo/paleta.js';
 import { migrarTiposDeCaso } from './nucleo/casos.js';
@@ -22,6 +22,8 @@ import { tirarAvisoDaSenhaDoGov } from './nucleo/senha-do-gov.js';
 import { templatesDoPacoteGanhamOArquivo } from './ia/pacotes.js';
 import { garantirModeloDeVoz, situacaoDoModeloDeVoz } from './ia/modelo-de-voz.js';
 import { motorLocal } from './ia/transcricao-local.js';
+import { ultimasTranscricoes } from './ia/audio.js';
+import { anotarRequisicao, situacaoDaLentidao, vigiarPausas } from './nucleo/lentidao.js';
 import { deduplicarVozes, processarVozes } from './nucleo/vozes-dos-agentes.js';
 import { processarBaseEStatus } from './nucleo/base-e-status.js';
 import { criarRoteador, lerCookies, lerCorpo, responderErro, responderJson, servirEstatico } from './nucleo/http.js';
@@ -59,6 +61,8 @@ const INICIADO_EM = new Date().toISOString();
    virar numero — so sobrava desconfiar. */
 const medidorDeAtraso = monitorEventLoopDelay({ resolution: 20 });
 medidorDeAtraso.enable();
+/* E quando e em que o servidor travou (nucleo/lentidao.js), desde a subida. */
+vigiarPausas();
 
 const semeado = semearSePrecisar();
 /* Hospedado, a senha padrao nao chega a abrir a porta (nucleo/hospedagem.js). */
@@ -317,7 +321,7 @@ rotas.get(
       /* Muda a cada entrega que mexe no atendimento. A imagem nao leva o .git
          (.dockerignore), e sem isto nao havia como saber, de fora, se o
          deploy da hospedagem pegou o codigo novo ou ficou no antigo. */
-      codigo: '2026-10-26.10',
+      codigo: '2026-10-27.1',
       agora: new Date().toISOString(),
       raiz: RAIZ,
       pid: process.pid,
@@ -350,7 +354,11 @@ rotas.get(
       varredura: situacaoDaVarredura(),
       /* O audio do cliente e transcrito aqui? ffmpeg, whisper e o modelo, e o
          download do modelo na hospedagem (ia/modelo-de-voz.js). */
-      transcricao: { ...motorLocal(), modeloDeVoz: situacaoDoModeloDeVoz() },
+      transcricao: { ...motorLocal(), modeloDeVoz: situacaoDoModeloDeVoz(), ultimas: ultimasTranscricoes() },
+      /* Quando travou, que telas demoraram, e quanto cada parte dos dados ja
+         cresceu — so contagens (26/10/2026, diagnostico completo). */
+      lentidao: situacaoDaLentidao(),
+      registros: Object.fromEntries(['contatos', 'logs', 'creditos', 'notificacoes', 'temposResposta', 'agendamentos', 'tarefas'].map((c) => [c, tabela(c).length])),
     };
   },
   { publica: true },
@@ -459,6 +467,8 @@ const servidor = http.createServer(async (req, res) => {
     }
 
     const { manipulador, opcoes } = encontrada.manipulador;
+    const inicio = performance.now();
+    res.on('finish', () => anotarRequisicao(req.method, encontrada.padrao, performance.now() - inicio));
     const query = Object.fromEntries(url.searchParams.entries());
 
     let ctx = null;

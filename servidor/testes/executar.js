@@ -86,6 +86,7 @@ import { testarVoz } from './voz.js';
 import { testarTranscricaoDeAudio } from './transcricao-audio.js';
 import { testarTranscricaoLocal } from './transcricao-local.js';
 import { testarModeloDeVoz } from './modelo-de-voz.js';
+import { testarLentidao } from './lentidao.js';
 import { testarDoisFatores } from './doisfatores.js';
 import { testarDeduplicarVozes, testarVozDosAgentes } from './voz-dos-agentes.js';
 import { testarReorganizarAgentes } from './reorganizar-agentes.js';
@@ -214,6 +215,9 @@ async function principal() {
          resultado conforme o que esta instalado nao prova nada. O motor local
          tem suite propria, que se declara pulada quando falta o modelo. */
       CORREIA_TRANSCRICAO_LOCAL: '0',
+      /* A transcricao pela nuvem so liga com esta chave (ia/audio.js): a suite
+         confere esse caminho com a OpenAI de mentira. */
+      CORREIA_TRANSCRICAO_NUVEM: '1',
       /* A ZapSign de mentira, e o acompanhamento em milissegundos: consulta a
          cada 150 ms, com espera de 100 ms entre consultas do mesmo documento. */
       CORREIA_ZAPSIGN_URL: zapsign,
@@ -314,6 +318,7 @@ async function principal() {
     suites.push(await testarTranscricaoDeAudio({ base, openai }));
     suites.push(await testarTranscricaoLocal());
     suites.push(await testarModeloDeVoz());
+    suites.push(await testarLentidao());
     suites.push(await testarDoisFatores({ base }));
     /* Cria workspaces novos: depois de quem conta agentes e etiquetas da origem. */
     suites.push(await testarWorkspacesPorArea({ base }));

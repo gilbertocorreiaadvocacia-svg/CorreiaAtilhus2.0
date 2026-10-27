@@ -84,5 +84,33 @@ export async function testarTranscricaoDeAudio({ base, openai }) {
   s.ok('mas com o motivo exato, nao so vazio', /chave da OpenAI/.test(recebidaSemChave?.transcricaoErro || ''), String(recebidaSemChave?.transcricaoErro));
   s.ok('e o audio original ainda chega, intacto', recebidaSemChave?.midia?.tipo === 'audio' && Boolean(recebidaSemChave?.midia?.url), JSON.stringify(recebidaSemChave?.midia));
 
+  /* --- O botao Transcrever, embaixo do audio (27/10/2026) --- */
+  const transcreverPelaTela = () =>
+    api.post(`/api/contatos/${resultadoSemChave.dados.contatoId}/mensagens/${recebidaSemChave?.id}/transcrever`, {});
+  const ainda = await transcreverPelaTela();
+  s.ok(
+    'sem motor, o botao devolve a mensagem com o motivo, sem quebrar',
+    ainda.status === 200 && !ainda.dados?.transcricao && Boolean(ainda.dados?.transcricaoErro),
+    JSON.stringify(ainda),
+  );
+
+  await api.patch('/api/integracoes', { ia: { chaveOpenai: 'sk-openai-de-mentira' } });
+  const pelaTela = await transcreverPelaTela();
+  s.ok(
+    'com o motor de volta, o botao transcreve o audio que tinha ficado sem texto',
+    pelaTela.dados?.transcricao === 'transcricao de mentira' && pelaTela.dados?.conteudo === 'transcricao de mentira' && !pelaTela.dados?.transcricaoErro,
+    JSON.stringify(pelaTela.dados),
+  );
+  const semAudio = await api.post(`/api/contatos/${resultado.dados.contatoId}/mensagens/nao-existe/transcrever`, {});
+  s.ok('mensagem que nao e audio e recusada', semAudio.status === 404, JSON.stringify(semAudio));
+
+  const saude = (await api.get('/api/saude')).dados;
+  s.ok(
+    'o /api/saude mostra as ultimas tentativas, sem o texto',
+    (saude?.transcricao?.ultimas || []).some((t) => t.ok) && !JSON.stringify(saude?.transcricao?.ultimas || []).includes('transcricao de mentira'),
+    JSON.stringify(saude?.transcricao?.ultimas),
+  );
+  await api.patch('/api/integracoes', { ia: { chaveOpenai: null } });
+
   return s;
 }

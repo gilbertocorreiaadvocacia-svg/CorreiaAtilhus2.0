@@ -29,6 +29,7 @@ import { agendarFoto } from '../whatsapp/fotos.js';
 import { agendarFollowupsDoStatus, aplicarStatus, cancelarFollowups, limparAgendamentosDoContato, reagendarFollowups } from '../automacao/followup.js';
 import { proximoHorarioValido, horarioComercialDe } from '../automacao/horario.js';
 import { apagarMidia, guardarBase64 } from '../nucleo/midia.js';
+import { transcrever } from '../ia/audio.js';
 import { cancelarResposta } from '../ia/motor.js';
 import { interromperAvaliacao, pedirAvaliacao } from '../automacao/avaliacao.js';
 import { inserirNota, notificar } from '../ia/mencoes.js';
@@ -361,6 +362,40 @@ export function registrarAtendimento(rotas) {
       midia: { ...resto, ...baixado, tipo: mensagem.midia.tipo || baixado.tipo },
     });
     registrarLog(ctx.workspaceId, contato.id, 'midia', `Anexo antigo carregado: ${baixado.nome || mensagem.tipo}`);
+    return atualizada;
+  });
+
+  /*
+   * Transcrever um audio pela tela. Pedido do escritorio em 27/10/2026:
+   * "coloca a opcao de transcrever embaixo do audio". Serve ao audio que
+   * chegou antes do programa de voz estar pronto, ao que falhou e ao que
+   * alguem quer transcrever de novo. O motor e o mesmo da chegada
+   * (ia/audio.js), so no servidor. Nao falhando a rota, a mensagem volta com
+   * o texto ou com o motivo de nao ter.
+   */
+  rotas.post('/api/contatos/:id/mensagens/:mensagemId/transcrever', async ({ ctx, params }) => {
+    const contato = conversaOu404(ctx, params.id);
+    const mensagem = mensagensDe(contato.id).find((m) => m.id === params.mensagemId);
+    if (mensagem?.midia?.tipo !== 'audio') throw comCodigo('Esta mensagem nao tem audio.', 404);
+    if (!mensagem.midia.url) throw comCodigo('Carregue o audio primeiro, no botao Carregar.', 400);
+
+    const resultado = await transcrever({ workspaceId: ctx.workspaceId, contatoId: contato.id, midia: mensagem.midia });
+    if (!resultado.texto) {
+      return atualizarMensagem(contato.id, mensagem.id, { transcricaoErro: resultado.erro || 'Nao consegui transcrever este audio.' });
+    }
+    /* Audio sem legenda: o texto vai para o conteudo, que e o que o agente le. */
+    const semLegenda = !String(mensagem.conteudo || '').trim() || mensagem.conteudo === mensagem.transcricao;
+    const atualizada = atualizarMensagem(contato.id, mensagem.id, {
+      transcricao: resultado.texto,
+      transcricaoErro: null,
+      transcricaoDuvidas: resultado.duvidas || [],
+      ...(semLegenda ? { conteudo: resultado.texto } : {}),
+    });
+    registrarLog(ctx.workspaceId, contato.id, 'transcricao', 'Audio transcrito pela tela', {
+      tipo: 'membro',
+      id: ctx.membro?.id,
+      nome: ctx.usuario?.nome,
+    });
     return atualizada;
   });
 
