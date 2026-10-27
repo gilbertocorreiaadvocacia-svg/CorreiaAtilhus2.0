@@ -107,6 +107,15 @@ function resumirEscritorios() {
       avisoDaSenhaDoGov: agentesComAvisoDaSenhaDoGov(workspace.id),
       templates: resumoDosTemplates(workspace.id),
       conversas: retratoDasConversas(workspace.id),
+      /* A busca do historico no celular (whatsapp/sincronizar-historico.js) e as
+         voltas de queda que a disparam sozinhas (nucleo/batimento.js): quando
+         rodaram e o que trouxeram, sem nome de ninguem. */
+      historicoDoCelular: numeros
+        .filter((c) => c.historico)
+        .map(({ historico: h }) => ({ situacao: h.situacao, rodada: h.rodada, conversas: h.conversas, mensagens: h.mensagens, atualizadoEm: h.atualizadoEm, concluidoEm: h.concluidoEm, erro: h.erro || null })),
+      voltasDeQueda: listar('logs', { workspaceId: workspace.id, tipo: 'conexao_recuperacao' })
+        .slice(-8)
+        .map((l) => ({ em: l.criadoEm, descricao: l.descricao })),
       pendentes: contatos.filter((c) => c.estado === 'pendente' && !c.aceitoPor).length,
       naIa: contatos.filter((c) => c.responsavel?.tipo === 'agente' && c.estado !== 'arquivado').length,
     };

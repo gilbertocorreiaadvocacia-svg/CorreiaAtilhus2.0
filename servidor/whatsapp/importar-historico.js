@@ -284,6 +284,17 @@ export async function importarHistorico({
 
     const escolhido = escolherNome({ jid, telefone, chat, registros, agenda, daEvolution });
 
+    /* Conversa parada ha mais de 30 dias entra em Concluidos, e nao em Ativos.
+       Achado em 27/10/2026 ("estavam com 32 ativos e agora esta mais de 500"):
+       esta importacao roda de novo sozinha quando o sistema volta de mais de 3
+       minutos fora do ar (nucleo/batimento.js), e o WhatsApp passou a entregar
+       boa parte das conversas pelo codigo @lid, sem o telefone — cada uma virava
+       uma conversa nova em Ativos. Mesma regra da arrumacao aprovada em
+       26/10/2026 (concluirHistoricoParado, abaixo); se o cliente escrever, ela
+       reabre sozinha. */
+    const maisRecente = Number(registros[registros.length - 1]?.messageTimestamp || 0) * 1000;
+    const parada = !maisRecente || Date.now() - maisRecente > TRINTA_DIAS;
+
     let contato = listar('contatos', { workspaceId }).find((c) =>
       telefone ? chaveDoTelefone(c.telefone) === chaveDoTelefone(telefone) : c.lid === chaveLid,
     ) || null;
@@ -298,8 +309,10 @@ export async function importarHistorico({
         lid: ehLid ? jid : null,
         nome: escolhido.nome,
         nomeOrigem: escolhido.origem,
-        /* Em Ativos, com a pessoa que conectou: ver o cabecalho, escolha 2. */
+        /* Em Ativos, com a pessoa que conectou: ver o cabecalho, escolha 2.
+           A parada vai direto para Concluidos, com a mesma pessoa. */
         ...emAtivos,
+        ...(parada ? { estado: 'arquivado' } : {}),
         statusId: null,
         departamentoId: null,
         etiquetas: [],
@@ -308,8 +321,14 @@ export async function importarHistorico({
         variaveis: {},
         importado: true,
       });
-      registrarLog(workspaceId, contato.id, 'importacao', 'Conversa trazida do historico do WhatsApp');
+      registrarLog(
+        workspaceId,
+        contato.id,
+        'importacao',
+        parada ? 'Conversa trazida do historico do WhatsApp, direto para Concluidos (sem mensagem ha mais de 30 dias)' : 'Conversa trazida do historico do WhatsApp',
+      );
       relato.conversasImportadas += 1;
+      if (parada) relato.conversasConcluidas = (relato.conversasConcluidas || 0) + 1;
     } else {
       relato.conversasJaExistentes += 1;
       const mudancas = {};

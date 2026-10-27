@@ -101,8 +101,12 @@ export async function testarHistorico({ base, evolucao, chaveEvolucao }) {
   const G = '5581900000000@s.whatsapp.net';
   const H = '5581911110006@s.whatsapp.net';
 
+  /* De dois dias atras: recente para Ativos (conversa parada ha mais de 30 dias
+     entra em Concluidos, 27/10/2026), e sem ninguem da equipe nas ultimas 24 horas.
+     A de D fica de proposito em 2025, para conferir isso. */
+  const RECENTE = Math.floor(Date.now() / 1000) - 2 * 24 * 3600;
   let seq = 0;
-  const msg = (jid, texto, { deMim = false, perfil = '', alt = '', quando = 1750000000 } = {}) => {
+  const msg = (jid, texto, { deMim = false, perfil = '', alt = '', quando = RECENTE } = {}) => {
     seq += 1;
     return {
       key: { remoteJid: jid, fromMe: deMim, id: `HIST_${seq}`, ...(alt ? { remoteJidAlt: alt } : {}) },
@@ -120,7 +124,7 @@ export async function testarHistorico({ base, evolucao, chaveEvolucao }) {
       msg(A, 'Bom dia! Pode mandar os documentos', { deMim: true }),
       msg(B, 'Oi doutor, e o Joao do auxilio', { perfil: 'Joao' }),
       msg(C, 'Assinei o contrato', { perfil: 'Ana', alt: '5581911110003@s.whatsapp.net' }),
-      msg(D, 'Quero saber da aposentadoria', { perfil: 'Carlos' }),
+      msg(D, 'Quero saber da aposentadoria', { perfil: 'Carlos', quando: 1750000000 }),
       msg(E, 'Ola'),
       /* Dois anexos no historico de E: a foto do RG, que o celular ainda tem,
          e um laudo que o WhatsApp ja nao guarda mais. */
@@ -128,13 +132,13 @@ export async function testarHistorico({ base, evolucao, chaveEvolucao }) {
         key: { remoteJid: E, fromMe: false, id: 'HIST_IMG' },
         pushName: '',
         message: { imageMessage: { mimetype: 'image/png', caption: 'RG frente' } },
-        messageTimestamp: 1750000500,
+        messageTimestamp: RECENTE + 500,
       },
       {
         key: { remoteJid: E, fromMe: false, id: 'HIST_DOC' },
         pushName: '',
         message: { documentMessage: { mimetype: 'application/pdf', fileName: 'laudo.pdf' } },
-        messageTimestamp: 1750000600,
+        messageTimestamp: RECENTE + 600,
       },
       msg(F, 'mensagem no grupo', { perfil: 'Alguem' }),
       msg(G, 'nota para mim mesmo', { deMim: true }),
@@ -221,10 +225,11 @@ export async function testarHistorico({ base, evolucao, chaveEvolucao }) {
   const importadas = [a, b, c, d, e];
   s.ok('as cinco conversas do celular entraram', importadas.every(Boolean), importadas.map((x) => x?.nome || '-').join(' | '));
   s.ok(
-    'todas em Ativos',
-    importadas.every((x) => x?.aba === 'ativos'),
+    'as recentes em Ativos',
+    [a, b, c, e].every((x) => x?.aba === 'ativos'),
     importadas.map((x) => `${x?.nome}:${x?.aba}`).join(' | '),
   );
+  s.ok('a parada ha mais de 30 dias entra em Concluidos, e nao em Ativos', d?.aba === 'arquivados' && d?.responsavel?.tipo === 'membro', `${d?.nome}:${d?.aba}`);
   s.ok(
     'com uma pessoa da equipe como responsavel, e nao um agente',
     importadas.every((x) => x?.responsavel?.tipo === 'membro'),

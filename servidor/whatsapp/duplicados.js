@@ -176,8 +176,19 @@ export function retratoDasConversas(workspaceId) {
     porNome.set(nome, (porNome.get(nome) || 0) + 1);
   }
 
+  /* Quantas conversas a importacao do celular criou em cada dia: mostra
+     quando os Ativos incharam (27/10/2026, "estavam com 32 ativos e agora
+     esta mais de 500"). */
+  const importadosPorDia = {};
+  for (const contato of contatos) {
+    if (!contato.importado) continue;
+    const dia = String(contato.criadoEm || '').slice(0, 10) || 'sem data';
+    importadosPorDia[dia] = (importadosPorDia[dia] || 0) + 1;
+  }
+
   return {
     total: contatos.length,
+    importadosPorDia,
     ativos: ativos.length,
     ativosDoHistoricoDoCelular: ativos.filter((c) => c.importado).length,
     ativosSemMensagemHa30Dias: ativos.filter((c) => !c.ultimaMensagemEm || Date.parse(c.ultimaMensagemEm) < limite).length,
