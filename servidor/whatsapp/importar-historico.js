@@ -1,4 +1,4 @@
-import { atualizar, inserir, inserirMensagem, listar, mensagensDe, registrarLog } from '../nucleo/banco.js';
+import { atualizar, inserir, inserirMensagem, listar, mensagensDe, mensagensSemGuardar, registrarLog } from '../nucleo/banco.js';
 import { agora, chaveDoTelefone, normalizarTelefoneDoWhatsApp, novoId } from '../nucleo/util.js';
 import { extrairMensagem } from './drivers/qrcode.js';
 import { mapaDaAgenda } from './agenda.js';
@@ -27,12 +27,15 @@ import { SEM_IDENTIFICACAO, nomeValido, podeTrocarNome } from './nomes.js';
  *    sistema trata a conversa como uma pessoa com um telefone, e um grupo
  *    cadastrado assim viraria um contato com o numero errado.
  *
- * 2. Entra em ATIVOS, com a pessoa que conectou o numero como responsavel. Era
- *    arquivada, sem dono, e o escritorio pediu o contrario: quem ja conversa
- *    com o escritorio e cliente em andamento, e tem de estar a vista. Ha um
- *    efeito que vale saber — conversa com pessoa responsavel NAO e respondida
- *    por agente. Quem ja e cliente, ao escrever de novo, fala com gente; a
- *    Recepcao fica para numero que o escritorio nunca viu.
+ * 2. Entra em CONCLUIDOS, com a pessoa que conectou o numero como responsavel.
+ *    Ja entrou arquivada e sem dono, depois em Ativos; desde 27/10/2026 vai
+ *    para Concluidos ("estavam com 32 ativos e agora esta mais de 500" — 452
+ *    dos 516 Ativos eram conversas do celular que ninguem mexeu pelo
+ *    sistema). Esta importacao roda de novo sozinha a cada volta de queda
+ *    (nucleo/batimento.js), entao em Ativos ela enchia a aba de novo. Nada se
+ *    perde: a conversa fica legivel e pesquisavel, e reabre sozinha quando o
+ *    cliente escreve (vai para a IA, ver receberMensagem) ou quando o
+ *    escritorio responde pelo celular (volta para Ativos).
  *
  * 3. A MIDIA NAO E BAIXADA AGORA. Imagem, audio e PDF ficam registrados pelo
  *    tipo, pelo nome e pela CHAVE da mensagem, sem o arquivo. Baixar o anexo
@@ -178,9 +181,10 @@ function quandoDe(item) {
 /**
  * Importa o historico de uma conexao por QR Code.
  *
- * `responsavel` e a pessoa da equipe que fica com as conversas em Ativos:
- * { tipo: 'membro', id, nome }. Sem ela a conversa nao tem como estar em
- * Ativos — a aba e, por definicao, o que alguem aceitou.
+ * `responsavel` e a pessoa da equipe que fica com as conversas:
+ * { tipo: 'membro', id, nome }. E com ela que a conversa volta para Ativos
+ * quando o escritorio responde pelo celular — a aba e, por definicao, o que
+ * alguem aceitou.
  *
  * `aoAndar` recebe o progresso, porque vinte conversas com centenas de
  * mensagens cada demoram o bastante para uma tela em branco parecer travada.
@@ -212,10 +216,10 @@ export async function importarHistorico({
 
   const agenda = mapaDaAgenda(conexao);
   const daEvolution = await nomesDaEvolution(base, instancia);
-  const emAtivos = {
+  const comQuemConectou = {
     responsavel: { tipo: 'membro', id: responsavel.id, nome: responsavel.nome || 'Equipe' },
     aceitoPor: responsavel.id,
-    estado: 'ativo',
+    estado: 'arquivado',
   };
 
   const chats = await chamar(base, `/chat/findChats/${instancia}`, {});
@@ -284,17 +288,6 @@ export async function importarHistorico({
 
     const escolhido = escolherNome({ jid, telefone, chat, registros, agenda, daEvolution });
 
-    /* Conversa parada ha mais de 30 dias entra em Concluidos, e nao em Ativos.
-       Achado em 27/10/2026 ("estavam com 32 ativos e agora esta mais de 500"):
-       esta importacao roda de novo sozinha quando o sistema volta de mais de 3
-       minutos fora do ar (nucleo/batimento.js), e o WhatsApp passou a entregar
-       boa parte das conversas pelo codigo @lid, sem o telefone — cada uma virava
-       uma conversa nova em Ativos. Mesma regra da arrumacao aprovada em
-       26/10/2026 (concluirHistoricoParado, abaixo); se o cliente escrever, ela
-       reabre sozinha. */
-    const maisRecente = Number(registros[registros.length - 1]?.messageTimestamp || 0) * 1000;
-    const parada = !maisRecente || Date.now() - maisRecente > TRINTA_DIAS;
-
     let contato = listar('contatos', { workspaceId }).find((c) =>
       telefone ? chaveDoTelefone(c.telefone) === chaveDoTelefone(telefone) : c.lid === chaveLid,
     ) || null;
@@ -309,10 +302,8 @@ export async function importarHistorico({
         lid: ehLid ? jid : null,
         nome: escolhido.nome,
         nomeOrigem: escolhido.origem,
-        /* Em Ativos, com a pessoa que conectou: ver o cabecalho, escolha 2.
-           A parada vai direto para Concluidos, com a mesma pessoa. */
-        ...emAtivos,
-        ...(parada ? { estado: 'arquivado' } : {}),
+        /* Em Concluidos, com a pessoa que conectou: ver o cabecalho, escolha 2. */
+        ...comQuemConectou,
         statusId: null,
         departamentoId: null,
         etiquetas: [],
@@ -325,10 +316,9 @@ export async function importarHistorico({
         workspaceId,
         contato.id,
         'importacao',
-        parada ? 'Conversa trazida do historico do WhatsApp, direto para Concluidos (sem mensagem ha mais de 30 dias)' : 'Conversa trazida do historico do WhatsApp',
+        'Conversa trazida do historico do WhatsApp, direto para Concluidos. Reabre sozinha se o cliente escrever.',
       );
       relato.conversasImportadas += 1;
-      if (parada) relato.conversasConcluidas = (relato.conversasConcluidas || 0) + 1;
     } else {
       relato.conversasJaExistentes += 1;
       const mudancas = {};
@@ -338,11 +328,8 @@ export async function importarHistorico({
         Object.assign(mudancas, { nome: escolhido.nome, nomeOrigem: escolhido.origem });
         relato.conversasRenomeadas += 1;
       }
-      /* A importacao antiga deixava tudo arquivado e sem dono. Essas voltam
-         para Ativos; conversa que alguem ja mexeu fica onde esta. */
-      if (contato.importado && contato.estado === 'arquivado' && !contato.responsavel) {
-        Object.assign(mudancas, emAtivos);
-      }
+      /* Conversa que ja existia fica na aba em que esta. Ate 27/10/2026 a
+         importacao antiga (arquivada e sem dono) voltava daqui para Ativos. */
       if (Object.keys(mudancas).length) {
         atualizar('contatos', contato.id, mudancas);
         Object.assign(contato, mudancas);
@@ -459,6 +446,67 @@ export function concluirHistoricoParado({ agora = Date.now() } = {}) {
       registrarLog(workspace.id, null, 'massa', `Arrumacao de Ativos: ${doEscritorio} conversas do historico do celular, sem mensagem ha mais de 30 dias, concluidas`);
     }
     atualizar('workspaces', workspace.id, { historicoParadoConcluidoEm: new Date(agora).toISOString() });
+    concluidas += doEscritorio;
+  }
+  return concluidas;
+}
+
+/**
+ * Alguem do escritorio ja fez alguma coisa com esta conversa PELO SISTEMA?
+ *
+ * Qualquer um destes sinais a deixa onde esta: mensagem esperando leitura,
+ * conversa aceita, transferida ou passada por agente, etiqueta, situacao,
+ * setor, nome escrito a mao, e qualquer mensagem que nao veio da importacao
+ * do celular (resposta pela tela, mensagem nova do cliente, nota interna).
+ * So abrir para ler nao fica registrado em lugar nenhum — essa conta como
+ * nao mexida.
+ */
+function mexidaPeloSistema(contato) {
+  if (contato.naoLidas) return true;
+  if (contato.aceitoEm || contato.atribuidoEm || contato.passagens?.length) return true;
+  if (contato.etiquetas?.length || contato.statusId || contato.departamentoId) return true;
+  if (contato.nomeOrigem === 'manual') return true;
+  return mensagensSemGuardar(contato.id).some((m) => !m.importada);
+}
+
+/**
+ * A segunda arrumacao de Ativos, uma vez por escritorio.
+ *
+ * Pedido do escritorio em 27/10/2026: "estavam com 32 ativos e agora esta
+ * mais de 500". Dos 516 Ativos, 452 eram conversas do historico do celular,
+ * quase todas recentes — a primeira arrumacao (acima) so tirava as paradas
+ * ha mais de 30 dias. Aprovado por ele ("pode fazer, contando que nao
+ * desorganize"): concluir as do historico do celular que ninguem mexeu pelo
+ * sistema (mexidaPeloSistema). Desde o mesmo dia a importacao ja traz a
+ * conversa direto para Concluidos (ver o topo deste arquivo, escolha 2).
+ *
+ * Como na primeira: so muda a aba, com o motivo anotado. Nada e apagado, nada
+ * e enviado ao cliente, a pessoa responsavel continua a mesma, e a conversa
+ * reabre sozinha quando o cliente escreve. Fica fora o que nao veio do
+ * historico, o que esta com a IA, grupo e rede social.
+ */
+export function concluirHistoricoSoDoCelular({ agora = Date.now() } = {}) {
+  let concluidas = 0;
+  for (const workspace of listar('workspaces')) {
+    if (workspace.historicoSoDoCelularConcluidoEm) continue;
+    let doEscritorio = 0;
+    for (const contato of listar('contatos', { workspaceId: workspace.id })) {
+      if (!contato.importado || contato.grupo || contato.idCanal) continue;
+      if (contato.estado === 'arquivado' || contato.responsavel?.tipo === 'agente' || !contato.aceitoPor) continue;
+      if (mexidaPeloSistema(contato)) continue;
+      atualizar('contatos', contato.id, { estado: 'arquivado' });
+      registrarLog(
+        workspace.id,
+        contato.id,
+        'arquivo',
+        'Concluida na arrumacao de Ativos: conversa do historico do celular que ninguem mexeu pelo sistema. Reabre sozinha se o cliente escrever.',
+      );
+      doEscritorio += 1;
+    }
+    if (doEscritorio) {
+      registrarLog(workspace.id, null, 'massa', `Arrumacao de Ativos: ${doEscritorio} conversas do historico do celular, que ninguem mexeu pelo sistema, concluidas`);
+    }
+    atualizar('workspaces', workspace.id, { historicoSoDoCelularConcluidoEm: new Date(agora).toISOString() });
     concluidas += doEscritorio;
   }
   return concluidas;

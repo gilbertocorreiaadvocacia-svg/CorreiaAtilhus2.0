@@ -236,6 +236,13 @@ export function mensagensDe(contatoId) {
   return cacheMensagens.get(contatoId);
 }
 
+/* A mesma conversa, sem deixa-la no cache: para olhar centenas de conversas
+   uma vez so (ver concluirHistoricoSoDoCelular, em whatsapp/importar-
+   historico.js) sem segurar todas na memoria do servidor. */
+export function mensagensSemGuardar(contatoId) {
+  return cacheMensagens.get(contatoId) ?? lerJson(caminhoMensagens(contatoId), []);
+}
+
 /*
  * Quantas mensagens tem a conversa, SEM ler o arquivo se ele ainda nao
  * estiver em memoria. Devolve null nesse caso, em vez de pagar a leitura.

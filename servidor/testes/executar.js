@@ -81,7 +81,7 @@ import { testarAplicarRegrasInstitucionais, testarRegrasInstitucionais } from '.
 import { testarGatilhoAutomaticoDeHistorico, testarLiderhubHistorico } from './liderhub-historico.js';
 import { testarMigrarSemIdentificacao } from './sem-identificacao.js';
 import { testarDeduplicarContatos } from './duplicados.js';
-import { testarArrumacaoDeAtivos } from './arrumacao-de-ativos.js';
+import { testarArrumacaoDeAtivos, testarArrumacaoDoHistoricoSoDoCelular } from './arrumacao-de-ativos.js';
 import { testarVoz } from './voz.js';
 import { testarTranscricaoDeAudio } from './transcricao-audio.js';
 import { testarTranscricaoLocal } from './transcricao-local.js';
@@ -392,6 +392,7 @@ async function principal() {
     suites.push(await testarMigrarSemIdentificacao({ raiz: RAIZ }));
     suites.push(await testarDeduplicarContatos({ raiz: RAIZ }));
     suites.push(await testarArrumacaoDeAtivos({ raiz: RAIZ }));
+    suites.push(await testarArrumacaoDoHistoricoSoDoCelular({ raiz: RAIZ }));
   } catch (erro) {
     console.error('\nA suite quebrou antes de terminar:', erro.message);
     console.error(erro.stack);

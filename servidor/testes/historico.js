@@ -220,16 +220,22 @@ export async function testarHistorico({ base, evolucao, chaveEvolucao }) {
   const e = pelo((c) => c.telefone === '5581911110005');
   const hh = pelo((c) => c.telefone === '5581911110006');
 
-  /* ---------------- Em Ativos ---------------- */
+  /* ---------------- Em Concluidos ---------------- */
 
+  /* Desde 27/10/2026 ("estavam com 32 ativos e agora esta mais de 500"), a
+     conversa trazida do celular entra em Concluidos, recente ou nao. */
   const importadas = [a, b, c, d, e];
   s.ok('as cinco conversas do celular entraram', importadas.every(Boolean), importadas.map((x) => x?.nome || '-').join(' | '));
   s.ok(
-    'as recentes em Ativos',
-    [a, b, c, e].every((x) => x?.aba === 'ativos'),
+    'todas em Concluidos, e nenhuma em Ativos',
+    importadas.every((x) => x?.aba === 'arquivados'),
     importadas.map((x) => `${x?.nome}:${x?.aba}`).join(' | '),
   );
-  s.ok('a parada ha mais de 30 dias entra em Concluidos, e nao em Ativos', d?.aba === 'arquivados' && d?.responsavel?.tipo === 'membro', `${d?.nome}:${d?.aba}`);
+  s.ok(
+    'a conversa cadastrada antes da importacao fica na aba em que estava',
+    hh?.aba !== 'arquivados',
+    `${hh?.nome}:${hh?.aba}`,
+  );
   s.ok(
     'com uma pessoa da equipe como responsavel, e nao um agente',
     importadas.every((x) => x?.responsavel?.tipo === 'membro'),
