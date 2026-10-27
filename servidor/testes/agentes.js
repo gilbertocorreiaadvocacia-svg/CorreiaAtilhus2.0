@@ -221,6 +221,12 @@ export async function testarAgentes({ base }) {
     s.ok('quem estava ligado foi desligado', por(ligado1.id)?.ativo === false && por(ligado2.id)?.ativo === false);
     s.ok('quem ja estava desligado nao mudou', por(jaDesligado.id)?.ativo === false);
     s.ok('ninguem do escritorio ficou ligado', depois.every((a) => !a.ativo), JSON.stringify(depois.filter((a) => a.ativo).map((a) => a.nome)));
+    /* A anotacao que impede o reinicio de religar tudo (ativarAgentesSemEquipe). */
+    s.ok(
+      'quem a equipe desligou fica anotado, e quem ja estava desligado nao',
+      Boolean(por(ligado1.id)?.desligadoPelaEquipeEm) && Boolean(por(ligado2.id)?.desligadoPelaEquipeEm) && !por(jaDesligado.id)?.desligadoPelaEquipeEm,
+      JSON.stringify([por(ligado1.id)?.desligadoPelaEquipeEm, por(jaDesligado.id)?.desligadoPelaEquipeEm]),
+    );
 
     const denovo = await api.post('/api/agentes-desligar-todos', {});
     s.ok('rodar de novo com tudo ja desligado nao acusa ninguem', denovo.dados?.desligados === 0, String(denovo.dados?.desligados));
@@ -236,6 +242,16 @@ export async function testarAgentes({ base }) {
     s.ok('quem tinha sido desligado pelo "desligar todos" volta a ligar', porDepois(ligado1.id)?.ativo === true && porDepois(ligado2.id)?.ativo === true);
     s.ok('e quem ja estava desligado por outro motivo TAMBEM liga', porDepois(jaDesligado.id)?.ativo === true);
     s.ok('ninguem do escritorio ficou desligado', depoisDeAtivar.every((a) => a.ativo), JSON.stringify(depoisDeAtivar.filter((a) => !a.ativo).map((a) => a.nome)));
+    s.ok('ativar todos apaga a anotacao de desligado', depoisDeAtivar.every((a) => !a.desligadoPelaEquipeEm));
+
+    /* Um por um tambem anota: desligar marca, ligar de novo apaga. */
+    const umDesligado = (await api.patch(`/api/agentes/${ligado1.id}`, { ativo: false })).dados;
+    const umLigado = (await api.patch(`/api/agentes/${ligado1.id}`, { ativo: true })).dados;
+    s.ok(
+      'desligar um agente na mao anota, e ligar de novo apaga',
+      Boolean(umDesligado?.desligadoPelaEquipeEm) && umLigado?.ativo === true && !umLigado?.desligadoPelaEquipeEm,
+      JSON.stringify([umDesligado?.desligadoPelaEquipeEm, umLigado?.desligadoPelaEquipeEm]),
+    );
 
     const ativaDenovo = await api.post('/api/agentes-ativar-todos', {});
     s.ok('rodar de novo com tudo ja ligado nao acusa ninguem', ativaDenovo.dados?.ativados === 0, String(ativaDenovo.dados?.ativados));

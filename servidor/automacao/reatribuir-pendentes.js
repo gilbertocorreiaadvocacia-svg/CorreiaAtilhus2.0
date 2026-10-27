@@ -2,7 +2,7 @@ import { achar, atualizar, listar, mensagensDe, registrarLog } from '../nucleo/b
 import { emitir } from '../nucleo/eventos.js';
 import { agendarResposta } from '../ia/motor.js';
 import { escolherAgente, pessoaCuidandoAgora } from '../ia/escolher-agente.js';
-import { PASTA_PADRAO, comoEduardaPassaOTrabalhista, garantirTriagemNoEscritorioGeral, ligarNumerosDasAreas } from '../nucleo/agentes-por-escritorio.js';
+import { PASTA_PADRAO, comoEduardaPassaOTrabalhista, garantirTriagemNoEscritorioGeral, ligarNumerosDasAreas, ultimosLigaDesligaTodos } from '../nucleo/agentes-por-escritorio.js';
 import { resumoDosTemplates } from '../nucleo/diagnostico.js';
 import { templatesDoPacoteGanhamOArquivo } from '../ia/pacotes.js';
 import { agentesComAvisoDaSenhaDoGov } from '../nucleo/senha-do-gov.js';
@@ -100,6 +100,11 @@ function resumirEscritorios() {
       numerosSemPadrao: numeros.filter((c) => !c.responsavelPadrao).length,
       agentesLigados: ligados.length,
       pastasLigadas,
+      /* Quem a equipe desligou na mao, e os ultimos liga/desliga de todos —
+         inclusive o do reinicio (ativarAgentesSemEquipe), para ver de fora se a
+         IA ligou sozinha (27/10/2026). */
+      agentesDesligadosPelaEquipe: listar('agentes', { workspaceId: workspace.id }).filter((a) => !a.ativo && a.desligadoPelaEquipeEm).length,
+      ligaDesligaTodos: ultimosLigaDesligaTodos(workspace.id),
       agenteDeEntrada: escolha ? `${escolha.agente.nome} (${escolha.motivo})` : null,
       triagemGeralInstalada: Boolean(workspace.triagemGeralInstaladaEm),
       equipeTrabalhistaInstalada: Boolean(workspace.equipeTrabalhistaInstaladaEm),

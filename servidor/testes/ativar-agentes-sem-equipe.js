@@ -54,6 +54,23 @@ inserir('agentes', { id: 'a6', workspaceId: 'w3', nome: 'Agente do simulador', o
 /* w4: conexao real, mas nenhum agente cadastrado ainda. */
 inserir('workspaces', { id: 'w4', nome: 'Sem agente nenhum' });
 inserir('conexoes', { id: 'c4', workspaceId: 'w4', tipo: 'oficial', nome: 'Numero sem agente' });
+/* w5: a equipe desligou tudo (anotado no agente): o reinicio nao religa (27/10/2026). */
+inserir('workspaces', { id: 'w5', nome: 'Desligado pela equipe' });
+inserir('conexoes', { id: 'c5', workspaceId: 'w5', tipo: 'qrcode', nome: 'Numero desligado' });
+inserir('agentes', { id: 'a7', workspaceId: 'w5', nome: 'Eduarda', objetivo: 'atender', ativo: false, desligadoPelaEquipeEm: '2026-10-27T12:00:00.000Z' });
+inserir('agentes', { id: 'a8', workspaceId: 'w5', nome: 'Agente 26', objetivo: 'atender', ativo: false });
+/* w6: "Desligar todos" clicado antes de existir a anotacao — so o log. */
+inserir('workspaces', { id: 'w6', nome: 'Desligar todos de antes' });
+inserir('conexoes', { id: 'c6', workspaceId: 'w6', tipo: 'qrcode', nome: 'Numero de antes' });
+inserir('agentes', { id: 'a9', workspaceId: 'w6', nome: 'Triagem', objetivo: 'atender', ativo: false });
+inserir('logs', { id: 'l1', workspaceId: 'w6', contatoId: null, tipo: 'seguranca', descricao: 'Ligou todos os agentes de IA (1)', criadoEm: '2026-10-26T10:00:00.000Z' });
+inserir('logs', { id: 'l2', workspaceId: 'w6', contatoId: null, tipo: 'seguranca', descricao: 'Desligou todos os agentes de IA (1)', criadoEm: '2026-10-27T10:00:00.000Z' });
+/* w7: o ultimo foi um "Ativar todos" (e depois ficou sem ninguem, sem anotacao): a rede de seguranca vale. */
+inserir('workspaces', { id: 'w7', nome: 'Ativado por ultimo' });
+inserir('conexoes', { id: 'c7', workspaceId: 'w7', tipo: 'oficial', nome: 'Numero ativado' });
+inserir('agentes', { id: 'a10', workspaceId: 'w7', nome: 'Recepcao', objetivo: 'atender', ativo: false });
+inserir('logs', { id: 'l3', workspaceId: 'w7', contatoId: null, tipo: 'seguranca', descricao: 'Desligou todos os agentes de IA (1)', criadoEm: '2026-10-26T10:00:00.000Z' });
+inserir('logs', { id: 'l4', workspaceId: 'w7', contatoId: null, tipo: 'seguranca', descricao: 'Ligou todos os agentes de IA (1)', criadoEm: '2026-10-27T10:00:00.000Z' });
 await encerrarBanco();
 `,
   );
@@ -65,7 +82,7 @@ await encerrarBanco();
 import { ativarAgentesSemEquipe } from ${JSON.stringify(urlDoModulo)};
 iniciarBanco();
 const ativados = ativarAgentesSemEquipe();
-console.log(JSON.stringify({ ativados, agentes: listar('agentes') }));
+console.log(JSON.stringify({ ativados, agentes: listar('agentes'), logs: listar('logs', { tipo: 'seguranca' }) }));
 await encerrarBanco();
 process.exit(0);
 `,
@@ -77,14 +94,28 @@ process.exit(0);
 
     const r1 = await rodar(rodarAtivacao);
     if (!s.ok('roda sem erro', r1.codigo === 0, r1.texto.slice(-400))) return s;
-    const { ativados, agentes } = JSON.parse(r1.texto.trim().split('\n').pop());
+    const { ativados, agentes, logs } = JSON.parse(r1.texto.trim().split('\n').pop());
     const por = (id) => agentes.find((a) => a.id === id);
 
     s.ok('liga os dois agentes de atendimento do escritorio sem equipe', por('a1').ativo && por('a2').ativo, JSON.stringify([por('a1').ativo, por('a2').ativo]));
     s.ok('nao liga o agente de Avaliacao por essa porta', !por('a3').ativo, String(por('a3').ativo));
     s.ok('nao mexe no escritorio que ja tinha agente ativo', por('a4').ativo && !por('a5').ativo, JSON.stringify([por('a4').ativo, por('a5').ativo]));
     s.ok('conexao de simulador nao conta como numero real', !por('a6').ativo, String(por('a6').ativo));
-    s.ok('relata os dois agentes ligados, com o nome do escritorio', ativados.length === 2 && ativados.every((a) => a.escritorio === 'Civel de Teste'), JSON.stringify(ativados));
+    s.ok('nao religa o escritorio que a equipe desligou na mao', !por('a7').ativo && !por('a8').ativo, JSON.stringify([por('a7').ativo, por('a8').ativo]));
+    s.ok('nem o que teve "Desligar todos" por ultimo, antes da anotacao existir', !por('a9').ativo, String(por('a9').ativo));
+    s.ok('se o ultimo foi "Ativar todos", a rede de seguranca continua valendo', por('a10').ativo, String(por('a10').ativo));
+    s.ok(
+      'relata os agentes ligados, com o nome do escritorio',
+      ativados.length === 3 &&
+        ativados.filter((a) => a.escritorio === 'Civel de Teste').length === 2 &&
+        ativados.some((a) => a.escritorio === 'Ativado por ultimo'),
+      JSON.stringify(ativados),
+    );
+    s.ok(
+      'e deixa anotado no escritorio que ligou sozinho',
+      logs.some((l) => l.workspaceId === 'w1' && /^Ligou sozinho 2 agente/.test(l.descricao)) && !logs.some((l) => l.workspaceId === 'w5' && /sozinho/.test(l.descricao)),
+      JSON.stringify(logs.map((l) => `${l.workspaceId}:${l.descricao}`)),
+    );
 
     const r2 = await rodar(rodarAtivacao);
     const segunda = JSON.parse(r2.texto.trim().split('\n').pop());

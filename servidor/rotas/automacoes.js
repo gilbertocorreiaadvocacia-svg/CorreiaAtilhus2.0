@@ -1,7 +1,7 @@
 import { PROMPT, VOZES, areaValida } from '../config.js';
 import { achar, atualizar, inserir, listar, registrarLog, remover, reordenar } from '../nucleo/banco.js';
 import { emitir } from '../nucleo/eventos.js';
-import { normalizar, novoId, slug } from '../nucleo/util.js';
+import { agora, normalizar, novoId, slug } from '../nucleo/util.js';
 import { PACOTES } from '../ia/pacotes.js';
 import { PASTA_PADRAO, instalarPacote, novoAgente as agenteNovo, separarPorEscritorio } from '../nucleo/agentes-por-escritorio.js';
 import { normalizarMomentos } from '../nucleo/casos.js';
@@ -578,6 +578,12 @@ export function registrarAutomacoes(rotas) {
     const antes = doWorkspace(ctx, 'agentes', params.id);
     const campos = apenasCamposDoAgente(corpo);
     conferirMencoes(ctx, antes, { ...antes, ...campos });
+    /* Agente desligado na mao fica anotado: o boot nao religa escritorio que a
+       equipe desligou de proposito (ativarAgentesSemEquipe, em
+       nucleo/agentes-por-escritorio.js). Ligar de novo apaga a anotacao. */
+    if ('ativo' in campos && Boolean(campos.ativo) !== Boolean(antes.ativo)) {
+      campos.desligadoPelaEquipeEm = campos.ativo ? null : agora();
+    }
     return atualizar('agentes', params.id, campos);
   });
 
@@ -627,7 +633,7 @@ export function registrarAutomacoes(rotas) {
   rotas.post('/api/agentes-desligar-todos', async ({ ctx }) => {
     exigirConfiguracao(ctx);
     const ligados = listar('agentes', { workspaceId: ctx.workspaceId }).filter((a) => a.ativo);
-    for (const agente of ligados) atualizar('agentes', agente.id, { ativo: false });
+    for (const agente of ligados) atualizar('agentes', agente.id, { ativo: false, desligadoPelaEquipeEm: agora() });
     if (ligados.length) {
       registrarLog(ctx.workspaceId, null, 'seguranca', `Desligou todos os agentes de IA (${ligados.length})`, {
         tipo: 'membro',
@@ -647,7 +653,7 @@ export function registrarAutomacoes(rotas) {
   rotas.post('/api/agentes-ativar-todos', async ({ ctx }) => {
     exigirConfiguracao(ctx);
     const desligados = listar('agentes', { workspaceId: ctx.workspaceId }).filter((a) => !a.ativo);
-    for (const agente of desligados) atualizar('agentes', agente.id, { ativo: true });
+    for (const agente of desligados) atualizar('agentes', agente.id, { ativo: true, desligadoPelaEquipeEm: null });
     if (desligados.length) {
       registrarLog(ctx.workspaceId, null, 'seguranca', `Ligou todos os agentes de IA (${desligados.length})`, {
         tipo: 'membro',
