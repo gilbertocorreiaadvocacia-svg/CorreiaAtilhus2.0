@@ -7,6 +7,7 @@ import { resumoDosTemplates } from '../nucleo/diagnostico.js';
 import { templatesDoPacoteGanhamOArquivo } from '../ia/pacotes.js';
 import { agentesComAvisoDaSenhaDoGov } from '../nucleo/senha-do-gov.js';
 import { retratoDasConversas } from '../whatsapp/duplicados.js';
+import { saudeDoAtendimento } from '../nucleo/saude-do-atendimento.js';
 
 /**
  * Toda conversa pendente volta para um agente de IA. Pedidos do escritorio:
@@ -123,6 +124,8 @@ function resumirEscritorios() {
         .map((l) => ({ em: l.criadoEm, descricao: l.descricao })),
       pendentes: contatos.filter((c) => c.estado === 'pendente' && !c.aceitoPor).length,
       naIa: contatos.filter((c) => c.responsavel?.tipo === 'agente' && c.estado !== 'arquivado').length,
+      /* Quem esta esperando resposta, conversa presa e as falhas anotadas (28/10/2026). */
+      atendimento: saudeDoAtendimento(workspace.id),
     };
   });
 }
