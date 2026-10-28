@@ -22,6 +22,7 @@ import { testarCasos } from './casos.js';
 import { testarEncadeamento } from './encadeamento.js';
 import { testarPassagemDeVerdade } from './passagem-de-verdade.js';
 import { testarSenhaDoGov } from './senha-do-gov.js';
+import { testarAposentadoriaSemInsistir } from './aposentadoria-sem-insistir.js';
 import { testarVideoDoTemplate } from './video-do-template.js';
 import { testarLeituraPdf } from './leitura-pdf.js';
 import { testarAssumirConversa } from './assumir-conversa.js';
@@ -304,6 +305,7 @@ async function principal() {
     suites.push(await testarEncadeamento({ base, anthropic }));
     suites.push(await testarPassagemDeVerdade({ base, anthropic, raiz: RAIZ }));
     suites.push(await testarSenhaDoGov({ anthropic, raiz: RAIZ }));
+    suites.push(await testarAposentadoriaSemInsistir({ raiz: RAIZ }));
     suites.push(await testarVideoDoTemplate({ base, raiz: RAIZ }));
     suites.push(await testarLeituraPdf({ anthropic, raiz: RAIZ }));
     suites.push(await testarAssumirConversa({ base, anthropic, raiz: RAIZ }));

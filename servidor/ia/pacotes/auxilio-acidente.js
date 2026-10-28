@@ -61,6 +61,12 @@ const HONORARIOS_CALCULO =
 
 const DESQUALIFICAR = 'altere o @status para "Desqualificado" e use @desativarIA';
 
+/* Pedido do escritorio em 28/10/2026: a triagem insistia na pergunta da
+   aposentadoria enquanto o cliente ja explicava o caso. Vai tambem para os
+   agentes ja instalados (nucleo/aposentadoria-sem-insistir.js). */
+export const APOSENTADORIA_SEM_RESPOSTA =
+  'NÃO RESPONDEU SOBRE APOSENTADORIA: se o cliente não disser se recebe aposentadoria e já estiver contando o caso, NÃO insista nem repita a pergunta. Continue o atendimento como NÃO RECEBE, pelo que ele contou. Se depois ele disser que é aposentado, siga RECEBE APOSENTADORIA.';
+
 const CHECAGEM_E_PITCH = `CHECAGEM ADVOGADO
 
 Pergunte: Por acaso você não tentou dar entrada no pedido sem advogado não né?
@@ -129,6 +135,8 @@ Com a resposta, use @salvarnome, altere o @status para "Em análise" e pergunte:
 RECEBE APOSENTADORIA: dá para analisar o retroativo. Chegou a receber auxílio-doença? Continue a triagem com o @status "Em análise".
 
 NÃO RECEBE: falou de acidente, siga para ACIDENTE. Falou de doença do trabalho, siga para DOENÇA. Não identificou: Você sofreu acidente ou doença do trabalho?
+
+${APOSENTADORIA_SEM_RESPOSTA}
 
 ACIDENTE
 

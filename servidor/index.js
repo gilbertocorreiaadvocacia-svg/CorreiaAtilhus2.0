@@ -19,6 +19,7 @@ import { contextoDaSessao, limparSessoesOrfas, migrarPapeis } from './nucleo/aut
 import { migrarNomesDeAgentes } from './nucleo/migrar-agentes.js';
 import { aplicarRegrasInstitucionais } from './nucleo/migrar-regras-institucionais.js';
 import { tirarAvisoDaSenhaDoGov } from './nucleo/senha-do-gov.js';
+import { aposentadoriaSemInsistir } from './nucleo/aposentadoria-sem-insistir.js';
 import { templatesDoPacoteGanhamOArquivo } from './ia/pacotes.js';
 import { garantirModeloDeVoz, situacaoDoModeloDeVoz } from './ia/modelo-de-voz.js';
 import { motorLocal } from './ia/transcricao-local.js';
@@ -170,6 +171,9 @@ if (regrasInstitucionais.acrescentados || regrasInstitucionais.corrigidos) {
 /* A senha do gov.br sai da regra do Civel nos agentes ja instalados (26/10/2026). */
 const avisosDaSenhaDoGov = tirarAvisoDaSenhaDoGov();
 if (avisosDaSenhaDoGov) console.log(`Senha do gov.br: aviso antigo tirado de ${avisosDaSenhaDoGov} agente(s).`);
+/* A triagem do auxilio-acidente para de insistir na pergunta da aposentadoria (28/10/2026). */
+const semInsistirNaAposentadoria = aposentadoriaSemInsistir();
+if (semInsistirNaAposentadoria) console.log(`Aposentadoria: regra de seguir sem a resposta acrescentada em ${semInsistirNaAposentadoria} agente(s).`);
 /* Beatriz destravada, nomes e pasta do Trabalhista limpos, "Agente 26" repetido fora (07/10/2026). */
 const reorganizacaoDeAgentes = migrarNomesDeAgentes();
 if (reorganizacaoDeAgentes.renomeados || reorganizacaoDeAgentes.removidos) {
@@ -325,7 +329,7 @@ rotas.get(
       /* Muda a cada entrega que mexe no atendimento. A imagem nao leva o .git
          (.dockerignore), e sem isto nao havia como saber, de fora, se o
          deploy da hospedagem pegou o codigo novo ou ficou no antigo. */
-      codigo: '2026-10-28.1',
+      codigo: '2026-10-28.2',
       agora: new Date().toISOString(),
       raiz: RAIZ,
       pid: process.pid,
