@@ -31,7 +31,7 @@ import { proximoHorarioValido, horarioComercialDe } from '../automacao/horario.j
 import { apagarMidia, guardarBase64 } from '../nucleo/midia.js';
 import { transcrever } from '../ia/audio.js';
 import { cancelarResposta } from '../ia/motor.js';
-import { interromperAvaliacao, pedirAvaliacao } from '../automacao/avaliacao.js';
+import { interromperAvaliacao } from '../automacao/avaliacao.js';
 import { inserirNota, notificar } from '../ia/mencoes.js';
 import { removerTarefasDoContato } from './tarefas.js';
 import { definirMomento, umTipoDeCaso } from '../nucleo/casos.js';
@@ -666,9 +666,11 @@ export function registrarAtendimento(rotas) {
        para escolher o icone, e ha registros antigos gravados assim. O que muda
        e a frase que a pessoa le. */
     registrarLog(ctx.workspaceId, contato.id, 'arquivo', arquivar ? 'Atendimento concluido' : 'Conversa reaberta');
-    /* Concluir UMA conversa pede a avaliacao do atendimento (automacao/avaliacao.js).
-       O "Concluir" em massa, logo abaixo, nao pede: e arrumacao de fila. */
-    if (arquivar) pedirAvaliacao(contato.id, { tipo: 'membro', id: ctx.membro?.id, nome: ctx.usuario.nome });
+    /* Concluir NAO pede mais a avaliacao do atendimento. Ate 29/10/2026 pedia,
+       e o escritorio conclui para tirar a conversa da fila ("eu arquivo apenas
+       para nao estar nos ativos"): o cliente no meio do contrato recebia "de 1
+       a 5, que nota voce da". A avaliacao sai na assinatura do contrato
+       (confirmarAssinatura, em integracoes/zapsign.js). */
     emitir(ctx.workspaceId, 'contato', { contatoId: contato.id });
     return enriquecer(achar('contatos', contato.id));
   });

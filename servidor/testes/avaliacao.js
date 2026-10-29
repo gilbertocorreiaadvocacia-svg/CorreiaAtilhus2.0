@@ -3,11 +3,12 @@ import { cliente, esperar, suite } from './apoio.js';
 /**
  * A avaliacao do atendimento (automacao/avaliacao.js).
  *
- * O que nao pode falhar: concluir UMA conversa passa para o agente de
- * avaliacao, que pergunta a nota na hora; a nota fica guardada e a conversa
- * volta concluida para quem atendia; nota baixa avisa quem atendeu; e nada
- * disso acontece sem chave de IA, no "Concluir" em massa ou de novo em menos de
- * 90 dias — os tres casos em que o sistema mandaria mensagem sem motivo.
+ * O que nao pode falhar: o cliente ASSINAR o contrato passa a conversa para o
+ * agente de avaliacao, que pergunta a nota na hora; a nota fica guardada e a
+ * conversa volta como estava, com quem atendia; nota baixa avisa quem atendeu;
+ * e nada disso acontece ao Concluir (uma ou em massa — o escritorio conclui
+ * so para tirar da fila; ate 29/10/2026 concluir pedia a avaliacao no meio do
+ * atendimento), sem chave de IA ou de novo em menos de 90 dias.
  *
  * A Anthropic e a de mentira, com roteiro (ver encadeamento.js).
  */
@@ -15,7 +16,7 @@ import { cliente, esperar, suite } from './apoio.js';
 const MARCA = 'MARCA-DA-SUITE-DE-AVALIACAO';
 const TELEFONE = (n) => `558193100${String(n).padStart(4, '0')}`;
 
-export async function testarAvaliacao({ base, anthropic }) {
+export async function testarAvaliacao({ base, anthropic, zapsign }) {
   const s = suite('Avaliacao do atendimento');
   const api = cliente(base);
   await api.entrar();
@@ -57,6 +58,20 @@ export async function testarAvaliacao({ base, anthropic }) {
     return id;
   };
   const concluir = (id) => api.post(`/api/contatos/${id}/arquivar`, { arquivar: true });
+  /* O cliente assina pelo caminho de verdade: contrato direto na ZapSign de
+     mentira, documento assinado la, e a consulta daqui percebe. */
+  const zs = cliente(zapsign);
+  const assinar = async (id) => {
+    await api.patch(`/api/contatos/${id}`, {
+      variaveis: { cpf: '12345678909', endereco: 'Rua da Avaliacao, 1, Centro, Timbauba-PE, 55870-000', email: 'avaliacao@exemplo.com' },
+    });
+    await api.post(`/api/contatos/${id}/contrato`, {});
+    const contrato = ((await api.get(`/api/contratos?contatoId=${id}`)).dados || []).find((c) => c.situacao === 'link_enviado');
+    if (!contrato) return null;
+    await zs.post('/__documento', { token: contrato.tokenExterno, status: 'signed' });
+    await api.post(`/api/contratos/${contrato.id}/consultar`, {});
+    return contrato;
+  };
   const esperarChamadas = async (quantas) => {
     for (let i = 0; i < 50; i += 1) {
       if ((await registro()).total >= quantas) break;
@@ -67,14 +82,31 @@ export async function testarAvaliacao({ base, anthropic }) {
   const criadas = [];
 
   try {
+    await api.patch('/api/integracoes', { zapsign: { chave: 'zs-de-mentira', modeloPadraoId: 'mdl-contrato', envioDireto: true } });
+    await api.post('/api/integracoes/zapsign/sincronizar', {});
+
     /* ---------------- Sem chave de IA: nao pede ---------------- */
 
     await api.patch('/api/integracoes', { ia: { chaveAnthropic: null } });
     const semChave = await novaConversa(1);
     criadas.push(semChave);
-    await concluir(semChave);
+    const contratoSemChave = await assinar(semChave);
     const r1 = await conversa(semChave);
-    s.ok('sem chave de IA, concluir nao pede avaliacao', !r1?.avaliacao && r1?.responsavel?.tipo === 'membro', JSON.stringify(r1?.avaliacao));
+    s.ok('o contrato da conversa de teste foi assinado', Boolean(contratoSemChave) && (await api.get(`/api/contratos?contatoId=${semChave}`)).dados?.[0]?.situacao === 'assinado');
+    s.ok('sem chave de IA, assinar nao pede avaliacao', !r1?.avaliacao && r1?.responsavel?.tipo === 'membro', JSON.stringify(r1?.avaliacao));
+
+    /* ---------------- Concluir NAO pede (29/10/2026) ---------------- */
+
+    await api.patch('/api/integracoes', { ia: { chaveAnthropic: 'sk-ant-de-mentira' } });
+    const concluida = await novaConversa(6);
+    criadas.push(concluida);
+    await concluir(concluida);
+    const r6 = await conversa(concluida);
+    s.ok(
+      'concluir uma conversa so tira da fila: nao pede avaliacao, nem manda nada',
+      !r6?.avaliacao && r6?.estado === 'arquivado' && r6?.responsavel?.tipo === 'membro' && (await saidas(concluida)).length === 0,
+      JSON.stringify({ avaliacao: r6?.avaliacao, estado: r6?.estado, saidas: (await saidas(concluida)).map((m) => m.conteudo) }),
+    );
 
     /* ---------------- Pede, pergunta a nota e guarda ---------------- */
 
@@ -82,14 +114,14 @@ export async function testarAvaliacao({ base, anthropic }) {
     const contatoId = await novaConversa(2);
     criadas.push(contatoId);
     await roteiro([{ status: 200, texto: 'Oi! De 1 a 5, que nota voce da para o nosso atendimento?' }]);
-    await concluir(contatoId);
+    await assinar(contatoId);
     const pedida = await conversa(contatoId);
     s.ok(
-      'concluir passa a conversa para o agente de avaliacao',
+      'o contrato assinado passa a conversa para o agente de avaliacao',
       pedida?.responsavel?.id === avaliador.id && pedida?.avaliacao?.situacao === 'pedida',
       JSON.stringify({ responsavel: pedida?.responsavel, avaliacao: pedida?.avaliacao }),
     );
-    s.ok('e a conversa continua concluida', pedida?.estado === 'arquivado', pedida?.estado);
+    s.ok('na aba IA, para ele responder a nota', pedida?.estado === 'ia', pedida?.estado);
     await esperarChamadas(1);
     s.ok(
       'o agente pergunta a nota sem o cliente escrever',
@@ -110,14 +142,13 @@ export async function testarAvaliacao({ base, anthropic }) {
     const fim = await conversa(contatoId);
     s.ok('a nota fica guardada na conversa', fim?.avaliacao?.situacao === 'respondida' && fim?.avaliacao?.nota === 5, JSON.stringify(fim?.avaliacao));
     s.ok(
-      'e a conversa volta concluida, com quem atendia',
-      fim?.estado === 'arquivado' && fim?.responsavel?.tipo === 'membro',
+      'e a conversa volta como estava, aberta com quem atendia, sem ser concluida',
+      fim?.estado === 'ativo' && fim?.responsavel?.tipo === 'membro',
       JSON.stringify({ estado: fim?.estado, responsavel: fim?.responsavel }),
     );
     s.ok('a despedida chega ao cliente', (await saidas(contatoId)).some((m) => m.conteudo === 'Obrigado pela nota!'));
 
-    await api.post(`/api/contatos/${contatoId}/arquivar`, { arquivar: false });
-    await concluir(contatoId);
+    await assinar(contatoId);
     const deNovo = await conversa(contatoId);
     s.ok(
       'nao pede de novo em menos de 90 dias',
@@ -133,7 +164,7 @@ export async function testarAvaliacao({ base, anthropic }) {
       { status: 200, texto: 'De 1 a 5, que nota voce da para o nosso atendimento?' },
       { status: 200, texto: 'Obrigado pela sinceridade.', chamadas: [{ nome: 'concluir_avaliacao', argumentos: { nota: 2, comentario: 'Demoraram a responder' } }] },
     ]);
-    await concluir(baixa);
+    await assinar(baixa);
     await esperarChamadas(1);
     await api.post(`/api/agentes/${avaliador.id}/responder-agora`, { contatoId: baixa });
     const avisos = (await api.get('/api/notificacoes')).dados || [];
@@ -148,7 +179,7 @@ export async function testarAvaliacao({ base, anthropic }) {
     const reaberta = await novaConversa(4);
     criadas.push(reaberta);
     await roteiro([{ status: 200, texto: 'De 1 a 5, que nota voce da para o nosso atendimento?' }]);
-    await concluir(reaberta);
+    await assinar(reaberta);
     await esperarChamadas(1);
     await api.post(`/api/contatos/${reaberta}/arquivar`, { arquivar: false });
     const r4 = await conversa(reaberta);
@@ -166,7 +197,7 @@ export async function testarAvaliacao({ base, anthropic }) {
     s.ok('concluir em massa nao pede avaliacao', !(await conversa(massa))?.avaliacao);
   } finally {
     await falsa.post('/__roteiro', { roteiro: [] });
-    await api.patch('/api/integracoes', { ia: { chaveAnthropic: null } });
+    await api.patch('/api/integracoes', { ia: { chaveAnthropic: null }, zapsign: { chave: null, envioDireto: null } });
     for (const id of criadas.filter(Boolean)) await api.delete(`/api/contatos/${id}`);
     for (const agente of [avaliador, atendente]) if (agente?.id) await api.delete(`/api/agentes/${agente.id}`);
     for (const agente of outros) await api.patch(`/api/agentes/${agente.id}`, { ativo: true });

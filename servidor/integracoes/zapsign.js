@@ -11,6 +11,7 @@ import { agora, formatarTelefone, garantirPasta, normalizar, novoId } from '../n
 import { enviarMensagem } from '../whatsapp/envio.js';
 import { aplicarStatus } from '../automacao/followup.js';
 import { inserirNota, notificar } from '../ia/mencoes.js';
+import { pedirAvaliacao } from '../automacao/avaliacao.js';
 
 /**
  * Contrato e procuracao pela ZapSign.
@@ -685,6 +686,11 @@ export async function confirmarAssinatura(contratoId) {
     notificar(contrato.workspaceId, membro.id, 'contrato', 'Contrato assinado', `${contato.nome} assinou o contrato.`, contato.id);
   }
   emitir(contrato.workspaceId, 'contrato', { contatoId: contato.id, contratoId, situacao: 'assinado' });
+
+  /* Assinado, o atendimento terminou de verdade: e a hora de pedir a
+     avaliacao. Pedido do escritorio em 29/10/2026, quando ela saia ao clicar
+     em Concluir — no meio do atendimento. */
+  pedirAvaliacao(contato.id, { tipo: 'sistema', nome: 'Contrato assinado' });
 
   await disparar('contrato_assinado', { workspaceId: contrato.workspaceId, contatoId: contato.id, contratoId });
   return { ok: true };

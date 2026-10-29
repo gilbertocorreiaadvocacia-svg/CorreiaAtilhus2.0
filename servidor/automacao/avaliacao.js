@@ -6,8 +6,10 @@ import { notificar } from '../ia/mencoes.js';
 import { modeloDe, provedorDisponivel } from '../ia/provedores.js';
 
 /**
- * A avaliacao do atendimento, pedida quando uma pessoa da equipe conclui a
- * conversa (pedido de 16/09).
+ * A avaliacao do atendimento, pedida quando o cliente assina o contrato. De
+ * 16/09 a 29/10/2026 era pedida quando uma pessoa da equipe concluia a
+ * conversa — e o escritorio conclui so para tirar da fila, entao o pedido
+ * chegava no meio do atendimento.
  *
  * Quem pede e o agente com o objetivo "avaliar" do escritorio
  * (ia/pacotes/avaliacao.js). A conversa passa para ele e CONTINUA concluida:
@@ -69,9 +71,20 @@ export function pedirAvaliacao(contatoId, quem = { tipo: 'sistema', nome: 'Siste
   const motivo = porQueNaoPedir(contato, agente);
   if (motivo) return { pedida: false, motivo };
 
+  /* Conversa que nao esta concluida (a do contrato que acabou de ser
+     assinado) vai para a aba IA durante a avaliacao: so com o estado 'ia' o
+     agente responde a nota que o cliente mandar (whatsapp/recebimento.js). O
+     estado de antes fica guardado para ela voltar como estava. */
   atualizar('contatos', contato.id, {
-    avaliacao: { situacao: 'pedida', pedidaEm: agora(), agenteId: agente.id, responsavelAntes: contato.responsavel || null },
+    avaliacao: {
+      situacao: 'pedida',
+      pedidaEm: agora(),
+      agenteId: agente.id,
+      responsavelAntes: contato.responsavel || null,
+      estadoAntes: contato.estado || null,
+    },
     responsavel: { tipo: 'agente', id: agente.id, nome: agente.nome },
+    ...(contato.estado === 'arquivado' ? {} : { estado: 'ia' }),
   });
   registrarLog(contato.workspaceId, contato.id, 'avaliacao', `Avaliacao do atendimento pedida por ${agente.nome}`, quem);
   emitir(contato.workspaceId, 'contato', { contatoId: contato.id });
@@ -118,7 +131,17 @@ export function encerrarAvaliacao(contatoId, { situacao, nota = null, comentario
     const antes = pedido.responsavelAntes;
     const aindaExiste = antes && (antes.tipo === 'membro' ? achar('membros', antes.id) : achar('agentes', antes.id));
     mudancas.responsavel = aindaExiste ? antes : null;
-    mudancas.estado = reabrir ? (mudancas.responsavel?.tipo === 'agente' ? 'ia' : 'pendente') : 'arquivado';
+    /* Sem o cliente esperando, volta como estava: concluida, ou — a pedida na
+       assinatura do contrato — aberta com quem atendia. */
+    const voltaComoEstava =
+      pedido.estadoAntes && pedido.estadoAntes !== 'arquivado'
+        ? mudancas.responsavel?.tipo === 'agente'
+          ? 'ia'
+          : pedido.estadoAntes === 'ia'
+            ? 'pendente'
+            : pedido.estadoAntes
+        : 'arquivado';
+    mudancas.estado = reabrir ? (mudancas.responsavel?.tipo === 'agente' ? 'ia' : 'pendente') : voltaComoEstava;
   }
 
   atualizar('contatos', contato.id, mudancas);
@@ -128,7 +151,9 @@ export function encerrarAvaliacao(contatoId, { situacao, nota = null, comentario
   });
 
   if (nota && nota <= 3) avisarNotaBaixa(contato, pedido.responsavelAntes, nota, mudancas.avaliacao.comentario);
-  if (mudancas.estado === 'ia') agendarResposta(achar('contatos', contato.id));
+  /* So com o cliente esperando: voltar para um agente sem ninguem ter escrito
+     faria ele falar sozinho. */
+  if (reabrir && mudancas.estado === 'ia') agendarResposta(achar('contatos', contato.id));
   emitir(contato.workspaceId, 'contato', { contatoId: contato.id });
   return { ok: true, nota: nota || null };
 }
@@ -166,8 +191,12 @@ export function encerrarAvaliacoesParadas(agoraEm = Date.now()) {
     const pedido = contato.avaliacao;
     if (pedido?.situacao !== 'pedida') continue;
     if (agoraEm - (Date.parse(pedido.pedidaEm || '') || 0) < ESPERA) continue;
-    /* Estado "ia" e o cliente que respondeu e ficou sem o agente encerrar. */
-    encerrarAvaliacao(contato.id, { situacao: 'sem_resposta', reabrir: contato.estado === 'ia' });
+    /* O cliente escreveu depois do pedido e ficou sem o agente encerrar. Ate
+       29/10/2026 a conta era "estado ia", que valia so para conversa
+       concluida (a resposta do cliente a reabre); a pedida na assinatura do
+       contrato ja fica 'ia' desde o pedido. */
+    const respondeu = String(contato.ultimaEntradaEm || '') > String(pedido.pedidaEm || '');
+    encerrarAvaliacao(contato.id, { situacao: 'sem_resposta', reabrir: respondeu });
     encerradas += 1;
   }
   return encerradas;

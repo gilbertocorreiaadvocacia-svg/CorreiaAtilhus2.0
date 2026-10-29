@@ -320,7 +320,7 @@ async function principal() {
     /* Idem: prompt editado no meio da conversa, sem reiniciar o servidor. */
     suites.push(await testarPromptAoVivo({ base, anthropic }));
     /* Tambem usa a Anthropic de mentira, e poe e tira a chave. */
-    suites.push(await testarAvaliacao({ base, anthropic }));
+    suites.push(await testarAvaliacao({ base, anthropic, zapsign }));
     suites.push(await testarVoz({ base, anthropic, openai }));
     suites.push(await testarTranscricaoDeAudio({ base, openai }));
     suites.push(await testarTranscricaoLocal());
