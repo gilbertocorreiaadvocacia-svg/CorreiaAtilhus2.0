@@ -4362,11 +4362,11 @@ export async function paginaAtendimento({
     }
 
     for (const coluna of colunas) {
-      /* Pedido do escritorio em 23/10/2026: conversa concluida (arquivada)
-         some do Kanban. Volta sozinha se o cliente escrever de novo —
-         receberMensagem() (whatsapp/recebimento.js) ja tira o arquivado e
-         religa para a IA nesse momento, antes mesmo do redesenho acontecer. */
-      const daColuna = contatos.filter((c) => (c.statusId || '') === coluna.id && c.estado !== 'arquivado');
+      /* Conversa concluida (arquivada) aparece na coluna dela: concluir tira
+         da fila de atendimento, nao do funil. Pedido do escritorio em
+         29/10/2026 ("eu arquivo apenas para nao estar nos ativos"), desfazendo
+         o de 23/10, quando ela sumia do Kanban. */
+      const daColuna = contatos.filter((c) => (c.statusId || '') === coluna.id);
       // A soma que o dado permite e a das mensagens esperando resposta. E ela
       // que separa a coluna cheia da coluna parada: cem conversas fechadas nao
       // pedem nada, tres conversas com cliente esperando pedem hoje.
@@ -4449,6 +4449,10 @@ export async function paginaAtendimento({
                 ])
               : el('span', { class: 'kanban-cartao-caso sem', texto: 'Sem tipo de caso' }),
             contato.naoLidas ? el('span', { class: 'nao-lidas', texto: String(contato.naoLidas) }) : null,
+            /* Concluida continua no funil; o selo diz que ela saiu da fila. */
+            contato.estado === 'arquivado'
+              ? el('span', { class: 'selo', title: 'Conversa concluída: fora da fila de atendimento', texto: 'Concluída' })
+              : null,
             el('span', {
               class: `kanban-quem ${quem.classe}`,
               title: responsavel?.nome ? `Com ${responsavel.nome}` : 'Sem responsável',

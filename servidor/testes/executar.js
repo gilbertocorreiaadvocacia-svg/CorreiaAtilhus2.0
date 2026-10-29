@@ -65,6 +65,7 @@ import { testarHigiene } from './higiene.js';
 import { testarBaseEStatus } from './base-e-status.js';
 import { testarAtivarAgentesSemEquipe } from './ativar-agentes-sem-equipe.js';
 import { testarSaudeDoAtendimento } from './saude-do-atendimento.js';
+import { testarFollowupEnvio } from './followup-envio.js';
 import { testarPosVenda } from './posvenda.js';
 import { testarMigrarDepartamentoPosVenda } from './migrar-posvenda.js';
 import { testarReatribuirPendentes } from './reatribuir-pendentes.js';
@@ -397,6 +398,7 @@ async function principal() {
     suites.push(await testarArrumacaoDeAtivos({ raiz: RAIZ }));
     suites.push(await testarArrumacaoDoHistoricoSoDoCelular({ raiz: RAIZ }));
     suites.push(await testarSaudeDoAtendimento({ raiz: RAIZ }));
+    suites.push(await testarFollowupEnvio({ raiz: RAIZ }));
   } catch (erro) {
     console.error('\nA suite quebrou antes de terminar:', erro.message);
     console.error(erro.stack);

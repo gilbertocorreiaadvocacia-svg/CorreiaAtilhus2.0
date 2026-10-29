@@ -1,20 +1,16 @@
 import { cliente, suite } from './apoio.js';
 
 /**
- * Conversa concluida (arquivada) some do Kanban, mas volta sozinha se o
- * cliente escrever de novo.
+ * Conversa concluida (arquivada) CONTINUA no Kanban: concluir tira da fila de
+ * atendimento, nao do funil.
  *
- * Pedido do escritorio em 23/10/2026: o Kanban busca com aba=todas (para
- * contar toda coluna de uma vez, nao so a aba aberta), e nada ali filtrava
- * por estado — uma conversa que a pessoa concluiu em massa (justamente para
- * tirar da fila) continuava aparecendo como cartao na coluna, do mesmo jeito
- * que uma conversa aberta. O conserto e so na CONTAGEM e no CARTAO do
- * Kanban: a tabela de Contatos, que busca a mesma aba=todas para outro fim
- * (listar todo mundo, inclusive quem ja foi atendido), continua mostrando
- * arquivada normalmente — nao mexi nela.
+ * De 23/10 a 29/10/2026 ela sumia do Kanban, a pedido do escritorio. Em 29/10
+ * o pedido virou o contrario: "os arquivados deveriam aparecer no Kanban, pois
+ * eu arquivo apenas para nao estar nos ativos". O Kanban busca com aba=todas,
+ * e a contagem da coluna (porStatus) e o cartao contam a concluida.
  */
 export async function testarKanbanConcluido({ base }) {
-  const s = suite('Kanban: concluida some, mas volta se o cliente escrever');
+  const s = suite('Kanban: conversa concluida continua na coluna dela');
   const api = cliente(base);
   await api.entrar();
 
@@ -55,20 +51,17 @@ export async function testarKanbanConcluido({ base }) {
 
   const resposta = await api.get('/api/contatos?aba=todas&limite=400');
   s.ok(
-    'o Kanban (aba=todas) conta so a conversa aberta nesta coluna, nao a concluida',
-    resposta.dados?.porStatus?.[status.id] === 1,
+    'o Kanban (aba=todas) conta a aberta e a concluida nesta coluna',
+    resposta.dados?.porStatus?.[status.id] === 2,
     JSON.stringify({ porStatus: resposta.dados?.porStatus, statusId: status.id }),
   );
   const idsNaResposta = (resposta.dados?.contatos || []).map((c) => c.id);
   s.ok(
-    'a conversa concluida nao aparece como cartao (continua existindo, so nao soma)',
-    idsNaResposta.includes(idAberto),
+    'a conversa concluida vem na resposta, para virar cartao',
+    idsNaResposta.includes(idAberto) && idsNaResposta.includes(idConcluido),
     JSON.stringify({ temAberto: idsNaResposta.includes(idAberto), temConcluido: idsNaResposta.includes(idConcluido) }),
   );
 
-  /* A tabela de Contatos usa a MESMA aba=todas, mas e outra tela: continua
-     mostrando a concluida, porque e ela que serve para achar quem ja foi
-     atendido. So o numero que o Kanban le (porStatus) muda. */
   const contatoConcluido = (await api.get(`/api/contatos/${idConcluido}`)).dados;
   s.ok('a conversa concluida continua existindo, so com estado arquivado', contatoConcluido?.estado === 'arquivado');
 
@@ -89,7 +82,7 @@ export async function testarKanbanConcluido({ base }) {
 
   const respostaDepois = await api.get('/api/contatos?aba=todas&limite=400');
   s.ok(
-    'e volta a contar no Kanban (as duas, agora)',
+    'e continua contando no Kanban (as duas)',
     respostaDepois.dados?.porStatus?.[status.id] === 2,
     JSON.stringify(respostaDepois.dados?.porStatus),
   );

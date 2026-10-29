@@ -110,9 +110,29 @@ export function saudeDoAtendimento(workspaceId, agora = Date.now()) {
   }
   const recentes = logs.filter((l) => l.criadoEm >= seteDias);
 
-  const agendamentos = listar('agendamentos').filter((a) => contatos.some((c) => c.id === a.contatoId));
+  const idsDosContatos = new Set(contatos.map((c) => c.id));
+  const agendamentos = listar('agendamentos').filter((a) => idsDosContatos.has(a.contatoId));
   const agendamentosAtrasados = agendamentos.filter((a) => a.estado === 'pendente' && a.quando && Date.parse(a.quando) < agora - 15 * MINUTO).length;
   const agendamentosComErro = agendamentos.filter((a) => a.estado === 'erro');
+  const porEstado = {};
+  for (const a of agendamentos) porEstado[a.estado || 'sem estado'] = (porEstado[a.estado || 'sem estado'] || 0) + 1;
+  const enviados = agendamentos.filter((a) => a.estado === 'enviado' && a.enviadoEm);
+  const pendentes = agendamentos.filter((a) => a.estado === 'pendente' && a.quando);
+  const canceladosNaSemana = agendamentos.filter((a) => a.estado === 'cancelado' && (a.atualizadoEm || a.criadoEm) >= seteDias);
+
+  /* Pedido do escritorio em 29/10/2026: "os follow-ups nao estao sendo
+     enviados". A sequencia so nasce quando a conversa ENTRA num status que
+     tem follow-up (automacao/followup.js): aqui fica, por status, quantos
+     passos ele tem e quantas conversas estao nele. */
+  const followupPorStatus = listar('status', { workspaceId })
+    .map((status) => ({
+      status: status.nome,
+      passos: (status.followups || []).length,
+      minutos: (status.followups || []).map((p) => Number(p.minutos) || 0),
+      conversas: contatos.filter((c) => c.statusId === status.id).length,
+      concluidas: contatos.filter((c) => c.statusId === status.id && c.estado === 'arquivado').length,
+    }))
+    .filter((s) => s.passos || s.conversas);
 
   const conexoes = listar('conexoes', { workspaceId })
     .filter((c) => c.tipo !== 'simulador')
@@ -133,11 +153,17 @@ export function saudeDoAtendimento(workspaceId, agora = Date.now()) {
     motivosDeErroDeEnvio: motivos(recentes.filter((l) => l.tipo === 'erro_envio'), 'Falha ao enviar:'),
     motivosDeErroDaIa: motivos(recentes.filter((l) => l.tipo === 'erro_ia'), 'Falha do agente:'),
     agendamentos: {
-      pendentes: agendamentos.filter((a) => a.estado === 'pendente').length,
+      pendentes: pendentes.length,
       atrasados: agendamentosAtrasados,
       comErro: agendamentosComErro.length,
       motivosDeErro: motivos(agendamentosComErro.map((a) => ({ descricao: a.erro, criadoEm: a.atualizadoEm || a.criadoEm })), ''),
+      porEstado,
+      enviadosEm7dias: enviados.filter((a) => a.enviadoEm >= seteDias).length,
+      ultimoEnviadoEm: enviados.reduce((maior, a) => (a.enviadoEm > maior ? a.enviadoEm : maior), '') || null,
+      proximoEm: pendentes.reduce((menor, a) => (!menor || a.quando < menor ? a.quando : menor), '') || null,
+      motivosDeCancelamentoEm7dias: motivos(canceladosNaSemana.map((a) => ({ descricao: a.motivoCancelamento, criadoEm: a.atualizadoEm || a.criadoEm })), ''),
     },
+    followupPorStatus,
     conexoes,
   };
 }

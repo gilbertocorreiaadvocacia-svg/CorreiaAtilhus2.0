@@ -270,15 +270,13 @@ export function registrarAtendimento(rotas) {
     // "Contrato assinado" com 900 conversas antigas mostrava o selo 3, que e
     // quantas entraram no lote, e o socio lia isso como tres contratos.
     //
-    // Pedido do escritorio em 23/10/2026: conversa concluida (arquivada) some
-    // do Kanban — ela so volta a contar se o cliente escrever de novo, porque
-    // ai receberMensagem() (whatsapp/recebimento.js) ja tira o arquivado
-    // sozinho. So o Kanban usa este numero (so consumidor de porStatus no
-    // frontend); a tabela de Contatos conta por conta propria, a partir do
-    // que ja carregou, e continua mostrando arquivada normalmente.
+    // Conversa concluida (arquivada) CONTA no Kanban. De 23/10 a 29/10/2026
+    // ela sumia do Kanban, a pedido do escritorio; em 29/10 o pedido virou o
+    // contrario: "os arquivados deveriam aparecer no Kanban, pois eu arquivo
+    // apenas para nao estar nos ativos". Concluir tira da fila de
+    // atendimento, nao do funil.
     const porStatus = {};
     for (const contato of contatos) {
-      if (contato.estado === 'arquivado') continue;
       const chave = contato.statusId || '';
       porStatus[chave] = (porStatus[chave] || 0) + 1;
     }

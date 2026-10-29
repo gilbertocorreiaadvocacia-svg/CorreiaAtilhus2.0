@@ -190,7 +190,7 @@ export async function dispararAgendamento(agendamento) {
     midia = template.midia || null;
   }
 
-  await enviarMensagem({
+  const enviada = await enviarMensagem({
     contato,
     conexao,
     tipo: midia ? midia.tipo : 'texto',
@@ -200,6 +200,15 @@ export async function dispararAgendamento(agendamento) {
     autor: { tipo: 'sistema', nome: agendamento.tipo === 'followup' ? 'Follow-up' : 'Mensagem agendada' },
     origemAutomacao: agendamento.tipo,
   });
+
+  /* enviarMensagem nao lanca: a falha volta na propria mensagem. Ate
+     29/10/2026 o follow-up que falhava contava como enviado e, no ultimo
+     passo, ainda desistia do lead e o arquivava — sem o cliente ter recebido
+     nada (achado na auditoria de 28/10). */
+  if (enviada?.situacao === 'erro') {
+    atualizar('agendamentos', agendamento.id, { estado: 'erro', erro: enviada.erro?.mensagem || 'falha no envio' });
+    return;
+  }
 
   atualizar('agendamentos', agendamento.id, { estado: 'enviado', enviadoEm: agora() });
 
@@ -220,22 +229,39 @@ export async function dispararAgendamento(agendamento) {
 }
 
 let laco = null;
+let rodando = false;
 
-/** Laco unico do servidor: a cada tique, envia o que venceu. */
+/**
+ * Laco unico do servidor: a cada tique, envia o que venceu.
+ *
+ * Um tique por vez. Ate 29/10/2026 o tique seguinte comecava com o anterior
+ * ainda enviando (o envio de video leva ate 60 s, e o tique e de 15 s),
+ * relistava o mesmo agendamento ainda 'pendente' e o mandava de novo: o
+ * cliente recebia o mesmo follow-up duas ou tres vezes (auditoria de 28/10).
+ */
 export function iniciarAgendador(intervalo) {
   if (laco) return;
   laco = setInterval(async () => {
-    const limite = new Date().toISOString();
-    const vencidos = listar('agendamentos', { estado: 'pendente' }).filter((a) => a.quando <= limite);
-    for (const agendamento of vencidos) {
-      try {
-        await dispararAgendamento(agendamento);
-      } catch (erro) {
-        atualizar('agendamentos', agendamento.id, {
-          estado: 'erro',
-          erro: erro.message,
-        });
+    if (rodando) return;
+    rodando = true;
+    try {
+      const limite = new Date().toISOString();
+      const vencidos = listar('agendamentos', { estado: 'pendente' }).filter((a) => a.quando <= limite);
+      for (const agendamento of vencidos) {
+        /* Cancelado ou reagendado enquanto o anterior da lista enviava. */
+        const atual = achar('agendamentos', agendamento.id);
+        if (atual?.estado !== 'pendente' || atual.quando > new Date().toISOString()) continue;
+        try {
+          await dispararAgendamento(atual);
+        } catch (erro) {
+          atualizar('agendamentos', agendamento.id, {
+            estado: 'erro',
+            erro: erro.message,
+          });
+        }
       }
+    } finally {
+      rodando = false;
     }
   }, intervalo);
   if (typeof laco.unref === 'function') laco.unref();

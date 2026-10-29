@@ -59,6 +59,16 @@ inserir('logs', { workspaceId: 'w1', contatoId: null, tipo: 'reativacao', descri
 inserir('agendamentos', { contatoId: 'ia-esperando-5min', estado: 'pendente', quando: ha(60) });
 inserir('agendamentos', { contatoId: 'ia-esperando-5min', estado: 'pendente', quando: ha(-60) });
 inserir('agendamentos', { contatoId: 'ativo-esperando-2dias', estado: 'erro', erro: 'Template 5581977770000 removido' });
+inserir('agendamentos', { contatoId: 'ativo-esperando-2dias', estado: 'enviado', enviadoEm: ha(120) });
+inserir('agendamentos', { contatoId: 'ativo-esperando-2dias', estado: 'enviado', enviadoEm: ha(10 * 24 * 60) });
+inserir('agendamentos', { contatoId: 'ia-esperando-5min', estado: 'cancelado', motivoCancelamento: 'status alterado', atualizadoEm: ha(30) });
+inserir('agendamentos', { contatoId: 'ia-esperando-5min', estado: 'cancelado', motivoCancelamento: 'status alterado', atualizadoEm: ha(40) });
+
+inserir('status', { id: 'st-qualificado', workspaceId: 'w1', nome: 'Qualificado', followups: [{ minutos: 60 }, { minutos: 1440 }] });
+inserir('status', { id: 'st-analise', workspaceId: 'w1', nome: 'Em análise', followups: [] });
+inserir('status', { id: 'st-vazio', workspaceId: 'w1', nome: 'Coluna vazia', followups: [] });
+contato('na-analise', { statusId: 'st-analise', estado: 'arquivado' });
+contato('qualificado', { statusId: 'st-qualificado', responsavel: ia, estado: 'ia' });
 
 console.log(JSON.stringify(saudeDoAtendimento('w1', AGORA)));
 await encerrarBanco();
@@ -111,6 +121,19 @@ process.exit(0);
       'agendamentos: pendentes, atrasados e com erro',
       b.agendamentos.pendentes === 2 && b.agendamentos.atrasados === 1 && b.agendamentos.comErro === 1,
       JSON.stringify(b.agendamentos),
+    );
+    const a = b.agendamentos;
+    s.ok(
+      'follow-up: quantos por estado, enviados na semana, o ultimo envio e o proximo',
+      a.porEstado.enviado === 2 && a.porEstado.cancelado === 2 && a.enviadosEm7dias === 1 && Boolean(a.ultimoEnviadoEm) && Boolean(a.proximoEm),
+      JSON.stringify(a),
+    );
+    s.ok('e por que foram cancelados na semana', a.motivosDeCancelamentoEm7dias[0]?.motivo === 'status alterado' && a.motivosDeCancelamentoEm7dias[0]?.vezes === 2, JSON.stringify(a.motivosDeCancelamentoEm7dias));
+    const porStatus = Object.fromEntries(b.followupPorStatus.map((x) => [x.status, x]));
+    s.ok(
+      'por status: quantos passos de follow-up e quantas conversas, sem a coluna vazia',
+      porStatus.Qualificado?.passos === 2 && porStatus.Qualificado?.conversas === 1 && porStatus['Em análise']?.passos === 0 && porStatus['Em análise']?.concluidas === 1 && !porStatus['Coluna vazia'],
+      JSON.stringify(b.followupPorStatus),
     );
     s.ok(
       'o numero de verdade aparece com o estado e a ultima mensagem de cliente; o simulador nao',
