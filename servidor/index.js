@@ -7,7 +7,7 @@ import { prepararHospedagem } from './nucleo/hospedagem.js';
 import { ativarAgentesSemEquipe, garantirAgentesDasAreas, garantirAvaliacaoNosEscritorios, garantirPosVendaNosEscritorios, garantirStatusDasAreas, garantirTestesDeRoteamento, garantirTriagemNoEscritorioGeral, migrarDepartamentoPosVenda } from './nucleo/agentes-por-escritorio.js';
 import { iniciarAvaliacoes } from './automacao/avaliacao.js';
 import { caminhoDaMidia } from './nucleo/midia.js';
-import { atualizar, encerrarBanco, iniciarBanco, listar, tabela } from './nucleo/banco.js';
+import { atualizar, encerrarBanco, iniciarBanco, listar, salvarMensagensPendentes, salvarPendentes, tabela } from './nucleo/banco.js';
 import { estado as estadoDoEspelho, ligado as espelhoLigado } from './nucleo/espelho.js';
 import { migrarCoresParaTokens } from './nucleo/paleta.js';
 import { migrarTiposDeCaso } from './nucleo/casos.js';
@@ -46,6 +46,7 @@ import { autenticarChave, dentroDoLimite, registrarPublica } from './rotas/publi
 import { retomarSincronizacoes } from './whatsapp/sincronizar-historico.js';
 import { iniciarBatimento, recuperarDaQueda } from './nucleo/batimento.js';
 import { iniciarBackup } from './nucleo/backup.js';
+import { registrarDesligamento, registrarErroNaoTratado, registrarSubida, vidaDoSistema } from './nucleo/vida.js';
 import { retomarMidiaHistorico } from './whatsapp/midia-historico.js';
 import { retomarFotos } from './whatsapp/fotos.js';
 import { retomarHistoricoLiderhub } from './integracoes/liderhub.js';
@@ -55,6 +56,8 @@ import { retomarRespostasPendentes } from './ia/motor.js';
 iniciarBanco();
 /* Quando ESTA copia subiu. Vai na saude, para dar para distinguir duas. */
 const INICIADO_EM = new Date().toISOString();
+/* Muda a cada entrega que mexe no atendimento (ver /api/saude). */
+const CODIGO = '2026-10-29.2';
 
 /* Atraso do event loop: se o processo Node estiver bloqueado por algo
    sincrono (grava de arquivo grande, laco pesado), ate um /api/saude trivial
@@ -64,6 +67,31 @@ const medidorDeAtraso = monitorEventLoopDelay({ resolution: 20 });
 medidorDeAtraso.enable();
 /* E quando e em que o servidor travou (nucleo/lentidao.js), desde a subida. */
 vigiarPausas();
+/* Como o sistema saiu da ultima vez — desligado ou caiu (nucleo/vida.js).
+   Antes de iniciarBatimento(), enquanto o pulso em disco e o da vez anterior. */
+const estaSubida = registrarSubida(CODIGO);
+if (estaSubida.comoSaiu === 'caiu') {
+  console.log(`[vida] o sistema CAIU da ultima vez (parado ${estaSubida.paradoSegundos ?? '?'} s${estaSubida.ultimoErro ? `, ultimo erro: ${estaSubida.ultimoErro.mensagem}` : ''}).`);
+}
+
+/*
+ * Cada ajuste da subida corre separado: o que falha fica anotado (vai no
+ * /api/saude) e o resto segue. Ate 29/10/2026 eles rodavam soltos no topo
+ * deste arquivo, e um erro em qualquer um derrubava o processo antes de abrir
+ * a porta: a hospedagem subia de novo, o mesmo erro acontecia, e o sistema
+ * ficava fora do ar ate sair uma correcao (auditoria de 28/10; pedido "as
+ * vezes o sistema cai").
+ */
+const falhasNaSubida = [];
+function naSubida(nome, executar, seFalhar = null) {
+  try {
+    return executar();
+  } catch (erro) {
+    falhasNaSubida.push({ etapa: nome, erro: String(erro?.message || erro).replace(/\d{6,}/g, '#').slice(0, 200) });
+    console.error(`[subida] ${nome} falhou, o resto segue:`, erro);
+    return seFalhar;
+  }
+}
 
 const semeado = semearSePrecisar();
 /* Hospedado, a senha padrao nao chega a abrir a porta (nucleo/hospedagem.js). */
@@ -78,59 +106,59 @@ if (HOSPEDADO) {
   }
 }
 /* Depois de semear, para pegar tambem a base que acabou de nascer. */
-const coresTrocadas = migrarCoresParaTokens({ listar, atualizar });
+const coresTrocadas = naSubida('cores', () => migrarCoresParaTokens({ listar, atualizar }), 0);
 if (coresTrocadas) console.log(`Paleta: ${coresTrocadas} cores da semeadura antiga viraram token de tema.`);
 /* Papeis para o modelo novo (owner/admin/atendente/somente_leitura). */
-const papeisAcertados = migrarPapeis();
+const papeisAcertados = naSubida('papeis', migrarPapeis, 0);
 if (papeisAcertados) console.log(`Papeis dos membros: ${papeisAcertados} migrados para o modelo novo.`);
 /* Depois das cores: a migracao dos tipos compara com a cor ja em token. */
-const casosAcertados = migrarTiposDeCaso();
+const casosAcertados = naSubida('tipos de caso', migrarTiposDeCaso, 0);
 if (casosAcertados) console.log(`Tipos de caso e momentos: ${casosAcertados} acertos.`);
 /* As origens que respondem pela marca do WhatsApp (anuncio, Instagram). */
-const origensAcertadas = migrarCanaisDeOrigem();
+const origensAcertadas = naSubida('origens', migrarCanaisDeOrigem, 0);
 if (origensAcertadas) console.log(`Origens de anuncio e Instagram: ${origensAcertadas} acertos.`);
 /* "Conversa sem identificacao" com telefone: pedido do escritorio em
    15/10/2026, sem nome mostra o numero. So entram no texto antigo quem ja
    tinha sido criado assim; a fonte ja esta corrigida (ver recebimento.js e
    importar-historico.js). */
-const semIdentificacaoAcertados = migrarSemIdentificacaoParaNumero();
+const semIdentificacaoAcertados = naSubida('sem identificacao', migrarSemIdentificacaoParaNumero, 0);
 if (semIdentificacaoAcertados) console.log(`Conversa sem identificacao: ${semIdentificacaoAcertados} trocada(s) pelo numero.`);
 /* Contato duplicado (mesma pessoa, dois registros) — achado em 15/10/2026 na
    importacao da LiderHub, ja corrigido na fonte (ver integracoes/liderhub.js).
    Funde o que ja ficou duplicado antes da correcao. */
-const contatosFundidos = deduplicarContatos();
+const contatosFundidos = naSubida('duplicados', deduplicarContatos, {});
 if (contatosFundidos.fundidos) {
   console.log(`Contatos duplicados: ${contatosFundidos.fundidos} fundido(s), ${contatosFundidos.mensagensMovidas} mensagem(ns) movida(s).`);
 }
 /* A arrumacao de Ativos aprovada em 26/10/2026, uma vez: o historico do
    celular parado ha mais de 30 dias vai para Concluidos. Depois da fusao
    acima, para concluir ja a conversa inteira. */
-const historicoConcluido = concluirHistoricoParado();
+const historicoConcluido = naSubida('historico parado', () => concluirHistoricoParado(), 0);
 if (historicoConcluido) console.log(`Ativos: ${historicoConcluido} conversa(s) antiga(s) do historico do celular concluida(s).`);
 /* A segunda arrumacao, aprovada em 27/10/2026, uma vez: o historico do
    celular que ninguem mexeu pelo sistema vai para Concluidos. */
-const historicoSoDoCelular = concluirHistoricoSoDoCelular();
+const historicoSoDoCelular = naSubida('historico so do celular', () => concluirHistoricoSoDoCelular(), 0);
 if (historicoSoDoCelular) console.log(`Ativos: ${historicoSoDoCelular} conversa(s) do historico do celular, sem uso no sistema, concluida(s).`);
 /* O agente de avaliacao do atendimento, uma vez em cada escritorio. */
-const avaliadores = garantirAvaliacaoNosEscritorios();
+const avaliadores = naSubida('avaliacao', garantirAvaliacaoNosEscritorios, 0);
 if (avaliadores) console.log(`Avaliacao do atendimento: agente instalado em ${avaliadores} escritorio(s).`);
 /* Cada workspace de area com a area certa marcada e o roteiro certo de
    agentes — mesmo quando o workspace nasceu errado, criado pelo caminho
    generico em vez do caminho de area (achado real em 14/10/2026). */
-const agentesDasAreas = garantirAgentesDasAreas();
+const agentesDasAreas = naSubida('agentes das areas', garantirAgentesDasAreas, {});
 if (agentesDasAreas.areasCorrigidas || agentesDasAreas.agentesInstalados) {
   console.log(`Agentes por area: ${agentesDasAreas.areasCorrigidas} area(s) corrigida(s), ${agentesDasAreas.agentesInstalados} agente(s) instalado(s).`);
 }
 /* Casos padrao da bateria de teste de roteamento (aba "Testar roteamento"
    em Agentes) — depois de garantir os agentes, para achar cada um pelo
    nome. So semeia quem ainda nao tem nenhum caso. */
-const testesDeRoteamento = garantirTestesDeRoteamento();
+const testesDeRoteamento = naSubida('testes de roteamento', garantirTestesDeRoteamento, {});
 if (testesDeRoteamento.casosCriados) {
   console.log(`Testes de roteamento: ${testesDeRoteamento.casosCriados} caso(s) semeado(s) em ${testesDeRoteamento.workspacesSemeados} workspace(s).`);
 }
 /* O funil de status completo em cada workspace de area, para quem tambem
    nasceu sem ele pelo caminho generico (mesmo achado de 14/10/2026). */
-const statusDasAreas = garantirStatusDasAreas();
+const statusDasAreas = naSubida('status das areas', garantirStatusDasAreas, {});
 if (statusDasAreas.workspacesCorrigidos) {
   console.log(
     `Status por area: ${statusDasAreas.workspacesCorrigidos} workspace(s) corrigido(s), ${statusDasAreas.statusCriados} status criado(s), ${statusDasAreas.departamentosFundidos} departamento(s) fundido(s).`,
@@ -142,18 +170,18 @@ if (statusDasAreas.workspacesCorrigidos) {
    Comercial antes dele ser removido. O agente de pos-venda continua
    existindo (ver garantirPosVendaNosEscritorios logo abaixo), so sem
    departamento proprio. */
-const depPosVenda = migrarDepartamentoPosVenda();
+const depPosVenda = naSubida('departamento pos-venda', migrarDepartamentoPosVenda, {});
 if (depPosVenda.workspacesCorrigidos) {
   console.log(`Departamento Pós-venda removido: ${depPosVenda.workspacesCorrigidos} workspace(s), ${depPosVenda.contatosMovidos} contato(s) movido(s) para Comercial.`);
 }
 /* O agente de pos-venda, uma vez em cada escritorio de area, e ligado como
    responsavel apos a assinatura quando esse ponto ainda nao foi configurado. */
-const posVenda = garantirPosVendaNosEscritorios();
+const posVenda = naSubida('pos-venda', garantirPosVendaNosEscritorios, {});
 if (posVenda.instalados || posVenda.configurados) {
   console.log(`Pós-venda: agente instalado em ${posVenda.instalados} escritorio(s), responsavel apos assinatura ligado em ${posVenda.configurados}.`);
 }
 /* Numero real conectado sem nenhum agente ativo: silencio total para quem escreve. */
-const agentesLigados = ativarAgentesSemEquipe();
+const agentesLigados = naSubida('agentes sem equipe', ativarAgentesSemEquipe, []);
 if (agentesLigados.length) {
   console.log(`Agentes ativados por falta de equipe: ${agentesLigados.map((a) => `${a.agente} (${a.escritorio})`).join(', ')}.`);
 }
@@ -162,20 +190,20 @@ if (agentesLigados.length) {
    onde ha unidade, atendimento a distancia sem prometer que tudo e virtual, e
    nome do cliente nunca trava a conversa — acrescentado e corrigido nos
    agentes que ja estavam instalados antes desta mudanca. */
-const regrasInstitucionais = aplicarRegrasInstitucionais();
+const regrasInstitucionais = naSubida('regras institucionais', aplicarRegrasInstitucionais, {});
 if (regrasInstitucionais.acrescentados || regrasInstitucionais.corrigidos) {
   console.log(
     `Regras institucionais: ${regrasInstitucionais.acrescentados} agente(s) com o bloco novo, ${regrasInstitucionais.corrigidos} agente(s) com texto antigo corrigido.`,
   );
 }
 /* A senha do gov.br sai da regra do Civel nos agentes ja instalados (26/10/2026). */
-const avisosDaSenhaDoGov = tirarAvisoDaSenhaDoGov();
+const avisosDaSenhaDoGov = naSubida('senha do gov', tirarAvisoDaSenhaDoGov, 0);
 if (avisosDaSenhaDoGov) console.log(`Senha do gov.br: aviso antigo tirado de ${avisosDaSenhaDoGov} agente(s).`);
 /* A triagem do auxilio-acidente para de insistir na pergunta da aposentadoria (28/10/2026). */
-const semInsistirNaAposentadoria = aposentadoriaSemInsistir();
+const semInsistirNaAposentadoria = naSubida('aposentadoria', aposentadoriaSemInsistir, 0);
 if (semInsistirNaAposentadoria) console.log(`Aposentadoria: regra de seguir sem a resposta acrescentada em ${semInsistirNaAposentadoria} agente(s).`);
 /* Beatriz destravada, nomes e pasta do Trabalhista limpos, "Agente 26" repetido fora (07/10/2026). */
-const reorganizacaoDeAgentes = migrarNomesDeAgentes();
+const reorganizacaoDeAgentes = naSubida('nomes de agentes', migrarNomesDeAgentes, {});
 if (reorganizacaoDeAgentes.renomeados || reorganizacaoDeAgentes.removidos) {
   console.log(
     `Agentes: ${reorganizacaoDeAgentes.renomeados} renomeado(s), ${reorganizacaoDeAgentes.pastas} pasta(s) corrigida(s), ${reorganizacaoDeAgentes.removidos} sobra(s) removida(s).`,
@@ -186,21 +214,21 @@ if (reorganizacaoDeAgentes.renomeados || reorganizacaoDeAgentes.removidos) {
    no boot, e nao so na varredura de pendentes: antes das vozes e da base, que
    acertam os agentes recem-instalados, e antes de retomar as respostas — a
    Eduarda retomada numa passagem parada precisa enxergar a equipe trabalhista. */
-const numerosDoGeral = garantirTriagemNoEscritorioGeral();
+const numerosDoGeral = naSubida('triagem do geral', garantirTriagemNoEscritorioGeral, 0);
 if (numerosDoGeral) console.log(`Escritorio geral: ${numerosDoGeral} numero(s) ligado(s) a Eduarda.`);
 /* Template de pacote que ainda e o texto de exemplo ganha o video que o
    escritorio ja tem — o @bemvindo, o do @boas-vindas (26/10/2026). Depois da
    instalacao acima, que cria o que falta so com o texto. */
-const templatesPreenchidos = templatesDoPacoteGanhamOArquivo();
+const templatesPreenchidos = naSubida('videos dos templates', templatesDoPacoteGanhamOArquivo, 0);
 if (templatesPreenchidos) console.log(`Templates: ${templatesPreenchidos} ganharam o video que o escritorio ja tinha.`);
 /* Vozes dos agentes: cadastra as duas vozes padrao e liga a regra do canal de
    voz em quem atende cliente e ainda nao tinha (achado de 08/10/2026). So
    falta a chave da OpenAI em Integracoes para o audio sair de fato. */
-const vozesDeduplicadas = deduplicarVozes();
+const vozesDeduplicadas = naSubida('vozes duplicadas', deduplicarVozes, {});
 if (vozesDeduplicadas.removidas) {
   console.log(`Vozes duplicadas: ${vozesDeduplicadas.removidas} copia(s) removida(s), ${vozesDeduplicadas.remapeadas} agente(s) remapeado(s) para a original.`);
 }
-const vozesAcertadas = processarVozes({ aplicar: true });
+const vozesAcertadas = naSubida('vozes', () => processarVozes({ aplicar: true }), {});
 if (vozesAcertadas.totalCriadas || vozesAcertadas.totalComVoz || vozesAcertadas.totalComRegra) {
   console.log(
     `Vozes dos agentes: ${vozesAcertadas.totalCriadas} voz(es) cadastrada(s), ${vozesAcertadas.totalComVoz} agente(s) com voz escolhida, ${vozesAcertadas.totalComRegra} prompt(s) com a regra do canal de voz.`,
@@ -210,15 +238,15 @@ if (vozesAcertadas.totalCriadas || vozesAcertadas.totalComVoz || vozesAcertadas.
    lugar) e departamento posto nos status de saida orfaos (achado de 29/09,
    so corrigido de fato em 08/10/2026 depois de achar que a ferramenta so
    olhava o primeiro workspace). */
-const baseEStatus = processarBaseEStatus({ aplicar: true });
+const baseEStatus = naSubida('base e status', () => processarBaseEStatus({ aplicar: true }), {});
 if (baseEStatus.desvinculados || baseEStatus.rascunhosCriados || baseEStatus.vinculadosAoRascunho || baseEStatus.ajustados) {
   console.log(
     `Base e status: ${baseEStatus.desvinculados} vinculo(s) previdenciario(s) removido(s) dos trabalhistas, ${baseEStatus.rascunhosCriados} rascunho(s) trabalhista(s) criado(s), ${baseEStatus.vinculadosAoRascunho} agente(s) vinculado(s) a ele, ${baseEStatus.ajustados} status com departamento ajustado.`,
   );
 }
-limparSessoesOrfas();
+naSubida('sessoes orfas', limparSessoesOrfas);
 /* Rodadas de importacao do celular que o reinicio interrompeu. */
-retomarSincronizacoes();
+naSubida('sincronizacoes', retomarSincronizacoes);
 /*
  * O que chegou enquanto o sistema estava fora do ar.
  *
@@ -230,27 +258,31 @@ retomarSincronizacoes();
  * ultima vez que o sistema esteve vivo.
  */
 recuperarDaQueda().catch((erro) => console.error('[batimento] recuperacao falhou:', erro.message));
-iniciarBatimento();
-/* E a copia de seguranca: uma agora, uma por dia. */
-iniciarBackup();
+naSubida('batimento', iniciarBatimento);
+/* E a copia de seguranca: a primeira 5 minutos depois de subir, e uma por
+   dia. Ate 29/10/2026 a primeira rodava AQUI, antes de abrir a porta: copiar
+   as 1.600 conversas atrasava a volta do sistema a cada implantacao.
+   CORREIA_BACKUP_ESPERA_MS=0 copia na hora (o teste de sobreviver a queda). */
+const esperaDaCopia = process.env.CORREIA_BACKUP_ESPERA_MS !== undefined ? Number(process.env.CORREIA_BACKUP_ESPERA_MS) : 5 * 60 * 1000;
+naSubida('backup', () => iniciarBackup({ primeiraDepoisDeMs: esperaDaCopia }));
 /* E a fila de fotos de perfil: ela so vive em memoria, e um lote grande (a
    importacao de historico, por exemplo) nao cabe entre dois deploys — o
    escritorio reimplanta varias vezes por dia. Sem retomar, contato que
    entrou na fila e o servidor reiniciou antes da vez dele ficava sem foto
    para sempre, a nao ser que mandasse mensagem de novo. */
-const fotosRetomadas = retomarFotos();
+const fotosRetomadas = naSubida('fotos', retomarFotos, 0);
 if (fotosRetomadas) console.log(`Fotos de perfil: ${fotosRetomadas} contato(s) de volta na fila.`);
 /* E a importacao do historico completo da LiderHub (fase 2): workspace que
    ficou "importando" quando o servidor caiu comeca de novo — idempotente
    por idExterno, entao so repete trabalho ja feito. */
-const historicoLiderhubRetomado = retomarHistoricoLiderhub();
+const historicoLiderhubRetomado = naSubida('historico liderhub', retomarHistoricoLiderhub, 0);
 if (historicoLiderhubRetomado) console.log(`Historico LiderHub: ${historicoLiderhubRetomado} workspace(s) retomado(s).`);
 /* E o cronometro de resposta do agente: tambem so vive em memoria. Conversa
    que estava no meio do delay de resposta na hora da queda fica com
    responsavel/estado certos no banco, mas muda para sempre sem isto — e o
    "ficou tudo bugado nas conversas depois que voltou" que o escritorio
    relatou em 23/10/2026. */
-const { retomados: respostasRetomadas } = retomarRespostasPendentes();
+const { retomados: respostasRetomadas } = naSubida('respostas pendentes', retomarRespostasPendentes, {});
 if (respostasRetomadas) console.log(`Respostas de agente: ${respostasRetomadas} conversa(s) de volta no cronometro.`);
 
 const MIMES = {
@@ -319,6 +351,15 @@ rotas.get('/api/eventos', async ({ req, res, ctx }) => {
  * quem alcanca esta rota ja esta nesta maquina, e a resposta e para ele mesmo
  * se achar.
  */
+/*
+ * A batida que a hospedagem confere a cada 30 s (HEALTHCHECK do Dockerfile).
+ * So diz que o processo responde, sem calcular nada: o /api/saude monta o
+ * resumo de tudo e, com o processador ocupado (a compilacao de uma
+ * implantacao, uma transcricao), podia passar do prazo da conferencia — e
+ * conferencia que falha seguidas vezes faz a hospedagem derrubar o conteiner.
+ */
+rotas.get('/api/vivo', async () => ({ ok: true }), { publica: true });
+
 rotas.get(
   '/api/saude',
   async () => {
@@ -329,7 +370,7 @@ rotas.get(
       /* Muda a cada entrega que mexe no atendimento. A imagem nao leva o .git
          (.dockerignore), e sem isto nao havia como saber, de fora, se o
          deploy da hospedagem pegou o codigo novo ou ficou no antigo. */
-      codigo: '2026-10-29.1',
+      codigo: CODIGO,
       agora: new Date().toISOString(),
       raiz: RAIZ,
       pid: process.pid,
@@ -367,6 +408,9 @@ rotas.get(
          cresceu — so contagens (26/10/2026, diagnostico completo). */
       lentidao: situacaoDaLentidao(),
       registros: Object.fromEntries(['contatos', 'logs', 'creditos', 'notificacoes', 'temposResposta', 'agendamentos', 'tarefas'].map((c) => [c, tabela(c).length])),
+      /* Cada subida e como o sistema saiu da vez anterior (29/10/2026). */
+      vida: vidaDoSistema(),
+      falhasNaSubida,
     };
   },
   { publica: true },
@@ -676,8 +720,9 @@ servidor.listen(PORTA, HOST, () => {
   retomarMidiaHistorico();
 });
 
-function encerrar() {
+function encerrar(motivo) {
   console.log('\n  Salvando os dados antes de sair...');
+  registrarDesligamento(motivo, CODIGO);
   /* encerrarBanco agora devolve promessa: o disco e gravado na hora, e a
      promessa e a fila do espelho tentando esvaziar antes de fechar. O teto
      continua valendo para o processo nao ficar preso se o Supabase nao
@@ -686,9 +731,35 @@ function encerrar() {
   setTimeout(() => process.exit(0), 3000).unref();
 }
 
-process.on('SIGINT', encerrar);
-process.on('SIGTERM', encerrar);
+process.on('SIGINT', () => encerrar('SIGINT'));
+process.on('SIGTERM', () => encerrar('SIGTERM'));
+/*
+ * Erro que escapou do codigo: anota (nucleo/vida.js) e grava o que estava na
+ * memoria, e o sistema segue no ar. Tudo aqui dentro em try: um erro DENTRO
+ * deste tratador (gravar com o disco cheio, por exemplo) derruba o Node na
+ * hora, sem gravar nada (auditoria de 28/10/2026).
+ */
 process.on('uncaughtException', (erro) => {
   console.error('[falha nao tratada]', erro);
-  encerrarBanco();
+  try {
+    registrarErroNaoTratado(erro);
+  } catch {
+    /* anotar nunca derruba */
+  }
+  try {
+    salvarPendentes();
+    salvarMensagensPendentes();
+  } catch (falha) {
+    console.error('[falha nao tratada] nao consegui gravar:', falha.message);
+  }
+});
+/* A ultima gravacao, na saida de verdade: o que mudou nos ate 3 s entre o
+   aviso de parar e o fim do processo nao fica para tras. */
+process.on('exit', () => {
+  try {
+    salvarPendentes();
+    salvarMensagensPendentes();
+  } catch {
+    /* na saida nao ha mais o que fazer */
+  }
 });

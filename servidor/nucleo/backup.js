@@ -196,7 +196,7 @@ function copiouAgoraPouco() {
   return Date.now() - Date.parse(maisNova.em) < IDADE_MINIMA;
 }
 
-export function iniciarBackup({ manter = 7 } = {}) {
+export function iniciarBackup({ manter = 7, primeiraDepoisDeMs = 0 } = {}) {
   const tentar = (motivo) => {
     try {
       const relato = fazerBackup({ motivo, manter });
@@ -210,8 +210,18 @@ export function iniciarBackup({ manter = 7 } = {}) {
     }
   };
 
-  if (copiouAgoraPouco()) console.log('[backup] ja ha copia recente; nao copio de novo ao subir.');
-  else tentar('ao-subir');
+  /* Com primeiraDepoisDeMs, a copia da subida espera: copiar tudo antes de
+     abrir a porta atrasava a volta do sistema a cada implantacao (29/10/2026). */
+  const primeira = () => {
+    if (copiouAgoraPouco()) console.log('[backup] ja ha copia recente; nao copio de novo ao subir.');
+    else tentar('ao-subir');
+  };
+  if (primeiraDepoisDeMs > 0) {
+    const espera = setTimeout(primeira, primeiraDepoisDeMs);
+    if (typeof espera.unref === 'function') espera.unref();
+  } else {
+    primeira();
+  }
 
   const relogio = setInterval(() => tentar('diario'), UM_DIA);
   if (typeof relogio.unref === 'function') relogio.unref();

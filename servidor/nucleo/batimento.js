@@ -53,9 +53,21 @@ export function lerUltimoBatimento() {
   }
 }
 
+/* O pulso inteiro: quando e quanta memoria o processo usava. A memoria e para
+   nucleo/vida.js, que diz na subida seguinte se a queda foi com a memoria alta. */
+export function lerBatimento() {
+  try {
+    const bruto = JSON.parse(fs.readFileSync(ARQUIVO, 'utf8'));
+    const quando = Date.parse(bruto?.em);
+    return Number.isFinite(quando) ? { em: quando, memoriaMb: Number.isFinite(bruto?.memoriaMb) ? bruto.memoriaMb : null } : null;
+  } catch {
+    return null;
+  }
+}
+
 function bater() {
   try {
-    fs.writeFileSync(ARQUIVO, JSON.stringify({ em: agora() }));
+    fs.writeFileSync(ARQUIVO, JSON.stringify({ em: agora(), memoriaMb: Math.round(process.memoryUsage().rss / 1024 / 1024) }));
   } catch {
     /* Disco cheio ou pasta somente leitura nao podem derrubar o atendimento. */
   }

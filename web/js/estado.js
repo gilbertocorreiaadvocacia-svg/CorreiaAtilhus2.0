@@ -1,5 +1,6 @@
 import { api } from './api.js';
 import { avisar } from './avisos.js';
+import { aviso } from './ui.js';
 
 /**
  * Estado compartilhado da tela. As classes da conversa (status, etiquetas,
@@ -165,8 +166,15 @@ export function podeConfigurar() {
 /* Tempo real --------------------------------------------------------- */
 
 let fonte = null;
+/* Religar o tempo real depois que o servidor volta (ver onerror, abaixo). */
+let tentativasDeReligar = 0;
+let religar = null;
+let avisoDeQueda = null;
+let caiu = false;
+let avisouQueda = false;
 
 export function conectarEventos() {
+  clearTimeout(religar);
   if (fonte) fonte.close();
   fonte = new EventSource('/api/eventos');
 
@@ -210,8 +218,43 @@ export function conectarEventos() {
     }
   });
 
+  /*
+   * O servidor reiniciou (implantacao, queda) e a conexao caiu.
+   *
+   * Ate 29/10/2026 aqui nao havia nada, na conta de que "o EventSource
+   * reconecta sozinho". So reconecta enquanto o servidor responde: se a
+   * tentativa cai no intervalo em que a hospedagem devolve 502, o navegador
+   * fecha a conexao de vez e a tela para de receber mensagem nova ate alguem
+   * apertar F5 — para quem atende, o sistema tinha caido. E mesmo quando
+   * reconecta, o que chegou enquanto estava fora nao e reenviado.
+   *
+   * Agora: fechada de vez, tenta de novo, cada vez mais devagar (ate 30 s); ao
+   * voltar, cada tela recarrega o que mostra. O aviso so aparece se ficar fora
+   * mais de 5 s, para um soluco da rede nao virar alarme.
+   */
+  fonte.onopen = () => {
+    tentativasDeReligar = 0;
+    clearTimeout(avisoDeQueda);
+    if (!caiu) return;
+    caiu = false;
+    if (avisouQueda) aviso('Conexão com o sistema restabelecida.', 'sucesso');
+    avisouQueda = false;
+    disparar('contatos', {});
+  };
+
   fonte.onerror = () => {
-    // O proprio EventSource reconecta; so evitamos vazar conexao antiga.
+    if (!caiu) {
+      caiu = true;
+      avisoDeQueda = setTimeout(() => {
+        avisouQueda = true;
+        aviso('A conexão com o sistema caiu. Tentando de novo…');
+      }, 5000);
+    }
+    if (fonte.readyState === EventSource.CLOSED) {
+      const espera = Math.min(30000, 1000 * 2 ** tentativasDeReligar);
+      tentativasDeReligar += 1;
+      religar = setTimeout(conectarEventos, espera);
+    }
   };
 }
 

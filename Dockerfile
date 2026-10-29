@@ -73,8 +73,13 @@ RUN mkdir -p /dados && chown node:node /dados && chmod +x /app/servidor/entrada-
 # /dados e dele (no EasyPanel a pasta montada chega do root). O sistema nunca
 # roda como root.
 EXPOSE 4477
-HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
-  CMD wget -qO- "http://127.0.0.1:${PORTA:-4477}/api/saude" > /dev/null || exit 1
+# A conferencia bate em /api/vivo, que responde sem calcular nada. Ate
+# 29/10/2026 ela batia no /api/saude, que monta o resumo do sistema inteiro,
+# com 5 s de prazo e 3 tentativas: com o processador tomado (a compilacao de
+# uma implantacao ou uma transcricao, na VPS de 1 vCPU), 90 s de lentidao
+# bastavam para a hospedagem dar o sistema por morto e derrubar o conteiner.
+HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=5 \
+  CMD wget -qO- "http://127.0.0.1:${PORTA:-4477}/api/vivo" > /dev/null || exit 1
 
 ENTRYPOINT ["/app/servidor/entrada-docker.sh"]
 CMD ["node", "servidor/index.js"]

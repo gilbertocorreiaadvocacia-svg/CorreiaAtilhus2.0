@@ -36,6 +36,8 @@ export async function testarSobreviver({ raiz, portaLivre }) {
         CORREIA_EVOLUTION_ENV: path.join(dados, 'sem-evolution.env'),
         ANTHROPIC_API_KEY: '',
         OPENAI_API_KEY: '',
+        /* A copia da subida espera 5 min no ar (index.js); aqui ela e o que se testa, entao sai na hora. */
+        CORREIA_BACKUP_ESPERA_MS: '0',
         ...extra,
       },
       stdio: ['ignore', 'pipe', 'pipe'],
