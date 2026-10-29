@@ -8,7 +8,7 @@ import { templatesDoPacoteGanhamOArquivo } from '../ia/pacotes.js';
 import { agentesComAvisoDaSenhaDoGov } from '../nucleo/senha-do-gov.js';
 import { aposentadoriaNosAgentes } from '../nucleo/aposentadoria-sem-insistir.js';
 import { retratoDasConversas } from '../whatsapp/duplicados.js';
-import { saudeDoAtendimento } from '../nucleo/saude-do-atendimento.js';
+import { prontoParaContratoEVoz, saudeDoAtendimento } from '../nucleo/saude-do-atendimento.js';
 
 /**
  * Toda conversa pendente volta para um agente de IA. Pedidos do escritorio:
@@ -128,6 +128,8 @@ function resumirEscritorios() {
       naIa: contatos.filter((c) => c.responsavel?.tipo === 'agente' && c.estado !== 'arquivado').length,
       /* Quem esta esperando resposta, conversa presa e as falhas anotadas (28/10/2026). */
       atendimento: saudeDoAtendimento(workspace.id),
+      /* O que falta para o agente mandar audio e o contrato pela ZapSign (29/10/2026). */
+      contratoEVoz: prontoParaContratoEVoz(workspace.id),
     };
   });
 }

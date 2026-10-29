@@ -66,6 +66,7 @@ import { testarBaseEStatus } from './base-e-status.js';
 import { testarAtivarAgentesSemEquipe } from './ativar-agentes-sem-equipe.js';
 import { testarSaudeDoAtendimento } from './saude-do-atendimento.js';
 import { testarFollowupEnvio } from './followup-envio.js';
+import { testarContratoDireto } from './contrato-direto.js';
 import { testarBatidaDaHospedagem, testarSistemaQueVolta } from './sistema-que-volta.js';
 import { testarPosVenda } from './posvenda.js';
 import { testarMigrarDepartamentoPosVenda } from './migrar-posvenda.js';
@@ -401,6 +402,7 @@ async function principal() {
     suites.push(await testarArrumacaoDoHistoricoSoDoCelular({ raiz: RAIZ }));
     suites.push(await testarSaudeDoAtendimento({ raiz: RAIZ }));
     suites.push(await testarFollowupEnvio({ raiz: RAIZ }));
+    suites.push(await testarContratoDireto({ raiz: RAIZ }));
     suites.push(await testarSistemaQueVolta({ raiz: RAIZ }));
   } catch (erro) {
     console.error('\nA suite quebrou antes de terminar:', erro.message);

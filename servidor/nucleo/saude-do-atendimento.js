@@ -1,4 +1,5 @@
 import { listar } from './banco.js';
+import { vozDisponivel } from '../ia/audio.js';
 
 /**
  * Como o atendimento esta andando, em numeros, para /api/saude.
@@ -165,5 +166,35 @@ export function saudeDoAtendimento(workspaceId, agora = Date.now()) {
     },
     followupPorStatus,
     conexoes,
+  };
+}
+
+/**
+ * O que falta para o agente mandar audio e fechar contrato pela ZapSign.
+ * Pedido do escritorio em 29/10/2026: "quero que os agentes enviem audio ...
+ * elaborando procuracao e contrato e enviando para o ZapSign". Os dois
+ * dependem de configuracao em Integracoes que daqui de fora nao se via. So
+ * sim/nao e contagens: chave nenhuma sai daqui.
+ */
+export function prontoParaContratoEVoz(workspaceId) {
+  const integracoes = listar('integracoes', { workspaceId })[0] || {};
+  const zs = integracoes.zapsign || {};
+  const contratoId = zs.modeloPadraoId || null;
+  const modeloDoContrato = (zs.modelos || []).find((m) => m.id === contratoId);
+  const contratos = {};
+  for (const c of listar('contratos', { workspaceId })) contratos[c.situacao || 'sem situacao'] = (contratos[c.situacao || 'sem situacao'] || 0) + 1;
+  return {
+    zapsign: {
+      chave: Boolean(zs.chave),
+      modelosSincronizados: (zs.modelos || []).length,
+      modeloDeContrato: Boolean(contratoId),
+      procuracao: Boolean(zs.procuracaoPadraoId) || (modeloDoContrato?.extras || []).length > 0,
+      modelosPorCaso: Object.keys(zs.modelosPorCaso || {}).length,
+      envioDireto: zs.envioDireto !== false,
+      videoDeComoAssinar: Boolean(zs.videoTutorial?.url),
+    },
+    vozDaOpenai: vozDisponivel(workspaceId),
+    agentesQueGeramContrato: listar('agentes', { workspaceId }).filter((a) => a.ativo && /@gerarcontrato/i.test(a.prompt || '')).length,
+    contratos,
   };
 }

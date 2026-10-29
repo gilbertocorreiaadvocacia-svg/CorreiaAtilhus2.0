@@ -1,8 +1,8 @@
 import { cliente, esperar, suite } from './apoio.js';
 
 /**
- * Contrato e procuracao pela ZapSign, com uma pessoa conferindo antes
- * (servidor/integracoes/zapsign.js).
+ * Contrato e procuracao pela ZapSign (servidor/integracoes/zapsign.js): com
+ * uma pessoa conferindo antes, e com o envio direto (o padrao desde 29/10/2026).
  *
  * As tres coisas que nao podem falhar em silencio:
  *   - NADA vai para a ZapSign antes de uma pessoa aprovar;
@@ -33,7 +33,9 @@ export async function testarContratos({ base, zapsign }) {
 
   /* ---------------- Configuracao ---------------- */
 
-  await api.patch('/api/integracoes', { zapsign: { chave: 'zs-de-mentira', segredoWebhook: 'segredo-do-teste' } });
+  /* A primeira parte e o caminho com conferencia; o envio direto (o padrao
+     desde 29/10/2026) tem a parte dele no fim. */
+  await api.patch('/api/integracoes', { zapsign: { chave: 'zs-de-mentira', segredoWebhook: 'segredo-do-teste', envioDireto: false } });
   const sincronizado = (await api.post('/api/integracoes/zapsign/sincronizar', {})).dados;
   s.ok(
     'a sincronizacao traz os modelos com as variaveis',
@@ -198,9 +200,45 @@ export async function testarContratos({ base, zapsign }) {
   s.ok('e o contrato devolvido nao pode ser aprovado', (await api.post(`/api/contratos/${doSegundo.id}/aprovar`, {})).status === 400);
   s.ok('pedir de novo depois de devolver cria outro para conferir', (await pedir(c2.id))?.situacao === 'em_conferencia');
 
+  /* ---------------- Envio direto (29/10/2026) ---------------- */
+
+  await api.patch('/api/integracoes', { zapsign: { envioDireto: true } });
+  const documentosAntes = (await chamadasDa('create-doc')).length;
+  const c3 = await criar(3);
+  await api.patch(`/api/contatos/${c3.id}`, { variaveis: dadosCompletos, etiquetas: [bpc.id] });
+  const semRgDireto = await pedir(c3.id);
+  s.ok(
+    'direto: dado do modelo em branco (o RG) volta para o agente coletar, porque ninguem confere depois',
+    semRgDireto?.ok === false && (semRgDireto.faltando || []).includes('rg'),
+    JSON.stringify(semRgDireto),
+  );
+  s.ok('e nada vai para a ZapSign, nem vira contrato', (await chamadasDa('create-doc')).length === documentosAntes && (await contratosDe(c3.id)).length === 0);
+
+  await api.patch(`/api/contatos/${c3.id}`, { variaveis: { ...dadosCompletos, rg: '7654321 SDS/PE' } });
+  const direto = await pedir(c3.id);
+  s.ok('com tudo coletado, o contrato vai direto, sem conferencia', direto?.ok && direto.situacao === 'link_enviado', JSON.stringify(direto));
+  const criadosDireto = await chamadasDa('create-doc');
+  s.ok('o documento nasce na ZapSign na hora', criadosDireto.length === documentosAntes + 1, `create-doc: ${criadosDireto.length}`);
+  s.ok(
+    'com o RG coletado',
+    (criadosDireto.at(-1)?.corpo?.data || []).some((d) => d.de === '{{RG}}' && d.para === '7654321 SDS/PE'),
+    JSON.stringify(criadosDireto.at(-1)?.corpo?.data),
+  );
+  const contratoDireto = (await contratosDe(c3.id))[0];
+  s.ok('o contrato fica com link enviado', contratoDireto?.situacao === 'link_enviado' && Boolean(contratoDireto.link), JSON.stringify(contratoDireto));
+  const falasDireto = (await api.get(`/api/contatos/${c3.id}/mensagens`)).dados;
+  const listaDireto = Array.isArray(falasDireto) ? falasDireto : falasDireto?.mensagens || [];
+  s.ok('o link sai na conversa', listaDireto.some((m) => m.direcao === 'saida' && (m.conteudo || '').includes(contratoDireto?.link)));
+  s.ok(
+    'e fica anotado que foi sem conferencia',
+    listaDireto.some((m) => m.nota && /sem confer/i.test(m.conteudo || '')),
+    JSON.stringify(listaDireto.filter((m) => m.nota).map((m) => m.conteudo)),
+  );
+  s.ok('o momento vira Link enviado', (await conversa(c3.id))?.momento?.nome === 'Link enviado');
+
   /* ---------------- Limpeza ---------------- */
 
-  await api.patch('/api/integracoes', { zapsign: { chave: null, segredoWebhook: null } });
-  for (const c of [c1, c2]) await api.delete(`/api/contatos/${c.id}`);
+  await api.patch('/api/integracoes', { zapsign: { chave: null, segredoWebhook: null, envioDireto: null } });
+  for (const c of [c1, c2, c3]) await api.delete(`/api/contatos/${c.id}`);
   return s;
 }

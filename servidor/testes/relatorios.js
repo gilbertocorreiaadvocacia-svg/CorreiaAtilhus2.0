@@ -46,7 +46,9 @@ export async function testarRelatorios({ base, zapsign }) {
   /* O modelo padrao vai explicito aqui: nao supor que outra suite deixou um
      para tras (Diagnostico, por exemplo, comecou a zerar a ZapSign antes dos
      proprios testes, exatamente para nao herdar lixo de suite nenhuma). */
-  await api.patch('/api/integracoes', { zapsign: { chave: 'zs-de-mentira', segredoWebhook: 'segredo-do-rel', modeloPadraoId: 'mdl-contrato' } });
+  /* Com conferencia: o relatorio conta o contrato na pessoa que APROVOU. O envio
+     direto (o padrao desde 29/10/2026) nao tem quem aprove. */
+  await api.patch('/api/integracoes', { zapsign: { chave: 'zs-de-mentira', segredoWebhook: 'segredo-do-rel', modeloPadraoId: 'mdl-contrato', envioDireto: false } });
   await api.post('/api/integracoes/zapsign/sincronizar', {});
 
   const contato = (await api.post('/api/contatos', { conexaoId: simulador.id, telefone: '5581980000777', nome: 'Cliente Relatorio' })).dados;
@@ -84,6 +86,6 @@ export async function testarRelatorios({ base, zapsign }) {
   s.ok('e traz a pessoa que aprovou', (planilha.dados?.csv || '').includes(admin), String(planilha.dados?.csv).slice(-200));
 
   /* Limpeza: tira a ZapSign para as suites seguintes nao herdarem a chave. */
-  await api.patch('/api/integracoes', { zapsign: { chave: null, segredoWebhook: null } });
+  await api.patch('/api/integracoes', { zapsign: { chave: null, segredoWebhook: null, envioDireto: null } });
   return s;
 }

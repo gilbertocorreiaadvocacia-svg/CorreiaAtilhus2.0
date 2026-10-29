@@ -130,6 +130,36 @@ export async function testarVoz({ base, anthropic, openai }) {
   s.ok('sem chave da OpenAI, sai texto', escritas.length >= 1 && escritas.every((m) => m.tipo !== 'audio'), JSON.stringify(escritas.map((m) => m.tipo)));
   s.ok('e nenhuma chamada e feita', (await pedidos()).length === 0, JSON.stringify(await pedidos()));
 
+  /* --- 7. O cliente manda audio: a resposta sai em audio (29/10/2026) ---
+     Sem o agente ligar modo nenhum. E quando ele volta a escrever, texto. */
+  await api.patch('/api/integracoes', { ia: { chaveOpenai: 'sk-openai-de-mentira' } });
+  await oa.post('/__zerar', {});
+  sufixo += 1;
+  const telefoneQueFala = `558193200${String(sufixo).padStart(4, '0')}`;
+  const falou = (
+    await api.post('/api/simulador/mensagem', {
+      conexaoId: simulador.id,
+      agenteId: agente.id,
+      telefone: telefoneQueFala,
+      nome: 'Cliente que fala',
+      conteudo: '',
+      tipo: 'audio',
+    })
+  ).dados?.contatoId;
+  await roteiro([{ status: 200, texto: 'Ouvi o seu audio, vou te explicar.' }]);
+  await api.post(`/api/agentes/${agente.id}/responder-agora`, { contatoId: falou });
+  const aoAudio = await saidas(falou);
+  s.ok(
+    'o cliente mandou audio: a resposta sai em audio, sem o agente ligar o modo',
+    aoAudio.length === 1 && aoAudio[0].tipo === 'audio' && String(aoAudio[0].conteudo || '').includes('Ouvi o seu audio'),
+    JSON.stringify(aoAudio.map((m) => [m.tipo, m.conteudo])),
+  );
+  await api.post('/api/simulador/mensagem', { conexaoId: simulador.id, agenteId: agente.id, telefone: telefoneQueFala, nome: 'Cliente que fala', conteudo: 'Agora escrevi' });
+  await roteiro([{ status: 200, texto: 'Resposta escrita de volta.' }]);
+  await api.post(`/api/agentes/${agente.id}/responder-agora`, { contatoId: falou });
+  const voltouAEscrever = (await saidas(falou)).at(-1);
+  s.ok('quando ele volta a escrever, a resposta volta a ser texto', voltouAEscrever?.tipo !== 'audio', JSON.stringify(voltouAEscrever));
+
   /* Limpeza: a suite seguinte conta agente e depende de nao haver chave. */
   await falsa.post('/__roteiro', { roteiro: [] });
   await api.patch(`/api/agentes/${agente.id}`, { ativo: false });

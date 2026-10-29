@@ -230,6 +230,11 @@ function montarSistema({ agente, contato, workspace }) {
     `- Departamento: ${departamento?.nome || 'sem departamento'}`,
     `- Etiquetas: ${etiquetas.length ? etiquetas.join(', ') : 'nenhuma'}`,
     `- Modo audio: ${contato.modoAudio ? 'ligado' : 'desligado'}`,
+    /* A resposta sai falada quando o cliente mandou audio (executarAgente):
+       texto de ouvir, e nao de ler. */
+    ...(vozDisponivel(contato.workspaceId) && mensagensDe(contato.id).findLast((m) => m.direcao === 'entrada')?.tipo === 'audio'
+      ? ['- O cliente mandou audio: sua resposta sai em audio. Escreva como quem fala, com frases curtas, sem listas, sem emojis e sem links (link vai em outra mensagem).']
+      : []),
     '',
     'DADOS JA COLETADOS:',
     variaveis || '- nenhum ainda',
@@ -654,8 +659,13 @@ async function rodarAgente(contatoId, passo, { corrigirPassagem = false } = {}) 
       if (despedida || (atualizado.responsavel?.tipo === 'agente' && atualizado.responsavel.id === agente.id)) {
         // Com o modo audio ligado, a resposta vai falada, e o texto vai junto,
         // para a equipe conseguir ler o historico sem abrir cada audio.
+        // Tambem quando a ultima mensagem do cliente foi um audio: quem fala
+        // ouve a resposta. Pedido do escritorio em 29/10/2026 ("quero que os
+        // agentes enviem audio"), com a voz da OpenAI (chave em Integracoes).
+        const ultimaDoCliente = mensagensDe(contatoId).findLast((m) => m.direcao === 'entrada');
+        const clienteFalou = ultimaDoCliente?.tipo === 'audio';
         let midia = null;
-        if (atualizado.modoAudio && vozDisponivel(contato.workspaceId)) {
+        if ((atualizado.modoAudio || clienteFalou) && vozDisponivel(contato.workspaceId)) {
           midia = await sintetizar({
             workspaceId: contato.workspaceId,
             contatoId: atualizado.id,

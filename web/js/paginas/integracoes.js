@@ -308,6 +308,9 @@ function blocoZapsign(integracoes, recarregarTela) {
   const chave = entradaSegredo('', { placeholder: zs.chave ? 'ja configurada' : 'token da ZapSign' });
   const modelo = selecao(opcoesModelo('Escolha o modelo de contrato'), zs.modeloPadraoId || '');
   const procuracao = selecao(opcoesModelo('Sem procuração'), zs.procuracaoPadraoId || '');
+  /* Ligado e o padrao (29/10/2026): o agente manda o link sem uma pessoa conferir. */
+  const direto = el('input', { type: 'checkbox' });
+  direto.checked = zs.envioDireto !== false;
 
   /* Um par de modelos por tipo de caso. Vazio usa o padrão de cima: so precisa
      preencher o tipo que tem contrato proprio. */
@@ -382,6 +385,7 @@ function blocoZapsign(integracoes, recarregarTela) {
     await api.patch('/api/integracoes', {
       zapsign: {
         chave: chave.value.trim(),
+        envioDireto: direto.checked,
         modeloPadraoId: modelo.value || null,
         procuracaoPadraoId: procuracao.value || null,
         modelosPorCaso: Object.fromEntries(
@@ -406,7 +410,7 @@ function blocoZapsign(integracoes, recarregarTela) {
 
   return cartaoAjustes(
     'ZapSign (contrato e procuração com assinatura eletrônica)',
-    'O agente pede o contrato com os dados coletados; uma pessoa confere no cartão da conversa e só então o link sai no WhatsApp, com o vídeo de como assinar. O sistema consulta a ZapSign até a assinatura e guarda os PDFs assinados na conversa.',
+    'O agente gera o contrato e a procuração com os dados coletados e o link sai no WhatsApp, com o vídeo de como assinar — na hora ou depois de uma pessoa conferir, conforme o envio direto abaixo. O sistema consulta a ZapSign até a assinatura e guarda os PDFs assinados na conversa.',
     // Os tres ajustes de "depois da assinatura" perderam a explicacao: cada uma
     // era o proprio rotulo dito de novo, e o que o campo faz ja esta na
     // primeira opcao da lista ("Nao alterar", "Nao enviar"). Ficam as duas
@@ -417,6 +421,11 @@ function blocoZapsign(integracoes, recarregarTela) {
     }),
     // Esta fica visivel: fala de onde vem o conteudo do proprio controle ao
     // lado, e e o que responde "por que a lista esta vazia".
+    linhaAjuste(
+      'Envio direto',
+      'Ligado, o agente manda o link na hora, sem ninguém conferir, e a equipe é avisada. Desligado, uma pessoa confere no cartão da conversa antes de o link sair.',
+      el('label', { class: 'marcador' }, [direto, 'Ligado']),
+    ),
     linhaAjuste('Modelo de contrato', 'A lista vem do botao de sincronizar.', modelo),
     linhaAjuste(
       'Procuração',

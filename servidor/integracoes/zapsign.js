@@ -13,13 +13,15 @@ import { aplicarStatus } from '../automacao/followup.js';
 import { inserirNota, notificar } from '../ia/mencoes.js';
 
 /**
- * Contrato e procuracao pela ZapSign, com uma pessoa conferindo antes.
+ * Contrato e procuracao pela ZapSign.
  *
  * O caminho:
- *   1. o agente (ou alguem da equipe) PEDE o contrato. Nada vai para a ZapSign:
- *      o contrato fica "em conferencia" com os valores que vao preencher o
- *      modelo, e a equipe e avisada. E a regra do escritorio: IA nao manda
- *      contrato nem procuracao sozinha.
+ *   1. o agente (ou alguem da equipe) PEDE o contrato. Com o ENVIO DIRETO
+ *      (o padrao desde 29/10/2026, a pedido do escritorio), o contrato vai
+ *      para a ZapSign na hora e o link sai — o passo 2 roda sozinho. Com ele
+ *      desligado em Integracoes (a regra antiga: IA nao manda contrato nem
+ *      procuracao sozinha), o contrato fica "em conferencia" com os valores que
+ *      vao preencher o modelo, e a equipe e avisada.
  *   2. a pessoa confere, corrige o que precisar e APROVA. So entao o documento
  *      nasce na ZapSign (modelo do tipo de caso), a procuracao entra como
  *      documento extra, e o link sai no WhatsApp com o video de como assinar.
@@ -124,9 +126,13 @@ const chaveDoCampo = (campo) =>
     .replace(/[^a-z0-9]+/g, '_')
     .replace(/^_+|_+$/g, '');
 
-function valorDoCampo(campo, contato, cfg) {
+function destinoDoCampo(campo, cfg) {
   const chave = chaveDoCampo(campo);
-  const destino = cfg.mapaVariaveis?.[campo] || cfg.mapaVariaveis?.[chave] || APELIDOS[chave] || chave;
+  return cfg.mapaVariaveis?.[campo] || cfg.mapaVariaveis?.[chave] || APELIDOS[chave] || chave;
+}
+
+function valorDoCampo(campo, contato, cfg) {
+  const destino = destinoDoCampo(campo, cfg);
   const variaveis = contato.variaveis || {};
   if (destino === 'nome_completo') return variaveis.nome_completo || contato.nome || '';
   if (destino === 'telefone') return formatarTelefone(contato.telefone);
@@ -170,11 +176,13 @@ function montarValores(cfg, modelo, contato) {
   const campos = [...new Set([...doModelo(modelo.contratoId), ...daProcuracao])];
   const valores = {};
   for (const campo of campos.length ? campos : CAMPOS_PADRAO) valores[campo] = valorDoCampo(campo, contato, cfg);
-  const emBranco = Object.entries(valores)
-    .filter(([, valor]) => !String(valor).trim())
-    .map(([campo]) => chaveDoCampo(campo));
+  const vazios = Object.entries(valores).filter(([, valor]) => !String(valor).trim());
+  const emBranco = vazios.map(([campo]) => chaveDoCampo(campo));
   const faltando = emBranco.filter((chave) => ESSENCIAIS.has(APELIDOS[chave] || chave));
-  return { valores, faltando, emBranco };
+  /* A chave em que o dado e LIDO (valorDoCampo): "data_nascimento" do modelo
+     le "nascimento". E nela que o agente tem de guardar o que coletar. */
+  const paraColetar = [...new Set(vazios.map(([campo]) => destinoDoCampo(campo, cfg)))];
+  return { valores, faltando, emBranco, paraColetar };
 }
 
 const avisarEquipe = (contato, titulo, texto) => {
@@ -200,6 +208,11 @@ export async function pedirContrato({ contato, agente = null, conexao = null, da
   if (dados.nome_completo) novas.nome_completo = String(dados.nome_completo).trim();
   if (dados.cpf) novas.cpf = String(dados.cpf).replace(/\D/g, '');
   if (dados.email) novas.email = String(dados.email).trim();
+  /* O resto que o modelo pede (RG, endereco...), na chave em que o contrato o le. */
+  for (const [campo, valor] of Object.entries(dados.outros && typeof dados.outros === 'object' ? dados.outros : {})) {
+    const chave = chaveDoCampo(campo);
+    if (chave && String(valor ?? '').trim()) novas[chave] = String(valor).trim();
+  }
   if (Object.keys(novas).length) {
     const variaveis = { ...(contato.variaveis || {}), ...novas };
     atualizar('contatos', contato.id, { variaveis });
@@ -220,8 +233,24 @@ export async function pedirContrato({ contato, agente = null, conexao = null, da
     return { ok: true, contrato_id: aberto.id, situacao: aberto.situacao, reenviado: true };
   }
 
+  /*
+   * Envio direto: o contrato e a procuracao vao para a ZapSign na hora, sem
+   * uma pessoa conferir. Pedido do escritorio em 29/10/2026 ("os agentes ...
+   * elaborando procuracao e contrato e enviando para o ZapSign"), que trocou a
+   * regra antiga de a IA nunca mandar contrato sozinha. Liga e desliga em
+   * Integracoes; ligado e o padrao. Sem ninguem para preencher na conferencia
+   * o que ficou em branco, o agente coleta TUDO antes, e nao so nome e CPF.
+   */
+  const direto = cfg.envioDireto !== false;
   const modelo = modeloDaConversa(cfg, contato);
-  const { valores, faltando, emBranco } = montarValores(cfg, modelo, contato);
+  const { valores, faltando, emBranco, paraColetar } = montarValores(cfg, modelo, contato);
+  if (direto && paraColetar.length) {
+    return {
+      ok: false,
+      faltando: paraColetar,
+      erro: `Antes do contrato, colete com o cliente: ${paraColetar.join(', ')}. Depois chame gerar_contrato de novo, mandando cada dado em "outros" com exatamente estas chaves.`,
+    };
+  }
   if (faltando.length) {
     return { ok: false, faltando, erro: `Antes do contrato, colete com o cliente: ${faltando.join(', ')}.` };
   }
@@ -243,6 +272,38 @@ export async function pedirContrato({ contato, agente = null, conexao = null, da
   /* Assinatura pendente e o status desta etapa; o momento diz em que ponto. */
   const status = listar('status', { workspaceId }).find((s) => normalizar(s.nome) === 'assinatura pendente');
   if (status && contato.statusId !== status.id) await aplicarStatus(contato, status, quem);
+
+  if (direto) {
+    const enviado = await aprovarContrato(contrato.id, { autor: quem, direto: true });
+    if (enviado.ok) {
+      inserirNota(
+        contato,
+        `Contrato e procuração gerados${agente ? ` por ${agente.nome}` : ''} e enviados para assinatura, sem conferência (envio direto, em Integrações).${enviado.aviso ? ` ${enviado.aviso}` : ''}`,
+        quem,
+      );
+      avisarEquipe(contato, 'Contrato enviado', `${contato.nome}: contrato e procuração enviados para assinar.`);
+      return {
+        ok: true,
+        contrato_id: contrato.id,
+        situacao: 'link_enviado',
+        instrucao: 'O link do contrato e da procuracao ja foi enviado nesta conversa, com o video de como assinar. Peca ao cliente para abrir, conferir os dados e assinar. Nao repita o link.',
+      };
+    }
+    /* A ZapSign recusou (chave, modelo, plano sem API): o contrato fica com a
+       equipe, com o motivo, em vez de o cliente ficar sem nada. */
+    definirMomento(contato, 'Contrato em conferencia', quem);
+    inserirNota(contato, `O envio direto do contrato falhou: ${enviado.erro} O contrato ficou para a equipe conferir e enviar.`, quem);
+    avisarEquipe(contato, 'Contrato para conferir', `${contato.nome}: o envio direto falhou (${enviado.erro}). Confira e envie o link.`);
+    registrarLog(workspaceId, contato.id, 'contrato', `Envio direto falhou (${enviado.erro}); contrato aguardando conferencia`, quem);
+    emitir(workspaceId, 'contrato', { contatoId: contato.id, contratoId: contrato.id });
+    return {
+      ok: true,
+      contrato_id: contrato.id,
+      situacao: 'em_conferencia',
+      instrucao: 'Diga ao cliente que uma pessoa do escritorio confere o contrato e a procuracao, e que o link para assinar chega por esta conversa.',
+    };
+  }
+
   definirMomento(contato, 'Contrato em conferencia', quem);
 
   inserirNota(
@@ -286,9 +347,10 @@ async function enviarLink(contrato, contato, conexao, autor, { reenvio = false }
 
 /**
  * Passo 2: a pessoa conferiu. Cria o documento na ZapSign, poe a procuracao,
- * manda o link e o video. `valores` traz as correcoes feitas no cartao.
+ * manda o link e o video. `valores` traz as correcoes feitas no cartao. Com o
+ * envio direto (`direto`), quem chama e o proprio pedido, sem pessoa no meio.
  */
-export async function aprovarContrato(contratoId, { valores: corrigidos = {}, autor } = {}) {
+export async function aprovarContrato(contratoId, { valores: corrigidos = {}, autor, direto = false } = {}) {
   const contrato = achar('contratos', contratoId);
   if (!contrato) return { ok: false, erro: 'Contrato nao encontrado.' };
   if (contrato.situacao !== 'em_conferencia') return { ok: false, erro: 'Este contrato nao esta aguardando conferencia.' };
@@ -393,7 +455,7 @@ export async function aprovarContrato(contratoId, { valores: corrigidos = {}, au
   }
 
   definirMomento(contato, 'Link enviado', autor);
-  registrarLog(contrato.workspaceId, contato.id, 'contrato', 'Contrato conferido e link enviado', autor);
+  registrarLog(contrato.workspaceId, contato.id, 'contrato', direto ? 'Contrato enviado direto, sem conferencia' : 'Contrato conferido e link enviado', autor);
   if (aviso) avisarEquipe(contato, 'Procuracao nao entrou', `${contato.nome}: ${aviso}`);
   emitir(contrato.workspaceId, 'contrato', { contatoId: contato.id, contratoId: contrato.id });
   return { ok: true, link, aviso };

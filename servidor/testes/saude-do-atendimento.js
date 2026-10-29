@@ -25,7 +25,7 @@ export async function testarSaudeDoAtendimento({ raiz }) {
   fs.writeFileSync(
     script,
     `import { iniciarBanco, inserir, encerrarBanco } from ${url('servidor/nucleo/banco.js')};
-import { saudeDoAtendimento } from ${url('servidor/nucleo/saude-do-atendimento.js')};
+import { prontoParaContratoEVoz, saudeDoAtendimento } from ${url('servidor/nucleo/saude-do-atendimento.js')};
 iniciarBanco();
 const AGORA = Date.parse('2026-10-28T12:00:00.000Z');
 const ha = (min) => new Date(AGORA - min * 60 * 1000).toISOString();
@@ -70,7 +70,9 @@ inserir('status', { id: 'st-vazio', workspaceId: 'w1', nome: 'Coluna vazia', fol
 contato('na-analise', { statusId: 'st-analise', estado: 'arquivado' });
 contato('qualificado', { statusId: 'st-qualificado', responsavel: ia, estado: 'ia' });
 
-console.log(JSON.stringify(saudeDoAtendimento('w1', AGORA)));
+inserir('integracoes', { workspaceId: 'w1', zapsign: { chave: 'zs-segredo-que-nao-pode-sair', modeloPadraoId: 'mdl', modelos: [{ id: 'mdl', extras: ['Procuracao'] }] }, ia: { chaveOpenai: 'sk-openai-que-nao-pode-sair' } });
+inserir('contratos', { workspaceId: 'w1', contatoId: 'qualificado', situacao: 'link_enviado' });
+console.log(JSON.stringify({ ...saudeDoAtendimento('w1', AGORA), contratoEVoz: prontoParaContratoEVoz('w1') }));
 await encerrarBanco();
 process.exit(0);
 `,
@@ -134,6 +136,11 @@ process.exit(0);
       'por status: quantos passos de follow-up e quantas conversas, sem a coluna vazia',
       porStatus.Qualificado?.passos === 2 && porStatus.Qualificado?.conversas === 1 && porStatus['Em análise']?.passos === 0 && porStatus['Em análise']?.concluidas === 1 && !porStatus['Coluna vazia'],
       JSON.stringify(b.followupPorStatus),
+    );
+    s.ok(
+      'contrato e voz: so sim/nao e contagens, nenhuma chave',
+      b.contratoEVoz.zapsign.chave === true && b.contratoEVoz.zapsign.procuracao === true && b.contratoEVoz.zapsign.envioDireto === true && b.contratoEVoz.vozDaOpenai === true && b.contratoEVoz.contratos.link_enviado === 1 && !/nao-pode-sair/.test(JSON.stringify(b)),
+      JSON.stringify(b.contratoEVoz),
     );
     s.ok(
       'o numero de verdade aparece com o estado e a ultima mensagem de cliente; o simulador nao',

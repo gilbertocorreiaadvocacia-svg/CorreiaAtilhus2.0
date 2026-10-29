@@ -515,16 +515,25 @@ export function ferramentasDoAgente(agente, workspaceId) {
     });
   }
   if (tipos.has('gerarcontrato')) {
+    /* Com o envio direto (integracoes/zapsign.js), o link sai na hora: o agente
+       tem de saber disso para nao prometer uma conferencia que nao existe. */
+    const direto = achar('integracoes', { workspaceId })?.zapsign?.envioDireto !== false;
     ferramentas.push({
       nome: 'gerar_contrato',
-      descricao:
-        'Pede o contrato e a procuracao com os dados ja coletados. Uma pessoa do escritorio confere antes de o link sair; o link chega depois, por esta conversa. Se faltar dado, a resposta diz quais coletar. So use depois da confirmacao explicita do lead.',
+      descricao: direto
+        ? 'Gera o contrato e a procuracao na ZapSign com os dados ja coletados e manda o link de assinatura nesta conversa, na hora. Se faltar dado, a resposta diz quais coletar; colete e chame de novo, mandando cada um em "outros" com a chave que a resposta pediu. So use depois da confirmacao explicita do lead.'
+        : 'Pede o contrato e a procuracao com os dados ja coletados. Uma pessoa do escritorio confere antes de o link sair; o link chega depois, por esta conversa. Se faltar dado, a resposta diz quais coletar. So use depois da confirmacao explicita do lead.',
       parametros: {
         type: 'object',
         properties: {
           nome_completo: { type: 'string' },
           cpf: { type: 'string' },
           email: { type: 'string' },
+          outros: {
+            type: 'object',
+            description: 'Os demais dados do contrato que a resposta pediu, cada um com a chave exata. Ex.: {"rg": "1234567 SDS/PE", "endereco": "Rua ..., Cidade-UF, CEP"}',
+            additionalProperties: { type: 'string' },
+          },
         },
         required: [],
       },
