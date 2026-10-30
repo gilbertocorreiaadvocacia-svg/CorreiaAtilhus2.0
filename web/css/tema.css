@@ -7354,6 +7354,14 @@ a.metrica:focus-visible {
   gap: var(--e2);
 }
 
+/* Lista cujos itens têm uma linha de texto com reticências (.cortar). Numa grade
+   sem coluna definida o item não encolhe abaixo da largura do texto inteiro: a
+   coluna crescia além da tela e empurrava os botões da linha para fora. Com
+   minmax(0, 1fr) a coluna acompanha o contêiner e o texto corta com "…". */
+.lista-simples.lista-contida {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 /* Linha de lista: filete embaixo em vez de moldura em volta.
    Uma lista de vinte itens com moldura em cada um desenha vinte objetos; com
    filete desenha uma lista, que e o que ela e. O ultimo nao leva filete, senao

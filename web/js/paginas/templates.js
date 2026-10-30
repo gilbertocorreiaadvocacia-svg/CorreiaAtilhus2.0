@@ -309,7 +309,11 @@ function contagem(quantos) {
 }
 
 function grupo(categoria, itens, recarregarTela) {
-  const lista = el('div', { class: 'lista-simples' });
+  // .lista-contida: a coluna da grade não passa da largura da tela. Sem ela, a
+  // descrição (que não quebra linha) alargava a coluna até 1450 px e os botões
+  // Editar, Aprovar na Meta e Excluir ficavam além da borda direita, escondidos
+  // atrás de uma barra de rolagem horizontal (visto no sistema no ar, 30/10/2026).
+  const lista = el('div', { class: 'lista-simples lista-contida' });
   for (const template of itens) lista.append(linhaDoTemplate(template, recarregarTela));
 
   // O que a categoria significa e conceito da Meta, nao dado do escritorio:
