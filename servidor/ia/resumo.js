@@ -25,10 +25,10 @@ export async function resumirConversa({ workspaceId, contato, mensagens, instruc
         modeloId,
         workspaceId,
         sistema: [
-          'Voce resume conversas de atendimento de um escritorio de advocacia para a equipe interna.',
-          'Escreva em portugues do Brasil, direto, sem enfeite, sem repetir a transcricao.',
+          'Você resume conversas de atendimento de um escritório de advocacia para a equipe interna.',
+          'Escreva em português do Brasil, direto, sem enfeite, sem repetir a transcrição.',
           detalhado
-            ? 'Formato: situacao do lead, dados coletados, objecoes levantadas, o que ja foi feito, proximo passo sugerido.'
+            ? 'Formato: situação do lead, dados coletados, objeções levantadas, o que já foi feito, próximo passo sugerido.'
             : 'Formato: um paragrafo curto com quem e o lead, o que ele quer e em que pe esta.',
           instrucao ? `Instrucao adicional de quem pediu o resumo: ${instrucao}` : '',
         ]
@@ -56,7 +56,7 @@ function resumoEstruturado(contato, mensagens) {
   return [
     `RESUMO, ${contato.nome} (${contato.telefone})`,
     `Status: ${status} | Etiquetas: ${etiquetas.join(', ') || 'nenhuma'}`,
-    `Mensagens: ${entradas.length} do lead, ${saidas.length} do escritorio.`,
+    `Mensagens: ${entradas.length} do lead, ${saidas.length} do escritório.`,
     `Periodo: ${new Date(mensagens[0].criadoEm).toLocaleString('pt-BR')} ate ${new Date(mensagens[mensagens.length - 1].criadoEm).toLocaleString('pt-BR')}.`,
     '',
     'DADOS COLETADOS:',

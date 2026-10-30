@@ -392,7 +392,7 @@ function seguroJson(texto) {
  * conversa esta na fila de alguem. E o que a frase diz agora.
  */
 const ESPERA =
-  'Obrigado pela mensagem! Ja registrei sua conversa aqui e a equipe do escritorio vai continuar o atendimento com voce.';
+  'Obrigado pela mensagem! Já registrei sua conversa aqui e a equipe do escritório vai continuar o atendimento com você.';
 
 export function responderPorRegras({ agente, contato, historico }) {
   // So vale como template o que existe mesmo: no prompt tambem ha @status,

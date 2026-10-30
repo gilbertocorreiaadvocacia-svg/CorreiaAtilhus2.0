@@ -20,6 +20,7 @@ import { migrarNomesDeAgentes } from './nucleo/migrar-agentes.js';
 import { aplicarRegrasInstitucionais } from './nucleo/migrar-regras-institucionais.js';
 import { tirarAvisoDaSenhaDoGov } from './nucleo/senha-do-gov.js';
 import { aposentadoriaSemInsistir } from './nucleo/aposentadoria-sem-insistir.js';
+import { corrigirAcentosDosAgentes } from './nucleo/acentos-dos-agentes.js';
 import { templatesDoPacoteGanhamOArquivo } from './ia/pacotes.js';
 import { garantirModeloDeVoz, situacaoDoModeloDeVoz } from './ia/modelo-de-voz.js';
 import { motorLocal } from './ia/transcricao-local.js';
@@ -57,7 +58,7 @@ iniciarBanco();
 /* Quando ESTA copia subiu. Vai na saude, para dar para distinguir duas. */
 const INICIADO_EM = new Date().toISOString();
 /* Muda a cada entrega que mexe no atendimento (ver /api/saude). */
-const CODIGO = '2026-10-30.2';
+const CODIGO = '2026-10-30.3';
 
 /* Atraso do event loop: se o processo Node estiver bloqueado por algo
    sincrono (grava de arquivo grande, laco pesado), ate um /api/saude trivial
@@ -221,6 +222,11 @@ const avisosDaSenhaDoGov = naSubida('senha do gov', tirarAvisoDaSenhaDoGov, 0);
 if (avisosDaSenhaDoGov) console.log(`Senha do gov.br: aviso antigo tirado de ${avisosDaSenhaDoGov} agente(s).`);
 /* A triagem do auxilio-acidente para de insistir na pergunta da aposentadoria (28/10/2026). */
 const semInsistirNaAposentadoria = naSubida('aposentadoria', aposentadoriaSemInsistir, 0);
+/* O portugues dos agentes ja instalados, com acento (30/10/2026): troca so as linhas que o proprio sistema escreveu. */
+const acentuados = naSubida('acentos dos agentes', corrigirAcentosDosAgentes, {});
+if (acentuados.agentes || acentuados.templates || acentuados.conhecimento) {
+  console.log(`Acentos: ${acentuados.agentes} agente(s), ${acentuados.templates} template(s) e ${acentuados.conhecimento} item(ns) da base de conhecimento corrigidos.`);
+}
 if (semInsistirNaAposentadoria) console.log(`Aposentadoria: regra de seguir sem a resposta acrescentada em ${semInsistirNaAposentadoria} agente(s).`);
 /* Beatriz destravada, nomes e pasta do Trabalhista limpos, "Agente 26" repetido fora (07/10/2026). */
 const reorganizacaoDeAgentes = naSubida('nomes de agentes', migrarNomesDeAgentes, {});

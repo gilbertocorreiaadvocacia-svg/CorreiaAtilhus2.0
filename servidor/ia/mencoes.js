@@ -70,7 +70,7 @@ const CATALOGO_GENERICO = [
   { chave: 'status', descricao: 'Altera o status da conversa no funil.' },
   { chave: 'tag', descricao: 'Adiciona etiqueta a conversa.' },
   { chave: 'etiqueta', descricao: 'Adiciona etiqueta a conversa.', equivale: 'tag' },
-  { chave: 'removertag', descricao: 'Remove uma etiqueta que nao vale mais.' },
+  { chave: 'removertag', descricao: 'Remove uma etiqueta que não vale mais.' },
   { chave: 'agendarretorno', descricao: 'Marca um retorno no horario que o cliente combinou.' },
   { chave: 'departamento', descricao: 'Move a conversa de departamento.' },
   { chave: 'responsavel', descricao: 'Transfere a conversa para agente ou pessoa.' },
@@ -93,12 +93,12 @@ const CATALOGO_FIXO = [
   { chave: 'desativarIA', nome: 'desativarIA', descricao: 'Interrompe as respostas automaticas.' },
   { chave: 'notificar', nome: 'notificar', descricao: 'Notifica um membro sem transferir.' },
   { chave: 'gerarcontrato', nome: 'gerarcontrato', descricao: 'Gera contrato e envia o link de assinatura.' },
-  { chave: 'calendario', nome: 'calendario', descricao: 'Verifica disponibilidade e agenda reuniao.' },
+  { chave: 'calendario', nome: 'calendario', descricao: 'Verifica disponibilidade e agenda reunião.' },
   { chave: 'advbox', nome: 'advbox', descricao: 'Consulta o andamento processual pelo CPF.' },
   {
     chave: 'concluiravaliacao',
     nome: 'concluiravaliacao',
-    descricao: 'Encerra a avaliacao do atendimento, grava a nota e devolve a conversa a quem atendia.',
+    descricao: 'Encerra a avaliação do atendimento, grava a nota e devolve a conversa a quem atendia.',
   },
 ];
 
@@ -258,7 +258,7 @@ export function ferramentasDoAgente(agente, workspaceId) {
     ferramentas.push({
       nome: 'alterar_status',
       descricao:
-        'Muda o status da conversa no funil. Isso tambem troca o departamento e dispara a sequencia de follow-up daquele status.',
+        'Muda o status da conversa no funil. Isso também troca o departamento e dispara a sequência de follow-up daquele status.',
       parametros: {
         type: 'object',
         properties: { status: { type: 'string', enum: opcoes(porTipo('status')), description: 'Nome do status.' } },
@@ -269,7 +269,7 @@ export function ferramentasDoAgente(agente, workspaceId) {
   if (tipos.has('tag')) {
     ferramentas.push({
       nome: 'adicionar_etiqueta',
-      descricao: 'Adiciona uma etiqueta a conversa. Nao remove as que ja existem.',
+      descricao: 'Adiciona uma etiqueta a conversa. Não remove as que já existem.',
       parametros: {
         type: 'object',
         properties: { etiqueta: { type: 'string', enum: opcoes(porTipo('tag')) } },
@@ -301,7 +301,7 @@ export function ferramentasDoAgente(agente, workspaceId) {
     ferramentas.push({
       nome: 'remover_etiqueta',
       descricao:
-        'Retira uma etiqueta que deixou de valer. Use quando a informacao mudar, por exemplo, o lead conseguiu o laudo que nao tinha.',
+        'Retira uma etiqueta que deixou de valer. Use quando a informação mudar, por exemplo, o lead conseguiu o laudo que não tinha.',
       parametros: {
         type: 'object',
         properties: { etiqueta: { type: 'string', enum: opcoes(porTipo('tag')) } },
@@ -313,7 +313,7 @@ export function ferramentasDoAgente(agente, workspaceId) {
     ferramentas.push({
       nome: 'agendar_retorno',
       descricao:
-        'Marca uma mensagem para sair no horario que o cliente combinou ("me chama depois das 18h", "amanha eu falo com minha mae"). Diferente do follow-up do status, aqui voce escolhe a hora e o texto.',
+        'Marca uma mensagem para sair no horário que o cliente combinou ("me chama depois das 18h", "amanhã eu falo com minha mãe"). Diferente do follow-up do status, aqui você escolhe a hora e o texto.',
       parametros: {
         type: 'object',
         properties: {
@@ -321,7 +321,7 @@ export function ferramentasDoAgente(agente, workspaceId) {
             type: 'string',
             description: 'Data e hora no formato 2026-08-20 18:30, no horario de Brasilia.',
           },
-          mensagem: { type: 'string', description: 'O que sera enviado naquele momento.' },
+          mensagem: { type: 'string', description: 'O que será enviado naquele momento.' },
         },
         required: ['quando', 'mensagem'],
       },
@@ -355,7 +355,7 @@ export function ferramentasDoAgente(agente, workspaceId) {
     ferramentas.push({
       nome: 'transferir_conversa',
       descricao:
-        'Passa a conversa para outro agente de IA ou para uma pessoa da equipe, e voce para de responder. Para agente, ele responde na hora, sem o lead escrever de novo, e le o seu resumo_para_proximo. Use "distribuir" quando o prompt mandar repassar para a equipe sem dizer para quem: cai em quem tem menos conversa aberta.',
+        'Passa a conversa para outro agente de IA ou para uma pessoa da equipe, e você para de responder. Para agente, ele responde na hora, sem o lead escrever de novo, e lê o seu resumo_para_proximo. Use "distribuir" quando o prompt mandar repassar para a equipe sem dizer para quem: cai em quem tem menos conversa aberta.',
       parametros: {
         type: 'object',
         properties: {
@@ -363,11 +363,11 @@ export function ferramentasDoAgente(agente, workspaceId) {
           resumo_para_proximo: {
             type: 'string',
             description:
-              'O que o proximo precisa saber para nao repetir nada: necessidade do lead, dados ja coletados, documentos recebidos ou faltando, objecoes e o proximo passo.',
+              'O que o próximo precisa saber para não repetir nada: necessidade do lead, dados já coletados, documentos recebidos ou faltando, objeções e o próximo passo.',
           },
           mensagem_de_transicao: {
             type: 'string',
-            description: 'Frase curta para o lead antes da passagem (opcional). Quem pergunta a seguir e o proximo atendente.',
+            description: 'Frase curta para o lead antes da passagem (opcional). Quem pergunta a seguir é o próximo atendente.',
           },
         },
         required: ['destino', 'resumo_para_proximo'],
@@ -377,7 +377,7 @@ export function ferramentasDoAgente(agente, workspaceId) {
   if (tipos.has('template')) {
     ferramentas.push({
       nome: 'enviar_template',
-      descricao: 'Envia uma mensagem pronta, com texto e midia, ja cadastrada no sistema.',
+      descricao: 'Envia uma mensagem pronta, com texto e mídia, já cadastrada no sistema.',
       parametros: {
         type: 'object',
         properties: { template: { type: 'string', enum: opcoes(porTipo('template')) } },
@@ -455,7 +455,7 @@ export function ferramentasDoAgente(agente, workspaceId) {
     ferramentas.push({
       nome: 'consultar_biblioteca',
       descricao:
-        'Consulta a base de conhecimento do escritorio (objecoes, requisitos, regras). Use SEMPRE que a pergunta do cliente for sobre regra, requisito, prazo, valor ou documento: o que estiver aqui vale mais do que o seu conhecimento geral.',
+        'Consulta a base de conhecimento do escritório (objeções, requisitos, regras). Use SEMPRE que a pergunta do cliente for sobre regra, requisito, prazo, valor ou documento: o que estiver aqui vale mais do que o seu conhecimento geral.',
       parametros: {
         type: 'object',
         properties: { pergunta: { type: 'string' } },
@@ -495,7 +495,7 @@ export function ferramentasDoAgente(agente, workspaceId) {
   if (tipos.has('ativaraudio') || tipos.has('desativaraudio')) {
     ferramentas.push({
       nome: 'modo_audio',
-      descricao: 'Liga ou desliga as respostas em audio.',
+      descricao: 'Liga ou desliga as respostas em áudio.',
       parametros: {
         type: 'object',
         properties: { ligar: { type: 'boolean' } },
@@ -521,8 +521,8 @@ export function ferramentasDoAgente(agente, workspaceId) {
     ferramentas.push({
       nome: 'gerar_contrato',
       descricao: direto
-        ? 'Gera o contrato e a procuracao na ZapSign com os dados ja coletados e manda o link de assinatura nesta conversa, na hora. Se faltar dado, a resposta diz quais coletar; colete e chame de novo, mandando cada um em "outros" com a chave que a resposta pediu. So use depois da confirmacao explicita do lead.'
-        : 'Pede o contrato e a procuracao com os dados ja coletados. Uma pessoa do escritorio confere antes de o link sair; o link chega depois, por esta conversa. Se faltar dado, a resposta diz quais coletar. So use depois da confirmacao explicita do lead.',
+        ? 'Gera o contrato e a procuração na ZapSign com os dados já coletados e manda o link de assinatura nesta conversa, na hora. Se faltar dado, a resposta diz quais coletar; colete e chame de novo, mandando cada um em "outros" com a chave que a resposta pediu. Só use depois da confirmação explícita do lead.'
+        : 'Pede o contrato e a procuração com os dados já coletados. Uma pessoa do escritório confere antes de o link sair; o link chega depois, por esta conversa. Se faltar dado, a resposta diz quais coletar. Só use depois da confirmação explícita do lead.',
       parametros: {
         type: 'object',
         properties: {
@@ -531,7 +531,7 @@ export function ferramentasDoAgente(agente, workspaceId) {
           email: { type: 'string' },
           outros: {
             type: 'object',
-            description: 'Os demais dados do contrato que a resposta pediu, cada um com a chave exata. Ex.: {"rg": "1234567 SDS/PE", "endereco": "Rua ..., Cidade-UF, CEP"}',
+            description: 'Os demais dados do contrato que a resposta pediu, cada um com a chave exata. Ex.: {"rg": "1234567 SDS/PE", "endereço": "Rua ..., Cidade-UF, CEP"}',
             additionalProperties: { type: 'string' },
           },
         },
@@ -543,7 +543,7 @@ export function ferramentasDoAgente(agente, workspaceId) {
     ferramentas.push({
       nome: 'agenda',
       descricao:
-        'Verifica horarios livres, cria, altera ou cancela uma reuniao ou uma ligacao. Reuniao e ligacao dividem a mesma agenda: horario ocupado por uma nao aceita a outra.',
+        'Verifica horários livres, cria, altera ou cancela uma reunião ou uma ligação. Reunião e ligação dividem a mesma agenda: horário ocupado por uma não aceita a outra.',
       parametros: {
         type: 'object',
         properties: {
@@ -551,7 +551,7 @@ export function ferramentasDoAgente(agente, workspaceId) {
           tipo: {
             type: 'string',
             enum: ['reuniao', 'ligacao'],
-            description: 'Ligacao: 15 minutos, a equipe liga para o WhatsApp do lead. Reuniao: por video, com link.',
+            description: 'Ligação: 15 minutos, a equipe liga para o WhatsApp do lead. Reunião: por vídeo, com link.',
           },
           quando: { type: 'string', description: 'Data e hora desejada, ex: 2026-08-20 14:30' },
           assunto: { type: 'string' },
@@ -564,7 +564,7 @@ export function ferramentasDoAgente(agente, workspaceId) {
     ferramentas.push({
       nome: 'concluir_avaliacao',
       descricao:
-        'Encerra a pesquisa de satisfacao: grava a nota de 1 a 5 (sem nota, se a pessoa nao quis avaliar) e devolve a conversa a quem atendia. Use reabrir quando a pessoa trouxe um assunto novo e a equipe precisa responder.',
+        'Encerra a pesquisa de satisfação: grava a nota de 1 a 5 (sem nota, se a pessoa não quis avaliar) e devolve a conversa a quem atendia. Use reabrir quando a pessoa trouxe um assunto novo e a equipe precisa responder.',
       parametros: {
         type: 'object',
         properties: {
@@ -636,7 +636,7 @@ export async function executarFerramenta({ nome, argumentos, contato, agente, co
   switch (nome) {
     case 'alterar_status': {
       const status = porRotulo(workspaceId, 'status', argumentos.status);
-      if (!status) return { erro: `Status "${argumentos.status}" nao existe no workspace.` };
+      if (!status) return { erro: `Status "${argumentos.status}" não existe no workspace.` };
       await aplicarStatus(contato, status, { tipo: 'agente', id: agente.id, nome: agente.nome });
       lancar(workspaceId, contato.id, 'mencao_status', custoDaMencao('status'), null, agente.id);
       registrar(`Status alterado para ${status.nome}`);
@@ -680,7 +680,7 @@ export async function executarFerramenta({ nome, argumentos, contato, agente, co
         return { erro: 'Data invalida. Use o formato 2026-08-20 18:30.' };
       }
       if (quando.getTime() < Date.now()) {
-        return { erro: 'Esse horario ja passou. Confirme com o cliente quando ele prefere.' };
+        return { erro: 'Esse horário já passou. Confirme com o cliente quando ele prefere.' };
       }
       const agendamento = inserir('agendamentos', {
         id: novoId('agd'),
@@ -716,18 +716,18 @@ export async function executarFerramenta({ nome, argumentos, contato, agente, co
       let responsavel = null;
       if (String(argumentos.destino || '').toLowerCase() === 'distribuir') {
         const sorteado = sortearResponsavel(workspaceId, contato, agente);
-        if (!sorteado) return { erro: 'Nao ha membro disponivel para distribuir a conversa.' };
+        if (!sorteado) return { erro: 'Não há membro disponível para distribuir a conversa.' };
         responsavel = sorteado;
       } else if (destinoAgente) {
-        if (destinoAgente.id === agente.id) return { erro: 'Voce ja e o responsavel por esta conversa.' };
+        if (destinoAgente.id === agente.id) return { erro: 'Você já é o responsável por esta conversa.' };
         if (!destinoAgente.ativo) return { erro: `${destinoAgente.nome} esta desligado. Escolha outro destino.` };
         /* A area vale a do numero; conversa antiga, sem area, usa a do agente. */
         const area = contato.area || agente.area;
         if (area && destinoAgente.area && destinoAgente.area !== area) {
-          return { erro: `${destinoAgente.nome} atende outra area e nao pode receber esta conversa.` };
+          return { erro: `${destinoAgente.nome} atende outra área e não pode receber esta conversa.` };
         }
         if (!String(argumentos.resumo_para_proximo || '').trim()) {
-          return { erro: 'Escreva resumo_para_proximo: o proximo agente so enxerga o que voce resumir.' };
+          return { erro: 'Escreva resumo_para_proximo: o próximo agente só enxerga o que você resumir.' };
         }
         responsavel = { tipo: 'agente', id: destinoAgente.id, nome: destinoAgente.nome };
       } else {
@@ -736,7 +736,7 @@ export async function executarFerramenta({ nome, argumentos, contato, agente, co
           const u = achar('usuarios', m.usuarioId);
           return u && normalizar(u.nome) === normalizar(argumentos.destino);
         });
-        if (!membro) return { erro: `Nao encontrei "${argumentos.destino}" entre agentes e membros.` };
+        if (!membro) return { erro: `Não encontrei "${argumentos.destino}" entre agentes e membros.` };
         const usuario = achar('usuarios', membro.usuarioId);
         responsavel = { tipo: 'membro', id: membro.id, nome: usuario.nome };
       }

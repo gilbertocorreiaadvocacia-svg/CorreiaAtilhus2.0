@@ -20,7 +20,7 @@ PASSAGEM PARA PESSOA: ao passar para uma pessoa da equipe ou usar @desativarIA, 
 
 /* Nome, CNPJ, OAB, endereco e redes chegam no contexto de todo agente
    (montarSistema, em ia/motor.js). Na LiderHub eram mencoes; aqui sao dados. */
-export const DADOS_DO_ESCRITORIO = `DADOS DO ESCRITÓRIO: nome, responsável, CNPJ, OAB, endereço, telefone, e-mail, site e Instagram estão em DADOS DO ESCRITORIO, no seu contexto. Use só o que estiver lá e nunca invente o que faltar.`;
+export const DADOS_DO_ESCRITORIO = `DADOS DO ESCRITÓRIO: nome, responsável, CNPJ, OAB, endereço, telefone, e-mail, site e Instagram estão em DADOS DO ESCRITÓRIO, no seu contexto. Use só o que estiver lá e nunca invente o que faltar.`;
 
 /* A resposta a "voces existem mesmo?", igual em todos os squads. */
 export const OBJECOES_DE_CONFIANCA = `OBJEÇÕES DE CONFIANÇA

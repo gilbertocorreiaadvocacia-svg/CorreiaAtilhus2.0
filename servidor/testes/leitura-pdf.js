@@ -120,7 +120,7 @@ process.exit(0);
     );
     s.ok('e responde ao cliente', b1.falas.includes('Recebi o seu CNIS, obrigada!'), JSON.stringify(b1.falas));
     s.ok('o PDF grande demais nao vai para a IA: fica o motivo', !b1.grande.leitura && /100 paginas/.test(b1.grande.erro || ''), JSON.stringify(b1.grande));
-    s.ok('e o agente fica sabendo que nao deu para ler', (resposta?.mensagens || '').includes('o sistema nao conseguiu ler este PDF'), resposta?.mensagens?.slice(0, 600));
+    s.ok('e o agente fica sabendo que nao deu para ler', (resposta?.mensagens || '').includes('o sistema não conseguiu ler este PDF'), resposta?.mensagens?.slice(0, 600));
     s.ok('a leitura conta no consumo do agente, uma vez', b1.leiturasCobradas === 1, JSON.stringify(b1.leiturasCobradas));
 
     await falsa.post('/__roteiro', { roteiro: [{ status: 200, texto: 'Deu sim! Vi os seus vinculos.' }], marca: MARCA });

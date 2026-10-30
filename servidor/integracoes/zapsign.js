@@ -226,7 +226,7 @@ export async function pedirContrato({ contato, agente = null, conexao = null, da
       ok: true,
       contrato_id: aberto.id,
       situacao: 'em_conferencia',
-      instrucao: 'O contrato ja esta com a equipe para conferencia. Diga ao cliente que o link chega por esta conversa em seguida.',
+      instrucao: 'O contrato já está com a equipe para conferência. Diga ao cliente que o link chega por esta conversa em seguida.',
     };
   }
   if (aberto) {
@@ -287,7 +287,7 @@ export async function pedirContrato({ contato, agente = null, conexao = null, da
         ok: true,
         contrato_id: contrato.id,
         situacao: 'link_enviado',
-        instrucao: 'O link do contrato e da procuracao ja foi enviado nesta conversa, com o video de como assinar. Peca ao cliente para abrir, conferir os dados e assinar. Nao repita o link.',
+        instrucao: 'O link do contrato e da procuração já foi enviado nesta conversa, com o vídeo de como assinar. Peça ao cliente para abrir, conferir os dados e assinar. Não repita o link.',
       };
     }
     /* A ZapSign recusou (chave, modelo, plano sem API): o contrato fica com a
@@ -301,7 +301,7 @@ export async function pedirContrato({ contato, agente = null, conexao = null, da
       ok: true,
       contrato_id: contrato.id,
       situacao: 'em_conferencia',
-      instrucao: 'Diga ao cliente que uma pessoa do escritorio confere o contrato e a procuracao, e que o link para assinar chega por esta conversa.',
+      instrucao: 'Diga ao cliente que uma pessoa do escritório confere o contrato e a procuração, e que o link para assinar chega por esta conversa.',
     };
   }
 
@@ -320,7 +320,7 @@ export async function pedirContrato({ contato, agente = null, conexao = null, da
     ok: true,
     contrato_id: contrato.id,
     situacao: 'em_conferencia',
-    instrucao: 'Diga ao cliente que uma pessoa do escritorio confere o contrato e a procuracao, e que o link para assinar chega por esta conversa.',
+    instrucao: 'Diga ao cliente que uma pessoa do escritório confere o contrato e a procuração, e que o link para assinar chega por esta conversa.',
   };
 }
 
@@ -330,7 +330,7 @@ async function enviarLink(contrato, contato, conexao, autor, { reenvio = false }
   await enviarMensagem({
     contato,
     conexao,
-    conteudo: `${reenvio ? 'Aqui esta de novo' : 'Pronto'}, ${primeiro}! O contrato e a procuracao estao prontos para assinar:\n\n${contrato.link}\n\nE so abrir, conferir os dados e assinar na tela do celular. Leva menos de 2 minutos.`,
+    conteudo: `${reenvio ? 'Aqui está de novo' : 'Pronto'}, ${primeiro}! O contrato e a procuração estão prontos para assinar:\n\n${contrato.link}\n\nÉ só abrir, conferir os dados e assinar na tela do celular. Leva menos de 2 minutos.`,
     autor,
   });
   const video = cfg.videoTutorial;
@@ -339,7 +339,7 @@ async function enviarLink(contrato, contato, conexao, autor, { reenvio = false }
       contato,
       conexao,
       tipo: video.tipo || 'video',
-      conteudo: 'Este video mostra o passo a passo da assinatura.',
+      conteudo: 'Este vídeo mostra o passo a passo da assinatura.',
       midia: video,
       autor,
     });

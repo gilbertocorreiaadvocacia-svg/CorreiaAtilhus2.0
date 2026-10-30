@@ -54,7 +54,7 @@ export async function testarDocumentosRecebidos({ base, anthropic }) {
   await api.post(`/api/agentes/${agente.id}/responder-agora`, { contatoId });
 
   const sistema = await sistemaDaUltimaChamada();
-  s.ok('a secao de documentos existe no prompt', /DOCUMENTOS JA RECEBIDOS/.test(sistema), sistema.slice(0, 300));
+  s.ok('a secao de documentos existe no prompt', /DOCUMENTOS JÁ RECEBIDOS/.test(sistema), sistema.slice(0, 300));
   for (const nome of documentos) {
     s.ok(`"${nome}" aparece na lista, mesmo sendo um dos mais antigos`, sistema.includes(nome), sistema.includes('DOCUMENTOS JA RECEBIDOS') ? 'secao existe mas falta o nome' : 'secao nem existe');
   }

@@ -155,12 +155,12 @@ export async function operarAgenda({ contato, agente, argumentos }) {
   if (acao === 'verificar') {
     const livres = janelasLivres(workspaceId, regras);
     if (!livres.length) {
-      return { erro: 'Nao ha horario livre na janela configurada. Ofereca retorno para a proxima semana.' };
+      return { erro: 'Não há horário livre na janela configurada. Ofereça retorno para a próxima semana.' };
     }
     return {
       resumo: 'horarios livres',
       opcoes: livres.map((d) => ({ iso: d.toISOString(), texto: formatar(d) })),
-      instrucao: 'Ofereca estas opcoes ao lead e chame a acao "criar" com a escolhida.',
+      instrucao: 'Ofereça estas opções ao lead e chame a ação "criar" com a escolhida.',
     };
   }
 
@@ -178,7 +178,7 @@ export async function operarAgenda({ contato, agente, argumentos }) {
     const choque = ocupacao(workspaceId, regras.duracao).find((o) => inicio < o.fim && inicio + duracao * 60000 > o.inicio);
     if (choque) {
       return {
-        erro: `Esse horario ja esta ocupado (${formatar(new Date(choque.inicio))}). Chame a acao "verificar" e ofereca outro ao lead.`,
+        erro: `Esse horário já está ocupado (${formatar(new Date(choque.inicio))}). Chame a ação "verificar" e ofereça outro ao lead.`,
       };
     }
 

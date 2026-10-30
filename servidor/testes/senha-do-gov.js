@@ -131,7 +131,7 @@ process.exit(0);
     );
     s.ok(
       'o agente recebe a regra da senha do gov.br no contexto',
-      /Senha do gov\.br ou do Meu INSS/.test(contexto) && /Nunca diga a ele que nao deve passar essa senha ao escritorio/.test(contexto),
+      /Senha do gov\.br ou do Meu INSS/.test(contexto) && /Nunca diga a ele que não deve passar essa senha ao escritório/.test(contexto),
       contexto.slice(-700),
     );
     s.ok(

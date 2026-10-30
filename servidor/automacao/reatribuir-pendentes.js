@@ -7,6 +7,7 @@ import { resumoDosTemplates } from '../nucleo/diagnostico.js';
 import { templatesDoPacoteGanhamOArquivo } from '../ia/pacotes.js';
 import { agentesComAvisoDaSenhaDoGov } from '../nucleo/senha-do-gov.js';
 import { aposentadoriaNosAgentes } from '../nucleo/aposentadoria-sem-insistir.js';
+import { agentesSemAcento } from '../nucleo/acentos-dos-agentes.js';
 import { retratoDasConversas } from '../whatsapp/duplicados.js';
 import { prontoParaContratoEVoz, saudeDoAtendimento } from '../nucleo/saude-do-atendimento.js';
 
@@ -113,6 +114,8 @@ function resumirEscritorios() {
       eduardaPassaTrabalhistaPara: comoEduardaPassaOTrabalhista(workspace.id),
       avisoDaSenhaDoGov: agentesComAvisoDaSenhaDoGov(workspace.id),
       aposentadoriaNoAuxilioAcidente: aposentadoriaNosAgentes(workspace.id),
+      /* Agentes que ainda tem palavra sem acento no roteiro (so o nome e a conta). */
+      agentesSemAcento: agentesSemAcento(workspace.id),
       templates: resumoDosTemplates(workspace.id),
       conversas: retratoDasConversas(workspace.id),
       /* A busca do historico no celular (whatsapp/sincronizar-historico.js) e as

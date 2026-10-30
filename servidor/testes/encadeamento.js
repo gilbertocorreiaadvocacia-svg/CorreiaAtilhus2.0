@@ -149,7 +149,7 @@ export async function testarEncadeamento({ base, anthropic }) {
   s.ok('passar para agente de outra area e recusado', (await conversa(contatoId))?.responsavel?.id === especialista.id);
   s.ok(
     'e o agente le o motivo da recusa',
-    /outra area/.test((await registro()).chamadas[1]?.ultimaMensagem || ''),
+    /outra área/.test((await registro()).chamadas[1]?.ultimaMensagem || ''),
     (await registro()).chamadas[1]?.ultimaMensagem,
   );
 

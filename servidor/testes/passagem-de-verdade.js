@@ -104,7 +104,7 @@ export async function testarPassagemDeVerdade({ base, anthropic, raiz }) {
   s.ok('a conversa fica com a especialista', (await conversa(contatoId))?.responsavel?.id === especialista.id, JSON.stringify((await conversa(contatoId))?.responsavel));
   s.ok(
     'quem recebe e mandado se apresentar e pedir os detalhes',
-    /VOCE ACABOU DE RECEBER ESTA CONVERSA[^\n]*apresente-se[^\n]*detalhes/.test(bateu.chamadas[2]?.sistemaCompleto || ''),
+    /VOCÊ ACABOU DE RECEBER ESTA CONVERSA[^\n]*apresente-se[^\n]*detalhes/.test(bateu.chamadas[2]?.sistemaCompleto || ''),
   );
   const falas = await falasDe(contatoId);
   const texto = falas.map((m) => `${m.autor?.nome}: ${m.conteudo}`).join(' | ');
@@ -119,7 +119,7 @@ export async function testarPassagemDeVerdade({ base, anthropic, raiz }) {
   const seguinte = (await registro()).chamadas[0]?.sistemaCompleto || '';
   s.ok(
     'na fala seguinte ela segue sem se apresentar de novo',
-    seguinte.includes('nao se apresente de novo') && !seguinte.includes('VOCE ACABOU DE RECEBER'),
+    seguinte.includes('não se apresente de novo') && !seguinte.includes('VOCÊ ACABOU DE RECEBER'),
   );
 
   /* ---------------- Promessa com a passagem junto: nada muda ---------------- */
@@ -142,7 +142,7 @@ export async function testarPassagemDeVerdade({ base, anthropic, raiz }) {
   const calada = junto.chamadas[1]?.sistemaCompleto || '';
   s.ok(
     'passagem calada (o cliente nao foi avisado): quem recebe segue sem se apresentar',
-    calada.includes('Continue de onde ele parou') && !calada.includes('VOCE ACABOU DE RECEBER'),
+    calada.includes('Continue de onde ele parou') && !calada.includes('VOCÊ ACABOU DE RECEBER'),
   );
 
   /* ---------------- De uma area para a equipe sem area ---------------- */
@@ -185,7 +185,7 @@ export async function testarPassagemDeVerdade({ base, anthropic, raiz }) {
     JSON.stringify(daDemitida.chamadas[0]?.destinos),
   );
   s.ok('e a passagem para ela nao e recusada', (await conversa(demitida))?.responsavel?.id === semArea.id, JSON.stringify((await conversa(demitida))?.responsavel));
-  s.ok('avisado o cliente, a equipe que recebe se apresenta', /VOCE ACABOU DE RECEBER ESTA CONVERSA/.test(daDemitida.chamadas[1]?.sistemaCompleto || ''));
+  s.ok('avisado o cliente, a equipe que recebe se apresenta', /VOCÊ ACABOU DE RECEBER ESTA CONVERSA/.test(daDemitida.chamadas[1]?.sistemaCompleto || ''));
 
   /* ---------------- Ficou parada numa promessa: o boot retoma ---------------- */
 
@@ -270,13 +270,13 @@ process.exit(0);
     s.ok('a parada ha mais de 7 dias fica como esta', b.falasAntigo.length === 1, JSON.stringify(b.falasAntigo));
     s.ok(
       'o agente le que avisou da passagem e ela nao aconteceu',
-      /a passagem nao aconteceu/.test(parada.chamadas[0]?.ultimaMensagem || ''),
+      /a passagem não aconteceu/.test(parada.chamadas[0]?.ultimaMensagem || ''),
       parada.chamadas[0]?.ultimaMensagem,
     );
     s.ok('a conversa passa para a especialista', b.parado?.id === 'ag-esp', JSON.stringify(b.parado));
     s.ok(
       'a especialista sabe que o cliente foi avisado e esta esperando',
-      /VOCE ACABOU DE RECEBER ESTA CONVERSA/.test(parada.chamadas[1]?.sistemaCompleto || ''),
+      /VOCÊ ACABOU DE RECEBER ESTA CONVERSA/.test(parada.chamadas[1]?.sistemaCompleto || ''),
     );
     s.ok(
       'e a especialista se apresenta, pedindo os detalhes',
