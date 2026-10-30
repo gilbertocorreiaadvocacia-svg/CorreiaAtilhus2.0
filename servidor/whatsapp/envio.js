@@ -42,6 +42,12 @@ export async function enviarMensagem({
   templateId = null,
   responderA = null,
   origemAutomacao = null,
+  /* Falso para o que sai ANTES da resposta e nao a substitui (o video de
+     boas-vindas automatico): nao conta como "ja respondi" nem entra no tempo de
+     resposta. Sem isso, se o modelo falhasse logo depois (credito acabado, por
+     exemplo), a conversa ficava marcada como respondida e a recuperacao do boot
+     (retomarRespostasPendentes) nunca mais a atendia. */
+  contaComoResposta = true,
 }) {
   const mensagem = inserirMensagem(contato.id, {
     id: novoId('msg'),
@@ -93,14 +99,14 @@ export async function enviarMensagem({
      saida: evita contar duas vezes a mesma espera quando a resposta sai em
      varias mensagens seguidas (a segunda bolha ja encontra ultimaSaidaEm
      maior que ultimaEntradaEm). */
-  if (contato.ultimaEntradaEm && (!contato.ultimaSaidaEm || contato.ultimaSaidaEm < contato.ultimaEntradaEm)) {
+  if (contaComoResposta && contato.ultimaEntradaEm && (!contato.ultimaSaidaEm || contato.ultimaSaidaEm < contato.ultimaEntradaEm)) {
     const esperaMs = new Date(mensagem.criadoEm).getTime() - new Date(contato.ultimaEntradaEm).getTime();
     registrarTempoResposta(contato.workspaceId, contato.id, esperaMs, autor?.tipo === 'agente' ? autor.id : null);
   }
 
   atualizar('contatos', contato.id, {
     ultimaMensagemEm: mensagem.criadoEm,
-    ultimaSaidaEm: mensagem.criadoEm,
+    ...(contaComoResposta ? { ultimaSaidaEm: mensagem.criadoEm } : {}),
     previa: (conteudo || `[${tipo}]`).slice(0, 120),
   });
 

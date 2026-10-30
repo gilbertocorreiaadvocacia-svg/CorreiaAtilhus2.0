@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
+import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -27,13 +28,31 @@ export async function testarBoasVindasAutomaticas({ base, raiz }) {
   const s = suite('O video de boas-vindas sai sozinho, uma vez, antes da primeira resposta');
   const url = (arquivo) => JSON.stringify(pathToFileURL(path.join(raiz, arquivo)).href);
   const pasta = fs.mkdtempSync(path.join(os.tmpdir(), 'boas-vindas-'));
+  /* A IA de mentira: a PRIMEIRA chamada recusa por falta de credito (400, como a
+     Anthropic de verdade); as seguintes respondem. So o cenario do credito usa. */
+  let chamadasDaIa = 0;
+  const iaFalsa = http.createServer((req, res) => {
+    req.resume();
+    req.on('end', () => {
+      chamadasDaIa += 1;
+      res.setHeader('content-type', 'application/json');
+      res.setHeader('connection', 'close');
+      if (chamadasDaIa === 1) {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ type: 'error', error: { type: 'invalid_request_error', message: 'Your credit balance is too low to access the Anthropic API.' } }));
+        return;
+      }
+      res.end(JSON.stringify({ id: 'msg_teste', type: 'message', role: 'assistant', model: 'claude-sonnet-5', content: [{ type: 'text', text: 'Olá! Já te explico como funciona.' }], stop_reason: 'end_turn', usage: { input_tokens: 10, output_tokens: 8 } }));
+    });
+  });
+  await new Promise((ok) => iaFalsa.listen(0, '127.0.0.1', ok));
   const script = path.join(pasta, 'boas-vindas.mjs');
   fs.writeFileSync(
     script,
     `import http from 'node:http';
 import { iniciarBanco, achar, atualizar, inserir, inserirMensagem, mensagensDe, encerrarBanco } from ${url('servidor/nucleo/banco.js')};
 import { guardarBuffer } from ${url('servidor/nucleo/midia.js')};
-import { executarAgente } from ${url('servidor/ia/motor.js')};
+import { executarAgente, retomarRespostasPendentes } from ${url('servidor/ia/motor.js')};
 import { executarFerramenta } from ${url('servidor/ia/mencoes.js')};
 import { configDasBoasVindas, templateDasBoasVindas } from ${url('servidor/nucleo/boas-vindas-automaticas.js')};
 iniciarBanco();
@@ -138,6 +157,36 @@ for (const n of [2, 3]) {
 const tentativasDoVideo = mensagensDe('c-falha').filter((m) => m.templateId).length;
 resultado.falha = { apos1, falhasNoFim: achar('contatos', 'c-falha').boasVindasFalhas, tentativasDoVideo, respondeu: mensagensDe('c-falha').some((m) => m.direcao === 'saida' && !m.templateId), marcou: Boolean(achar('contatos', 'c-falha').boasVindasEnviadasEm), logs: (await import(${url('servidor/nucleo/banco.js')})).listar('logs', { contatoId: 'c-falha' }).filter((l) => l.tipo === 'boas_vindas_falhou').length, usoFalhas: achar('templates', 'tp-w-falha').uso?.falhas };
 
+/* 10. O MODELO FALHA logo depois do video (credito acabado: 229 vezes em 7 dias em producao).
+   O video nao pode contar como "ja respondi": a conversa continua sem resposta, a
+   recuperacao do boot a atende, e o video nao sai de novo. */
+inserir('workspaces', { id: 'w-cred', nome: 'Sem credito', boasVindas: { automatica: true, templateId: 'tp-w-cred', ligadaEm: ha(60) } });
+inserir('integracoes', { id: 'int-cred', workspaceId: 'w-cred', ia: { chaveAnthropic: 'sk-ant-de-mentira' } });
+inserir('conexoes', { id: 'cx-w-cred', workspaceId: 'w-cred', tipo: 'simulador', nome: 'Sim' });
+inserir('agentes', { id: 'ag-w-cred', workspaceId: 'w-cred', nome: 'Eduarda', ativo: true, modelo: 'claude-sonnet-5', delaySegundos: 60, prompt: 'Atenda.' });
+inserir('templates', { id: 'tp-w-cred', workspaceId: 'w-cred', nome: 'Boas-vindas', atalho: 'bemvindo', conteudo: 'Ola {{nome}}!', midia: video });
+const retomadosAntes = retomarRespostasPendentes().retomados;
+novoLead('c-cred', 'w-cred');
+let erroDoModelo = null;
+try { await executarAgente('c-cred'); } catch (erro) { erroDoModelo = erro.message; }
+const depoisDaFalha = achar('contatos', 'c-cred');
+const ficouSemResposta = Boolean(depoisDaFalha.ultimaEntradaEm && (!depoisDaFalha.ultimaSaidaEm || depoisDaFalha.ultimaSaidaEm < depoisDaFalha.ultimaEntradaEm));
+const retomadosDepois = retomarRespostasPendentes().retomados;
+resultado.creditoAcabado = {
+  videos: videos('c-cred').length,
+  marcou: Boolean(depoisDaFalha.boasVindasEnviadasEm),
+  ficouSemResposta,
+  retomadoNoBoot: retomadosDepois - retomadosAntes,
+  respostasDoAgente: mensagensDe('c-cred').filter((m) => m.direcao === 'saida' && !m.templateId).length,
+};
+await executarAgente('c-cred'); /* a recuperacao: o credito voltou */
+const depoisDaRecuperacao = achar('contatos', 'c-cred');
+resultado.recuperada = {
+  videos: videos('c-cred').length,
+  respostas: mensagensDe('c-cred').filter((m) => m.direcao === 'saida' && !m.templateId && /explico/.test(m.conteudo || '')).length,
+  respondida: Boolean(depoisDaRecuperacao.ultimaSaidaEm && depoisDaRecuperacao.ultimaSaidaEm >= depoisDaRecuperacao.ultimaEntradaEm),
+};
+
 console.log(JSON.stringify(resultado));
 recusa.closeAllConnections?.();
 await new Promise((ok) => recusa.close(ok));
@@ -151,7 +200,7 @@ process.exit(0);
 
   try {
     const r = await new Promise((resolve) => {
-      const p = spawn(process.execPath, [script], { env: { ...process.env, CORREIA_DADOS: pasta, CORREIA_BOASVINDAS_ESPERA_MS: '50' }, stdio: ['ignore', 'pipe', 'pipe'] });
+      const p = spawn(process.execPath, [script], { env: { ...process.env, CORREIA_DADOS: pasta, CORREIA_BOASVINDAS_ESPERA_MS: '50', CORREIA_ANTHROPIC_URL: `http://127.0.0.1:${iaFalsa.address().port}` }, stdio: ['ignore', 'pipe', 'pipe'] });
       let texto = '';
       p.stdout.on('data', (d) => (texto += d));
       p.stderr.on('data', (d) => (texto += d));
@@ -186,6 +235,17 @@ process.exit(0);
       JSON.stringify(b.falha),
     );
     s.ok('desistiu: as rodadas seguintes nao tentam de novo, e o agente respondeu mesmo sem o video', b.falha.falhasNoFim === 2 && b.falha.tentativasDoVideo === 2 && b.falha.respondeu, JSON.stringify(b.falha));
+    s.ok(
+      'credito da IA acabado logo depois do video: o video saiu, mas a conversa continua SEM RESPOSTA',
+      b.creditoAcabado.videos === 1 && b.creditoAcabado.marcou && b.creditoAcabado.ficouSemResposta && b.creditoAcabado.respostasDoAgente === 0,
+      JSON.stringify(b.creditoAcabado),
+    );
+    s.ok('e a recuperacao do boot a pega (sem o video, ela ficava marcada como respondida para sempre)', b.creditoAcabado.retomadoNoBoot === 1, JSON.stringify(b.creditoAcabado));
+    s.ok(
+      'recuperada: o agente responde, e o video NAO sai de novo',
+      b.recuperada.videos === 1 && b.recuperada.respostas === 1 && b.recuperada.respondida,
+      JSON.stringify(b.recuperada),
+    );
     s.ok('cada falha fica no log da conversa e no contador do template', b.falha.logs === 2 && b.falha.usoFalhas === 2, JSON.stringify(b.falha));
 
     /* ---------------- A rota da chave ---------------- */
@@ -231,6 +291,8 @@ process.exit(0);
 
     await api.delete(`/api/templates/${textoDeTemplate.id}`);
   } finally {
+    iaFalsa.closeAllConnections?.();
+    await new Promise((ok) => iaFalsa.close(ok));
     fs.rmSync(pasta, { recursive: true, force: true });
   }
   return s;

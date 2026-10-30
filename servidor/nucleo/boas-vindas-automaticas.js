@@ -91,6 +91,10 @@ export async function enviarBoasVindasSePrecisar({ contato, agente, conexao }) {
         midia: template.midia,
         templateId: template.id,
         autor: { tipo: 'agente', id: agente.id, nome: agente.nome },
+        /* O video NAO e a resposta ao cliente: se o modelo falhar logo depois
+           (credito acabado, por exemplo), a conversa tem de continuar marcada
+           como sem resposta, para a recuperacao do boot atende-la. */
+        contaComoResposta: false,
       });
       if (mensagem.situacao === 'enviada') break;
       registrarLog(
