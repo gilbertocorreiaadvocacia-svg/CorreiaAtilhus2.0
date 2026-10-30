@@ -64,7 +64,7 @@ function faltaConfigurar(cfg) {
  * ele trava, `fetch` fica pendurado sem prazo: uma conversa inteira ficava
  * esperando o envio de uma mensagem que nunca ia voltar.
  */
-async function chamar(cfg, caminho, { metodo = 'GET', corpo = null, prazoMs = 20000 } = {}) {
+async function chamar(cfg, caminho, { metodo = 'GET', corpo = null, prazoMs = 20000, mensagemDoPrazo = null } = {}) {
   const controlador = new AbortController();
   const prazo = setTimeout(() => controlador.abort(), prazoMs);
   try {
@@ -94,7 +94,7 @@ async function chamar(cfg, caminho, { metodo = 'GET', corpo = null, prazoMs = 20
     return dados;
   } catch (erro) {
     if (erro.name === 'AbortError') {
-      throw Object.assign(new Error('O servico de WhatsApp nao respondeu a tempo. Ele esta rodando?'), {
+      throw Object.assign(new Error(mensagemDoPrazo || 'O servico de WhatsApp nao respondeu a tempo. Ele esta rodando?'), {
         codigoWhatsapp: 'timeout',
       });
     }
@@ -140,6 +140,25 @@ function traduzirEstado(bruto) {
   return String(bruto || '').toLowerCase() === 'open' ? 'conectado' : 'desconectado';
 }
 
+/**
+ * Quanto esperar o servico responder ao envio de um ARQUIVO (30/10/2026).
+ *
+ * Eram 60 segundos para qualquer tamanho. Um video de 16 MB sobe para o
+ * WhatsApp devagar numa VPS pequena, e estourar o prazo marcava o envio como
+ * erro mesmo quando o video chegava ao cliente. Agora o prazo cresce com o
+ * tamanho — 5 s por MB em cima dos 60 s de antes, ate 150 s — e NUNCA fica
+ * menor do que era: arquivo pequeno espera os mesmos 60 s (um pouco mais).
+ * Texto e audio nao mudam.
+ *
+ * A variavel de ambiente fixa o prazo, so para o teste nao esperar de verdade.
+ */
+export function prazoDoEnvioDeMidia(bytes = 0) {
+  const fixo = Number(process.env.CORREIA_PRAZO_ENVIO_MS);
+  if (fixo > 0) return fixo;
+  const megas = Math.ceil(Math.max(0, bytes) / (1024 * 1024));
+  return Math.min(150000, 60000 + megas * 5000);
+}
+
 /** O arquivo guardado aqui vai em base64: o servico nao alcanca o localhost. */
 function lerMidiaEmBase64(midia) {
   const caminho = caminhoDaMidia(midia?.url);
@@ -179,6 +198,7 @@ export const driverQrCode = {
     if (midia && tipo !== 'texto') {
       const base64 = lerMidiaEmBase64(midia);
       const tipos = { imagem: 'image', video: 'video', documento: 'document' };
+      const prazoMs = prazoDoEnvioDeMidia(base64 ? Math.floor(base64.length * 0.75) : 0);
       const resposta = await chamar(cfg, `/message/sendMedia/${cfg.instancia}`, {
         metodo: 'POST',
         corpo: {
@@ -191,7 +211,11 @@ export const driverQrCode = {
         },
         /* Midia em base64 num arquivo de 16 MB e um corpo grande: o servico
            precisa de mais folga do que uma mensagem de texto. */
-        prazoMs: 60000,
+        prazoMs,
+        /* Estourar o prazo NAO quer dizer que o arquivo nao chegou: o texto
+           antigo ("ele esta rodando?") mandava a equipe procurar o problema no
+           lugar errado, e o modelo reenviava um video que ja estava no celular. */
+        mensagemDoPrazo: `O envio do arquivo passou de ${Math.round(prazoMs / 1000)} segundos sem resposta do serviço de WhatsApp. Arquivo grande demora, e ele pode ter chegado ao cliente: confira antes de reenviar.`,
       });
       return { idExterno: resposta?.key?.id || null };
     }

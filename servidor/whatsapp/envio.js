@@ -87,7 +87,7 @@ export async function enviarMensagem({
   }
 
   /* Quantas vezes cada template saiu e quantas falhou (nucleo/uso-dos-templates.js). */
-  if (templateId) anotarEnvioDoTemplate(templateId, { ok: mensagem.situacao === 'enviada', erro: mensagem.erro?.mensagem });
+  if (templateId) anotarEnvioDoTemplate(templateId, { ok: mensagem.situacao === 'enviada', erro: mensagem.erro?.mensagem, contato });
 
   /* So conta como resposta quando havia uma entrada mais nova que a ultima
      saida: evita contar duas vezes a mesma espera quando a resposta sai em

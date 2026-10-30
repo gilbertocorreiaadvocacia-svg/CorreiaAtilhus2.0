@@ -24,11 +24,12 @@ import { arquivoDoTemplateExiste } from '../ia/pacotes.js';
  *  - template com video de verdade (arquivo que existe no servidor);
  *  - quando um agente esta ligado e vai responder (o gancho fica em rodarAgente).
  *
- * Se o video falhar, tenta de novo na hora (uma segunda vez, alguns segundos
- * depois), ainda ANTES da resposta do agente. Nao da para tentar numa rodada
- * seguinte: a essa altura o agente ja falou, e um video que chegasse no meio da
- * conversa seria pior que nenhum. Falhando as duas, desiste e deixa o registro
- * na conversa e no contador do template.
+ * Se o video for RECUSADO, tenta de novo na hora (uma segunda vez, alguns
+ * segundos depois), ainda ANTES da resposta do agente. Nao da para tentar numa
+ * rodada seguinte: a essa altura o agente ja falou, e um video que chegasse no
+ * meio da conversa seria pior que nenhum. Falhando as duas, desiste e deixa o
+ * registro na conversa e no contador do template. Se o envio estourar o TEMPO,
+ * nao tenta de novo: o video pode ja ter chegado.
  */
 const ATALHOS_PADRAO = ['bemvindo', 'boas-vindas'];
 const MAX_TENTATIVAS = 2;
@@ -98,6 +99,10 @@ export async function enviarBoasVindasSePrecisar({ contato, agente, conexao }) {
         'boas_vindas_falhou',
         `As boas-vindas não saíram (tentativa ${tentativa} de ${MAX_TENTATIVAS}): ${mensagem.erro?.mensagem || 'sem detalhe'}`,
       );
+      /* Tempo esgotado nao e recusa: o video pode ter chegado ao cliente mesmo
+         sem o servico responder. Mandar de novo duplicaria o video, e cada
+         tentativa de arquivo grande segura a resposta do agente por minutos. */
+      if (mensagem.erro?.codigo === 'timeout') break;
       if (tentativa < MAX_TENTATIVAS) await esperar(ESPERA_ENTRE_TENTATIVAS_MS);
     }
 

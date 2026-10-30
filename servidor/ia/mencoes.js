@@ -820,7 +820,7 @@ export async function executarFerramenta({ nome, argumentos, contato, agente, co
         nome: contato.nome,
         ...(contato.variaveis || {}),
       });
-      await enviarMensagem({
+      const mensagem = await enviarMensagem({
         contato,
         conexao,
         tipo: template.midia ? template.midia.tipo : 'texto',
@@ -829,6 +829,30 @@ export async function executarFerramenta({ nome, argumentos, contato, agente, co
         templateId: template.id,
         autor: { tipo: 'agente', id: agente.id, nome: agente.nome },
       });
+      /*
+       * O resultado diz o que aconteceu de verdade (30/10/2026). Ate aqui voltava
+       * `ok` mesmo com o WhatsApp recusando o envio, e o modelo contava ao
+       * cliente que "ja mandei o video" sem o video ter saido.
+       *
+       * Tempo esgotado e diferente de recusa: o arquivo grande pode ter chegado
+       * mesmo sem o servico responder, entao o modelo nao pode afirmar nem uma
+       * coisa nem outra, e nao deve reenviar (duplicaria o video).
+       */
+      if (mensagem.situacao === 'erro') {
+        const motivo = mensagem.erro?.mensagem || 'o WhatsApp recusou o envio';
+        const incerto = mensagem.erro?.codigo === 'timeout';
+        registrar(`Template NÃO enviado: ${template.nome} (${motivo})`);
+        /* A conversa (da equipe) guarda o motivo inteiro; o modelo nao precisa
+           de telefone nenhum no texto de volta. */
+        const paraOModelo = motivo.replace(/\d{6,}/g, '#');
+        return {
+          enviado: false,
+          cliente_recebeu: incerto ? 'talvez' : false,
+          erro: incerto
+            ? `O envio do template "${template.nome}" passou do tempo limite e pode ter chegado ao cliente. Não envie de novo agora e não afirme que ele recebeu nem que não recebeu; siga a conversa e, se fizer diferença, diga que a equipe confirma.`
+            : `O WhatsApp não aceitou o envio do template "${template.nome}": ${paraOModelo}. O cliente NÃO recebeu. Não diga que enviou e não tente de novo agora; siga a conversa sem esse conteúdo e, se for essencial, avise que a equipe vai mandar.`,
+        };
+      }
       lancar(workspaceId, contato.id, 'mencao_template', custoDaMencao('template'), null, agente.id);
       registrar(`Template enviado: ${template.nome}`);
       return { ok: true, enviado: template.nome };
