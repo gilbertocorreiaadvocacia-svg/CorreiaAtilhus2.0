@@ -123,7 +123,7 @@ export async function paginaTemplates() {
   async function desenhar() {
     templates = await recarregar('templates');
     pintar();
-    await pintarBoasVindas(areaBoasVindas, () => templates);
+    await pintarBoasVindas(areaBoasVindas, () => templates, desenhar);
   }
 
   // A barra de cima e montada uma vez so. Se ela fosse redesenhada junto com a
@@ -149,7 +149,7 @@ export async function paginaTemplates() {
  * sem video, mas a tela avisa antes: uma chave que "liga" e nao envia nada
  * parece funcionar e e o pior resultado possivel.
  */
-async function pintarBoasVindas(area, templatesAtuais) {
+async function pintarBoasVindas(area, templatesAtuais, recarregarTela) {
   limpar(area);
   let situacao;
   try {
@@ -173,10 +173,16 @@ async function pintarBoasVindas(area, templatesAtuais) {
     } catch (erro) {
       aviso(erro.message, 'erro');
     }
-    await pintarBoasVindas(area, templatesAtuais);
+    await pintarBoasVindas(area, templatesAtuais, recarregarTela);
   }
 
   seletor.addEventListener('change', () => gravar({ templateId: seletor.value || null }, 'Template de boas-vindas trocado.'));
+
+  /* O template que o botão "Editar" abre: o escolhido na lista, ou o do escritório. */
+  const alvoDaEdicao = () => {
+    const id = comVideo.length ? seletor.value : situacao.template?.id;
+    return templatesAtuais().find((template) => template.id === id) || null;
+  };
 
   const chave = interruptor(
     'Enviar o vídeo de boas-vindas a todo lead novo',
@@ -199,6 +205,17 @@ async function pintarBoasVindas(area, templatesAtuais) {
             class: 'alerta-caixa',
             texto: 'Nenhum template tem vídeo ainda. Anexe o vídeo ao template de boas-vindas, clique em Salvar e volte aqui.',
           }),
+      /* Sem este botão, quem queria anexar o vídeo tinha de achar o template na
+         lista logo abaixo. Edita o escolhido; se ainda não há nenhum com vídeo,
+         o @bemvindo do escritório; se nem ele existe, abre um template novo. */
+      podeConfigurar()
+        ? el('div', { class: 'linha-botoes mt-2' }, [
+            botao(alvoDaEdicao() ? 'Editar este template' : 'Criar o template de boas-vindas', {
+              pequeno: true,
+              aoClicar: () => editar(alvoDaEdicao(), recarregarTela),
+            }),
+          ])
+        : null,
       situacao.enviados || situacao.falhas
         ? el('div', { class: 'linha quebra mt-2' }, [
             selo(`enviado ${situacao.enviados}×`, situacao.enviados ? 'sucesso' : ''),
@@ -599,6 +616,61 @@ function editar(template, recarregarTela) {
       await recarregarTela();
     },
   });
+}
+
+/**
+ * O editor de template aberto de FORA desta tela: o seletor da conversa, o
+ * follow-up e a mensagem depois da assinatura mostram o template pelo nome, e
+ * ate aqui, para corrigir um texto ou trocar o video, a pessoa tinha de sair
+ * dali, achar o template na lista e voltar (30/10/2026).
+ *
+ * Abre a mesma gaveta de sempre. `aoSalvar` roda depois de salvar, com a lista
+ * de templates ja recarregada em `estado.templates`.
+ */
+export function editarTemplate(template, aoSalvar) {
+  editar(template, async () => {
+    await recarregar('templates');
+    await aoSalvar?.();
+  });
+}
+
+/**
+ * Refaz as opcoes de um seletor de templates depois de uma edicao (o nome pode
+ * ter mudado), sem mexer no que estava escolhido. `vazio` e o texto da opcao em
+ * branco, quando o seletor tem uma ("Nao enviar").
+ */
+export function atualizarOpcoesDeTemplate(seletor, vazio = null) {
+  const escolhido = seletor.value;
+  limpar(seletor);
+  if (vazio !== null) seletor.append(el('option', { value: '', texto: vazio }));
+  for (const template of estado.templates) seletor.append(el('option', { value: template.id, texto: template.nome }));
+  seletor.value = escolhido;
+}
+
+/**
+ * O botao "Editar template" que fica ao lado de um seletor de templates. Fica
+ * desligado enquanto o seletor estiver em branco, e nem aparece para quem nao
+ * pode configurar (a gaveta e a mesma da tela de Templates, que exige isso).
+ */
+export function botaoEditarTemplate({ seletor, vazio = null, aoSalvar = null }) {
+  if (!podeConfigurar()) return null;
+  const botaoEditar = botao('Editar template', {
+    pequeno: true,
+    aoClicar: () => {
+      const template = estado.templates.find((item) => item.id === seletor.value);
+      if (!template) return;
+      editarTemplate(template, async () => {
+        atualizarOpcoesDeTemplate(seletor, vazio);
+        await aoSalvar?.();
+      });
+    },
+  });
+  const sincronizar = () => {
+    botaoEditar.disabled = !seletor.value;
+  };
+  seletor.addEventListener('change', sincronizar);
+  sincronizar();
+  return botaoEditar;
 }
 
 /**

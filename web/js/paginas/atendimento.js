@@ -1,6 +1,7 @@
 import { api, enviarArquivo } from '../api.js';
 import { abrirVisualizador, campoComDica, cartaoDeArquivo, dica, menuAcoes, paginacao, previaDaMidia } from '../componentes.js';
 import { editarStatus } from './configuracoes.js';
+import { editarTemplate } from './templates.js';
 import {
   acharConexao,
   acharEtiqueta,
@@ -2061,6 +2062,19 @@ export async function paginaAtendimento({
             el('div', { class: 'titulo', texto: `/${template.atalho} · ${template.nome}` }),
             el('div', { class: 'desc', texto: (template.conteudo || '').slice(0, 120) }),
           ]),
+          /* Corrigir um texto ou trocar o vídeo sem sair da conversa. É a mesma
+             gaveta da tela de Templates, só para quem pode configurar; depois de
+             salvar a lista abre de novo, já com o texto novo. */
+          podeConfigurar()
+            ? botao('Editar', {
+                pequeno: true,
+                aoClicar: () =>
+                  editarTemplate(template, () => {
+                    document.querySelector('.cortina')?.remove();
+                    abrirSeletorTemplate(contato, campoTexto);
+                  }),
+              })
+            : null,
           botao('Inserir', {
             pequeno: true,
             aoClicar: () => {

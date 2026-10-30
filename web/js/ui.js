@@ -407,7 +407,10 @@ export function modal({ titulo, balao, corpo, confirmar, aoConfirmar, largo, aoF
     if (aoFechar) aoFechar();
   };
   const escutarEsc = (evento) => {
-    if (evento.key === 'Escape') fechar();
+    /* Com uma gaveta aberta por cima (o editor de template aberto de dentro do
+       follow-up, por exemplo), o Esc e dela: ela pergunta antes de descartar, e a
+       janela de baixo nao pode fechar junto e levar o que estava preenchido. */
+    if (evento.key === 'Escape' && !document.querySelector('.gaveta-cortina')) fechar();
   };
   document.addEventListener('keydown', escutarEsc);
 

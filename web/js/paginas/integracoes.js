@@ -1,6 +1,7 @@
 import { api, enviarArquivo } from '../api.js';
 import { campoComDica, dica, gaveta } from '../componentes.js';
 import { estado, opcoesResponsavel, podeConfigurar } from '../estado.js';
+import { botaoEditarTemplate } from './templates.js';
 import {
   areaTexto,
   aviso,
@@ -440,7 +441,17 @@ function blocoZapsign(integracoes, recarregarTela) {
     }),
     linhaAjuste('Status depois da assinatura', null, statusPos),
     linhaAjuste('Responsavel depois da assinatura', null, responsavelPos),
-    linhaAjuste('Mensagem depois da assinatura', null, templatePos),
+    /* O seletor e o botão que edita o template escolhido, lado a lado. O
+       aria-label do seletor, que linhaAjuste poria, é posto aqui porque ele agora
+       está dentro de um agrupador. */
+    linhaAjuste(
+      'Mensagem depois da assinatura',
+      null,
+      el('div', { class: 'linha-botoes' }, [
+        (templatePos.setAttribute('aria-label', 'Mensagem depois da assinatura'), templatePos),
+        botaoEditarTemplate({ seletor: templatePos, vazio: 'Não enviar' }),
+      ]),
+    ),
     rodapeAjustes(
       podeConfigurar()
         ? botao('Salvar', {

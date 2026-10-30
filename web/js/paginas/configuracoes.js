@@ -25,7 +25,7 @@ import {
   telefone,
   vazio,
 } from '../ui.js';
-import { paginaTemplates } from './templates.js';
+import { botaoEditarTemplate, paginaTemplates } from './templates.js';
 
 /**
  * Configuracoes em duas colunas.
@@ -1058,6 +1058,9 @@ export function editarStatus(status, recarregarTela) {
           el('div', { class: 'linha mb-2' }, [
             el('div', { class: 'avatar', texto: String(indice + 1) }),
             el('div', { class: 'flexivel' }, [el('div', { class: 'titulo', texto: `Follow-up ${indice + 1} · ${duracao(passo.minutos || 60)} depois da mudanca de status` })]),
+            /* Edita o template escolhido neste passo sem fechar o status: o texto
+               corrigido aparece aqui na hora (desenharPassos refaz as opções). */
+            botaoEditarTemplate({ seletor: template, aoSalvar: desenharPassos }),
             botao('Remover', {
               pequeno: true,
               tipo: 'perigo',
