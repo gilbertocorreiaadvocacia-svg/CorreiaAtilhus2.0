@@ -5,6 +5,7 @@ import { custoDaMencao, lancar } from '../nucleo/creditos.js';
 import { enviarMensagem } from '../whatsapp/envio.js';
 import { aplicarStatus, reagendarFollowups } from '../automacao/followup.js';
 import { definirMomento, umTipoDeCaso } from '../nucleo/casos.js';
+import { jaEnviouAsBoasVindas } from '../nucleo/boas-vindas-automaticas.js';
 
 /**
  * As mencoes sao o que separa um chatbot de um agente: cada @ do prompt vira
@@ -805,6 +806,16 @@ export async function executarFerramenta({ nome, argumentos, contato, agente, co
         porRotulo(workspaceId, 'templates', argumentos.template, 'atalho') ||
         porRotulo(workspaceId, 'templates', argumentos.template, 'nome');
       if (!template) return { erro: `Template "${argumentos.template}" nao existe.` };
+      /* O sistema ja mandou este template ao cliente (boas-vindas automaticas):
+         repetir faria o lead receber o mesmo video duas vezes. */
+      if (jaEnviouAsBoasVindas(contato, template)) {
+        registrar(`Template ignorado (já enviado automaticamente): ${template.nome}`);
+        return {
+          ok: true,
+          ja_enviado: true,
+          aviso: `O template "${template.nome}" já foi enviado a este cliente automaticamente. Não envie de novo; siga a conversa.`,
+        };
+      }
       const conteudo = aplicarVariaveis(template.conteudo, {
         nome: contato.nome,
         ...(contato.variaveis || {}),

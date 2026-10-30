@@ -7,6 +7,7 @@ import { caminhoDaMidia } from '../nucleo/midia.js';
 import { avisarMencaoInvalida, avisarModoDegradado } from '../nucleo/diagnostico.js';
 import { agora, formatarTelefone, normalizar, slug } from '../nucleo/util.js';
 import { enviarMensagem } from '../whatsapp/envio.js';
+import { enviarBoasVindasSePrecisar } from '../nucleo/boas-vindas-automaticas.js';
 import { sintetizar, vozDisponivel } from './audio.js';
 import { membrosQuePodemVer } from '../nucleo/auth.js';
 import { analisarPrompt, executarFerramenta, ferramentasDoAgente, notificar, sortearResponsavel } from './mencoes.js';
@@ -230,6 +231,9 @@ export function montarSistema({ agente, contato, workspace }) {
     `- Departamento: ${departamento?.nome || 'sem departamento'}`,
     `- Etiquetas: ${etiquetas.length ? etiquetas.join(', ') : 'nenhuma'}`,
     `- Modo áudio: ${contato.modoAudio ? 'ligado' : 'desligado'}`,
+    ...(contato.boasVindasEnviadasEm
+      ? ['- O vídeo de boas-vindas do escritório já foi enviado a este cliente, automaticamente, antes da sua primeira resposta. Não envie o template de boas-vindas de novo.']
+      : []),
     /* A resposta sai falada quando o cliente mandou audio (executarAgente):
        texto de ouvir, e nao de ler. */
     ...(vozDisponivel(contato.workspaceId) && mensagensDe(contato.id).findLast((m) => m.direcao === 'entrada')?.tipo === 'audio'
@@ -494,6 +498,11 @@ async function rodarAgente(contatoId, passo, { corrigirPassagem = false } = {}) 
     // Decide primeiro se a IA sera usada de verdade: sem isso, o sistema lia
     // as imagens do disco e cobrava a leitura mesmo caindo no modo por regras.
     const usaModelo = provedorDisponivel(agente.modelo, contato.workspaceId) && modelo.provedor !== 'regras';
+
+    /* O video de boas-vindas, se a chave do escritorio estiver ligada, sai ANTES
+       da primeira resposta: depois de montar o contexto ele nao apareceria para
+       o modelo (nucleo/boas-vindas-automaticas.js). */
+    await enviarBoasVindasSePrecisar({ contato, agente, conexao });
 
     const sistema = montarSistema({ agente, contato, workspace });
     const ferramentas = ferramentasDoAgente(agente, contato.workspaceId);

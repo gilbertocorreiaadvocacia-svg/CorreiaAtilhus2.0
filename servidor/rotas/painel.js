@@ -6,6 +6,8 @@ import { evolucaoDoTempoResposta } from '../nucleo/tempos-resposta.js';
 import { diagnosticar } from '../nucleo/diagnostico.js';
 import { emitir } from '../nucleo/eventos.js';
 import { agora } from '../nucleo/util.js';
+import { configDasBoasVindas, situacaoDasBoasVindas, templateDasBoasVindas } from '../nucleo/boas-vindas-automaticas.js';
+import { arquivoDoTemplateExiste } from '../ia/pacotes.js';
 import { saudeDoDia } from '../automacao/followup.js';
 import {
   FUSO,
@@ -1061,6 +1063,45 @@ export function registrarPainel(rotas) {
       horarioComercial: conferirHorarioComercial(corpo),
     });
     return workspace.horarioComercial;
+  });
+
+  /* ---------------- Boas-vindas automaticas ---------------- */
+
+  /*
+   * A chave do video de boas-vindas (nucleo/boas-vindas-automaticas.js). Quem
+   * atende pode ver a situacao; so quem configura liga e escolhe o template.
+   * Nunca liga sem um template com video de verdade: ligada sem video, a chave
+   * pareceria funcionar e nao enviaria nada.
+   */
+  rotas.get('/api/boas-vindas', async ({ ctx }) => situacaoDasBoasVindas(ctx.workspaceId));
+
+  rotas.put('/api/boas-vindas', async ({ ctx, corpo }) => {
+    exigirConfiguracao(ctx);
+    const atual = configDasBoasVindas(ctx.workspaceId);
+    const automatica = corpo?.automatica === undefined ? atual.automatica : corpo.automatica === true;
+
+    let templateId = corpo?.templateId === undefined ? atual.templateId : corpo.templateId || null;
+    if (templateId) {
+      const escolhido = achar('templates', templateId);
+      if (!escolhido || escolhido.workspaceId !== ctx.workspaceId) throw comCodigo('Esse template não existe neste escritório.', 404);
+    }
+
+    if (automatica) {
+      const candidato = templateId ? achar('templates', templateId) : templateDasBoasVindas(ctx.workspaceId);
+      if (!candidato) throw comCodigo('Escolha o template de boas-vindas antes de ligar.', 400);
+      if (!candidato.midia || !arquivoDoTemplateExiste(candidato.midia)) {
+        throw comCodigo(`O template "${candidato.nome}" não tem vídeo guardado. Anexe o vídeo, clique em Salvar e ligue de novo.`, 400);
+      }
+      /* Guarda a escolha mesmo quando ela veio do atalho padrao: assim trocar o
+         nome do template depois nao muda para qual template a chave aponta. */
+      templateId = candidato.id;
+    }
+
+    /* `ligadaEm` so muda na virada de desligada para ligada: e o que separa a
+       conversa que ja estava em andamento da que comecou depois. */
+    const ligadaEm = automatica ? (atual.automatica ? atual.ligadaEm : agora()) : null;
+    atualizar('workspaces', ctx.workspaceId, { boasVindas: { automatica, templateId, ligadaEm } });
+    return situacaoDasBoasVindas(ctx.workspaceId);
   });
 }
 

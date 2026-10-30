@@ -478,6 +478,13 @@ export function seletorPeriodo({ de, ate, aoAplicar } = {}) {
  *
  * `aoConfirmar` pode devolver promessa. Se lancar erro, a gaveta continua
  * aberta com o texto ja digitado e o erro sai no aviso.
+ *
+ * `descartar` e opcional: uma funcao que devolve o texto do que se perde se a
+ * gaveta fechar agora (ou nada, quando nao ha o que perder). Com ela, clicar
+ * fora, Esc, Cancelar e o X pedem confirmacao antes de fechar. Achado em
+ * 30/10/2026: um clique fora do template descartava o video recem-anexado sem
+ * perguntar. A pergunta mora DENTRO da gaveta (uma barra acima do rodape), e
+ * nao num modal: o modal fica uma camada abaixo da gaveta e apareceria atras.
  */
 export function gaveta({
   titulo,
@@ -486,6 +493,7 @@ export function gaveta({
   confirmar,
   aoConfirmar,
   aoFechar,
+  descartar,
   /* Painel de leitura nao tem o que cancelar: quem so olhou fecha, nao desiste.
      O rotulo continua "Cancelar" por padrao para todo formulario ja existente. */
   rotuloCancelar = 'Cancelar',
@@ -505,8 +513,36 @@ export function gaveta({
     if (aoFechar) aoFechar();
   };
 
+  let barraDeSaida = null;
+  const desistirDeSair = () => {
+    barraDeSaida?.remove();
+    barraDeSaida = null;
+  };
+
+  /* Fechar pelos caminhos de desistir (fora, Esc, Cancelar, X). Fechar depois
+     de salvar chama `fechar` direto: ai nao ha mais o que perder. */
+  const pedirParaSair = () => {
+    const perde = descartar?.();
+    if (!perde) {
+      fechar();
+      return;
+    }
+    if (barraDeSaida) return;
+    const continuar = botao('Continuar editando', { pequeno: true, aoClicar: desistirDeSair });
+    barraDeSaida = el('div', { class: 'gaveta-descartar', role: 'alert' }, [
+      el('span', { class: 'flexivel', texto: perde }),
+      el('div', { class: 'linha-botoes' }, [continuar, botao('Descartar', { pequeno: true, tipo: 'perigo', aoClicar: fechar })]),
+    ]);
+    caixa.insertBefore(barraDeSaida, caixa.querySelector('.gaveta-rodape'));
+    continuar.focus();
+  };
+
   const escutarEsc = (evento) => {
-    if (evento.key === 'Escape') fechar();
+    if (evento.key !== 'Escape') return;
+    /* Com a pergunta na tela, Esc volta para a edicao: um segundo Esc sem
+       querer nao pode ser o que joga o trabalho fora. */
+    if (barraDeSaida) desistirDeSair();
+    else pedirParaSair();
   };
   document.addEventListener('keydown', escutarEsc);
 
@@ -535,15 +571,15 @@ export function gaveta({
         el('h2', { texto: titulo || '' }),
         descricao ? el('p', { class: 'subtitulo', texto: descricao }) : null,
       ]),
-      botao('', { icone: 'fechar', pequeno: true, titulo: 'Fechar', aoClicar: fechar }),
+      botao('', { icone: 'fechar', pequeno: true, titulo: 'Fechar', aoClicar: pedirParaSair }),
     ]),
     el('div', { class: 'gaveta-corpo' }, [].concat(corpo || [])),
-    el('footer', { class: 'gaveta-rodape' }, [botao(rotuloCancelar, { aoClicar: fechar }), botaoConfirmar]),
+    el('footer', { class: 'gaveta-rodape' }, [botao(rotuloCancelar, { aoClicar: pedirParaSair }), botaoConfirmar]),
   ]);
 
   cortina.append(caixa);
   cortina.addEventListener('mousedown', (evento) => {
-    if (evento.target === cortina) fechar();
+    if (evento.target === cortina) pedirParaSair();
   });
   document.body.append(cortina);
 
@@ -552,7 +588,7 @@ export function gaveta({
   const primeiro = caixa.querySelector('.gaveta-corpo input, .gaveta-corpo select, .gaveta-corpo textarea');
   if (primeiro) primeiro.focus();
 
-  return { fechar, caixa };
+  return { fechar, caixa, botaoConfirmar };
 }
 
 let contadorDica = 0;

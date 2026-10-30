@@ -89,6 +89,8 @@ export function copiarConfiguracoes(destinoId, origemId, selecao = []) {
         if (r.midia) r.midia = duplicarMidia(r.midia);
         /* A aprovacao da Meta e por numero: a copia comeca sem ela. */
         r.aprovacaoMeta = { solicitada: false, situacao: 'nao_solicitada' };
+        /* O contador de envios e do template de la, nao desta copia. */
+        delete r.uso;
         return r;
       })
     : new Map();

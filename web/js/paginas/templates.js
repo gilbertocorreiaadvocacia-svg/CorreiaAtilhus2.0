@@ -9,6 +9,7 @@ import {
   confirmar,
   el,
   entradaTexto,
+  interruptor,
   limpar,
   modal,
   selecao,
@@ -117,16 +118,96 @@ export async function paginaTemplates() {
     for (const [categoria, itens] of agrupar(achados)) areaLista.append(grupo(categoria, itens, desenhar));
   }
 
+  const areaBoasVindas = el('div');
+
   async function desenhar() {
     templates = await recarregar('templates');
     pintar();
+    await pintarBoasVindas(areaBoasVindas, () => templates);
   }
 
   // A barra de cima e montada uma vez so. Se ela fosse redesenhada junto com a
   // lista, o campo de busca perderia o foco a cada tecla digitada.
-  container.append(barraDeTopo(filtro, pintar, desenhar), areaLista);
+  container.append(barraDeTopo(filtro, pintar, desenhar), areaBoasVindas, areaLista);
   await desenhar();
   return container;
+}
+
+/* ------------------------------------------------------------------ */
+/* Video de boas-vindas automatico                                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * A chave do video de boas-vindas (servidor/nucleo/boas-vindas-automaticas.js).
+ *
+ * O template de boas-vindas so chegava ao lead se o modelo decidisse chama-lo, e
+ * a Eduarda, que recebe a maior parte dos leads, nunca o chamava. Ligada, o
+ * sistema manda o template escolhido uma vez por conversa, antes da primeira
+ * resposta da IA. Desligada por padrao: quem nao liga continua como antes.
+ *
+ * So aparece como ligavel se algum template tem video. O servidor recusa ligar
+ * sem video, mas a tela avisa antes: uma chave que "liga" e nao envia nada
+ * parece funcionar e e o pior resultado possivel.
+ */
+async function pintarBoasVindas(area, templatesAtuais) {
+  limpar(area);
+  let situacao;
+  try {
+    situacao = await api.get('/api/boas-vindas');
+  } catch {
+    return; // sem a chave a tela de templates continua inteira
+  }
+
+  const comVideo = templatesAtuais().filter((template) => template.midia && template.midia.tipo === 'video');
+  const escolhido = situacao.template?.id || '';
+  const opcoes = comVideo.length
+    ? comVideo.map((template) => ({ valor: template.id, rotulo: `${template.nome}${template.atalho ? ` (/${template.atalho})` : ''}` }))
+    : [{ valor: '', rotulo: 'Nenhum template tem vídeo ainda' }];
+  const seletor = selecao(opcoes, comVideo.some((template) => template.id === escolhido) ? escolhido : opcoes[0].valor);
+  seletor.disabled = !podeConfigurar() || !comVideo.length;
+
+  async function gravar(mudancas, mensagem) {
+    try {
+      await api.put('/api/boas-vindas', mudancas);
+      if (mensagem) aviso(mensagem, 'sucesso');
+    } catch (erro) {
+      aviso(erro.message, 'erro');
+    }
+    await pintarBoasVindas(area, templatesAtuais);
+  }
+
+  seletor.addEventListener('change', () => gravar({ templateId: seletor.value || null }, 'Template de boas-vindas trocado.'));
+
+  const chave = interruptor(
+    'Enviar o vídeo de boas-vindas a todo lead novo',
+    situacao.automatica,
+    (ligado) => gravar({ automatica: ligado, templateId: seletor.value || undefined }, ligado ? 'Boas-vindas automáticas ligadas.' : 'Boas-vindas automáticas desligadas.'),
+    { desabilitado: !podeConfigurar() || (!comVideo.length && !situacao.automatica) },
+  );
+
+  area.append(
+    el('div', { class: 'cartao mb-3' }, [
+      chave,
+      el('p', {
+        class: 'cartao-ajuda',
+        texto:
+          'Ligado, o sistema manda este template (texto e vídeo) uma vez, antes da primeira resposta da IA. Vale só para conversas que começarem depois de ligar, e nunca repete para o mesmo cliente.',
+      }),
+      comVideo.length
+        ? campo('Template enviado', seletor)
+        : el('div', {
+            class: 'alerta-caixa',
+            texto: 'Nenhum template tem vídeo ainda. Anexe o vídeo ao template de boas-vindas, clique em Salvar e volte aqui.',
+          }),
+      situacao.enviados || situacao.falhas
+        ? el('div', { class: 'linha quebra mt-2' }, [
+            selo(`enviado ${situacao.enviados}×`, situacao.enviados ? 'sucesso' : ''),
+            situacao.falhas ? selo(`${situacao.falhas} ${situacao.falhas === 1 ? 'falha' : 'falhas'}`, 'erro') : null,
+            situacao.ultimaFalha ? el('span', { class: 't-sm c-erro', texto: `Última falha: ${situacao.ultimaFalha}` }) : null,
+          ])
+        : null,
+    ]),
+  );
 }
 
 /* ------------------------------------------------------------------ */
@@ -270,10 +351,15 @@ function linhaDoTemplate(template, recarregarTela) {
         template.atalho ? el('span', { class: 'selo ouro', texto: `/${template.atalho}` }) : null,
         selo(rotuloSituacao, tipoSelo),
         template.midia ? selo(template.midia.tipo, 'info') : null,
+        // Quantas vezes saiu e quantas falhou (servidor/nucleo/uso-dos-templates.js):
+        // e como se ve, sem abrir conversa por conversa, se o video chegou aos leads.
+        template.uso?.enviados ? selo(`enviado ${template.uso.enviados}×`, '') : null,
+        template.uso?.falhas ? selo(`${template.uso.falhas} ${template.uso.falhas === 1 ? 'falha' : 'falhas'}`, 'erro') : null,
       ]),
       // O texto inteiro fica no editor. Aqui vai so o comeco, numa linha, que e
       // o bastante para reconhecer o template e cabe muito mais por tela.
       el('div', { class: 'desc cortar', texto: resumo(template.conteudo) }),
+      template.uso?.falhas ? el('div', { class: 'desc cortar c-erro', texto: `Última falha: ${template.uso.ultimaFalha || 'sem detalhe'}` }) : null,
     ]),
     acoes,
   ]);
@@ -297,20 +383,65 @@ function editar(template, recarregarTela) {
     template?.categoriaMeta || 'utilidade',
   );
 
-  let midia = template?.midia || null;
+  /*
+   * O video de boas-vindas nao ficava no template (achado em 30/10/2026). A
+   * tela deixava tres buracos: o Salvar nao esperava o arquivo terminar de
+   * subir (um video de 10 a 16 MB leva de 10 a 60 segundos, e o template era
+   * salvo sem ele); o aviso "Arquivo anexado" parecia dizer que ja estava
+   * guardado, quando so fica guardado depois do Salvar; e clicar fora da gaveta
+   * descartava tudo sem perguntar.
+   *
+   * Agora: enquanto o arquivo sobe, a tela diz isso e o Salvar fica travado;
+   * depois de subir, um aviso fixo diz que FALTA salvar; e fechar com o arquivo
+   * ou o texto sem salvar pergunta antes.
+   */
+  const midiaInicial = template?.midia || null;
+  let midia = midiaInicial;
+  let envio = null; // { nome, tamanho, desde, relogio } enquanto um arquivo sobe
+  let subindo = null; // a promessa desse envio
+  let janela = null;
+  /* O que ja esta guardado no servidor: a base para saber se ha algo a perder. */
+  let guardado = {
+    nome: template?.nome || '',
+    atalho: template?.atalho || '',
+    conteudo: template?.conteudo || '',
+    categoria: template?.categoriaMeta || 'utilidade',
+    midia: midiaInicial?.url || null,
+  };
   const midiaAtual = el('div', { class: 'mt-2' });
+
+  const megas = (bytes) => (bytes / 1024 / 1024).toFixed(1).replace('.', ',');
+  const midiaMudou = () => (midia?.url || null) !== guardado.midia;
+
+  const travarSalvar = (travado) => {
+    const botaoSalvar = janela?.botaoConfirmar;
+    if (!botaoSalvar) return;
+    botaoSalvar.disabled = travado;
+    botaoSalvar.title = travado ? 'Espere o arquivo terminar de enviar.' : '';
+  };
 
   const mostrarMidia = () => {
     limpar(midiaAtual);
+    if (envio) {
+      const segundos = Math.round((Date.now() - envio.desde) / 1000);
+      midiaAtual.append(
+        el('div', {
+          class: 'dica',
+          role: 'status',
+          texto: `Enviando ${envio.nome} (${megas(envio.tamanho)} MB)… ${segundos} s. O Salvar libera quando terminar.`,
+        }),
+      );
+      return;
+    }
     if (!midia) {
-      midiaAtual.append(el('div', { class: 't-sm c-fraco', texto: 'Nenhuma midia anexada.' }));
+      midiaAtual.append(el('div', { class: 't-sm c-fraco', texto: 'Nenhuma mídia anexada.' }));
       return;
     }
     midiaAtual.append(
       el('div', { class: 'lista-item' }, [
         el('div', { class: 'corpo' }, [
           el('div', { class: 'titulo', texto: midia.nome || midia.url }),
-          el('div', { class: 'desc', texto: `${midia.tipo}${midia.tamanho ? ` · ${(midia.tamanho / 1024 / 1024).toFixed(1)} MB` : ''}` }),
+          el('div', { class: 'desc', texto: `${midia.tipo}${midia.tamanho ? ` · ${megas(midia.tamanho)} MB` : ''}` }),
         ]),
         botao('Remover', {
           pequeno: true,
@@ -321,6 +452,15 @@ function editar(template, recarregarTela) {
           },
         }),
       ]),
+      midiaMudou()
+        ? el('div', {
+            class: 'alerta-caixa mt-2',
+            role: 'status',
+            texto: midia
+              ? 'Anexado, mas ainda não salvo. Clique em Salvar para guardar no template.'
+              : 'A mídia será removida quando você clicar em Salvar.',
+          })
+        : null,
       // A gaveta e mais estreita que o modal: a previa entra na versao compacta
       // para o video nao encostar nas duas bordas.
       previaDaMidia(midia, { compacta: true }),
@@ -331,14 +471,24 @@ function editar(template, recarregarTela) {
   seletor.addEventListener('change', async () => {
     const arquivo = seletor.files[0];
     if (!arquivo) return;
+    seletor.value = '';
+    envio = { nome: arquivo.name, tamanho: arquivo.size, desde: Date.now(), relogio: null };
+    envio.relogio = setInterval(mostrarMidia, 1000);
+    travarSalvar(true);
+    mostrarMidia();
+    subindo = enviarArquivo(arquivo);
     try {
-      midia = await enviarArquivo(arquivo);
-      mostrarMidia();
-      aviso('Arquivo anexado.', 'sucesso');
+      midia = await subindo;
+      aviso('Arquivo enviado. Falta clicar em Salvar para guardar no template.', 'sucesso');
     } catch (erro) {
       aviso(erro.message, 'erro');
+    } finally {
+      clearInterval(envio.relogio);
+      envio = null;
+      subindo = null;
+      travarSalvar(false);
+      mostrarMidia();
     }
-    seletor.value = '';
   });
 
   const urlMidia = entradaTexto('', { placeholder: 'ou cole um link: https://…/vídeo-proposta.mp4' });
@@ -373,36 +523,79 @@ function editar(template, recarregarTela) {
     );
   }
 
-  gaveta({
+  /* O que se perde se a gaveta fechar agora; nada, quando esta tudo guardado. */
+  const oQueSePerde = () => {
+    if (envio) return 'O arquivo ainda está sendo enviado. Se fechar agora, ele se perde.';
+    if (midiaMudou()) return 'A mídia ainda não foi salva no template. Se fechar agora, a alteração se perde.';
+    const mexeu =
+      nome.value !== guardado.nome ||
+      atalho.value !== guardado.atalho ||
+      conteudo.value !== guardado.conteudo ||
+      categoria.value !== guardado.categoria;
+    return mexeu ? 'Há alterações que ainda não foram salvas. Se fechar agora, elas se perdem.' : null;
+  };
+
+  const TIPOS_DA_MIDIA = { video: 'vídeo', imagem: 'imagem', audio: 'áudio', documento: 'documento' };
+
+  /* Depois do primeiro Salvar de um template novo ele ja existe: um segundo
+     clique (se o aviso de erro mandou tentar de novo) edita, nao duplica. */
+  let existente = template;
+
+  janela = gaveta({
     titulo: template ? `Editar ${template.nome}` : 'Novo template',
     corpo: [
       campo('Nome', nome),
-      campo('Atalho', atalho, 'E o que voce digita depois da barra no chat.'),
-      campo('Conteudo', conteudo),
+      campo('Atalho', atalho, 'É o que você digita depois da barra no chat.'),
+      campo('Conteúdo', conteudo),
       el('div', { class: 'campo' }, [el('span', { texto: 'Variáveis disponíveis' }), variaveis]),
       el('div', { class: 'campo' }, [
-        el('span', { texto: 'Midia' }),
+        el('span', { texto: 'Mídia' }),
         seletor,
-        el('small', { class: 'ajuda-campo', texto: 'Até 16 MB.' }),
+        el('small', { class: 'ajuda-campo', texto: 'Vídeo em MP4, até 16 MB. O arquivo só fica no template depois de clicar em Salvar.' }),
         urlMidia,
         midiaAtual,
       ]),
       campo('Categoria na Meta', categoria),
     ],
     confirmar: 'Salvar',
+    descartar: oQueSePerde,
+    aoFechar: () => {
+      if (envio) clearInterval(envio.relogio);
+    },
     aoConfirmar: async () => {
-      if (!nome.value.trim()) throw new Error('De um nome ao template.');
-      if (!conteudo.value.trim()) throw new Error('Escreva o conteudo.');
+      if (!nome.value.trim()) throw new Error('Dê um nome ao template.');
+      if (!conteudo.value.trim()) throw new Error('Escreva o conteúdo.');
+      /* O botão fica travado durante o envio; isto cobre o clique que chegou
+         antes de a trava entrar. Sem esperar, o template saía sem o vídeo. */
+      if (subindo) await subindo.catch(() => {});
+
       const dados = {
         nome: nome.value.trim(),
         atalho: atalho.value.trim() || undefined,
         conteudo: conteudo.value,
         categoriaMeta: categoria.value,
-        midia,
       };
-      if (template) await api.patch(`/api/templates/${template.id}`, dados);
-      else await api.post('/api/templates', dados);
-      aviso('Template salvo.', 'sucesso');
+      /* A mídia só vai quando mudou: um template salvo sem mexer nela não
+         pode apagar um arquivo que o servidor colocou enquanto a tela estava
+         aberta (templatesDoPacoteGanhamOArquivo, a cada varredura). */
+      if (!existente || midiaMudou()) dados.midia = midia;
+
+      const salvo = existente ? await api.patch(`/api/templates/${existente.id}`, dados) : await api.post('/api/templates', dados);
+      existente = salvo || existente;
+      guardado = {
+        nome: nome.value,
+        atalho: atalho.value,
+        conteudo: conteudo.value,
+        categoria: categoria.value,
+        midia: salvo?.midia?.url || null,
+      };
+
+      /* O aviso diz o que o servidor guardou, e não o que a tela achava que
+         tinha mandado. */
+      if (midia && salvo?.midia?.url !== midia.url) {
+        throw new Error('O template foi salvo, mas o servidor não guardou o arquivo. Anexe de novo e salve.');
+      }
+      aviso(`Template salvo${salvo?.midia ? ` com ${TIPOS_DA_MIDIA[salvo.midia.tipo] || 'arquivo'}` : ''}.`, 'sucesso');
       await recarregarTela();
     },
   });

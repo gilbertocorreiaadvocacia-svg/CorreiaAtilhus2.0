@@ -7983,6 +7983,25 @@ button.mencao-chip:focus-visible {
   background: var(--superficie-2);
 }
 
+/* A pergunta "descartar?" da gaveta (descartar em componentes.js): uma barra
+   acima do rodape, no tom de alerta, e nao um modal, que ficaria atras. */
+.gaveta-descartar {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--e2) var(--e3);
+  padding: var(--e3) var(--e5);
+  background: var(--alerta-fraco);
+  border-top: 1px solid var(--alerta-linha);
+  color: var(--texto);
+  font-size: var(--t-sm);
+}
+
+.gaveta-descartar .flexivel {
+  flex: 1 1 14rem;
+}
+
 /* ------------------------------------------------------------------
    Dica
    Explica um numero sem gastar linha fixa na tela. Aparece no passar do

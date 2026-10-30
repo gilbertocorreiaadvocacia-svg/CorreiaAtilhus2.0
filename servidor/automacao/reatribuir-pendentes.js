@@ -8,6 +8,8 @@ import { templatesDoPacoteGanhamOArquivo } from '../ia/pacotes.js';
 import { agentesComAvisoDaSenhaDoGov } from '../nucleo/senha-do-gov.js';
 import { aposentadoriaNosAgentes } from '../nucleo/aposentadoria-sem-insistir.js';
 import { agentesSemAcento } from '../nucleo/acentos-dos-agentes.js';
+import { usoDosTemplates } from '../nucleo/uso-dos-templates.js';
+import { situacaoDasBoasVindas } from '../nucleo/boas-vindas-automaticas.js';
 import { retratoDasConversas } from '../whatsapp/duplicados.js';
 import { prontoParaContratoEVoz, saudeDoAtendimento } from '../nucleo/saude-do-atendimento.js';
 
@@ -87,6 +89,12 @@ function etapa(nome, executar) {
   }
 }
 
+/* So o que a chave do video de boas-vindas diz, sem nome de ninguem. */
+function resumoDasBoasVindas(workspaceId) {
+  const situacao = situacaoDasBoasVindas(workspaceId);
+  return { ligada: situacao.automatica, template: situacao.template?.atalho || null, temVideo: Boolean(situacao.template?.temVideo) };
+}
+
 /* So contagens, sem nome de cliente nem de pessoa: a rota de saude e aberta. */
 function resumirEscritorios() {
   return listar('workspaces').map((workspace) => {
@@ -117,6 +125,12 @@ function resumirEscritorios() {
       /* Agentes que ainda tem palavra sem acento no roteiro (so o nome e a conta). */
       agentesSemAcento: agentesSemAcento(workspace.id),
       templates: resumoDosTemplates(workspace.id),
+      /* Quantas vezes cada template saiu e falhou (30/10/2026): o video de
+         boas-vindas so existe de verdade se este numero sobe. */
+      usoDosTemplates: usoDosTemplates(workspace.id),
+      /* A chave do video de boas-vindas automatico: ligada ou nao, qual template,
+         e se ele tem video de verdade guardado. */
+      boasVindas: resumoDasBoasVindas(workspace.id),
       conversas: retratoDasConversas(workspace.id),
       /* A busca do historico no celular (whatsapp/sincronizar-historico.js) e as
          voltas de queda que a disparam sozinhas (nucleo/batimento.js): quando

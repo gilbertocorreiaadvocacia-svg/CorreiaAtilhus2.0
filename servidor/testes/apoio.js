@@ -83,6 +83,7 @@ export function cliente(base) {
     get: (c, o) => chamar(c, o),
     post: (c, corpo, o) => chamar(c, { ...o, metodo: 'POST', corpo }),
     patch: (c, corpo, o) => chamar(c, { ...o, metodo: 'PATCH', corpo }),
+    put: (c, corpo, o) => chamar(c, { ...o, metodo: 'PUT', corpo }),
     delete: (c, o) => chamar(c, { ...o, metodo: 'DELETE' }),
     entrar,
     /* O passo cru do login, para o teste do proprio segundo fator afirmar o que
