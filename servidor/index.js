@@ -46,7 +46,7 @@ import { autenticarChave, dentroDoLimite, registrarPublica } from './rotas/publi
 import { retomarSincronizacoes } from './whatsapp/sincronizar-historico.js';
 import { iniciarBatimento, recuperarDaQueda } from './nucleo/batimento.js';
 import { iniciarBackup } from './nucleo/backup.js';
-import { registrarDesligamento, registrarErroNaoTratado, registrarSubida, vidaDoSistema } from './nucleo/vida.js';
+import { conferirSobreposicao, registrarDesligamento, registrarErroNaoTratado, registrarSubida, vidaDoSistema } from './nucleo/vida.js';
 import { retomarMidiaHistorico } from './whatsapp/midia-historico.js';
 import { retomarFotos } from './whatsapp/fotos.js';
 import { retomarHistoricoLiderhub } from './integracoes/liderhub.js';
@@ -57,7 +57,7 @@ iniciarBanco();
 /* Quando ESTA copia subiu. Vai na saude, para dar para distinguir duas. */
 const INICIADO_EM = new Date().toISOString();
 /* Muda a cada entrega que mexe no atendimento (ver /api/saude). */
-const CODIGO = '2026-10-30.1';
+const CODIGO = '2026-10-30.2';
 
 /* Atraso do event loop: se o processo Node estiver bloqueado por algo
    sincrono (grava de arquivo grande, laco pesado), ate um /api/saude trivial
@@ -70,6 +70,17 @@ vigiarPausas();
 /* Como o sistema saiu da ultima vez — desligado ou caiu (nucleo/vida.js).
    Antes de iniciarBatimento(), enquanto o pulso em disco e o da vez anterior. */
 const estaSubida = registrarSubida(CODIGO);
+/* Meio minuto depois: a copia antiga ainda estava gravando quando esta subiu? */
+setTimeout(() => {
+  try {
+    const sobreposta = conferirSobreposicao(estaSubida.em);
+    if (sobreposta) {
+      console.error(`[vida] A COPIA ANTIGA (${sobreposta.versaoAnterior}) ainda estava no ar ${sobreposta.segundos} s depois desta subir: duas copias gravando na mesma pasta de dados.`);
+    }
+  } catch {
+    /* conferir nunca derruba */
+  }
+}, 30000).unref();
 if (estaSubida.comoSaiu === 'caiu') {
   console.log(`[vida] o sistema CAIU da ultima vez (parado ${estaSubida.paradoSegundos ?? '?'} s${estaSubida.ultimoErro ? `, ultimo erro: ${estaSubida.ultimoErro.mensagem}` : ''}).`);
 }

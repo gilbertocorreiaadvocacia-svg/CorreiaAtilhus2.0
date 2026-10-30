@@ -85,6 +85,51 @@ console.log(JSON.stringify({ primeira, implantacao, mesma, caiu, saude: vidaDoSi
       s.ok('a saude mostra as subidas, da mais nova para a mais velha', v.saude.subidas.length === 4 && v.saude.subidas[0].comoSaiu === 'caiu', JSON.stringify(v.saude.subidas.map((x) => x.comoSaiu)));
     }
 
+    /* ---------------- 1b. A copia antiga ainda estava no ar? (30/10/2026) ---------------- */
+    const sobrepor = path.join(pasta, 'sobreposicao.mjs');
+    fs.writeFileSync(
+      sobrepor,
+      `import { registrarSubida, registrarDesligamento, conferirSobreposicao, vidaDoSistema } from ${url('servidor/nucleo/vida.js')};
+const quem = process.argv[2];
+const passo = process.argv[3];
+const pausa = () => new Promise((r) => setTimeout(r, 15));
+if (passo === 'subir') console.log(JSON.stringify(registrarSubida(process.argv[4])));
+if (passo === 'desligar') registrarDesligamento('SIGTERM', process.argv[4]);
+if (passo === 'conferir') console.log(JSON.stringify({ sobreposicao: conferirSobreposicao(process.argv[4]), saude: vidaDoSistema().sobreposicaoNaImplantacao }));
+await pausa();
+process.exit(0);
+`,
+    );
+    const como = (processo, ...args) =>
+      new Promise((resolve) => {
+        const p = spawn(process.execPath, [sobrepor, processo, ...args], { env: { ...process.env, CORREIA_DADOS: path.join(pasta, 'dados-sobreposicao'), CORREIA_PROCESSO_ID: processo }, stdio: ['ignore', 'pipe', 'pipe'] });
+        let texto = '';
+        p.stdout.on('data', (d) => (texto += d));
+        p.stderr.on('data', (d) => (texto += d));
+        p.on('close', (codigo) => resolve({ codigo, texto: texto.trim() }));
+      });
+    fs.mkdirSync(path.join(pasta, 'dados-sobreposicao'), { recursive: true });
+    await como('conteiner-velho', 'subir', 'v1');
+    /* Implantacao normal: a antiga avisa que vai parar ANTES de a nova subir. */
+    await como('conteiner-velho', 'desligar', 'v1');
+    const normal = JSON.parse((await como('conteiner-novo', 'subir', 'v2')).texto);
+    const semSobreposicao = JSON.parse((await como('conteiner-novo', 'conferir', normal.em)).texto);
+    s.ok(
+      'implantacao normal (a antiga parou antes da nova subir): sem sobreposicao',
+      normal.comoSaiu === 'implantacao' && semSobreposicao.sobreposicao === null,
+      JSON.stringify({ comoSaiu: normal.comoSaiu, semSobreposicao }),
+    );
+    /* Sobreposicao: a nova sobe, e SO DEPOIS a antiga avisa que vai parar. */
+    const sobreposta = JSON.parse((await como('conteiner-terceiro', 'subir', 'v3')).texto);
+    await como('conteiner-novo', 'desligar', 'v2');
+    const comSobreposicao = JSON.parse((await como('conteiner-terceiro', 'conferir', sobreposta.em)).texto);
+    s.ok(
+      'a antiga que avisa que vai parar DEPOIS de a nova subir e sobreposicao, com a versao dela',
+      sobreposta.comoSaiu === 'caiu' && comSobreposicao.sobreposicao?.versaoAnterior === 'v2' && comSobreposicao.sobreposicao?.segundos >= 0,
+      JSON.stringify({ comoSaiu: sobreposta.comoSaiu, comSobreposicao }),
+    );
+    s.ok('e a saude mostra', comSobreposicao.saude?.versaoAnterior === 'v2', JSON.stringify(comSobreposicao.saude));
+
     /* ---------------- 2. A copia da subida espera ---------------- */
     const copia = path.join(pasta, 'copia.mjs');
     fs.writeFileSync(

@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { PASTA_DADOS } from '../config.js';
 import { lerBatimento } from './batimento.js';
@@ -27,6 +28,11 @@ import { lerBatimento } from './batimento.js';
  */
 
 const ARQUIVO = path.join(PASTA_DADOS, 'vida.json');
+
+/* Quem e este processo. Cada conteiner tem o proprio nome de maquina: duas copias
+   do sistema na mesma pasta de dados (uma implantacao que sobe a nova antes de
+   derrubar a antiga) aparecem como dois nomes. O teste troca o valor por ambiente. */
+const QUEM_SOU = process.env.CORREIA_PROCESSO_ID || os.hostname();
 const GUARDAR = 20;
 
 const semNumeros = (texto) => String(texto || '').replace(/\d{6,}/g, '#').slice(0, 300);
@@ -75,6 +81,7 @@ export function registrarSubida(codigo) {
     paradoSegundos: pulso ? Math.max(0, Math.round((agora - pulso.em) / 1000)) : null,
     memoriaNoUltimoPulsoMb: pulso?.memoriaMb ?? null,
     motivoDoDesligamento: saida && saida.em >= (anterior?.em || '') ? saida.motivo : null,
+    processo: QUEM_SOU,
     ultimoErro: erro ? { em: erro.em, mensagem: erro.mensagem } : null,
   };
   gravar({ subidas: [subida, ...(dados.subidas || [])].slice(0, GUARDAR), saida: null, ultimoErro: dados.ultimoErro || null });
@@ -84,7 +91,29 @@ export function registrarSubida(codigo) {
 /** Recebeu o aviso de parar (SIGTERM/SIGINT): o que vier depois nao e queda. */
 export function registrarDesligamento(motivo, codigo) {
   const dados = ler();
-  gravar({ ...dados, saida: { em: new Date().toISOString(), motivo, codigo } });
+  gravar({ ...dados, saida: { em: new Date().toISOString(), motivo, codigo, processo: QUEM_SOU } });
+}
+
+/*
+ * A copia antiga ainda estava no ar quando esta subiu?
+ *
+ * Achado de 30/10/2026: a subida depois de uma implantacao saiu anotada como
+ * "caiu", sem erro e com a memoria normal. Duas explicacoes cabem: o aviso de
+ * parar nao chegou, ou a hospedagem subiu esta copia ANTES de derrubar a
+ * antiga — e ai as duas gravam nos mesmos arquivos ao mesmo tempo. Se a copia
+ * antiga grava o aviso de parar DEPOIS de esta ja ter subido, e de outro
+ * processo, e sobreposicao. Chamada alguns segundos depois da subida.
+ */
+let sobreposicao = null;
+export function conferirSobreposicao(subidaEm) {
+  const { saida } = ler();
+  if (saida?.processo && saida.processo !== QUEM_SOU && saida.em > subidaEm) {
+    sobreposicao = {
+      segundos: Math.round((Date.parse(saida.em) - Date.parse(subidaEm)) / 1000),
+      versaoAnterior: saida.codigo || null,
+    };
+  }
+  return sobreposicao;
 }
 
 /** Um erro escapou do codigo (uncaughtException): fica anotado para a proxima subida e para a saude. */
@@ -101,6 +130,7 @@ export function vidaDoSistema() {
   return {
     subidas: (dados.subidas || []).slice(0, 10),
     errosNaoTratadosDesdeASubida: errosDesdeASubida,
+    sobreposicaoNaImplantacao: sobreposicao,
     ultimoErro: dados.ultimoErro || null,
   };
 }
