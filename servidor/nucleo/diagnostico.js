@@ -256,6 +256,23 @@ export function diagnosticar(workspaceId) {
     );
   }
 
+  /*
+   * 4b. Nenhum agente de atendimento ligado. So avisa: o sistema NUNCA liga
+   * agente sozinho (nucleo/banco.js), nem para tapar este buraco. Quem
+   * desligou tudo de proposito ("Desligar todos") le isto como confirmacao;
+   * quem esqueceu de ligar fica sabendo.
+   */
+  const deAtendimento = agentes.filter((a) => a.objetivo !== 'avaliar');
+  if (reais.length && deAtendimento.length && !deAtendimento.some((a) => a.ativo !== false)) {
+    anotar(
+      'media',
+      'agentes-desligados',
+      'Todos os agentes de IA estao desligados',
+      `${deAtendimento.length} agentes, nenhum ligado: quem escrever nos numeros conectados nao e atendido pela IA, e a equipe responde tudo na mao. O sistema nunca liga agente sozinho. Se foi de proposito, nada a fazer; para a IA voltar a atender, ligue em Agentes (Ativar todos, ou um por um).`,
+      '#/agentes',
+    );
+  }
+
   /* 5. Mencao invalida: o agente manda o sistema fazer algo que nao existe. */
   const comInvalida = [];
   for (const agente of ligados) {

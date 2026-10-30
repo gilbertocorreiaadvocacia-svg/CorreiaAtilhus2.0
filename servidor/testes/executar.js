@@ -63,7 +63,7 @@ import { testarKanbanConcluido } from './kanban-concluido.js';
 import { testarExcluirTodosOsContatos } from './excluir-todos-contatos.js';
 import { testarHigiene } from './higiene.js';
 import { testarBaseEStatus } from './base-e-status.js';
-import { testarAtivarAgentesSemEquipe } from './ativar-agentes-sem-equipe.js';
+import { testarAgentesProtegidos } from './agentes-protegidos.js';
 import { testarSaudeDoAtendimento } from './saude-do-atendimento.js';
 import { testarFollowupEnvio } from './followup-envio.js';
 import { testarContratoDireto } from './contrato-direto.js';
@@ -374,7 +374,7 @@ async function principal() {
     suites.push(await testarSobreviver({ raiz: RAIZ, portaLivre }));
     /* Ferramenta de manutencao, com base descartavel propria. */
     suites.push(await testarBaseEStatus({ raiz: RAIZ }));
-    suites.push(await testarAtivarAgentesSemEquipe({ raiz: RAIZ }));
+    suites.push(await testarAgentesProtegidos({ raiz: RAIZ, portaLivre }));
     suites.push(await testarPosVenda({ raiz: RAIZ }));
     suites.push(await testarMigrarDepartamentoPosVenda({ raiz: RAIZ }));
     suites.push(await testarReatribuirPendentes({ raiz: RAIZ }));

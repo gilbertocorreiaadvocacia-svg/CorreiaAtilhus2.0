@@ -1,5 +1,5 @@
 import { PROMPT, VOZES, areaValida } from '../config.js';
-import { achar, atualizar, inserir, listar, registrarLog, remover, reordenar } from '../nucleo/banco.js';
+import { achar, atualizar, comOrdemDoUsuario, inserir, listar, registrarLog, remover, reordenar } from '../nucleo/banco.js';
 import { emitir } from '../nucleo/eventos.js';
 import { agora, normalizar, novoId, slug } from '../nucleo/util.js';
 import { PACOTES } from '../ia/pacotes.js';
@@ -547,12 +547,15 @@ export function registrarAutomacoes(rotas) {
       throw comCodigo('Conexao nao encontrada.', 404);
     }
 
-    const resultado = instalarPacote({
-      workspaceId: ctx.workspaceId,
-      area: params.area,
-      substituir: corpo?.substituir === true,
-      conexao,
-    });
+    /* A pessoa clicou em instalar: e ordem dela (nucleo/banco.js, comOrdemDoUsuario). */
+    const resultado = comOrdemDoUsuario(() =>
+      instalarPacote({
+        workspaceId: ctx.workspaceId,
+        area: params.area,
+        substituir: corpo?.substituir === true,
+        conexao,
+      }),
+    );
     return { ok: true, ...resultado, conexao: conexao ? { id: conexao.id, nome: conexao.nome } : null };
   });
 
@@ -564,13 +567,13 @@ export function registrarAutomacoes(rotas) {
     if (areaDoEscritorio(ctx.workspaceId)) {
       throw comCodigo('Separe a partir do escritorio geral, o que nao tem area.', 409);
     }
-    return { ok: true, ...separarPorEscritorio({ origemId: ctx.workspaceId, apagarOutros: corpo?.apagarOutros === true }) };
+    return { ok: true, ...comOrdemDoUsuario(() => separarPorEscritorio({ origemId: ctx.workspaceId, apagarOutros: corpo?.apagarOutros === true })) };
   });
 
   rotas.post('/api/agentes', async ({ ctx, corpo }) => {
     exigirConfiguracao(ctx);
     conferirTamanhoDoPrompt(corpo?.prompt);
-    return inserir('agentes', novoAgente(ctx, corpo));
+    return comOrdemDoUsuario(() => inserir('agentes', novoAgente(ctx, corpo)));
   });
 
   rotas.patch('/api/agentes/:id', async ({ ctx, params, corpo }) => {
@@ -584,7 +587,8 @@ export function registrarAutomacoes(rotas) {
     if ('ativo' in campos && Boolean(campos.ativo) !== Boolean(antes.ativo)) {
       campos.desligadoPelaEquipeEm = campos.ativo ? null : agora();
     }
-    return atualizar('agentes', params.id, campos);
+    /* Ligar e desligar e ordem da pessoa que esta na tela (nucleo/banco.js). */
+    return comOrdemDoUsuario(() => atualizar('agentes', params.id, campos));
   });
 
   /**
@@ -633,7 +637,9 @@ export function registrarAutomacoes(rotas) {
   rotas.post('/api/agentes-desligar-todos', async ({ ctx }) => {
     exigirConfiguracao(ctx);
     const ligados = listar('agentes', { workspaceId: ctx.workspaceId }).filter((a) => a.ativo);
-    for (const agente of ligados) atualizar('agentes', agente.id, { ativo: false, desligadoPelaEquipeEm: agora() });
+    comOrdemDoUsuario(() => {
+      for (const agente of ligados) atualizar('agentes', agente.id, { ativo: false, desligadoPelaEquipeEm: agora() });
+    });
     if (ligados.length) {
       registrarLog(ctx.workspaceId, null, 'seguranca', `Desligou todos os agentes de IA (${ligados.length})`, {
         tipo: 'membro',
@@ -653,7 +659,9 @@ export function registrarAutomacoes(rotas) {
   rotas.post('/api/agentes-ativar-todos', async ({ ctx }) => {
     exigirConfiguracao(ctx);
     const desligados = listar('agentes', { workspaceId: ctx.workspaceId }).filter((a) => !a.ativo);
-    for (const agente of desligados) atualizar('agentes', agente.id, { ativo: true, desligadoPelaEquipeEm: null });
+    comOrdemDoUsuario(() => {
+      for (const agente of desligados) atualizar('agentes', agente.id, { ativo: true, desligadoPelaEquipeEm: null });
+    });
     if (desligados.length) {
       registrarLog(ctx.workspaceId, null, 'seguranca', `Ligou todos os agentes de IA (${desligados.length})`, {
         tipo: 'membro',
@@ -928,16 +936,18 @@ export function registrarAutomacoes(rotas) {
 
     if (!resposta.texto) throw comCodigo('A IA nao devolveu um prompt. Tente de novo.', 502);
 
-    return inserir(
-      'agentes',
-      novoAgente(ctx, {
-        ...corpo,
-        nome: corpo.nome || 'Agente gerado por IA',
-        // O prompt aqui e o texto que o modelo acabou de escrever, nunca o que
-        // veio no corpo da chamada.
-        prompt: resposta.texto,
-        modelo: corpo.modeloDoAgente,
-      }),
+    return comOrdemDoUsuario(() =>
+      inserir(
+        'agentes',
+        novoAgente(ctx, {
+          ...corpo,
+          nome: corpo.nome || 'Agente gerado por IA',
+          // O prompt aqui e o texto que o modelo acabou de escrever, nunca o que
+          // veio no corpo da chamada.
+          prompt: resposta.texto,
+          modelo: corpo.modeloDoAgente,
+        }),
+      ),
     );
   });
 }

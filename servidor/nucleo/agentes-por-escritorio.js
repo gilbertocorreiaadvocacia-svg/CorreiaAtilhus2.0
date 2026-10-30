@@ -3,7 +3,7 @@ import { PASTA_DADOS, areaValida } from '../config.js';
 import { EQUIPE_TRABALHISTA_NO_GERAL, ESCRITORIO_GERAL, PACOTES, prepararEscritorio } from '../ia/pacotes.js';
 import { posVendaDoEscritorio } from '../ia/pacotes/posvenda.js';
 import { TRABALHISTA_PARA_AGENTE, TRABALHISTA_PARA_PESSOA, TRABALHISTA_PARA_PESSOA_ATE_09_10, TRAVA_PARA_AGENTE, TRAVA_PARA_PESSOA } from '../ia/pacotes/triagem.js';
-import { achar, atualizar, inserir, listar, registrarLog, remover } from './banco.js';
+import { achar, atualizar, inserir, listar, remover } from './banco.js';
 import { gravarAtomico, normalizar, novoId } from './util.js';
 import { criarWorkspacesPorArea, WORKSPACES_POR_AREA } from './workspaces-por-area.js';
 
@@ -730,65 +730,34 @@ export function ligarNumerosDasAreas() {
   return ligados;
 }
 
-/* O ultimo "Desligar todos"/"Ativar todos" do escritorio (o log que as duas
-   rotas de rotas/automacoes.js gravam) foi um "Desligar todos"? */
-function desligouTodosPorUltimo(workspaceId) {
-  const ultimo = listar('logs', { workspaceId, tipo: 'seguranca' })
-    .filter((l) => /^(Desligou|Ligou) todos os agentes/.test(l.descricao || ''))
-    .pop();
-  return Boolean(ultimo?.descricao.startsWith('Desligou'));
-}
-
 /**
- * Numero de WhatsApp de verdade (nao simulador) com ZERO agente ativo: a
- * conversa cai e ninguem responde, nem humano nem IA, em silencio total — o
- * tipo de falha que so aparece quando um cliente real escreve e reclama.
+ * Numero de WhatsApp de verdade (nao simulador) com ZERO agente de atendimento
+ * ligado: a conversa cai e a IA nao responde. So AVISA — nunca liga.
  *
- * Achado de 08/10/2026, reconferindo o diagnostico de 29/09: o caso concreto
- * foi o escritorio Civel/Consumidor, criado em 06/10 com o numero ja
- * conectado e os 4 agentes esquecidos como inativos.
- *
- * So liga quando NENHUM agente de atendimento (fora Avaliacao) esta ativo no
- * escritorio: um que ja tem pelo menos um agente ligado nao e mexido, mesmo
- * que outro agente dele esteja desligado de proposito (ex.: agente
- * aposentado por migrar-agentes.js). Roda no boot, junto com
- * ligarNumerosDasAreas — sem equipe nenhuma ligada, nao ha nem agente de
- * entrada para o numero apontar.
- *
- * NUNCA religa o que a EQUIPE desligou. Achado em producao em 27/10/2026 ("a
- * IA esta ativando sozinha: clico em desativar todas e ela acaba ativando"):
- * o "Desligar todos" deixava o escritorio com zero agente ligado, e o reinicio
- * seguinte — toda implantacao, toda queda — ligava os 29 de novo, inclusive
- * quem ja estava desligado antes por outro motivo. Agora so liga escritorio
- * que ninguem desligou na mao: nenhum agente com desligadoPelaEquipeEm (as
- * rotas de rotas/automacoes.js anotam) e o ultimo "Desligar todos"/"Ativar
- * todos" do escritorio nao foi um "Desligar todos" (o log vale tambem para
- * quem clicou antes de existir a anotacao).
+ * Ate 30/10/2026 isto se chamava ativarAgentesSemEquipe e LIGAVA os agentes no
+ * boot (achado de 08/10/2026: um escritorio criado com o numero ja conectado e
+ * os agentes esquecidos desligados). Era exatamente o que fazia a IA "ligar
+ * sozinha" depois de um "Desligar todos" (27/10/2026), e a regra do escritorio
+ * e outra: a IA so liga e so desliga por ordem de quem usa o sistema (ver a
+ * protecao em nucleo/banco.js). Quem desliga tudo de proposito fica desligado;
+ * quem esqueceu de ligar e avisado — no log da subida e em Saude.
  */
-export function ativarAgentesSemEquipe() {
-  const ativados = [];
+export function escritoriosSemAgenteLigado() {
+  const semAgente = [];
   for (const workspace of listar('workspaces')) {
     const temConexaoReal = listar('conexoes', { workspaceId: workspace.id }).some((c) => c.tipo !== 'simulador');
     if (!temConexaoReal) continue;
     const agentesDeAtendimento = listar('agentes', { workspaceId: workspace.id }).filter((a) => a.objetivo !== 'avaliar');
     if (!agentesDeAtendimento.length || agentesDeAtendimento.some((a) => a.ativo)) continue;
-    if (agentesDeAtendimento.some((a) => a.desligadoPelaEquipeEm) || desligouTodosPorUltimo(workspace.id)) continue;
-    for (const agente of agentesDeAtendimento) {
-      atualizar('agentes', agente.id, { ativo: true });
-      ativados.push({ escritorio: workspace.nome, agente: agente.nome });
-    }
-    registrarLog(workspace.id, null, 'seguranca', `Ligou sozinho ${agentesDeAtendimento.length} agente(s): numero conectado sem nenhum agente ligado`, {
-      tipo: 'sistema',
-      nome: 'Sistema',
-    });
+    semAgente.push({ escritorio: workspace.nome, agentes: agentesDeAtendimento.length });
   }
-  return ativados;
+  return semAgente;
 }
 
 /** Os ultimos liga/desliga de todos os agentes do escritorio, para /api/saude: so data e contagem, sem nome de ninguem. */
 export function ultimosLigaDesligaTodos(workspaceId) {
   return listar('logs', { workspaceId, tipo: 'seguranca' })
-    .filter((l) => /^(Desligou|Ligou) (todos os agentes|sozinho)/.test(l.descricao || ''))
+    .filter((l) => /^(Desligou|Ligou) todos os agentes/.test(l.descricao || ''))
     .slice(-6)
     .map((l) => ({ em: l.criadoEm, descricao: l.descricao }));
 }

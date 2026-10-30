@@ -4,10 +4,10 @@ import path from 'node:path';
 import { monitorEventLoopDelay, performance } from 'node:perf_hooks';
 import { HOSPEDADO, HOST, INTERVALO_AGENDADOR, INTERVALO_REATRIBUICAO, PORTA, RAIZ, enderecoPermitido } from './config.js';
 import { prepararHospedagem } from './nucleo/hospedagem.js';
-import { ativarAgentesSemEquipe, garantirAgentesDasAreas, garantirAvaliacaoNosEscritorios, garantirPosVendaNosEscritorios, garantirStatusDasAreas, garantirTestesDeRoteamento, garantirTriagemNoEscritorioGeral, migrarDepartamentoPosVenda } from './nucleo/agentes-por-escritorio.js';
+import { escritoriosSemAgenteLigado, garantirAgentesDasAreas, garantirAvaliacaoNosEscritorios, garantirPosVendaNosEscritorios, garantirStatusDasAreas, garantirTestesDeRoteamento, garantirTriagemNoEscritorioGeral, migrarDepartamentoPosVenda } from './nucleo/agentes-por-escritorio.js';
 import { iniciarAvaliacoes } from './automacao/avaliacao.js';
 import { caminhoDaMidia } from './nucleo/midia.js';
-import { atualizar, encerrarBanco, iniciarBanco, listar, salvarMensagensPendentes, salvarPendentes, tabela } from './nucleo/banco.js';
+import { atualizar, encerrarBanco, iniciarBanco, listar, protegerEstadoDosAgentes, salvarMensagensPendentes, salvarPendentes, situacaoDaProtecaoDosAgentes, tabela } from './nucleo/banco.js';
 import { estado as estadoDoEspelho, ligado as espelhoLigado } from './nucleo/espelho.js';
 import { migrarCoresParaTokens } from './nucleo/paleta.js';
 import { migrarTiposDeCaso } from './nucleo/casos.js';
@@ -57,7 +57,7 @@ iniciarBanco();
 /* Quando ESTA copia subiu. Vai na saude, para dar para distinguir duas. */
 const INICIADO_EM = new Date().toISOString();
 /* Muda a cada entrega que mexe no atendimento (ver /api/saude). */
-const CODIGO = '2026-10-29.4';
+const CODIGO = '2026-10-30.1';
 
 /* Atraso do event loop: se o processo Node estiver bloqueado por algo
    sincrono (grava de arquivo grande, laco pesado), ate um /api/saude trivial
@@ -94,6 +94,14 @@ function naSubida(nome, executar, seFalhar = null) {
 }
 
 const semeado = semearSePrecisar();
+/*
+ * A IA nunca liga nem desliga sozinha (30/10/2026): daqui em diante, o estado
+ * ligado/desligado de um agente so muda por ordem de quem usa o sistema, nas
+ * rotas de rotas/automacoes.js. Depois de semear, para a base nova nascer
+ * com o agente de exemplo; antes de TODO ajuste da subida, que e onde a IA
+ * "ligava sozinha". Ver nucleo/banco.js.
+ */
+protegerEstadoDosAgentes();
 /* Hospedado, a senha padrao nao chega a abrir a porta (nucleo/hospedagem.js). */
 if (HOSPEDADO) {
   try {
@@ -180,10 +188,11 @@ const posVenda = naSubida('pos-venda', garantirPosVendaNosEscritorios, {});
 if (posVenda.instalados || posVenda.configurados) {
   console.log(`Pós-venda: agente instalado em ${posVenda.instalados} escritorio(s), responsavel apos assinatura ligado em ${posVenda.configurados}.`);
 }
-/* Numero real conectado sem nenhum agente ativo: silencio total para quem escreve. */
-const agentesLigados = naSubida('agentes sem equipe', ativarAgentesSemEquipe, []);
-if (agentesLigados.length) {
-  console.log(`Agentes ativados por falta de equipe: ${agentesLigados.map((a) => `${a.agente} (${a.escritorio})`).join(', ')}.`);
+/* Numero real conectado sem nenhum agente ligado: so AVISA. Ate 30/10/2026 isto
+   ligava os agentes — e era a IA "ligando sozinha" depois de um "Desligar todos". */
+const semAgenteLigado = naSubida('escritorios sem agente ligado', escritoriosSemAgenteLigado, []);
+if (semAgenteLigado.length) {
+  console.log(`Sem agente de IA ligado (nada foi ligado sozinho): ${semAgenteLigado.map((a) => `${a.escritorio} (${a.agentes} desligados)`).join(', ')}.`);
 }
 /* Relatorio de melhorias do escritorio (14/10/2026): encaminhamento seguro
    para atendimento humano, as tres unidades reais sem prometer atendimento so
@@ -410,6 +419,8 @@ rotas.get(
       registros: Object.fromEntries(['contatos', 'logs', 'creditos', 'notificacoes', 'temposResposta', 'agendamentos', 'tarefas'].map((c) => [c, tabela(c).length])),
       /* Cada subida e como o sistema saiu da vez anterior (29/10/2026). */
       vida: vidaDoSistema(),
+      /* A IA so liga e desliga por ordem de quem usa o sistema: o que a trava ja barrou (nucleo/banco.js). */
+      protecaoDosAgentes: situacaoDaProtecaoDosAgentes(),
       falhasNaSubida,
     };
   },

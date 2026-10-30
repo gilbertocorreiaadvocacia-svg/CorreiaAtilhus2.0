@@ -133,7 +133,96 @@ export function achar(colecao, filtro) {
   return tabela(colecao).find((registro) => combina(registro, filtro)) || null;
 }
 
+/* ------------------------------------------------------------------ */
+/* Ligar e desligar agente: so por ordem de quem usa o sistema         */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Pedido do escritorio em 30/10/2026, depois de a IA "ligar sozinha" depois de
+ * um "Desligar todos": a IA nunca liga nem desliga sem o usuario mandar.
+ *
+ * A regra mora AQUI, no banco, e nao em cada rotina que mexe em agente: a
+ * correcao de 29/10 tirou o reinicio de dentro de ativarAgentesSemEquipe, mas
+ * o proximo codigo que escrevesse `ativo` num agente (um instalador, uma
+ * varredura, uma migracao) reabriria o mesmo buraco sem ninguem perceber.
+ *
+ * Com a protecao ligada (o servidor liga na subida, depois de semear a base
+ * nova), o campo `ativo` de um agente so muda quando quem muda esta DENTRO de
+ * comOrdemDoUsuario: as rotas em que uma pessoa liga, desliga, cria ou instala
+ * agentes (rotas/automacoes.js). Fora delas:
+ *   - atualizar() larga so o `ativo`, o resto da mudanca segue;
+ *   - inserir() grava o agente DESLIGADO;
+ *   - a tentativa fica anotada (log de seguranca, uma vez por agente, e a conta
+ *     e as ultimas vao no /api/saude), para saber QUEM tentou.
+ * Ferramentas de manutencao e testes, que importam o banco sem ligar a
+ * protecao, seguem como sempre.
+ */
+let estadoDosAgentesProtegido = false;
+let ordensDoUsuario = 0;
+let totalBarradas = 0;
+const ultimasBarradas = [];
+const jaAvisadas = new Set();
+
+export function protegerEstadoDosAgentes() {
+  estadoDosAgentesProtegido = true;
+}
+
+/**
+ * Roda `executar` (SINCRONA) como ordem de uma pessoa: dentro dela, ligar e
+ * desligar agente vale. Sincrona de proposito: um await no meio devolveria a
+ * trava no lugar, que e o lado seguro.
+ */
+export function comOrdemDoUsuario(executar) {
+  ordensDoUsuario += 1;
+  try {
+    return executar();
+  } finally {
+    ordensDoUsuario -= 1;
+  }
+}
+
+/** Para /api/saude: a protecao esta ligada, e o que ela ja barrou desde a subida. */
+export function situacaoDaProtecaoDosAgentes() {
+  return { ligada: estadoDosAgentesProtegido, barradasDesdeASubida: totalBarradas, ultimas: [...ultimasBarradas] };
+}
+
+const estadoBarrado = () => estadoDosAgentesProtegido && ordensDoUsuario === 0;
+
+function anotarBarrada(agente, queriaLigar) {
+  totalBarradas += 1;
+  /* Quem chamou: a primeira linha da pilha fora deste arquivo, so o nome da funcao e o arquivo. */
+  const linha = (new Error().stack || '')
+    .split('\n')
+    .slice(2)
+    .map((l) => l.trim())
+    .find((l) => !/nucleo[\\/]banco\.js/.test(l));
+  const onde = String(linha || '')
+    .replace(/^at\s+/, '')
+    .replace(/file:\/\/\/[^)]*?[\\/]servidor[\\/]/, '')
+    .replace(/file:\/\/\/(?:[^)\\/]*[\\/])*/, '')
+    .replace(/\)$/, '')
+    .slice(0, 140);
+  ultimasBarradas.push({ em: agora(), queria: queriaLigar ? 'ligar' : 'desligar', onde });
+  if (ultimasBarradas.length > 20) ultimasBarradas.shift();
+  console.warn(`[protecao] barrei ${queriaLigar ? 'ligar' : 'desligar'} o agente "${agente.nome}" sem ordem do usuario (${onde}).`);
+
+  const chave = `${agente.id || agente.nome}:${queriaLigar}`;
+  if (!agente.workspaceId || jaAvisadas.has(chave)) return;
+  jaAvisadas.add(chave);
+  registrarLog(
+    agente.workspaceId,
+    null,
+    'seguranca',
+    `Bloqueei o sistema de ${queriaLigar ? 'ligar' : 'desligar'} sozinho o agente ${agente.nome}: o estado dos agentes so muda quando voce liga ou desliga.`,
+    { tipo: 'sistema', nome: 'Protecao dos agentes' },
+  );
+}
+
 export function inserir(colecao, dados) {
+  if (colecao === 'agentes' && dados.ativo !== false && estadoBarrado()) {
+    if (dados.ativo === true) anotarBarrada({ workspaceId: dados.workspaceId, nome: dados.nome || 'novo' }, true);
+    dados = { ...dados, ativo: false };
+  }
   const registro = {
     id: dados.id || novoId(),
     criadoEm: dados.criadoEm || agora(),
@@ -149,6 +238,11 @@ export function inserir(colecao, dados) {
 export function atualizar(colecao, id, mudancas) {
   const registro = achar(colecao, id);
   if (!registro) return null;
+  if (colecao === 'agentes' && 'ativo' in mudancas && Boolean(mudancas.ativo) !== Boolean(registro.ativo) && estadoBarrado()) {
+    anotarBarrada(registro, Boolean(mudancas.ativo));
+    const { ativo, ...resto } = mudancas;
+    mudancas = resto;
+  }
   Object.assign(registro, mudancas, { atualizadoEm: agora() });
   marcarSuja(colecao);
   espelhar(colecao, registro.id, registro);
