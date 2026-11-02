@@ -357,6 +357,14 @@ export async function paginaAtendimento({
   }
 
   async function buscar() {
+    /* Contatos abre vazia: a lista so vem depois que a pessoa digita as
+       primeiras letras. Sem texto, nem vai ao servidor. */
+    if (visualizacao === 'contatos' && !filtro.busca.trim()) {
+      contatos = [];
+      totalNoServidor = 0;
+      totalPorStatus = {};
+      return;
+    }
     const resposta = await api.get('/api/contatos', {
       ...filtro,
       aba: visualizacao === 'conversas' ? filtro.aba : 'todas',
@@ -3546,8 +3554,45 @@ export async function paginaAtendimento({
     // dos 18px de respiro escritos na mao. A regra deveria morar em
     // web/css/tema.css, no bloco de Atendimento.
     areaContatos = el('div', { class: 'area-tabela' });
+
+    /* O campo mora FORA da area que pintarContatos redesenha: refazer o campo
+       a cada tecla tiraria o foco de quem esta digitando. */
+    const busca = entradaTexto(filtro.busca, {
+      type: 'search',
+      class: 'busca-fila-campo',
+      placeholder: 'Digite o nome ou o número do contato',
+      'aria-label': 'Buscar contato por nome ou número',
+      autocomplete: 'off',
+    });
+    let temporizador = null;
+    let pedido = 0;
+    busca.addEventListener('input', () => {
+      clearTimeout(temporizador);
+      temporizador = setTimeout(async () => {
+        const meu = ++pedido;
+        filtro.busca = busca.value;
+        paginaContatos = 1;
+        marcados.clear();
+        try {
+          await buscar();
+        } catch (erro) {
+          if (meu === pedido) {
+            limpar(areaContatos);
+            areaContatos.append(vazio('Não consegui buscar os contatos', erro.message));
+          }
+          return;
+        }
+        // Resposta de uma digitacao que ja foi superada nao pinta a tela.
+        if (meu === pedido) pintarContatos();
+      }, 220);
+    });
+    setTimeout(() => busca.focus(), 0);
+
     pintarContatos();
-    return areaContatos;
+    return el('div', { class: 'contatos-busca-wrap' }, [
+      el('div', { class: 'mb-3' }, [busca]),
+      areaContatos,
+    ]);
   }
 
   /**
@@ -3571,7 +3616,9 @@ export async function paginaAtendimento({
     if (!contatos.length) {
       areaContatos.append(
         barraTopo,
-        vazio('Nenhum contato aqui', 'Afrouxe os filtros ou importe uma planilha.'),
+        filtro.busca.trim()
+          ? vazio('Nenhum contato com esse nome', 'Confira a grafia, afrouxe os filtros ou importe uma planilha.')
+          : vazio('Busque um contato', 'Comece a digitar o nome ou o número e os contatos aparecem aqui.'),
       );
       return;
     }

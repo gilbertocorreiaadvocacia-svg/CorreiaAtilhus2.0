@@ -63,9 +63,10 @@ await encerrarBanco();
 import { garantirAgentesDasAreas } from ${JSON.stringify(urlDoModulo)};
 iniciarBanco();
 const resultado = garantirAgentesDasAreas();
-console.log(JSON.stringify({ resultado, workspaces: listar('workspaces'), agentes: listar('agentes') }));
 await encerrarBanco();
-process.exit(0);
+/* O exit so depois da saida descarregada: com stdout em pipe, console.log
+   seguido de process.exit corta o JSON no meio (a saida passa de 100 KB). */
+process.stdout.write(JSON.stringify({ resultado, workspaces: listar('workspaces'), agentes: listar('agentes') }) + '\\n', () => process.exit(0));
 `,
   );
 

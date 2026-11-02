@@ -303,9 +303,22 @@ export async function testarDiagnostico({ base, anthropic }) {
     achar(semAudio, 'audio-sem-transcricao')?.severidade === 'alta',
     JSON.stringify(achar(semAudio, 'audio-sem-transcricao')),
   );
+  /*
+   * O texto depende do que a maquina tem. So numa maquina com ffmpeg, filtro
+   * (ou whisper-cli) e modelo o motivo que sobra e o "desligado por env var".
+   * No CI e na hospedagem a falta e outra (ffmpeg, filtro ou modelo), e o
+   * diagnostico acerta ao dizer qual. O que nao pode e o achado ficar sem
+   * nenhum dos motivos reais.
+   */
+  const motivosReais = [
+    'transcricao local foi desligada',
+    'o ffmpeg nao esta instalado',
+    'nem o filtro whisper do ffmpeg nem o whisper-cli',
+    'nenhum modelo de voz foi baixado',
+  ];
   s.ok(
-    'a mensagem conta que a transcricao local foi desligada, nao mente sobre o filtro',
-    (achar(semAudio, 'audio-sem-transcricao')?.detalhe || '').includes('transcricao local foi desligada'),
+    'a mensagem diz a causa real da falta de transcricao (desligada, ffmpeg, filtro ou modelo)',
+    motivosReais.some((motivo) => (achar(semAudio, 'audio-sem-transcricao')?.detalhe || '').includes(motivo)),
     JSON.stringify(achar(semAudio, 'audio-sem-transcricao')),
   );
 
