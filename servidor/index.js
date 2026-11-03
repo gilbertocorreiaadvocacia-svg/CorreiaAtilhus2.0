@@ -495,6 +495,9 @@ function anotarRecusa(endereco) {
 }
 
 const servidor = http.createServer(async (req, res) => {
+  /* O navegador aceita gzip? responderJson (nucleo/http.js) comprime a resposta. */
+  res.aceitaGzip = /\bgzip\b/.test(req.headers['accept-encoding'] || '');
+
   /*
    * Porteiro de rede.
    *

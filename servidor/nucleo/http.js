@@ -24,8 +24,40 @@ const TIPOS = {
   '.txt': 'text/plain; charset=utf-8',
 };
 
+/*
+ * Resposta JSON comprimida (03/11/2026).
+ *
+ * Os estaticos (.js, .css) ja saiam em gzip, mas o JSON da API nao: "demora para
+ * iniciar" era, em boa parte, isto. A tela, ao abrir, pede de uma vez a lista de
+ * conversas (uns 500 KB) e os agentes com todos os roteiros (57 agentes de 7 a 10
+ * mil caracteres), tudo em texto puro — e JSON de lista comprime a um quinto ou
+ * menos (o /api/saude, de 17.605 bytes, vai a 3.924).
+ *
+ * Comprime so quando o navegador aceita (res.aceitaGzip, anotado em index.js) e
+ * so acima de 1 KB: abaixo disso o cabecalho extra custa mais do que economiza.
+ *
+ * Sincrono de proposito. Os cabecalhos tem de sair na hora, como sempre
+ * sairam: quem chama responderJson segue em frente assumindo que a resposta
+ * foi iniciada, e um roteador que confere res.headersSent responderia de novo
+ * por cima se ela so saisse depois. Nivel 4 custa uns poucos milissegundos para
+ * 500 KB, e o ganho em segundos de transferencia e muito maior.
+ */
+const MINIMO_PARA_COMPRIMIR = 1024;
+
 export function responderJson(res, dados, codigo = 200) {
   const corpo = JSON.stringify(dados ?? null);
+  if (res.aceitaGzip && corpo.length >= MINIMO_PARA_COMPRIMIR) {
+    const comprimido = zlib.gzipSync(corpo, { level: 4 });
+    res.writeHead(codigo, {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Cache-Control': 'no-store',
+      'Content-Encoding': 'gzip',
+      Vary: 'Accept-Encoding',
+      'Content-Length': comprimido.length,
+    });
+    res.end(comprimido);
+    return;
+  }
   res.writeHead(codigo, {
     'Content-Type': 'application/json; charset=utf-8',
     'Cache-Control': 'no-store',
