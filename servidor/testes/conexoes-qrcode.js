@@ -201,6 +201,54 @@ export async function testarQrCode({ base, evolucao, chaveEvolucao }) {
   const idExterno = envio.dados?.idExterno || envio.dados?.mensagem?.idExterno;
   s.ok('o protocolo devolvido pelo servico foi gravado', String(idExterno || '').startsWith('MOCK_'));
 
+  /* 8b. Audio gravado no navegador (03/11/2026: a equipe nao conseguia mandar).
+     O gravador do Chrome entrega "audio/webm;codecs=opus", e o FileReader monta o
+     cabecalho do data URI com esses parametros. O servidor so reconhecia
+     "data:tipo;base64,": guardava ~15 bytes de lixo no lugar da gravacao. Aqui o
+     que sai para o servico de WhatsApp tem que ser, byte a byte, o que foi gravado. */
+  const gravacao = Buffer.concat([Buffer.from([0x1a, 0x45, 0xdf, 0xa3]), Buffer.from('gravacao de voz '.repeat(400))]);
+  const subirGravacao = (cabecalho, mime) =>
+    api.post('/api/midia', { nome: 'mensagem-de-voz.webm', mime, conteudoBase64: `${cabecalho},${gravacao.toString('base64')}` });
+  const subiu = await subirGravacao('data:audio/webm;codecs=opus;base64', 'audio/webm;codecs=opus');
+  s.ok(
+    'a gravacao do navegador sobe inteira, nao o lixo de antes (bytes iguais aos gravados)',
+    subiu.status === 200 && subiu.dados?.tamanho === gravacao.length,
+    `subiu ${subiu.dados?.tamanho} bytes de ${gravacao.length}: ${JSON.stringify(subiu.dados)}`,
+  );
+  s.ok(
+    'e guarda o tipo sem os parametros, como audio',
+    subiu.dados?.mime === 'audio/webm' && subiu.dados?.tipo === 'audio',
+    JSON.stringify({ mime: subiu.dados?.mime, tipo: subiu.dados?.tipo }),
+  );
+  const subiuOgg = await subirGravacao('data:audio/ogg;codecs=opus;base64', 'audio/ogg;codecs=opus');
+  s.ok(
+    'o mesmo vale para o ogg do Firefox',
+    subiuOgg.dados?.tamanho === gravacao.length && subiuOgg.dados?.mime === 'audio/ogg' && subiuOgg.dados?.tipo === 'audio',
+    JSON.stringify(subiuOgg.dados),
+  );
+  const subiuSimples = await subirGravacao('data:audio/mp4;base64', 'audio/mp4');
+  s.ok('data URI sem parametros continua igual (Safari)', subiuSimples.dados?.tamanho === gravacao.length && subiuSimples.dados?.mime === 'audio/mp4', JSON.stringify(subiuSimples.dados));
+  const puro = await api.post('/api/midia', { nome: 'a.webm', mime: 'audio/webm;codecs=opus', conteudoBase64: gravacao.toString('base64') });
+  s.ok('base64 puro, com o tipo vindo a parte, tambem entra inteiro e sem parametros', puro.dados?.tamanho === gravacao.length && puro.dados?.mime === 'audio/webm', JSON.stringify(puro.dados));
+  const quebrado = await api.post('/api/midia', { nome: 'a.webm', mime: 'audio/webm', conteudoBase64: 'data:audio/webm;charset=utf-8,texto-solto' });
+  s.ok('data URI que nao e base64 e recusado, em vez de gravado quebrado', quebrado.status === 400, `${quebrado.status} ${JSON.stringify(quebrado.dados)}`);
+
+  const noEnvioDeAudio = await api.post(`/api/contatos/${conversa.id}/mensagens`, { conteudo: '', midia: subiu.dados });
+  s.ok('a mensagem de audio e aceita pela tela', noEnvioDeAudio.status === 200, JSON.stringify(noEnvioDeAudio.dados).slice(0, 200));
+  await esperar(600);
+  const aposAudio = await (await fetch(`${evolucao}/__enviadas`, { headers: { apikey: chaveEvolucao } })).json();
+  const doAudio = aposAudio.filter((e) => String(e.rota).includes('sendWhatsAppAudio'));
+  s.ok(
+    'o servico de WhatsApp recebeu o audio pela porta de audio, com o numero certo',
+    doAudio.length === 1 && doAudio[0].number === '5581988887777',
+    JSON.stringify(doAudio.map((e) => ({ rota: e.rota, number: e.number }))),
+  );
+  s.ok(
+    'e o que chegou la sao os bytes da gravacao, nao lixo',
+    doAudio[0] && Buffer.from(String(doAudio[0].audio), 'base64').equals(gravacao),
+    `chegaram ${doAudio[0] ? Buffer.from(String(doAudio[0].audio), 'base64').length : 0} bytes`,
+  );
+
   /* 9. Grupo */
   await fetch(`${base}/webhook/${id}`, {
     method: 'POST',

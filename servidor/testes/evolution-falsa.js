@@ -277,7 +277,11 @@ export function subirEvolucaoFalsa(porta = PORTA, chave = CHAVE) {
       estado = 'close';
       return responder(200, { status: 'SUCCESS' });
     }
-    if (caminho.startsWith('/message/sendText/') || caminho.startsWith('/message/sendMedia/')) {
+    if (
+      caminho.startsWith('/message/sendText/') ||
+      caminho.startsWith('/message/sendMedia/') ||
+      caminho.startsWith('/message/sendWhatsAppAudio/')
+    ) {
       const carga = corpo ? JSON.parse(corpo) : {};
       enviadas.push({ rota: caminho, ...carga });
       return responder(201, { key: { id: `MOCK_${enviadas.length}` }, status: 'PENDING' });

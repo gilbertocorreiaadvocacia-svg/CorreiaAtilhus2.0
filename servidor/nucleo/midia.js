@@ -38,12 +38,38 @@ function nomeSeguro(nome = 'arquivo', mime = '') {
   return `${novoId('mid')}-${limpo}${temExtensao ? '' : EXTENSOES[mime] || ''}`;
 }
 
-/** Recebe o que veio da tela (data URI ou base64 puro) e grava em disco. */
+/** "audio/webm;codecs=opus" -> "audio/webm": o tipo sozinho, sem os parametros. */
+function tipoSemParametros(mime = '') {
+  return String(mime).split(';')[0].trim().toLowerCase();
+}
+
+/**
+ * Recebe o que veio da tela (data URI ou base64 puro) e grava em disco.
+ *
+ * O navegador monta o data URI com o tipo do arquivo por inteiro, parametros e
+ * tudo: o gravador de voz entrega "audio/webm;codecs=opus", e o cabecalho vira
+ * "data:audio/webm;codecs=opus;base64,". Ate 03/11/2026 so se reconhecia
+ * "data:tipo;base64,": o resto caia no ramo do base64 puro, o decodificador
+ * parava no primeiro "=" ("codecs=opus") e o sistema guardava ~15 bytes de lixo
+ * no lugar da gravacao, sem avisar ninguem — a equipe nao conseguia mandar
+ * audio. Agora o cabecalho e lido pela virgula, e um data URI que nao seja
+ * base64 e recusado em vez de gravado quebrado.
+ */
 export function guardarBase64({ nome, conteudoBase64, mime }) {
   const bruto = String(conteudoBase64 || '');
-  const casou = /^data:([^;]+);base64,(.*)$/s.exec(bruto);
-  const mimeFinal = casou ? casou[1] : mime || 'application/octet-stream';
-  const dados = Buffer.from(casou ? casou[2] : bruto, 'base64');
+  let tipoDoCabecalho = '';
+  let carga = bruto;
+  if (/^data:/i.test(bruto)) {
+    const virgula = bruto.indexOf(',');
+    const partes = virgula > 0 ? bruto.slice(5, virgula).split(';') : [];
+    if (partes.pop()?.trim().toLowerCase() !== 'base64') {
+      throw Object.assign(new Error('O arquivo veio num formato que o sistema nao entende.'), { codigo: 400 });
+    }
+    tipoDoCabecalho = tipoSemParametros(partes[0]);
+    carga = bruto.slice(virgula + 1);
+  }
+  const mimeFinal = tipoDoCabecalho || tipoSemParametros(mime) || 'application/octet-stream';
+  const dados = Buffer.from(carga, 'base64');
 
   if (!dados.length) throw Object.assign(new Error('Arquivo vazio.'), { codigo: 400 });
   if (dados.length > LIMITE_MIDIA) {
