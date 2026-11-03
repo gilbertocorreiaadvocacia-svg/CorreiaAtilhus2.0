@@ -62,7 +62,7 @@ iniciarBanco();
 /* Quando ESTA copia subiu. Vai na saude, para dar para distinguir duas. */
 const INICIADO_EM = new Date().toISOString();
 /* Muda a cada entrega que mexe no atendimento (ver /api/saude). */
-const CODIGO = '2026-11-03.6';
+const CODIGO = '2026-11-03.7';
 
 /* Atraso do event loop: se o processo Node estiver bloqueado por algo
    sincrono (grava de arquivo grande, laco pesado), ate um /api/saude trivial
@@ -276,8 +276,10 @@ if (baseEStatus.desvinculados || baseEStatus.rascunhosCriados || baseEStatus.vin
 }
 naSubida('sessoes orfas', limparSessoesOrfas);
 /* Quem a equipe ja concluiu antes da regra "concluida por pessoa nao volta para a IA" ganha o sinal. */
-const concluidasMarcadas = naSubida('concluidas pela equipe', marcarConcluidasPelaEquipe, 0);
-if (concluidasMarcadas) console.log(`Concluidas pela equipe: ${concluidasMarcadas} conversa(s) marcadas para nao voltar a IA sozinhas.`);
+const concluidasMarcadas = naSubida('concluidas pela equipe', marcarConcluidasPelaEquipe, { marcadas: 0, corrigidas: 0 });
+if (concluidasMarcadas.marcadas || concluidasMarcadas.corrigidas) {
+  console.log(`Concluidas pela equipe: ${concluidasMarcadas.marcadas} marcada(s) para nao voltar a IA sozinhas, ${concluidasMarcadas.corrigidas} sinal(is) tirado(s) por nao ser conclusao de pessoa.`);
+}
 /* Rodadas de importacao do celular que o reinicio interrompeu. */
 naSubida('sincronizacoes', retomarSincronizacoes);
 /*

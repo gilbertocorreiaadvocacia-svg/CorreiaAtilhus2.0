@@ -43,29 +43,56 @@ export const LIBERAR_PARA_A_IA = { semIa: null };
 
 export const semIaAutomatica = (contato) => Boolean(contato?.semIa);
 
+/*
+ * O texto EXATO que a conclusao por pessoa grava no historico (rotas/atendimento.js: o
+ * botao Concluir e a conclusao em massa). Tem de ser igual, e nao "parecido": as
+ * arrumacoes do historico do celular tambem gravam uma linha de tipo "arquivo" que diz
+ * "Concluida na arrumacao de Ativos...", e olhar so a palavra "conclu" marcou, na
+ * primeira versao desta regra (03/11/2026), 1609 conversas importadas como se a equipe
+ * as tivesse concluido — e o cliente que voltasse a escrever nelas ficaria em Pendentes
+ * sem a IA, o contrario do que o escritorio quer para elas.
+ */
+const TEXTO_DA_CONCLUSAO = 'Atendimento concluido';
+const ehConclusaoPorPessoa = (descricao) => String(descricao || '').trim() === TEXTO_DA_CONCLUSAO;
+
 /**
- * Uma vez, ao subir: quem a equipe ja concluiu ANTES desta regra tambem ganha o
- * sinal. So entra quem esta concluida agora e cujo ultimo registro de
- * conclusao/reabertura e uma conclusao feita por pessoa ("Atendimento
- * concluido", gravado pela rota de concluir). O historico importado e as
- * concluidas pelo follow-up nao tem esse registro e ficam como estavam.
- * Idempotente: quem ja tem o sinal nao e tocado.
+ * Ao subir: quem a equipe ja concluiu ANTES desta regra tambem ganha o sinal. So entra
+ * quem esta concluida agora e cujo ultimo registro de conclusao/reabertura e a conclusao
+ * por pessoa (texto exato acima). O historico importado e o que o follow-up concluiu nao
+ * tem esse registro e ficam como estavam. Idempotente.
+ *
+ * E tambem CONFERE o que uma versao anterior deste proprio arquivo marcou: todo sinal
+ * "retroativo" cujo registro de origem (o de mesma data) nao e a conclusao por pessoa
+ * sai — mesmo que a conversa ja tenha sido reaberta pelo cliente nesse meio tempo. Sem
+ * conseguir confirmar a origem, o sinal sai: o que fica e o comportamento de antes (o
+ * cliente que volta vai para a IA), que e o seguro.
+ *
+ * Devolve { marcadas, corrigidas }.
  */
 export function marcarConcluidasPelaEquipe() {
   const ultimos = new Map();
+  const descricaoDe = new Map();
   for (const log of listar('logs')) {
     if (log.tipo !== 'arquivo' && log.tipo !== 'desarquivar') continue;
     const anterior = ultimos.get(log.contatoId);
     if (!anterior || String(log.criadoEm) > String(anterior.criadoEm)) ultimos.set(log.contatoId, log);
+    if (log.tipo === 'arquivo') descricaoDe.set(`${log.contatoId}|${log.criadoEm}`, log.descricao);
   }
 
   let marcadas = 0;
-  for (const contato of listar('contatos', { estado: 'arquivado' })) {
-    if (contato.semIa) continue;
+  let corrigidas = 0;
+  for (const contato of listar('contatos')) {
+    if (contato.semIa?.retroativo) {
+      if (ehConclusaoPorPessoa(descricaoDe.get(`${contato.id}|${contato.semIa.em}`))) continue;
+      atualizar('contatos', contato.id, { semIa: null });
+      corrigidas += 1;
+      continue;
+    }
+    if (contato.semIa || contato.estado !== 'arquivado') continue;
     const ultimo = ultimos.get(contato.id);
-    if (!ultimo || ultimo.tipo !== 'arquivo' || !/conclu/i.test(ultimo.descricao || '')) continue;
+    if (!ultimo || ultimo.tipo !== 'arquivo' || !ehConclusaoPorPessoa(ultimo.descricao)) continue;
     atualizar('contatos', contato.id, { semIa: { motivo: 'concluida-pela-equipe', em: ultimo.criadoEm, por: null, retroativo: true } });
     marcadas += 1;
   }
-  return marcadas;
+  return { marcadas, corrigidas };
 }

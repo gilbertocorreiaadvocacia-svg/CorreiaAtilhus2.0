@@ -150,11 +150,27 @@ conversa('R4', { estado: 'ia' });                  /* nao esta concluida */
 inserir('logs', { workspaceId: 'w1', contatoId: 'R4', tipo: 'arquivo', descricao: 'Atendimento concluido', criadoEm: '2026-10-29T10:00:00.000Z' });
 conversa('R5', { estado: 'arquivado' });
 inserir('logs', { workspaceId: 'w1', contatoId: 'R5', tipo: 'arquivo', descricao: 'Conversa reaberta', criadoEm: '2026-10-29T10:00:00.000Z' });
-const marcadas = marcarConcluidasPelaEquipe();
-const marcadasDeNovo = marcarConcluidasPelaEquipe();
+/* O que as arrumacoes do historico do celular gravam: "Concluida na arrumacao de Ativos..." — NAO e conclusao por pessoa. */
+conversa('R6', { estado: 'arquivado', importado: true });
+inserir('logs', { workspaceId: 'w1', contatoId: 'R6', tipo: 'arquivo', descricao: 'Concluida na arrumacao de Ativos: conversa do historico do celular sem mensagem ha mais de 30 dias. Reabre sozinha se o cliente escrever.', criadoEm: '2026-10-27T10:00:00.000Z' });
+/* Marcada pela primeira versao desta regra, que olhava so a palavra "conclu": o sinal tem de sair. */
+conversa('R7', { estado: 'arquivado', importado: true, semIa: { motivo: 'concluida-pela-equipe', em: '2026-10-28T10:00:00.000Z', por: null, retroativo: true } });
+inserir('logs', { workspaceId: 'w1', contatoId: 'R7', tipo: 'arquivo', descricao: 'Concluida na arrumacao de Ativos: conversa do historico do celular que ninguem mexeu pelo sistema. Reabre sozinha se o cliente escrever.', criadoEm: '2026-10-28T10:00:00.000Z' });
+/* Marcada de verdade (a conclusao por pessoa existe) e depois reaberta pelo cliente: o sinal FICA, ela espera a equipe. */
+conversa('R8', { estado: 'pendente', responsavel: null, semIa: { motivo: 'concluida-pela-equipe', em: '2026-10-26T10:00:00.000Z', por: null, retroativo: true } });
+inserir('logs', { workspaceId: 'w1', contatoId: 'R8', tipo: 'arquivo', descricao: 'Atendimento concluido', criadoEm: '2026-10-26T10:00:00.000Z' });
+inserir('logs', { workspaceId: 'w1', contatoId: 'R8', tipo: 'desarquivar', descricao: 'Conversa reaberta porque o cliente escreveu. Foi concluida pela equipe: fica em Pendentes e a IA nao atende sozinha', criadoEm: '2026-10-31T09:00:00.000Z' });
+/* Marcada, mas o registro de origem nao existe mais: sem como confirmar, o sinal sai (o seguro e o comportamento de antes). */
+conversa('R9', { estado: 'arquivado', semIa: { motivo: 'concluida-pela-equipe', em: '2026-10-25T10:00:00.000Z', por: null, retroativo: true } });
+/* Concluida pela rota nova (nao retroativa): a conferencia nao mexe. */
+conversa('R10', { estado: 'arquivado' });
+atualizar('contatos', 'R10', mudancasDeConcluir({ id: 'm1' }, 'Ana'));
+const { marcadas, corrigidas } = marcarConcluidasPelaEquipe();
+const deNovo = marcarConcluidasPelaEquipe();
+const marcadasDeNovo = deNovo.marcadas + deNovo.corrigidas;
 resultado.retroativo = {
-  marcadas, marcadasDeNovo,
-  sinais: Object.fromEntries(['R1', 'R2', 'R3', 'R4', 'R5'].map((id) => [id, semIaAutomatica(contato(id))])),
+  marcadas, corrigidas, marcadasDeNovo,
+  sinais: Object.fromEntries(['R1', 'R2', 'R3', 'R4', 'R5', 'R6', 'R7', 'R8', 'R9', 'R10'].map((id) => [id, semIaAutomatica(contato(id))])),
   retroativo: contato('R1').semIa?.retroativo === true,
   em: contato('R1').semIa?.em,
 };
@@ -213,8 +229,18 @@ process.exit(0);
 
     s.ok(
       'ao subir, só ganha o sinal quem está concluída agora e cujo último registro é uma conclusão por pessoa',
-      b.retroativo.marcadas === 1 && b.retroativo.sinais.R1 === true && b.retroativo.sinais.R2 === false && b.retroativo.sinais.R3 === false && b.retroativo.sinais.R4 === false && b.retroativo.sinais.R5 === false,
+      b.retroativo.marcadas === 1 && b.retroativo.sinais.R1 === true && b.retroativo.sinais.R2 === false && b.retroativo.sinais.R3 === false && b.retroativo.sinais.R4 === false && b.retroativo.sinais.R5 === false && b.retroativo.sinais.R6 === false,
       JSON.stringify(b.retroativo),
+    );
+    s.ok(
+      'a conclusão que o sistema fez sozinho (arrumação do histórico do celular, "Concluida na arrumacao de Ativos...") NÃO conta como conclusão por pessoa: não recebe o sinal',
+      b.retroativo.sinais.R6 === false,
+      JSON.stringify(b.retroativo.sinais),
+    );
+    s.ok(
+      'conferência do que uma versão anterior marcou: o sinal sai de quem foi marcada pela arrumação do histórico e de quem não tem mais o registro de origem; fica em quem tem a conclusão por pessoa (mesmo reaberta pelo cliente) e em quem concluiu pela rota',
+      b.retroativo.corrigidas === 2 && b.retroativo.sinais.R7 === false && b.retroativo.sinais.R9 === false && b.retroativo.sinais.R8 === true && b.retroativo.sinais.R10 === true && b.retroativo.sinais.R1 === true,
+      JSON.stringify({ corrigidas: b.retroativo.corrigidas, sinais: b.retroativo.sinais }),
     );
     s.ok('roda uma vez só, e marca com a data da conclusão e como retroativo', b.retroativo.marcadasDeNovo === 0 && b.retroativo.retroativo === true && b.retroativo.em === '2026-10-31T10:00:00.000Z', JSON.stringify(b.retroativo));
     s.ok('a concluída de antes também volta para Pendentes sem a IA', b.retroativoVolta.aba === 'pendentes' && b.retroativoVolta.respostasDaIa === 0, JSON.stringify(b.retroativoVolta));
