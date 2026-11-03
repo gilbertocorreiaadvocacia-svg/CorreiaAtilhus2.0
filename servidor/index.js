@@ -57,12 +57,13 @@ import { retomarSondaDaIa } from './ia/saude-da-ia.js';
 import { iniciarRelatorioSemanal } from './ia/agente-de-relatorios.js';
 import { iniciarResumosAutomaticos } from './ia/resumo-da-conversa.js';
 import { marcarConcluidasPelaEquipe } from './nucleo/conclusao-pela-equipe.js';
+import { garantirSequenciaNoStatusFollowUp } from './nucleo/followup-padrao.js';
 
 iniciarBanco();
 /* Quando ESTA copia subiu. Vai na saude, para dar para distinguir duas. */
 const INICIADO_EM = new Date().toISOString();
 /* Muda a cada entrega que mexe no atendimento (ver /api/saude). */
-const CODIGO = '2026-11-03.7';
+const CODIGO = '2026-11-03.8';
 
 /* Atraso do event loop: se o processo Node estiver bloqueado por algo
    sincrono (grava de arquivo grande, laco pesado), ate um /api/saude trivial
@@ -277,6 +278,9 @@ if (baseEStatus.desvinculados || baseEStatus.rascunhosCriados || baseEStatus.vin
 naSubida('sessoes orfas', limparSessoesOrfas);
 /* Quem a equipe ja concluiu antes da regra "concluida por pessoa nao volta para a IA" ganha o sinal. */
 const concluidasMarcadas = naSubida('concluidas pela equipe', marcarConcluidasPelaEquipe, { marcadas: 0, corrigidas: 0 });
+/* O status "Follow up" passa a mandar fu1, fu2 e fu3 (nucleo/followup-padrao.js). */
+const followUpPadrao = naSubida('follow-up padrao', garantirSequenciaNoStatusFollowUp, { instalados: 0, jaTinham: 0, semTemplates: 0 });
+if (followUpPadrao.instalados) console.log(`Follow up: sequencia fu1, fu2 e fu3 instalada no status de ${followUpPadrao.instalados} escritorio(s).`);
 if (concluidasMarcadas.marcadas || concluidasMarcadas.corrigidas) {
   console.log(`Concluidas pela equipe: ${concluidasMarcadas.marcadas} marcada(s) para nao voltar a IA sozinhas, ${concluidasMarcadas.corrigidas} sinal(is) tirado(s) por nao ser conclusao de pessoa.`);
 }
