@@ -1,6 +1,6 @@
-import { achar, atualizar, inserir, listar } from './banco.js';
-import { emitirParaUsuario } from './eventos.js';
-import { agora, novoId } from './util.js';
+import { achar, atualizar, listar } from './banco.js';
+import { avisarAdministradores } from './avisar-administradores.js';
+import { agora } from './util.js';
 
 /**
  * Quantas vezes cada template saiu, e quantas vezes falhou (30/10/2026).
@@ -47,8 +47,9 @@ const semNumeros = (texto) => String(texto || '').replace(/\d{6,}/g, '#').slice(
  * problema viram um sino, e nao dez. O mapa vive na memoria, entao uma
  * reinicializacao pode repetir o aviso do dia — melhor repetir do que perder.
  *
- * Fica aqui, e nao em mencoes.js, porque envio.js (que chama a contagem) e
- * importado por mencoes.js: importar de la formaria um ciclo.
+ * O aviso em si (avisarAdministradores) mora em nucleo/avisar-administradores.js,
+ * que a falta de credito da IA tambem usa. Fica fora de mencoes.js porque envio.js
+ * (que chama a contagem) e importado por mencoes.js: importar de la formaria um ciclo.
  */
 const avisadoNoDia = new Map();
 
@@ -68,23 +69,7 @@ function avisarQueNaoSaiu(template, contato, erro) {
     .filter(Boolean)
     .join(' ');
 
-  for (const membro of listar('membros', { workspaceId: template.workspaceId })) {
-    if (!['owner', 'admin'].includes(membro.papel)) continue;
-    const notificacao = inserir('notificacoes', {
-      id: novoId('ntf'),
-      workspaceId: template.workspaceId,
-      membroId: membro.id,
-      usuarioId: membro.usuarioId,
-      tipo: 'ia',
-      titulo,
-      texto,
-      contatoId: contato?.id || null,
-      tarefaId: null,
-      conexaoId: null,
-      lida: false,
-    });
-    emitirParaUsuario(template.workspaceId, membro.usuarioId, 'notificacao', { notificacao });
-  }
+  avisarAdministradores(template.workspaceId, { titulo, texto, contatoId: contato?.id || null });
 }
 
 /**

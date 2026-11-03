@@ -68,6 +68,7 @@ import { testarAcentosDosAgentes } from './acentos-dos-agentes.js';
 import { testarUsoDosTemplates } from './uso-dos-templates.js';
 import { testarBoasVindasAutomaticas } from './boas-vindas-automaticas.js';
 import { testarEnvioConfiavelDeTemplate } from './envio-confiavel-de-template.js';
+import { testarIaSemCredito } from './ia-sem-credito.js';
 import { testarSaudeDoAtendimento } from './saude-do-atendimento.js';
 import { testarFollowupEnvio } from './followup-envio.js';
 import { testarContratoDireto } from './contrato-direto.js';
@@ -383,6 +384,7 @@ async function principal() {
     suites.push(await testarUsoDosTemplates({ raiz: RAIZ }));
     suites.push(await testarBoasVindasAutomaticas({ base, raiz: RAIZ }));
     suites.push(await testarEnvioConfiavelDeTemplate({ raiz: RAIZ }));
+    suites.push(await testarIaSemCredito({ raiz: RAIZ }));
     suites.push(await testarPosVenda({ raiz: RAIZ }));
     suites.push(await testarMigrarDepartamentoPosVenda({ raiz: RAIZ }));
     suites.push(await testarReatribuirPendentes({ raiz: RAIZ }));

@@ -348,6 +348,15 @@ export function registrarIntegracoes(rotas) {
         mensagens: [{ papel: 'usuario', texto: 'teste de conexao' }],
       });
       lancar(ctx.workspaceId, null, 'teste-de-conexao', modelo.creditos, modelo.nome);
+      /* O modelo respondeu: se a IA estava parada por credito ou chave, o teste
+         ja prova que voltou — fecha o episodio e retoma as conversas que
+         esperavam, sem esperar a sonda (ia/saude-da-ia.js). */
+      try {
+        const { iaFuncionou } = await import('../ia/saude-da-ia.js');
+        iaFuncionou(ctx.workspaceId);
+      } catch {
+        /* o teste de conexao nao pode falhar por causa da retomada */
+      }
       return anotar({ ok: true, resposta: resposta.texto });
     } catch (erro) {
       return anotar({ ok: false, erro: erro.message });

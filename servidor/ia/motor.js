@@ -8,6 +8,7 @@ import { avisarMencaoInvalida, avisarModoDegradado } from '../nucleo/diagnostico
 import { agora, formatarTelefone, normalizar, slug } from '../nucleo/util.js';
 import { enviarMensagem } from '../whatsapp/envio.js';
 import { enviarBoasVindasSePrecisar } from '../nucleo/boas-vindas-automaticas.js';
+import { iaFalhou, iaFuncionou, registrarMotorDaIa } from './saude-da-ia.js';
 import { sintetizar, vozDisponivel } from './audio.js';
 import { membrosQuePodemVer } from '../nucleo/auth.js';
 import { analisarPrompt, executarFerramenta, ferramentasDoAgente, notificar, sortearResponsavel } from './mencoes.js';
@@ -88,7 +89,10 @@ export function agendarResposta(contato, opcoes = {}) {
         id: agente.id,
         nome: agente.nome,
       });
-      avisarFalhaDaIa(contato, erro);
+      /* Credito acabado ou chave recusada: o aviso unico aos administradores
+         (ia/saude-da-ia.js) ja diz tudo, e um aviso por conversa so escondia
+         esse. Qualquer outra falha continua com o aviso por conversa. */
+      if (!iaFalhou(contato.workspaceId, erro).suprimirAvisoPorConversa) avisarFalhaDaIa(contato, erro);
       emitir(contato.workspaceId, 'contato', { contatoId: contato.id });
     });
   }, espera);
@@ -592,6 +596,10 @@ async function rodarAgente(contatoId, passo, { corrigirPassagem = false } = {}) 
             { duracaoMs: Date.now() - inicioDaVolta },
             agente.id,
           );
+          /* O modelo respondeu: se a IA estava parada por credito ou chave, o
+             problema acabou — fecha o episodio e retoma as conversas que ficaram
+             esperando (ia/saude-da-ia.js). Custa uma leitura quando nao ha nada. */
+          iaFuncionou(contato.workspaceId, { exceto: contato.id });
 
           if (resposta.texto) falas.push(resposta.texto);
 
@@ -828,3 +836,14 @@ export function agentePorPalavraChave(workspaceId, texto, area = null) {
   }
   return null;
 }
+
+/*
+ * O que ia/saude-da-ia.js precisa do motor para retomar as conversas que
+ * ficaram esperando quando o credito volta. Entregue aqui, e nao importado la,
+ * porque este arquivo importa aquele (o contrario seria um ciclo).
+ */
+registrarMotorDaIa({
+  executar: (contatoId) => executarAgente(contatoId),
+  estaRodando: (contatoId) => rodando.has(contatoId),
+  cancelarCronometro: cancelarResposta,
+});

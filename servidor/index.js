@@ -53,12 +53,13 @@ import { retomarFotos } from './whatsapp/fotos.js';
 import { retomarHistoricoLiderhub } from './integracoes/liderhub.js';
 import { iniciarRenovacaoDeTokens } from './whatsapp/renovar-tokens.js';
 import { retomarRespostasPendentes } from './ia/motor.js';
+import { retomarSondaDaIa } from './ia/saude-da-ia.js';
 
 iniciarBanco();
 /* Quando ESTA copia subiu. Vai na saude, para dar para distinguir duas. */
 const INICIADO_EM = new Date().toISOString();
 /* Muda a cada entrega que mexe no atendimento (ver /api/saude). */
-const CODIGO = '2026-10-30.7';
+const CODIGO = '2026-11-03.1';
 
 /* Atraso do event loop: se o processo Node estiver bloqueado por algo
    sincrono (grava de arquivo grande, laco pesado), ate um /api/saude trivial
@@ -310,6 +311,10 @@ if (historicoLiderhubRetomado) console.log(`Historico LiderHub: ${historicoLider
    relatou em 23/10/2026. */
 const { retomados: respostasRetomadas } = naSubida('respostas pendentes', retomarRespostasPendentes, {});
 if (respostasRetomadas) console.log(`Respostas de agente: ${respostasRetomadas} conversa(s) de volta no cronometro.`);
+/* Se a IA estava parada por credito ou chave quando o sistema caiu, a sonda que
+   percebe a volta dela tambem so vivia em memoria (ia/saude-da-ia.js). */
+const escritoriosComIaParada = naSubida('sonda da IA', retomarSondaDaIa, 0);
+if (escritoriosComIaParada) console.log(`IA parada: ${escritoriosComIaParada} escritorio(s) sob vigia.`);
 
 const MIMES = {
   '.jpg': 'image/jpeg',

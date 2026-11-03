@@ -10,6 +10,7 @@ import { aposentadoriaNosAgentes } from '../nucleo/aposentadoria-sem-insistir.js
 import { agentesSemAcento } from '../nucleo/acentos-dos-agentes.js';
 import { usoDosTemplates } from '../nucleo/uso-dos-templates.js';
 import { situacaoDasBoasVindas } from '../nucleo/boas-vindas-automaticas.js';
+import { situacaoDaIa } from '../ia/saude-da-ia.js';
 import { retratoDasConversas } from '../whatsapp/duplicados.js';
 import { prontoParaContratoEVoz, saudeDoAtendimento } from '../nucleo/saude-do-atendimento.js';
 
@@ -131,6 +132,9 @@ function resumirEscritorios() {
       /* A chave do video de boas-vindas automatico: ligada ou nao, qual template,
          e se ele tem video de verdade guardado. */
       boasVindas: resumoDasBoasVindas(workspace.id),
+      /* A IA parada por credito ou chave: desde quando, se os administradores
+         foram avisados, e quantas conversas foram retomadas quando voltou. */
+      saudeDaIa: situacaoDaIa(workspace.id),
       conversas: retratoDasConversas(workspace.id),
       /* A busca do historico no celular (whatsapp/sincronizar-historico.js) e as
          voltas de queda que a disparam sozinhas (nucleo/batimento.js): quando
