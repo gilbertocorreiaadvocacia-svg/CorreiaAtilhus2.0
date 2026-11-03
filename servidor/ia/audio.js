@@ -1,7 +1,9 @@
 import fs from 'node:fs';
 import { CUSTO, VOZES } from '../config.js';
-import { achar } from '../nucleo/banco.js';
+import { achar, registrarLog } from '../nucleo/banco.js';
+import { avisarAdministradores } from '../nucleo/avisar-administradores.js';
 import { lancar } from '../nucleo/creditos.js';
+import { agora } from '../nucleo/util.js';
 import { caminhoDaMidia, guardarBuffer } from '../nucleo/midia.js';
 import { transcreverLocal, transcricaoLocalDisponivel, motorLocal } from './transcricao-local.js';
 
@@ -164,6 +166,49 @@ async function transcreverAgora({ workspaceId, contatoId, midia, agenteId = null
   }
 }
 
+/*
+ * As ultimas tentativas de falar, para conferir de fora (/api/saude), como as da
+ * transcricao: quando, se deu certo e o motivo da falha — nunca o texto falado.
+ *
+ * 03/11/2026: "a IA ainda nao manda audio". Sem a chave da OpenAI ela nem tenta
+ * (vozDisponivel), mas com a chave errada ou sem saldo a tentativa falhava EM
+ * SILENCIO: a resposta saia em texto e nada dizia por que. O texto continua
+ * saindo (o cliente nunca fica sem resposta), mas agora a falha deixa uma linha
+ * na conversa, entra aqui, e a causa de chave ou saldo avisa os administradores.
+ */
+const sinteses = [];
+export const ultimasSinteses = () => [...sinteses];
+
+function anotarSintese(entrada) {
+  sinteses.unshift({ em: agora(), ...entrada });
+  sinteses.length = Math.min(sinteses.length, 10);
+}
+
+/* A OpenAI as vezes repete um pedaco da chave na mensagem de erro: nunca a guardamos. */
+const semChave = (texto) => String(texto || '').replace(/sk-[A-Za-z0-9_*.-]{8,}/g, 'sk-…').slice(0, 200);
+
+const avisadoNoDia = new Map();
+
+function falhouAVoz(workspaceId, contatoId, status, motivoBruto) {
+  const motivo = semChave(motivoBruto);
+  anotarSintese({ ok: false, status, erro: motivo });
+  registrarLog(workspaceId, contatoId, 'erro_voz', `Falha da voz: ${motivo}. A resposta saiu em texto.`);
+
+  /* Chave recusada ou sem saldo: so uma pessoa resolve, entao avisa — uma vez por dia. */
+  const dePessoa = [401, 402, 403].includes(status) || /insufficient_quota|exceeded your current quota|billing|incorrect api key|invalid api key/i.test(motivo);
+  const dia = agora().slice(0, 10);
+  const chave = `${workspaceId}:${dia}`;
+  for (const antiga of avisadoNoDia.keys()) if (!antiga.endsWith(dia)) avisadoNoDia.delete(antiga);
+  if (dePessoa && !avisadoNoDia.has(chave)) {
+    avisadoNoDia.set(chave, true);
+    avisarAdministradores(workspaceId, {
+      titulo: 'A voz da IA parou: a OpenAI recusou o pedido',
+      texto: `Motivo: ${motivo}. As respostas continuam saindo, mas em texto. Confira a chave e o saldo da OpenAI (platform.openai.com) e a chave em Integrações › Inteligência artificial › Áudio do cliente. Este aviso vem uma vez por dia.`,
+    });
+  }
+  return null;
+}
+
 /** Gera o audio da resposta com a voz configurada no agente. */
 export async function sintetizar({ workspaceId, contatoId, texto, vozId, agenteId = null }) {
   const chave = chaveOpenai(workspaceId);
@@ -184,7 +229,10 @@ export async function sintetizar({ workspaceId, contatoId, texto, vozId, agenteI
         speed: voz?.velocidade || 1,
       }),
     });
-    if (!resposta.ok) return null;
+    if (!resposta.ok) {
+      const dados = await resposta.json().catch(() => ({}));
+      return falhouAVoz(workspaceId, contatoId, resposta.status, dados?.error?.message || `HTTP ${resposta.status}`);
+    }
 
     const conteudo = Buffer.from(await resposta.arrayBuffer());
     const midia = guardarBuffer({ nome: 'resposta.mp3', dados: conteudo, mime: 'audio/mpeg' });
@@ -193,8 +241,9 @@ export async function sintetizar({ workspaceId, contatoId, texto, vozId, agenteI
     const segundos = Math.max(1, Math.round(texto.length / 14));
     lancar(workspaceId, contatoId, 'geracao_audio', (CUSTO.audioPorMinuto * segundos) / 60, null, agenteId);
 
+    anotarSintese({ ok: true, segundos });
     return { ...midia, duracaoEstimada: segundos };
-  } catch {
-    return null;
+  } catch (erro) {
+    return falhouAVoz(workspaceId, contatoId, 0, erro.message);
   }
 }

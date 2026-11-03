@@ -24,7 +24,7 @@ import { corrigirAcentosDosAgentes } from './nucleo/acentos-dos-agentes.js';
 import { templatesDoPacoteGanhamOArquivo } from './ia/pacotes.js';
 import { garantirModeloDeVoz, situacaoDoModeloDeVoz } from './ia/modelo-de-voz.js';
 import { motorLocal } from './ia/transcricao-local.js';
-import { ultimasTranscricoes } from './ia/audio.js';
+import { ultimasSinteses, ultimasTranscricoes } from './ia/audio.js';
 import { anotarRequisicao, situacaoDaLentidao, vigiarPausas } from './nucleo/lentidao.js';
 import { deduplicarVozes, processarVozes } from './nucleo/vozes-dos-agentes.js';
 import { processarBaseEStatus } from './nucleo/base-e-status.js';
@@ -59,7 +59,7 @@ iniciarBanco();
 /* Quando ESTA copia subiu. Vai na saude, para dar para distinguir duas. */
 const INICIADO_EM = new Date().toISOString();
 /* Muda a cada entrega que mexe no atendimento (ver /api/saude). */
-const CODIGO = '2026-11-03.1';
+const CODIGO = '2026-11-03.2';
 
 /* Atraso do event loop: se o processo Node estiver bloqueado por algo
    sincrono (grava de arquivo grande, laco pesado), ate um /api/saude trivial
@@ -435,6 +435,8 @@ rotas.get(
       /* O audio do cliente e transcrito aqui? ffmpeg, whisper e o modelo, e o
          download do modelo na hospedagem (ia/modelo-de-voz.js). */
       transcricao: { ...motorLocal(), modeloDeVoz: situacaoDoModeloDeVoz(), ultimas: ultimasTranscricoes() },
+      /* A voz das respostas (OpenAI): as ultimas tentativas e o motivo de cada falha. */
+      voz: { ultimas: ultimasSinteses() },
       /* Quando travou, que telas demoraram, e quanto cada parte dos dados ja
          cresceu — so contagens (26/10/2026, diagnostico completo). */
       lentidao: situacaoDaLentidao(),

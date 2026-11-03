@@ -56,7 +56,7 @@ function motivos(logs, prefixo) {
   return [...contagem.values()].sort((a, b) => b.vezes - a.vezes).slice(0, 6);
 }
 
-const TIPOS_DE_FALHA = ['erro_envio', 'erro_ia', 'cadeia', 'passagem_prometida', 'conexao_desconectado', 'conexao_erro', 'conexao_recuperacao'];
+const TIPOS_DE_FALHA = ['erro_envio', 'erro_ia', 'erro_voz', 'cadeia', 'passagem_prometida', 'conexao_desconectado', 'conexao_erro', 'conexao_recuperacao'];
 
 export function saudeDoAtendimento(workspaceId, agora = Date.now()) {
   const contatos = listar('contatos', { workspaceId }).filter((c) => !c.grupo && !c.idCanal);
@@ -153,6 +153,7 @@ export function saudeDoAtendimento(workspaceId, agora = Date.now()) {
     falhas,
     motivosDeErroDeEnvio: motivos(recentes.filter((l) => l.tipo === 'erro_envio'), 'Falha ao enviar:'),
     motivosDeErroDaIa: motivos(recentes.filter((l) => l.tipo === 'erro_ia'), 'Falha do agente:'),
+    motivosDeErroDaVoz: motivos(recentes.filter((l) => l.tipo === 'erro_voz'), 'Falha da voz:'),
     agendamentos: {
       pendentes: pendentes.length,
       atrasados: agendamentosAtrasados,
