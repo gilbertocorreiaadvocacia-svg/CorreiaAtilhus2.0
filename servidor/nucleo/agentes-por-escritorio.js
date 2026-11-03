@@ -491,11 +491,16 @@ export function garantirStatusDasAreas() {
           if (!templateAqui) return null;
           const statusDesistirOrigem = passo.desistir?.statusId ? achar('status', passo.desistir.statusId) : null;
           const statusDesistirAqui = statusDesistirOrigem ? statusPorNome.get(normalizar(statusDesistirOrigem.nome)) : null;
+          /* O aviso de encerramento, quando ha, tambem e um template: o daqui, pelo atalho. */
+          const avisoOrigem = passo.desistir?.templateId ? achar('templates', passo.desistir.templateId) : null;
+          const avisoAqui = avisoOrigem ? templatesPorAtalho.get(avisoOrigem.atalho) : null;
           return {
             ...passo,
             id: novoId('fup'),
             templateId: templateAqui.id,
-            desistir: passo.desistir ? { ...passo.desistir, statusId: statusDesistirAqui?.id || null } : null,
+            desistir: passo.desistir
+              ? { ...passo.desistir, statusId: statusDesistirAqui?.id || null, ...(passo.desistir.templateId ? { templateId: avisoAqui?.id || null } : {}) }
+              : null,
           };
         })
         .filter(Boolean);

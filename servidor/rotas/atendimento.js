@@ -451,6 +451,19 @@ export function registrarAtendimento(rotas) {
         ...a,
         template: a.templateId ? achar('templates', a.templateId)?.nome || null : null,
       }));
+    /* A desistencia que espera depois da ultima mensagem tambem e uma coisa que vai
+       acontecer com este lead, e quem abre a aba precisa ver (automacao/followup.js). */
+    if (contato.desistenciaPrevista) {
+      agendamentos.push({
+        id: 'desistencia-prevista',
+        tipo: 'desistencia',
+        estado: 'pendente',
+        quando: contato.desistenciaPrevista.em,
+        template: contato.desistenciaPrevista.desistir?.templateId
+          ? 'Avisar que vai encerrar e desqualificar, se ninguém respondeu'
+          : 'Desqualificar se ninguém respondeu',
+      });
+    }
     return ordenarPor(agendamentos, 'quando', 'asc');
   });
 

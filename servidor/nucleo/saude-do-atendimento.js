@@ -130,6 +130,17 @@ export function saudeDoAtendimento(workspaceId, agora = Date.now()) {
       status: status.nome,
       passos: (status.followups || []).length,
       minutos: (status.followups || []).map((p) => Number(p.minutos) || 0),
+      /* No ultimo passo: para qual status o lead vai se ninguem responder, e depois de quantos dias de espera. */
+      desiste: (() => {
+        const ultimo = (status.followups || []).at(-1)?.desistir;
+        if (!ultimo?.ativo) return null;
+        return {
+          para: ultimo.statusId ? listar('status', { workspaceId }).find((x) => x.id === ultimo.statusId)?.nome || null : null,
+          esperaDias: (Number(ultimo.esperaMinutos) || 0) / 1440,
+          arquiva: ultimo.arquivar !== false,
+        };
+      })(),
+      aguardandoDesistir: contatos.filter((c) => c.statusId === status.id && c.desistenciaPrevista).length,
       conversas: contatos.filter((c) => c.statusId === status.id).length,
       concluidas: contatos.filter((c) => c.statusId === status.id && c.estado === 'arquivado').length,
     }))

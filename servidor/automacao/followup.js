@@ -2,7 +2,7 @@ import { achar, atualizar, inserir, listar, registrarLog, removerOnde } from '..
 import { emitir } from '../nucleo/eventos.js';
 import { agora, aplicarVariaveis, novoId } from '../nucleo/util.js';
 import { enviarMensagem } from '../whatsapp/envio.js';
-import { horarioComercialDe, proximoHorarioValido } from './horario.js';
+import { FUSO, horarioComercialDe, proximoHorarioValido } from './horario.js';
 import { contratoAbertoDe } from '../nucleo/contratos.js';
 
 /**
@@ -21,6 +21,10 @@ export function cancelarFollowups(contatoId, motivo = 'status alterado') {
   for (const agendamento of pendentes) {
     atualizar('agendamentos', agendamento.id, { estado: 'cancelado', motivoCancelamento: motivo });
   }
+  /* A desistencia que ficou esperando depois da ultima mensagem faz parte da mesma
+     sequencia: mudou o status, ela nao vale mais (um lead que a equipe moveu nao
+     pode ser desqualificado por um relogio de antes). */
+  if (achar('contatos', contatoId)?.desistenciaPrevista) atualizar('contatos', contatoId, { desistenciaPrevista: null });
   return pendentes.length;
 }
 
@@ -222,10 +226,97 @@ export async function dispararAgendamento(agendamento) {
         'desistencia_evitada',
         'Fim da sequencia de follow-up sem desistencia: ha contrato em andamento',
       );
+    } else if (Number(agendamento.desistir.esperaMinutos) > 0 || agendamento.desistir.templateId) {
+      /* Com espera, o lead tem tempo de responder a ULTIMA mensagem antes de ser
+         desqualificado, e so e desqualificado se nao respondeu em momento nenhum da
+         sequencia (processarDesistenciasPrevistas). */
+      const previsto = new Date(Date.now() + (Number(agendamento.desistir.esperaMinutos) || 0) * 60000);
+      /* Com mensagem de encerramento, ela respeita o horario comercial, como todo follow-up. */
+      const em = (agendamento.desistir.templateId ? proximoHorarioValido(previsto, horarioComercialDe(contato.workspaceId)) : previsto).toISOString();
+      atualizar('contatos', contato.id, {
+        desistenciaPrevista: {
+          em,
+          desistir: agendamento.desistir,
+          sequenciaIniciadaEm: agendamento.criadoEm,
+          statusOrigemId: agendamento.statusOrigemId || null,
+        },
+      });
+      registrarLog(
+        contato.workspaceId,
+        contato.id,
+        'desistencia_agendada',
+        'Ultima mensagem do follow-up enviada: se o cliente nao responder ate ' + new Date(em).toLocaleString('pt-BR', { timeZone: FUSO }) + ', ' + (agendamento.desistir.templateId ? 'o aviso de encerramento sai e ' : '') + 'o lead sera desqualificado',
+      );
+      emitir(contato.workspaceId, 'contato', { contatoId: contato.id });
     } else {
       await desistirDoLead(contato, agendamento.desistir);
     }
   }
+}
+
+/**
+ * A desistencia que esperou depois da ultima mensagem chegou na hora.
+ *
+ * So desiste se NADA aconteceu no meio: o status continua o da sequencia, nao ha
+ * contrato em andamento e o cliente nao escreveu em momento nenhum desde que a
+ * sequencia comecou ("se nao tiver nenhuma resposta, desqualifica"). Qualquer
+ * resposta, em qualquer ponto, livra o lead: ele passa a ser da equipe e da IA, e
+ * um lead que respondeu nao e um lead que sumiu.
+ */
+const TENTATIVAS_DO_ENCERRAMENTO = 3;
+const REPETICAO_DO_ENCERRAMENTO_MS = 2 * 60 * 60 * 1000;
+
+export async function processarDesistenciasPrevistas(agoraMs = Date.now()) {
+  const feitas = [];
+  for (const contato of listar('contatos')) {
+    const prevista = contato.desistenciaPrevista;
+    if (!prevista || Date.parse(prevista.em) > agoraMs) continue;
+    /* Limpa antes: se algo falhar, nao repete a cada tique. */
+    atualizar('contatos', contato.id, { desistenciaPrevista: null });
+
+    const evitar = (motivo) => registrarLog(contato.workspaceId, contato.id, 'desistencia_evitada', 'O lead nao foi desqualificado: ' + motivo);
+    if (prevista.statusOrigemId && contato.statusId !== prevista.statusOrigemId) {
+      evitar('o status da conversa mudou durante a espera');
+      continue;
+    }
+    if (contratoAbertoDe(contato.id)) {
+      evitar('ha contrato em andamento');
+      continue;
+    }
+    if (contato.ultimaEntradaEm && prevista.sequenciaIniciadaEm && contato.ultimaEntradaEm > prevista.sequenciaIniciadaEm) {
+      evitar('o cliente respondeu durante a sequencia');
+      continue;
+    }
+    /* O aviso de encerramento sai ANTES de desqualificar, e so se ninguem respondeu. Se ele nao
+       sair (conexao fora, por exemplo), o lead nao e desqualificado calado: tenta de novo em
+       duas horas, ate TENTATIVAS_DO_ENCERRAMENTO vezes; depois disso desqualifica sem o aviso. */
+    const aviso = prevista.desistir.templateId ? achar('templates', prevista.desistir.templateId) : null;
+    if (aviso) {
+      const enviada = await enviarMensagem({
+        contato,
+        conexao: achar('conexoes', contato.conexaoId),
+        tipo: aviso.midia ? aviso.midia.tipo : 'texto',
+        conteudo: aplicarVariaveis(aviso.conteudo, { nome: contato.nome, ...(contato.variaveis || {}) }),
+        midia: aviso.midia || null,
+        templateId: aviso.id,
+        autor: { tipo: 'sistema', nome: 'Follow-up' },
+        origemAutomacao: 'followup',
+      });
+      if (enviada?.situacao === 'erro') {
+        const tentativas = (prevista.tentativas || 0) + 1;
+        const motivo = enviada.erro?.mensagem || 'falha no envio';
+        if (tentativas < TENTATIVAS_DO_ENCERRAMENTO) {
+          atualizar('contatos', contato.id, { desistenciaPrevista: { ...prevista, tentativas, em: new Date(agoraMs + REPETICAO_DO_ENCERRAMENTO_MS).toISOString() } });
+          registrarLog(contato.workspaceId, contato.id, 'desistencia_adiada', 'A mensagem de encerramento nao saiu (' + motivo + '): nova tentativa em duas horas');
+          continue;
+        }
+        registrarLog(contato.workspaceId, contato.id, 'desistencia_sem_aviso', 'A mensagem de encerramento nao saiu depois de ' + tentativas + ' tentativas (' + motivo + '): o lead foi desqualificado sem ela');
+      }
+    }
+    await desistirDoLead(contato, prevista.desistir);
+    feitas.push(contato.id);
+  }
+  return feitas;
 }
 
 let laco = null;
@@ -259,6 +350,11 @@ export function iniciarAgendador(intervalo) {
             erro: erro.message,
           });
         }
+      }
+      try {
+        await processarDesistenciasPrevistas();
+      } catch (erro) {
+        console.error('[follow-up] desistencia prevista falhou:', erro.message);
       }
     } finally {
       rodando = false;

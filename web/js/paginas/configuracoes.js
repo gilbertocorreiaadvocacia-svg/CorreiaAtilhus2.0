@@ -1037,19 +1037,48 @@ export function editarStatus(status, recarregarTela) {
         estado.status.filter((s) => s.id !== status?.id).map((s) => ({ valor: s.id, rotulo: s.nome })),
         passo.desistir?.statusId || '',
       );
+      /* Dias de espera depois da ultima mensagem, antes de desistir. Com espera, o lead tem
+         tempo de responder a ultima mensagem, e so e desqualificado se nao respondeu a
+         sequencia inteira (automacao/followup.js). 0 desiste na hora, como sempre foi. */
+      const espera = entradaTexto(String(Math.round(((passo.desistir?.esperaMinutos || 0) / 1440) * 100) / 100), { type: 'number', min: '0', step: '0.5' });
+      /* A mensagem que sai ANTES de desistir, so se o lead nao respondeu a sequencia inteira. */
+      const mensagemFinal = selecao(
+        [{ valor: '', rotulo: 'Nenhuma' }, ...estado.templates.map((t) => ({ valor: t.id, rotulo: t.nome }))],
+        passo.desistir?.templateId || '',
+      );
       // O display fica inline porque e estado de tempo de execucao: o mesmo
       // valor e reescrito no atualizarDesistir logo abaixo.
       const blocoDesistir = el('div', { class: 'mt-2', estilo: { display: desistir.checked ? 'block' : 'none' } }, [
         campo('Status de desistencia', statusDesistencia, 'Precisa ser diferente do status atual.'),
+        campo(
+          'Esperar quantos dias depois da última mensagem',
+          espera,
+          '0 desiste na hora em que a última mensagem sai. Com dias, o lead pode responder antes, e só é desistido se não respondeu em nenhum momento da sequência.',
+        ),
+        campo(
+          'Mensagem de encerramento (opcional)',
+          mensagemFinal,
+          'Sai pouco antes de desistir, só se o lead não respondeu em nenhum momento da sequência. Se ele responder, não sai e ele não é desistido.',
+        ),
       ]);
       const atualizarDesistir = () => {
+        const dias = Math.max(0, Number(espera.value) || 0);
         passo.desistir = desistir.checked
-          ? { ativo: true, statusId: statusDesistencia.value, responsavel: null, arquivar: true }
+          ? {
+              ativo: true,
+              statusId: statusDesistencia.value,
+              responsavel: null,
+              arquivar: true,
+              ...(dias ? { esperaMinutos: Math.round(dias * 1440) } : {}),
+              ...(mensagemFinal.value ? { templateId: mensagemFinal.value } : {}),
+            }
           : null;
         blocoDesistir.style.display = desistir.checked ? 'block' : 'none';
       };
       desistir.addEventListener('change', atualizarDesistir);
       statusDesistencia.addEventListener('change', atualizarDesistir);
+      espera.addEventListener('change', atualizarDesistir);
+      mensagemFinal.addEventListener('change', atualizarDesistir);
 
       listaPassos.append(
         // .lista-item.empilhado mora em web/css/tema.css, junto de .lista-item:

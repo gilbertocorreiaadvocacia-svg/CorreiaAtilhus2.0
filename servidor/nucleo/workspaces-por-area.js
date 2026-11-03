@@ -83,7 +83,9 @@ function montarWorkspace(origem, { area, nome }) {
           ...passo,
           id: novoId('fup'),
           templateId: templates.get(passo.templateId),
-          desistir: passo.desistir ? { ...passo.desistir, statusId: status.get(passo.desistir.statusId) || null } : null,
+          desistir: passo.desistir
+            ? { ...passo.desistir, statusId: status.get(passo.desistir.statusId) || null, ...(passo.desistir.templateId ? { templateId: templates.get(passo.desistir.templateId) || null } : {}) }
+            : null,
         })),
     });
   }

@@ -100,7 +100,11 @@ export function copiarConfiguracoes(destinoId, origemId, selecao = []) {
     const mapaStatus = copiar('status', origemId, destinoId, (r) => {
       r.departamentoId = r.departamentoId ? mapaDep.get(r.departamentoId) || null : null;
       r.followups = (r.followups || [])
-        .map((p) => ({ ...p, templateId: mapaTpl.get(p.templateId) || null, desistir: p.desistir ? { ...p.desistir } : null }))
+        .map((p) => ({
+          ...p,
+          templateId: mapaTpl.get(p.templateId) || null,
+          desistir: p.desistir ? { ...p.desistir, ...(p.desistir.templateId ? { templateId: mapaTpl.get(p.desistir.templateId) || null } : {}) } : null,
+        }))
         .filter((p) => p.templateId);
       return r;
     });
