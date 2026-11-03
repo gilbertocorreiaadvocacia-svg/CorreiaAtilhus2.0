@@ -421,8 +421,67 @@ export async function paginaAtendimento({
     return b;
   }
 
+  /*
+   * O campo em que a pessoa esta digitando sobrevive ao redesenho.
+   *
+   * A tela se refaz inteira a cada evento do servidor (mensagem do cliente,
+   * resposta da IA, mudanca de status), e quem refaz um campo tira dele o foco:
+   * o texto voltava, pelo rascunho, mas o cursor sumia e era preciso clicar de
+   * novo para continuar a escrever — justamente quando o cliente acabou de
+   * responder (pedido do escritorio em 03/11/2026).
+   *
+   * Antes de limpar, guarda qual campo tinha o foco e onde estava o cursor; depois
+   * de montar, devolve. O compositor volta como o MESMO elemento (ver
+   * montarCompositor), entao o foco volta para ele mesmo; as caixas de BUSCA (a da
+   * fila, as do painel) sao refeitas e se acham pela cara.
+   *
+   * So essas duas coisas, de proposito. Se a conversa mudou por baixo (a pessoa
+   * assumiu e ela saiu da aba, outra tomou o lugar na tela), o compositor novo e
+   * de OUTRO cliente: levar o foco para ele faria quem digita escrever, e depois
+   * enviar, para a pessoa errada. Campo de dado (variavel, nome) tambem nao
+   * troca de dono. Nesses casos o foco simplesmente se perde, como antes.
+   */
+  const chaveDoCampo = (campo) =>
+    [campo.tagName, campo.type || '', campo.className || '', campo.placeholder || '', campo.getAttribute('aria-label') || '', campo.name || campo.id || ''].join('|');
+
+  function guardarFoco() {
+    const ativo = document.activeElement;
+    if (!ativo || !container.contains(ativo) || !['TEXTAREA', 'INPUT'].includes(ativo.tagName)) return null;
+    const chave = chaveDoCampo(ativo);
+    const iguais = [...container.querySelectorAll(ativo.tagName.toLowerCase())].filter((c) => chaveDoCampo(c) === chave);
+    let inicio = null;
+    let fim = null;
+    try {
+      inicio = ativo.selectionStart;
+      fim = ativo.selectionEnd;
+    } catch {
+      /* campo sem selecao (arquivo, caixa de marcar): so o foco volta. */
+    }
+    return { ativo, chave, ordem: iguais.indexOf(ativo), inicio, fim, rolagem: ativo.scrollTop };
+  }
+
+  function restaurarFoco(foco) {
+    if (!foco) return;
+    const mesmoElemento = foco.ativo.isConnected && container.contains(foco.ativo);
+    const ehBusca = foco.ativo.tagName === 'INPUT' && foco.ativo.type === 'search';
+    const alvo = mesmoElemento
+      ? foco.ativo
+      : ehBusca
+        ? [...container.querySelectorAll('input[type="search"]')].filter((c) => chaveDoCampo(c) === foco.chave)[foco.ordem]
+        : null;
+    if (!alvo) return;
+    alvo.focus({ preventScroll: true });
+    try {
+      if (foco.inicio !== null && alvo.setSelectionRange) alvo.setSelectionRange(foco.inicio, foco.fim);
+    } catch {
+      /* tipo de campo que nao aceita selecao */
+    }
+    alvo.scrollTop = foco.rolagem;
+  }
+
   async function desenhar() {
     await buscar();
+    const foco = guardarFoco();
     limpar(container);
 
     // A largura das colunas sai toda do tema, pelo nome da classe. Escrita no
@@ -447,6 +506,7 @@ export async function paginaAtendimento({
       container.className = 'atendimento coluna-unica';
       container.append(visualizacao === 'kanban' ? montarKanban() : montarTabela());
     }
+    restaurarFoco(foco);
   }
 
   /* ---------------- Filtros ---------------- */
@@ -1646,7 +1706,37 @@ export async function paginaAtendimento({
     return elemento;
   }
 
+  /*
+   * O compositor da conversa aberta nao se refaz com a tela.
+   *
+   * Ele guarda o que a pessoa esta fazendo e que nao e so texto: o arquivo
+   * anexado, o modo nota interna (que, perdido, mandaria para o CLIENTE o que era
+   * so da equipe), a mensagem agendada e uma gravacao de audio em andamento.
+   * Refazer tudo a cada evento do servidor apagava isso e o foco do campo.
+   *
+   * Entao, na mesma conversa, o campo, o seletor de arquivo e a fileira de botoes
+   * (onde moram esses estados) voltam como os MESMOS elementos; so as faixas de
+   * cima (janela fechada, "a IA esta atendendo") e o resto saem novos, porque
+   * dependem de quem atende a conversa agora. Em outra conversa, nasce um novo,
+   * como sempre: o rascunho de texto continua indo pelo mapa RASCUNHOS.
+   */
+  let compositorAberto = null;
+
   function montarCompositor(contato) {
+    const novo = construirCompositor(contato);
+    const velho = compositorAberto;
+    if (velho && velho.contatoId === contato.id) {
+      const { avisoJanela, faixaAgente } = novo.partes;
+      const { texto, seletorArquivo, linhaBotoes } = velho.partes;
+      const elemento = el('div', { class: 'compositor' }, [avisoJanela, faixaAgente, texto, seletorArquivo, linhaBotoes]);
+      compositorAberto = { contatoId: contato.id, partes: { avisoJanela, faixaAgente, texto, seletorArquivo, linhaBotoes } };
+      return elemento;
+    }
+    compositorAberto = { contatoId: contato.id, partes: novo.partes };
+    return novo.elemento;
+  }
+
+  function construirCompositor(contato) {
     const texto = areaTexto(RASCUNHOS.get(contato.id) || '', {
       placeholder: 'Escreva a mensagem… (/ para template)',
     });
@@ -2004,12 +2094,7 @@ export async function paginaAtendimento({
           ])
         : null;
 
-    return el('div', { class: 'compositor' }, [
-      avisoJanela,
-      faixaAgente,
-      texto,
-      seletorArquivo,
-      el('div', { class: 'linha-botoes mt-2' }, [
+    const linhaBotoes = el('div', { class: 'linha-botoes mt-2' }, [
         alternarNota,
         botao('Anexar', { pequeno: true, icone: 'anexar', titulo: 'Imagem, vídeo, áudio ou PDF (até 16 MB)', aoClicar: () => seletorArquivo.click() }),
         botaoMicrofone,
@@ -2058,8 +2143,12 @@ export async function paginaAtendimento({
           enviarBotao.classList.add('botao-enviar');
           return enviarBotao;
         })(),
-      ]),
     ]);
+
+    return {
+      elemento: el('div', { class: 'compositor' }, [avisoJanela, faixaAgente, texto, seletorArquivo, linhaBotoes]),
+      partes: { avisoJanela, faixaAgente, texto, seletorArquivo, linhaBotoes },
+    };
   }
 
   function abrirSeletorTemplate(contato, campoTexto) {
