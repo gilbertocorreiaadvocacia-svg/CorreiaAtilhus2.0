@@ -54,7 +54,7 @@ const PAGINAS = {
   dashboard: { titulo: 'Dashboard', montar: (args) => import('./paginas/dashboard.js').then((m) => m.paginaDashboard(args)) },
   relatorios: {
     titulo: 'Relatórios',
-    subtitulo: 'Quantos contratos cada pessoa e a IA fecharam.',
+    subtitulo: 'O relatório do fim de semana e os contratos que cada pessoa e a IA fecharam.',
     montar: (args) => import('./paginas/relatorios.js').then((m) => m.paginaRelatorios(args)),
   },
   conexoes: {

@@ -1,6 +1,7 @@
 import { api } from '../api.js';
 import { seletorPeriodo } from '../componentes.js';
 import { aviso, botao, cartao, el, limpar, numero, plural, selo, vazio } from '../ui.js';
+import { pintarAgenteDeRelatorios } from './relatorio-do-agente.js';
 
 /**
  * Relatorios: quantos contratos cada pessoa e cada agente de IA fecharam.
@@ -12,7 +13,12 @@ import { aviso, botao, cartao, el, limpar, numero, plural, selo, vazio } from '.
  * imprimir ou enviar.
  */
 export async function paginaRelatorios({ definirAcoes = () => {} } = {}) {
+  /* O agente de relatorios fica no alto; os contratos, embaixo, com o periodo e as
+     acoes da barra (planilha e PDF) valendo so para eles. */
+  const raiz = el('div');
+  const areaDoAgente = el('div', { class: 'mb-4' });
   const container = el('div');
+  raiz.append(areaDoAgente, container);
 
   const hoje = new Date();
   const trintaDias = new Date(hoje.getTime() - 29 * 24 * 60 * 60 * 1000);
@@ -65,6 +71,7 @@ export async function paginaRelatorios({ definirAcoes = () => {} } = {}) {
   function pintar(dados) {
     limpar(container);
     container.append(
+      el('h2', { class: 'cartao-titulo', texto: 'Contratos fechados' }),
       el('div', { class: 'metricas g1 mb-4' }, [
         el('div', { class: 'metrica-cartao' }, [
           el('div', { class: 'metrica-valor', texto: numero(dados.total) }),
@@ -154,8 +161,9 @@ export async function paginaRelatorios({ definirAcoes = () => {} } = {}) {
     setTimeout(() => janela.print(), 300);
   }
 
+  pintarAgenteDeRelatorios(areaDoAgente).catch(() => {});
   await carregar();
-  return container;
+  return raiz;
 }
 
 function iso(data) {

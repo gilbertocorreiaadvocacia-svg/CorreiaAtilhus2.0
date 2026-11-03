@@ -54,12 +54,13 @@ import { retomarHistoricoLiderhub } from './integracoes/liderhub.js';
 import { iniciarRenovacaoDeTokens } from './whatsapp/renovar-tokens.js';
 import { retomarRespostasPendentes } from './ia/motor.js';
 import { retomarSondaDaIa } from './ia/saude-da-ia.js';
+import { iniciarRelatorioSemanal } from './ia/agente-de-relatorios.js';
 
 iniciarBanco();
 /* Quando ESTA copia subiu. Vai na saude, para dar para distinguir duas. */
 const INICIADO_EM = new Date().toISOString();
 /* Muda a cada entrega que mexe no atendimento (ver /api/saude). */
-const CODIGO = '2026-11-03.2';
+const CODIGO = '2026-11-03.3';
 
 /* Atraso do event loop: se o processo Node estiver bloqueado por algo
    sincrono (grava de arquivo grande, laco pesado), ate um /api/saude trivial
@@ -315,6 +316,8 @@ if (respostasRetomadas) console.log(`Respostas de agente: ${respostasRetomadas} 
    percebe a volta dela tambem so vivia em memoria (ia/saude-da-ia.js). */
 const escritoriosComIaParada = naSubida('sonda da IA', retomarSondaDaIa, 0);
 if (escritoriosComIaParada) console.log(`IA parada: ${escritoriosComIaParada} escritorio(s) sob vigia.`);
+/* O relatorio do fim de semana sai sozinho toda segunda (ia/agente-de-relatorios.js). */
+naSubida('relatorio semanal', iniciarRelatorioSemanal);
 
 const MIMES = {
   '.jpg': 'image/jpeg',

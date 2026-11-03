@@ -11360,3 +11360,239 @@ body.compacto {
   outline: 2px solid var(--ouro);
   outline-offset: 1px;
 }
+
+/* Agente de relatorios (web/js/paginas/relatorio-do-agente.js) ----------- */
+
+.relatorio-barra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e3);
+  margin-bottom: var(--e4);
+}
+
+.relatorio-barra-direita {
+  margin-left: auto;
+}
+
+/* No celular as duas linhas de controles quebram em vez de passar da tela. */
+.relatorio-barra .linha,
+.relatorio-topo .linha {
+  flex-wrap: wrap;
+}
+
+.relatorio-barra > .linha:first-child {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.relatorio-barra select {
+  flex: 1 1 200px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.relatorio-topo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--e3);
+  margin-bottom: var(--e4);
+}
+
+.relatorio-titulo {
+  margin: 0;
+  font-size: var(--t-leitura);
+  font-weight: 600;
+}
+
+.relatorio-origem {
+  margin: var(--e1) 0 0;
+  color: var(--texto-fraco);
+  font-size: var(--t-nota);
+}
+
+.relatorio-gerando {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+/* O aviso de que o texto e o padrao, e nao o da IA: fica logo acima das
+   contas, que continuam as mesmas. */
+.relatorio-aviso,
+.relatorio-atencao {
+  margin: var(--e3) 0 var(--e4);
+  padding: var(--e3) var(--e4);
+  border: 1px solid var(--alerta-linha);
+  border-radius: var(--raio);
+  background: var(--alerta-fraco);
+  color: var(--texto);
+  font-size: var(--t-sm);
+}
+
+.relatorio-atencao .relatorio-secao {
+  margin-top: 0;
+}
+
+.relatorio-atencao .relatorio-lista {
+  margin-bottom: 0;
+}
+
+.relatorio-texto {
+  max-width: 76ch;
+  margin-bottom: var(--e5);
+  font-size: var(--t-leitura);
+  line-height: 1.55;
+}
+
+.relatorio-texto p {
+  margin: 0 0 var(--e3);
+}
+
+.relatorio-secao {
+  margin: var(--e4) 0 var(--e2);
+  color: var(--texto-fraco);
+  font-size: var(--t-nota);
+  font-weight: 600;
+  letter-spacing: var(--tr-alta);
+  text-transform: uppercase;
+}
+
+.relatorio-lista {
+  margin: 0 0 var(--e3);
+  padding-left: var(--e5);
+}
+
+.relatorio-lista li {
+  margin-bottom: var(--e1);
+}
+
+/* minmax(min(100%, ...)): no celular a coluna nunca passa da largura da tela. */
+.grade.relatorio-graficos {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  margin-bottom: var(--e4);
+}
+
+.relatorio-bloco {
+  min-width: 0;
+}
+
+.relatorio-bloco-largo {
+  grid-column: 1 / -1;
+}
+
+.relatorio-bloco h4,
+.relatorio-historico h4 {
+  margin: 0 0 var(--e1);
+  color: var(--texto-fraco);
+  font-size: var(--t-nota);
+  font-weight: 600;
+  letter-spacing: var(--tr-alta);
+  text-transform: uppercase;
+}
+
+.relatorio-bloco-ajuda {
+  margin: 0 0 var(--e2);
+  color: var(--texto-fraco);
+  font-size: var(--t-nota);
+}
+
+.relatorio-tabela {
+  width: 100%;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+.relatorio-tabela th.n,
+.relatorio-tabela td.n {
+  text-align: right;
+}
+
+/* Leads por hora do dia: vinte e quatro colunas, a altura e a fatia do maior. */
+.relatorio-horas {
+  display: grid;
+  grid-template-columns: repeat(24, minmax(0, 1fr));
+  align-items: end;
+  gap: 2px;
+  height: 120px;
+}
+
+.relatorio-hora {
+  display: grid;
+  grid-template-rows: 14px 1fr 14px;
+  height: 100%;
+  min-width: 0;
+}
+
+.relatorio-hora i {
+  align-self: end;
+  height: calc(var(--v, 0) * 1%);
+  min-height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: linear-gradient(0deg, var(--ouro-escuro), var(--ouro));
+}
+
+.relatorio-hora-valor,
+.relatorio-hora-rotulo {
+  overflow: hidden;
+  color: var(--texto-fraco);
+  font-size: 9px;
+  line-height: 14px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.relatorio-rodape-numeros {
+  margin: 0 0 var(--e3);
+  color: var(--texto-suave);
+  font-size: var(--t-sm);
+}
+
+.relatorio-definicoes {
+  margin-bottom: var(--e4);
+  color: var(--texto-suave);
+  font-size: var(--t-sm);
+}
+
+.relatorio-definicoes summary {
+  cursor: pointer;
+  color: var(--texto-fraco);
+  font-size: var(--t-nota);
+  font-weight: 600;
+  letter-spacing: var(--tr-alta);
+  text-transform: uppercase;
+}
+
+.relatorio-historico {
+  margin-top: var(--e4);
+  padding-top: var(--e4);
+  border-top: 1px solid var(--borda);
+}
+
+.relatorio-historico-item {
+  width: 100%;
+  background: none;
+  border-top: 0;
+  border-left: 0;
+  border-right: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.relatorio-historico-item:hover {
+  background: var(--superficie-2);
+}
+
+.relatorio-historico-item:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: -2px;
+}
+
+.relatorio-historico-item .corpo {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}

@@ -45,6 +45,8 @@ const COLECOES = [
   /* Frase de teste x agente esperado, para a bateria de roteamento em
      Agentes (ver automacao/testes-de-roteamento.js). */
   'testesDeRoteamento',
+  /* O que o agente de relatorios ja escreveu (ver ia/agente-de-relatorios.js). */
+  'relatoriosDoAgente',
 ];
 
 const memoria = new Map();

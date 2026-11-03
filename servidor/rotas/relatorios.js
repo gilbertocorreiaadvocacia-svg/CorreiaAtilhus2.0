@@ -1,5 +1,15 @@
-import { achar, listar } from '../nucleo/banco.js';
-import { filtrarConversasVisiveis } from '../nucleo/auth.js';
+import { achar, listar, remover } from '../nucleo/banco.js';
+import { ehAdministrador, filtrarConversasVisiveis } from '../nucleo/auth.js';
+import { periodoDe, sabadoDoFimDeSemana, somarDias } from '../nucleo/relatorio-do-fim-de-semana.js';
+import {
+  configDoAgenteDeRelatorios,
+  estaGerando,
+  gerarRelatorio,
+  relatoriosDoEscritorio,
+  resumoDoRelatorio,
+  salvarConfigDoAgenteDeRelatorios,
+} from '../ia/agente-de-relatorios.js';
+import { comCodigo, exigirAdministrador } from './sessao.js';
 
 /**
  * Relatorios: quantos contratos cada pessoa e cada agente de IA fecharam.
@@ -23,6 +33,8 @@ import { filtrarConversasVisiveis } from '../nucleo/auth.js';
  */
 
 export function registrarRelatorios(rotas) {
+  registrarAgenteDeRelatorios(rotas);
+
   rotas.get('/api/relatorios/contratos', async ({ ctx, query }) => montarRelatorio(ctx, query));
 
   rotas.get('/api/relatorios/contratos.csv', async ({ ctx, query }) => {
@@ -97,4 +109,85 @@ function montarRelatorio(ctx, query = {}) {
     porPessoa,
     porAgente,
   };
+}
+
+/**
+ * O agente de relatorios (ia/agente-de-relatorios.js): o relatorio do fim de
+ * semana, a configuracao e o historico. So dono e administrador: o relatorio
+ * soma o escritorio inteiro, e quem tem visao limitada nao deve ver as contas
+ * de conversas que nao pode abrir. Para os demais, GET devolve permitido:false
+ * e a tela simplesmente nao mostra o cartao.
+ */
+const FINS_DE_SEMANA_NA_LISTA = 8;
+
+function opcoesDeFimDeSemana(agora = new Date()) {
+  const atual = sabadoDoFimDeSemana(agora);
+  return Array.from({ length: FINS_DE_SEMANA_NA_LISTA }, (_, i) => {
+    const de = somarDias(atual, -7 * i);
+    const ate = somarDias(de, 1);
+    return { de, ate, rotulo: periodoDe({ de, ate }, agora).rotulo };
+  });
+}
+
+function registrarAgenteDeRelatorios(rotas) {
+  const doEscritorio = (ctx, id) => {
+    const r = achar('relatoriosDoAgente', id);
+    if (!r || r.workspaceId !== ctx.workspaceId) throw comCodigo('Esse relatório não existe.', 404);
+    return r;
+  };
+
+  rotas.get('/api/relatorios/agente', async ({ ctx }) => {
+    if (!ehAdministrador(ctx)) return { permitido: false };
+    const historico = relatoriosDoEscritorio(ctx.workspaceId);
+    const opcoes = opcoesDeFimDeSemana();
+    return {
+      permitido: true,
+      config: configDoAgenteDeRelatorios(ctx.workspaceId),
+      gerando: estaGerando(ctx.workspaceId),
+      opcoes,
+      padrao: opcoes[0],
+      atual: historico[0] || null,
+      historico: historico.map(resumoDoRelatorio),
+    };
+  });
+
+  rotas.get('/api/relatorios/agente/:id', async ({ ctx, params }) => {
+    exigirAdministrador(ctx);
+    return doEscritorio(ctx, params.id);
+  });
+
+  rotas.post('/api/relatorios/agente/gerar', async ({ ctx, corpo }) => {
+    exigirAdministrador(ctx);
+    const padrao = opcoesDeFimDeSemana()[0];
+    const de = String(corpo?.de || padrao.de).slice(0, 10);
+    const ate = String(corpo?.ate || (corpo?.de ? corpo.de : padrao.ate)).slice(0, 10);
+    try {
+      return await gerarRelatorio({
+        workspaceId: ctx.workspaceId,
+        de,
+        ate,
+        origem: 'manual',
+        geradoPor: { tipo: 'membro', id: ctx.membro?.id || null, nome: ctx.usuario?.nome || null },
+      });
+    } catch (erro) {
+      if (erro.periodoInvalido) throw comCodigo(erro.message, 400);
+      if (erro.ocupado) throw comCodigo(erro.message, 409);
+      throw erro;
+    }
+  });
+
+  rotas.put('/api/relatorios/agente/config', async ({ ctx, corpo }) => {
+    exigirAdministrador(ctx);
+    return salvarConfigDoAgenteDeRelatorios(ctx.workspaceId, {
+      automatico: corpo?.automatico,
+      instrucoes: corpo?.instrucoes,
+    });
+  });
+
+  rotas.delete('/api/relatorios/agente/:id', async ({ ctx, params }) => {
+    exigirAdministrador(ctx);
+    doEscritorio(ctx, params.id);
+    remover('relatoriosDoAgente', params.id);
+    return { ok: true };
+  });
 }
