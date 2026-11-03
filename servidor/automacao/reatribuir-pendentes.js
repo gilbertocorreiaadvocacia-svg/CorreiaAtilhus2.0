@@ -12,6 +12,7 @@ import { usoDosTemplates } from '../nucleo/uso-dos-templates.js';
 import { situacaoDasBoasVindas } from '../nucleo/boas-vindas-automaticas.js';
 import { situacaoDaIa } from '../ia/saude-da-ia.js';
 import { resumoPublicoDoAgente } from '../ia/agente-de-relatorios.js';
+import { resumoPublicoDosResumos } from '../ia/resumo-da-conversa.js';
 import { retratoDasConversas } from '../whatsapp/duplicados.js';
 import { prontoParaContratoEVoz, saudeDoAtendimento } from '../nucleo/saude-do-atendimento.js';
 
@@ -138,6 +139,8 @@ function resumirEscritorios() {
       saudeDaIa: situacaoDaIa(workspace.id),
       /* O agente de relatorios: ligado ou nao, quantos guardou e o ultimo. */
       agenteDeRelatorios: resumoPublicoDoAgente(workspace.id),
+      /* O resumo de cada conversa: ligado, quantos guardou (com IA e padrao) e o teto do dia. */
+      resumoDasConversas: resumoPublicoDosResumos(workspace.id),
       conversas: retratoDasConversas(workspace.id),
       /* A busca do historico no celular (whatsapp/sincronizar-historico.js) e as
          voltas de queda que a disparam sozinhas (nucleo/batimento.js): quando

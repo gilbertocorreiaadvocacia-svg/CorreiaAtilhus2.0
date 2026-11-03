@@ -55,12 +55,13 @@ import { iniciarRenovacaoDeTokens } from './whatsapp/renovar-tokens.js';
 import { retomarRespostasPendentes } from './ia/motor.js';
 import { retomarSondaDaIa } from './ia/saude-da-ia.js';
 import { iniciarRelatorioSemanal } from './ia/agente-de-relatorios.js';
+import { iniciarResumosAutomaticos } from './ia/resumo-da-conversa.js';
 
 iniciarBanco();
 /* Quando ESTA copia subiu. Vai na saude, para dar para distinguir duas. */
 const INICIADO_EM = new Date().toISOString();
 /* Muda a cada entrega que mexe no atendimento (ver /api/saude). */
-const CODIGO = '2026-11-03.3';
+const CODIGO = '2026-11-03.4';
 
 /* Atraso do event loop: se o processo Node estiver bloqueado por algo
    sincrono (grava de arquivo grande, laco pesado), ate um /api/saude trivial
@@ -318,6 +319,8 @@ const escritoriosComIaParada = naSubida('sonda da IA', retomarSondaDaIa, 0);
 if (escritoriosComIaParada) console.log(`IA parada: ${escritoriosComIaParada} escritorio(s) sob vigia.`);
 /* O relatorio do fim de semana sai sozinho toda segunda (ia/agente-de-relatorios.js). */
 naSubida('relatorio semanal', iniciarRelatorioSemanal);
+/* O resumo de cada conversa que sossegou (ia/resumo-da-conversa.js). */
+naSubida('resumo das conversas', iniciarResumosAutomaticos);
 
 const MIMES = {
   '.jpg': 'image/jpeg',

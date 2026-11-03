@@ -26,6 +26,7 @@ import { janelaDaConversa } from '../whatsapp/canais.js';
 import { acharOuCriarContato } from '../whatsapp/recebimento.js';
 import { driverDa } from '../whatsapp/drivers/index.js';
 import { agendarFoto } from '../whatsapp/fotos.js';
+import { configDoResumo, gerarResumo, salvarConfigDoResumo, situacaoDoResumo } from '../ia/resumo-da-conversa.js';
 import { agendarFollowupsDoStatus, aplicarStatus, cancelarFollowups, limparAgendamentosDoContato, reagendarFollowups } from '../automacao/followup.js';
 import { proximoHorarioValido, horarioComercialDe } from '../automacao/horario.js';
 import { apagarMidia, guardarBase64 } from '../nucleo/midia.js';
@@ -721,6 +722,34 @@ export function registrarAtendimento(rotas) {
     const nota = inserirNota(contato, texto, { tipo: 'sistema', nome: 'Resumo' });
     emitir(ctx.workspaceId, 'mensagem', { contatoId: contato.id, mensagem: nota });
     return nota;
+  });
+
+  /*
+   * O resumo automatico da conversa, que a aba de dados mostra (ia/resumo-da-
+   * conversa.js). O de cima (/resumo) e o pedido na hora, com periodo e instrucao,
+   * e vira nota interna; este e o resumo que fica guardado e se atualiza sozinho.
+   */
+  /* A configuracao so vai para quem pode mudar (a tela mostra a engrenagem por causa dela). */
+  const resumoParaATela = (ctx, contato) => ({ ...situacaoDoResumo(contato), ...(ehAdministrador(ctx) ? { config: configDoResumo(ctx.workspaceId) } : {}) });
+
+  rotas.get('/api/contatos/:id/resumo-automatico', async ({ ctx, params }) => resumoParaATela(ctx, conversaOu404(ctx, params.id)));
+
+  rotas.post('/api/contatos/:id/resumo-automatico', async ({ ctx, params }) => {
+    const contato = conversaOu404(ctx, params.id);
+    try {
+      await gerarResumo(contato, { origem: 'manual' });
+    } catch (erro) {
+      if (erro.poucasMensagens) throw comCodigo(erro.message, 400);
+      if (erro.ocupado) throw comCodigo(erro.message, 409);
+      if (erro.iaFalhou) throw comCodigo(`${erro.message} O resumo que já existia continua valendo.`, 502);
+      throw erro;
+    }
+    return resumoParaATela(ctx, contato);
+  });
+
+  rotas.put('/api/resumo-das-conversas/config', async ({ ctx, corpo }) => {
+    if (!ehAdministrador(ctx)) throw comCodigo('Somente administrador pode fazer isso.', 403);
+    return salvarConfigDoResumo(ctx.workspaceId, { automatico: corpo?.automatico, instrucoes: corpo?.instrucoes });
   });
 
   rotas.post('/api/contatos/:id/unificar', async ({ ctx, params, corpo }) => {

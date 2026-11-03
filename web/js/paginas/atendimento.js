@@ -2,6 +2,7 @@ import { api, enviarArquivo } from '../api.js';
 import { abrirVisualizador, campoComDica, cartaoDeArquivo, dica, menuAcoes, paginacao, previaDaMidia } from '../componentes.js';
 import { editarStatus } from './configuracoes.js';
 import { editarTemplate } from './templates.js';
+import { cartaoDoResumo } from './resumo-da-conversa.js';
 import {
   acharConexao,
   acharEtiqueta,
@@ -2535,6 +2536,8 @@ export async function paginaAtendimento({
      */
     const painelDados = el('div', { class: 'painel-dados' }, [
         pessoa,
+        /* O resumo da conversa, escrito pelo agente de resumo (resumo-da-conversa.js). */
+        cartaoDoResumo(contato),
         el('div', { class: 'painel-cartao' }, [campoResponsavel]),
         el('div', { class: 'painel-cartao' }, [
           el('div', { class: 'propriedade' }, [el('span', { texto: 'Créditos este mês' }), valorCreditosMes]),

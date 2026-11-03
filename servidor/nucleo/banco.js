@@ -47,6 +47,8 @@ const COLECOES = [
   'testesDeRoteamento',
   /* O que o agente de relatorios ja escreveu (ver ia/agente-de-relatorios.js). */
   'relatoriosDoAgente',
+  /* O resumo de cada conversa, um por contato (ver ia/resumo-da-conversa.js). */
+  'resumosDasConversas',
 ];
 
 const memoria = new Map();
@@ -258,6 +260,17 @@ export function remover(colecao, id) {
   lista.splice(indice, 1);
   marcarSuja(colecao);
   espelhar(colecao, id, null);
+  /* O resumo e dado do cliente: sai junto com a conversa, por qualquer caminho
+     que a apague (excluir, apagar em massa, unificar, duplicado). */
+  if (colecao === 'contatos') {
+    const resumos = tabela('resumosDasConversas');
+    for (let i = resumos.length - 1; i >= 0; i -= 1) {
+      if (resumos[i].contatoId !== id) continue;
+      const [tirado] = resumos.splice(i, 1);
+      marcarSuja('resumosDasConversas');
+      espelhar('resumosDasConversas', tirado.id, null);
+    }
+  }
   return true;
 }
 
