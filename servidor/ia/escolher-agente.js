@@ -28,6 +28,10 @@ import { agentePorPalavraChave } from './motor.js';
  * null e a conversa fica com quem estava — nunca inventa agente.
  */
 export function escolherAgente({ workspaceId, contato = null, conexao = null, texto = '' }) {
+  /* Conversa que uma pessoa concluiu nao volta para a IA sozinha (nucleo/conclusao-pela-equipe.js):
+     e por este ponto que passam a palavra-chave, "toda mensagem vai para a IA" e a varredura
+     de pendentes, entao e aqui que a regra vale para as tres. */
+  if (contato?.semIa) return null;
   const ligadoDaqui = (agente) => Boolean(agente && agente.ativo && agente.workspaceId === workspaceId);
   const area = contato?.area || conexao?.area || achar('workspaces', workspaceId)?.area || null;
 

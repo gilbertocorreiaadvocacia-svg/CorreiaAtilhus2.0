@@ -73,6 +73,7 @@ import { testarJsonComprimido } from './json-comprimido.js';
 import { testarVozVisivel } from './voz-visivel.js';
 import { testarAgenteDeRelatorios, testarRotasDoAgenteDeRelatorios } from './agente-de-relatorios.js';
 import { testarResumoDaConversa, testarRotasDoResumo } from './resumo-da-conversa.js';
+import { testarConclusaoPelaEquipe } from './conclusao-pela-equipe.js';
 import { testarSaudeDoAtendimento } from './saude-do-atendimento.js';
 import { testarFollowupEnvio } from './followup-envio.js';
 import { testarContratoDireto } from './contrato-direto.js';
@@ -395,6 +396,7 @@ async function principal() {
     suites.push(await testarRotasDoAgenteDeRelatorios({ base }));
     suites.push(await testarResumoDaConversa({ raiz: RAIZ }));
     suites.push(await testarRotasDoResumo({ base }));
+    suites.push(await testarConclusaoPelaEquipe({ raiz: RAIZ }));
     suites.push(await testarPosVenda({ raiz: RAIZ }));
     suites.push(await testarMigrarDepartamentoPosVenda({ raiz: RAIZ }));
     suites.push(await testarReatribuirPendentes({ raiz: RAIZ }));

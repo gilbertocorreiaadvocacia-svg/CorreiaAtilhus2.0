@@ -135,7 +135,7 @@ export async function testarConversas({ base }) {
   );
 
   /*
-   * Arquivada volta sozinha quando o cliente escreve.
+   * Concluida volta sozinha quando o cliente escreve — para PENDENTES, sem a IA.
    *
    * E a regra que sustenta a decisao de "Concluido = Arquivado": um
    * atendimento dado por encerrado reabre sozinho se o cliente voltar a
@@ -143,12 +143,17 @@ export async function testarConversas({ base }) {
    * atendimento cai num silencio que ninguem ve.
    *
    * Desde 24/10/2026 ("todo contato que manda mensagem vai para a IA, não
-   * vai para pendente") ela reabre na IA, e nao mais em Pendentes: sem
-   * responsavel, quem assume e o agente de recepcao do escritorio.
+   * vai para pendente") a arquivada reabria na IA. Em 03/11/2026 o escritorio
+   * separou um caso: a conversa que uma PESSOA concluiu ("eu concluo para nao
+   * estar nos ativos nem nos pendentes") volta DIRETO para Pendentes, e a IA
+   * nao atua, porque quem finalizou antes foi a equipe (nucleo/conclusao-pela-
+   * equipe.js; o que continua indo para a IA esta em conclusao-pela-equipe.js,
+   * o teste dedicado).
    */
   const voltou = await criar(5, 'Teste Reabre');
   await api.patch(`/api/contatos/${voltou.id}`, { responsavel: null });
   await api.post(`/api/contatos/${voltou.id}/arquivar`, { arquivar: true });
+  s.ok('concluir marca que foi uma pessoa', Boolean((await api.get(`/api/contatos/${voltou.id}`)).dados?.semIa));
   await api.post('/api/simulador/mensagem', {
     conexaoId: conexao.id,
     telefone: TELEFONE(5),
@@ -157,10 +162,26 @@ export async function testarConversas({ base }) {
   });
   await esperar(1200);
   s.ok(
-    'conversa arquivada reabre quando o cliente escreve de novo (e reabre na IA)',
-    (await abasDe(voltou.id)).join() === 'ia',
+    'conversa concluida pela equipe reabre em Pendentes quando o cliente escreve de novo',
+    (await abasDe(voltou.id)).join() === 'pendentes',
     (await abasDe(voltou.id)).join(),
   );
+  await esperar(1800);
+  const agenteRespondeu = ((await api.get(`/api/contatos/${voltou.id}/mensagens`)).dados?.mensagens || []).some((m) => m.direcao === 'saida' && m.autor?.tipo === 'agente');
+  s.ok('e a IA nao responde', agenteRespondeu === false);
+
+  /* Reabrir pelo botao e uma pessoa decidindo de novo: o sinal sai e valem as regras de sempre. */
+  await api.post(`/api/contatos/${voltou.id}/arquivar`, { arquivar: true });
+  await api.post(`/api/contatos/${voltou.id}/arquivar`, { arquivar: false });
+  s.ok('reabrir pelo botao tira o sinal', !(await api.get(`/api/contatos/${voltou.id}`)).dados?.semIa);
+  /* Escolher um responsavel tambem. */
+  await api.post(`/api/contatos/${voltou.id}/arquivar`, { arquivar: true });
+  await api.patch(`/api/contatos/${voltou.id}`, { responsavel: { tipo: 'agente', id: agenteId } });
+  s.ok('escolher quem atende tambem tira o sinal', !(await api.get(`/api/contatos/${voltou.id}`)).dados?.semIa);
+  /* E aceitar. */
+  await api.post(`/api/contatos/${voltou.id}/arquivar`, { arquivar: true });
+  await api.post(`/api/contatos/${voltou.id}/aceitar`);
+  s.ok('aceitar a conversa tambem tira o sinal', !(await api.get(`/api/contatos/${voltou.id}`)).dados?.semIa);
 
   /* ---------------- Dados que a linha da lista desenha ---------------- */
 

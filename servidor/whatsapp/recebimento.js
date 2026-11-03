@@ -585,8 +585,18 @@ export async function receberMensagem({
 
   // Arquivada volta para a fila assim que o cliente escreve.
   if (contato.estado === 'arquivado') {
-    mudancas.estado = contato.responsavel?.tipo === 'agente' ? 'ia' : 'pendente';
-    registrarLog(workspaceId, contato.id, 'desarquivar', 'Conversa reaberta porque o cliente escreveu');
+    if (contato.semIa) {
+      /* Concluida por uma PESSOA (nucleo/conclusao-pela-equipe.js): volta direto para
+         Pendentes, para a equipe ver, e a IA nao atua. O agente sai do responsavel (com
+         agente, ela cairia na aba IA); uma pessoa que cuidava continua. */
+      mudancas.estado = 'pendente';
+      mudancas.aceitoPor = null;
+      if (contato.responsavel?.tipo === 'agente') mudancas.responsavel = null;
+      registrarLog(workspaceId, contato.id, 'desarquivar', 'Conversa reaberta porque o cliente escreveu. Foi concluida pela equipe: fica em Pendentes e a IA nao atende sozinha');
+    } else {
+      mudancas.estado = contato.responsavel?.tipo === 'agente' ? 'ia' : 'pendente';
+      registrarLog(workspaceId, contato.id, 'desarquivar', 'Conversa reaberta porque o cliente escreveu');
+    }
   }
 
   /*
@@ -603,7 +613,7 @@ export async function receberMensagem({
    */
   const semDonoEngajado = !contato.responsavel || contato.responsavel.tipo === 'agente';
   const podeRevisarPorPalavraChave = primeira || contato.estado === 'pendente' || contato.estado === 'arquivado';
-  if (mensagem.conteudo && semDonoEngajado && podeRevisarPorPalavraChave) {
+  if (mensagem.conteudo && semDonoEngajado && podeRevisarPorPalavraChave && !contato.semIa) {
     const agente = agentePorPalavraChave(workspaceId, mensagem.conteudo, contato.area || conexao.area);
     if (agente) {
       mudancas.responsavel = { tipo: 'agente', id: agente.id, nome: agente.nome };

@@ -141,6 +141,12 @@ function resumirEscritorios() {
       agenteDeRelatorios: resumoPublicoDoAgente(workspace.id),
       /* O resumo de cada conversa: ligado, quantos guardou (com IA e padrao) e o teto do dia. */
       resumoDasConversas: resumoPublicoDosResumos(workspace.id),
+      /* Conversas que uma pessoa concluiu e que a IA nao pega sozinha (nucleo/conclusao-pela-equipe.js):
+         as que seguem concluidas e as que o cliente reabriu e esperam em Pendentes. */
+      concluidasSemIa: {
+        concluidas: contatos.filter((c) => c.semIa && c.estado === 'arquivado').length,
+        esperandoNaFila: contatos.filter((c) => c.semIa && c.estado !== 'arquivado').length,
+      },
       conversas: retratoDasConversas(workspace.id),
       /* A busca do historico no celular (whatsapp/sincronizar-historico.js) e as
          voltas de queda que a disparam sozinhas (nucleo/batimento.js): quando

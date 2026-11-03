@@ -74,9 +74,11 @@ export async function testarKanbanConcluido({ base }) {
   });
 
   const depoisDeEscrever = (await api.get(`/api/contatos/${idConcluido}`)).dados;
+  /* Desde 03/11/2026 a conversa que uma PESSOA concluiu volta para Pendentes, e nao para a IA
+     (nucleo/conclusao-pela-equipe.js): quem finalizou antes foi a equipe. */
   s.ok(
-    'depois que o cliente escreve, a conversa sai do arquivado e volta para a IA',
-    depoisDeEscrever?.estado === 'ia',
+    'depois que o cliente escreve, a conversa sai do arquivado e volta para Pendentes, sem a IA',
+    depoisDeEscrever?.estado === 'pendente' && !depoisDeEscrever?.responsavel,
     JSON.stringify(depoisDeEscrever),
   );
 

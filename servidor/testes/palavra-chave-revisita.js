@@ -115,9 +115,13 @@ export async function testarPalavraChaveRevisita({ base }) {
 
   await mandar(tel3, 'na verdade quero falar sobre zzzpalavrachaveteste-b');
   const depois3 = await api.get(`/api/contatos/${id3}`);
+  /* Desde 03/11/2026 a conversa que uma PESSOA concluiu volta para Pendentes e a IA nao atua,
+     nem por palavra-chave (nucleo/conclusao-pela-equipe.js). A palavra-chave que troca o
+     especialista numa arquivada de outra origem continua valendo, e e testada em
+     conclusao-pela-equipe.js. */
   s.ok(
-    'arquivada que reabre com palavra-chave nova troca para o especialista certo (nao fica com o antigo)',
-    depois3.dados?.responsavel?.id === especialistaB.id && depois3.dados?.estado === 'ia',
+    'arquivada pela equipe que reabre com palavra-chave nova NAO ativa especialista: cai em Pendentes, sem agente',
+    depois3.dados?.estado === 'pendente' && !depois3.dados?.responsavel,
     JSON.stringify({ responsavel: depois3.dados?.responsavel, estado: depois3.dados?.estado }),
   );
 

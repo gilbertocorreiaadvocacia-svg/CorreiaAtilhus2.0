@@ -56,12 +56,13 @@ import { retomarRespostasPendentes } from './ia/motor.js';
 import { retomarSondaDaIa } from './ia/saude-da-ia.js';
 import { iniciarRelatorioSemanal } from './ia/agente-de-relatorios.js';
 import { iniciarResumosAutomaticos } from './ia/resumo-da-conversa.js';
+import { marcarConcluidasPelaEquipe } from './nucleo/conclusao-pela-equipe.js';
 
 iniciarBanco();
 /* Quando ESTA copia subiu. Vai na saude, para dar para distinguir duas. */
 const INICIADO_EM = new Date().toISOString();
 /* Muda a cada entrega que mexe no atendimento (ver /api/saude). */
-const CODIGO = '2026-11-03.5';
+const CODIGO = '2026-11-03.6';
 
 /* Atraso do event loop: se o processo Node estiver bloqueado por algo
    sincrono (grava de arquivo grande, laco pesado), ate um /api/saude trivial
@@ -274,6 +275,9 @@ if (baseEStatus.desvinculados || baseEStatus.rascunhosCriados || baseEStatus.vin
   );
 }
 naSubida('sessoes orfas', limparSessoesOrfas);
+/* Quem a equipe ja concluiu antes da regra "concluida por pessoa nao volta para a IA" ganha o sinal. */
+const concluidasMarcadas = naSubida('concluidas pela equipe', marcarConcluidasPelaEquipe, 0);
+if (concluidasMarcadas) console.log(`Concluidas pela equipe: ${concluidasMarcadas} conversa(s) marcadas para nao voltar a IA sozinhas.`);
 /* Rodadas de importacao do celular que o reinicio interrompeu. */
 naSubida('sincronizacoes', retomarSincronizacoes);
 /*

@@ -27,6 +27,7 @@ import { acharOuCriarContato } from '../whatsapp/recebimento.js';
 import { driverDa } from '../whatsapp/drivers/index.js';
 import { agendarFoto } from '../whatsapp/fotos.js';
 import { configDoResumo, gerarResumo, salvarConfigDoResumo, situacaoDoResumo } from '../ia/resumo-da-conversa.js';
+import { LIBERAR_PARA_A_IA, mudancasDeConcluir } from '../nucleo/conclusao-pela-equipe.js';
 import { agendarFollowupsDoStatus, aplicarStatus, cancelarFollowups, limparAgendamentosDoContato, reagendarFollowups } from '../automacao/followup.js';
 import { proximoHorarioValido, horarioComercialDe } from '../automacao/horario.js';
 import { apagarMidia, guardarBase64 } from '../nucleo/midia.js';
@@ -538,6 +539,7 @@ export function registrarAtendimento(rotas) {
         aceitoPor: ctx.membro.id,
         aceitoEm: agora(),
         estado: 'ativo',
+        ...LIBERAR_PARA_A_IA,
       });
       cancelarResposta(contato.id);
       registrarLog(ctx.workspaceId, contato.id, 'intervencao', `${ctx.usuario.nome} assumiu a conversa`, autor);
@@ -593,6 +595,8 @@ export function registrarAtendimento(rotas) {
     if (corpo.responsavel !== undefined) {
       const responsavel = corpo.responsavel;
       mudancas.responsavel = responsavel;
+      /* Uma pessoa escolheu quem atende: a conversa concluida deixa de ficar sem a IA. */
+      mudancas.semIa = null;
       if (!responsavel) {
         mudancas.estado = 'pendente';
         mudancas.aceitoPor = null;
@@ -648,6 +652,7 @@ export function registrarAtendimento(rotas) {
       aceitoEm: agora(),
       estado: 'ativo',
       responsavel: { tipo: 'membro', id: ctx.membro.id, nome: ctx.usuario.nome },
+      ...LIBERAR_PARA_A_IA,
     });
     cancelarResposta(contato.id);
     registrarLog(ctx.workspaceId, contato.id, 'aceite', `${ctx.usuario.nome} aceitou o atendimento`);
@@ -660,9 +665,12 @@ export function registrarAtendimento(rotas) {
     const arquivar = corpo.arquivar !== false;
     /* Reaberta no meio da avaliacao: a avaliacao para e a conversa volta a quem atendia. */
     if (!arquivar) interromperAvaliacao(contato.id);
-    atualizar('contatos', contato.id, {
-      estado: arquivar ? 'arquivado' : contato.responsavel?.tipo === 'agente' ? 'ia' : 'pendente',
-    });
+    /* Concluir marca que foi uma PESSOA (conclusao-pela-equipe.js): se o cliente voltar,
+       a conversa cai em Pendentes e a IA nao atua. Reabrir pelo botao e uma pessoa
+       decidindo de novo: valem as regras de sempre. */
+    atualizar('contatos', contato.id, arquivar
+      ? mudancasDeConcluir(ctx.membro, ctx.usuario?.nome)
+      : { estado: contato.responsavel?.tipo === 'agente' ? 'ia' : 'pendente', ...LIBERAR_PARA_A_IA });
     /* O tipo do registro continua 'arquivo' porque e ele que o historico usa
        para escolher o icone, e ha registros antigos gravados assim. O que muda
        e a frase que a pessoa le. */
@@ -892,7 +900,7 @@ export function registrarAtendimento(rotas) {
           break;
         case 'responsavel': {
           if (!corpo.valor) {
-            atualizar('contatos', contato.id, { responsavel: null, estado: 'pendente', aceitoPor: null });
+            atualizar('contatos', contato.id, { responsavel: null, estado: 'pendente', aceitoPor: null, ...LIBERAR_PARA_A_IA });
           } else {
             const [tipo, id] = String(corpo.valor).split(':');
             const nome =
@@ -907,6 +915,7 @@ export function registrarAtendimento(rotas) {
               responsavel: { tipo, id, nome: nome || 'Responsavel' },
               estado: tipo === 'agente' ? 'ia' : eu ? 'ativo' : 'pendente',
               aceitoPor: eu ? id : null,
+              ...LIBERAR_PARA_A_IA,
               ...(eu ? { aceitoEm: agora() } : {}),
               ...(tipo === 'membro' && !eu ? { atribuidoEm: agora() } : {}),
             });
@@ -935,7 +944,8 @@ export function registrarAtendimento(rotas) {
           afetados += 1;
           break;
         case 'arquivar':
-          atualizar('contatos', contato.id, { estado: 'arquivado' });
+          atualizar('contatos', contato.id, mudancasDeConcluir(ctx.membro, ctx.usuario?.nome));
+          registrarLog(ctx.workspaceId, contato.id, 'arquivo', 'Atendimento concluido');
           afetados += 1;
           break;
         case 'conexao':
