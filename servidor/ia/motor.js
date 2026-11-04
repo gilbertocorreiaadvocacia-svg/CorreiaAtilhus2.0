@@ -9,7 +9,7 @@ import { agora, formatarTelefone, normalizar, slug } from '../nucleo/util.js';
 import { enviarMensagem } from '../whatsapp/envio.js';
 import { enviarBoasVindasSePrecisar } from '../nucleo/boas-vindas-automaticas.js';
 import { iaFalhou, iaFuncionou, registrarMotorDaIa } from './saude-da-ia.js';
-import { sintetizar, vozDisponivel } from './audio.js';
+import { anotarFalhaDoEnvioDoAudio, sintetizar, vozDisponivel } from './audio.js';
 import { membrosQuePodemVer } from '../nucleo/auth.js';
 import { analisarPrompt, executarFerramenta, ferramentasDoAgente, notificar, sortearResponsavel } from './mencoes.js';
 import { conversar, modeloDe, provedorDisponivel, responderPorRegras } from './provedores.js';
@@ -700,14 +700,32 @@ async function rodarAgente(contatoId, passo, { corrigirPassagem = false } = {}) 
           });
         }
 
-        await enviarMensagem({
+        const autor = { tipo: 'agente', id: agente.id, nome: agente.nome };
+        const enviada = await enviarMensagem({
           contato: atualizado,
           conexao,
           conteudo: textoFinal,
           tipo: midia ? 'audio' : 'texto',
           midia,
-          autor: { tipo: 'agente', id: agente.id, nome: agente.nome },
+          autor,
         });
+
+        /* O WhatsApp pode recusar o audio mesmo com a voz pronta (arquivo que o
+           servico nao converte, sessao instavel). A mensagem fica na conversa com
+           o erro a vista, e o cliente recebe o texto: sem isto, ele ficava sem
+           resposta nenhuma e a conversa parecia respondida. Nao conta de novo
+           como resposta: o audio que falhou ja contou. */
+        if (midia && enviada?.situacao === 'erro') {
+          anotarFalhaDoEnvioDoAudio(contato.workspaceId, atualizado.id, enviada.erro?.mensagem);
+          await enviarMensagem({
+            contato: atualizado,
+            conexao,
+            conteudo: textoFinal,
+            tipo: 'texto',
+            autor,
+            contaComoResposta: false,
+          });
+        }
       }
     }
 

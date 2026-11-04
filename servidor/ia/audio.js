@@ -209,6 +209,18 @@ function falhouAVoz(workspaceId, contatoId, status, motivoBruto) {
   return null;
 }
 
+/**
+ * A voz ficou pronta, mas o WhatsApp recusou o audio na hora de entregar.
+ * Aparece junto com as outras falhas da voz (/api/saude) e na conversa; o texto
+ * da resposta sai em seguida (ia/motor.js). Nao avisa os administradores: a
+ * causa nao e de chave nem de saldo, e o cliente nao fica sem resposta.
+ */
+export function anotarFalhaDoEnvioDoAudio(workspaceId, contatoId, motivoBruto) {
+  const motivo = semChave(motivoBruto || 'sem motivo informado');
+  anotarSintese({ ok: false, status: 0, erro: `o WhatsApp recusou o audio: ${motivo}` });
+  registrarLog(workspaceId, contatoId, 'erro_voz', `O WhatsApp recusou o audio: ${motivo}. A resposta saiu em texto.`);
+}
+
 /** Gera o audio da resposta com a voz configurada no agente. */
 export async function sintetizar({ workspaceId, contatoId, texto, vozId, agenteId = null }) {
   const chave = chaveOpenai(workspaceId);

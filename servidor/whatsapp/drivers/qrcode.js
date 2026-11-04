@@ -87,8 +87,12 @@ async function chamar(cfg, caminho, { metodo = 'GET', corpo = null, prazoMs = 20
     }
 
     if (!resposta.ok) {
+      /* A Evolution manda `response.message` como LISTA nos erros de validacao
+         (400) e como TEXTO nos erros internos (500). Com [0] direto, o texto
+         virava so a primeira letra ("f"), e o motivo sumia para quem atende. */
+      const primeiro = (valor) => (Array.isArray(valor) ? valor[0] : valor);
       const detalhe =
-        dados?.response?.message?.[0] || dados?.message || dados?.error || dados?.mensagem || `HTTP ${resposta.status}`;
+        primeiro(dados?.response?.message) || dados?.message || dados?.error || dados?.mensagem || `HTTP ${resposta.status}`;
       throw Object.assign(new Error(explicarRecusa(detalhe)), { codigoWhatsapp: String(resposta.status) });
     }
     return dados;

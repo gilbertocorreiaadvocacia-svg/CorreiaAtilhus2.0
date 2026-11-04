@@ -238,10 +238,10 @@ function blocoIa(integracoes, recarregarTela) {
     linhaAjuste(
       'Áudio do cliente (opcional)',
       temAudio
-        ? 'Configurada. O agente entende o áudio que o cliente manda e consegue responder em voz.'
-        : 'Sem ela, áudio recebido no WhatsApp não é transcrito e o agente não responde em voz. Texto continua funcionando normalmente.',
+        ? 'Configurada. Quando o cliente manda áudio, o agente responde falando. O áudio do cliente continua sendo transcrito no servidor, sem usar esta chave.'
+        : 'Sem ela, o agente não responde em voz. O áudio que o cliente manda continua sendo transcrito no servidor, e o texto funciona normalmente.',
       chaveOpenai,
-      { balao: 'É uma chave da OpenAI, usada aqui só para transcrever áudio e sintetizar voz — os agentes continuam no Claude.' },
+      { balao: 'É uma chave da OpenAI, usada só para gerar a voz dos agentes. A transcrição do áudio do cliente é feita no servidor e os agentes continuam no Claude.' },
     ),
 
     rodapeAjustes(

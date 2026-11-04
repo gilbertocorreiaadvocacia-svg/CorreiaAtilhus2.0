@@ -29,6 +29,8 @@ const PORTA = Number(process.env.PORTA_EVOLUCAO || 8099);
 const CHAVE = process.env.CHAVE_EVOLUCAO || 'chave-de-teste';
 
 let estado = 'close';
+/* Liga com POST /__falhar-audio: o proximo envio de audio volta com erro 500. */
+let recusarAudio = false;
 const enviadas = [];
 const configuracoes = [];
 const marcadasLidas = [];
@@ -176,6 +178,7 @@ export function subirEvolucaoFalsa(porta = PORTA, chave = CHAVE) {
     if (caminho === '/__configuracoes') return responder(200, configuracoes);
     if (caminho === '/__reiniciar') {
       estado = 'close';
+      recusarAudio = false;
       enviadas.length = 0;
       configuracoes.length = 0;
       marcadasLidas.length = 0;
@@ -276,6 +279,14 @@ export function subirEvolucaoFalsa(porta = PORTA, chave = CHAVE) {
     if (caminho.startsWith('/instance/logout/')) {
       estado = 'close';
       return responder(200, { status: 'SUCCESS' });
+    }
+    /* Como a Evolution quando nao consegue converter ou entregar o audio. */
+    if (caminho === '/__falhar-audio') {
+      recusarAudio = (corpo ? JSON.parse(corpo) : {}).recusar !== false;
+      return responder(200, { ok: true, recusarAudio });
+    }
+    if (caminho.startsWith('/message/sendWhatsAppAudio/') && recusarAudio) {
+      return responder(500, { status: 500, error: 'Internal Server Error', response: { message: 'ffmpeg: nao consegui converter o audio' } });
     }
     if (
       caminho.startsWith('/message/sendText/') ||

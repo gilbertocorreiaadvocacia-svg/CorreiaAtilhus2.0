@@ -1,4 +1,5 @@
 import { el, limpar, icone, botao, campo, cartao, plural, selecao, selo, aviso } from './ui.js';
+import { audioCorrompido } from './defeito-do-audio.js';
 
 /**
  * Previa de midia. Aparece no editor de template, no balao da conversa e no
@@ -108,13 +109,37 @@ export function previaDaMidia(midia, opcoes = {}) {
   }
 
   if (midia.tipo === 'audio') {
+    /* Gravacao feita pelo sistema antes da correcao de 03/11/2026: o arquivo e
+       lixo, e o tocador so daria um erro sem explicacao. */
+    if (audioCorrompido(midia)) return avisoDeAudioSemSom(midia, true);
     // O tocador do navegador nao aceita moldura nem canto arredondado, entao a
     // variacao som tira a borda e usa largura em vez de largura maxima.
     const som = pausarOutrosAoTocar(el('audio', { src: midia.url, controls: true, preload: 'metadata', class: `${medida} som` }));
-    return el('div', { class: 'audio-com-velocidade' }, [som, botaoDeVelocidade(som)]);
+    const caixa = el('div', { class: 'audio-com-velocidade' }, [som, botaoDeVelocidade(som)]);
+    /* O navegador nao conseguiu tocar (arquivo sumido, formato que ele nao
+       entende): troca o tocador mudo por uma frase e o link para baixar. */
+    som.addEventListener('error', () => caixa.replaceWith(avisoDeAudioSemSom(midia, false)));
+    return caixa;
   }
 
   return cartaoDeArquivo(midia, { aoAbrir: abrir });
+}
+
+/**
+ * O lugar do tocador quando o audio nao toca: diz por que e deixa baixar.
+ * `defeito` e o audio que ja foi guardado quebrado (nao adianta baixar).
+ */
+function avisoDeAudioSemSom(midia, defeito) {
+  return el('div', { class: 'audio-sem-som t-xs c-suave' }, [
+    el('span', {
+      texto: defeito
+        ? 'Áudio com defeito: a gravação não foi guardada inteira e não dá para ouvir. Peça para gravar e enviar de novo.'
+        : 'Não consegui tocar este áudio aqui.',
+    }),
+    !defeito && midia.url
+      ? el('a', { href: midia.url, download: midia.nome || '', texto: ' Baixar o áudio', class: 'c-ouro' })
+      : null,
+  ]);
 }
 
 /** O tipo que o visualizador sabe mostrar, olhando o mime e o nome. */

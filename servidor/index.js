@@ -6,7 +6,7 @@ import { HOSPEDADO, HOST, INTERVALO_AGENDADOR, INTERVALO_REATRIBUICAO, PORTA, RA
 import { prepararHospedagem } from './nucleo/hospedagem.js';
 import { escritoriosSemAgenteLigado, garantirAgentesDasAreas, garantirAvaliacaoNosEscritorios, garantirPosVendaNosEscritorios, garantirStatusDasAreas, garantirTestesDeRoteamento, garantirTriagemNoEscritorioGeral, migrarDepartamentoPosVenda } from './nucleo/agentes-por-escritorio.js';
 import { iniciarAvaliacoes } from './automacao/avaliacao.js';
-import { caminhoDaMidia } from './nucleo/midia.js';
+import { caminhoDaMidia, servirMidia } from './nucleo/midia.js';
 import { atualizar, encerrarBanco, iniciarBanco, listar, protegerEstadoDosAgentes, salvarMensagensPendentes, salvarPendentes, situacaoDaProtecaoDosAgentes, tabela } from './nucleo/banco.js';
 import { estado as estadoDoEspelho, ligado as espelhoLigado } from './nucleo/espelho.js';
 import { migrarCoresParaTokens } from './nucleo/paleta.js';
@@ -63,7 +63,7 @@ iniciarBanco();
 /* Quando ESTA copia subiu. Vai na saude, para dar para distinguir duas. */
 const INICIADO_EM = new Date().toISOString();
 /* Muda a cada entrega que mexe no atendimento (ver /api/saude). */
-const CODIGO = '2026-11-03.10';
+const CODIGO = '2026-11-04.1';
 
 /* Atraso do event loop: se o processo Node estiver bloqueado por algo
    sincrono (grava de arquivo grande, laco pesado), ate um /api/saude trivial
@@ -334,20 +334,6 @@ naSubida('relatorio semanal', iniciarRelatorioSemanal);
 /* O resumo de cada conversa que sossegou (ia/resumo-da-conversa.js). */
 naSubida('resumo das conversas', iniciarResumosAutomaticos);
 
-const MIMES = {
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.png': 'image/png',
-  '.webp': 'image/webp',
-  '.gif': 'image/gif',
-  '.mp4': 'video/mp4',
-  '.webm': 'video/webm',
-  '.mp3': 'audio/mpeg',
-  '.ogg': 'audio/ogg',
-  '.wav': 'audio/wav',
-  '.pdf': 'application/pdf',
-};
-
 /* ------------------------------------------------------------------ */
 /* Roteador                                                            */
 /* ------------------------------------------------------------------ */
@@ -549,13 +535,7 @@ const servidor = http.createServer(async (req, res) => {
       if (req.method === 'GET' && caminho.startsWith('/midia/')) {
         const arquivo = caminhoDaMidia(caminho);
         if (arquivo) {
-          const info = fs.statSync(arquivo);
-          res.writeHead(200, {
-            'Content-Type': MIMES[path.extname(arquivo).toLowerCase()] || 'application/octet-stream',
-            'Content-Length': info.size,
-            'Cache-Control': 'private, max-age=86400',
-          });
-          fs.createReadStream(arquivo).pipe(res);
+          servirMidia(req, res, arquivo);
           return;
         }
         responderErro(res, 404, 'Arquivo nao encontrado.');
