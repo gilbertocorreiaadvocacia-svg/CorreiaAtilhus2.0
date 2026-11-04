@@ -28,7 +28,7 @@ import { driverDa } from '../whatsapp/drivers/index.js';
 import { agendarFoto } from '../whatsapp/fotos.js';
 import { configDoResumo, gerarResumo, salvarConfigDoResumo, situacaoDoResumo } from '../ia/resumo-da-conversa.js';
 import { LIBERAR_PARA_A_IA, mudancasDeConcluir } from '../nucleo/conclusao-pela-equipe.js';
-import { agendarFollowupsDoStatus, aplicarStatus, cancelarFollowups, limparAgendamentosDoContato, reagendarFollowups } from '../automacao/followup.js';
+import { ESPACO_ENTRE_INICIOS_EM_SEGUNDOS, agendarFollowupsDoStatus, aplicarStatus, cancelarFollowups, iniciarFollowupDoStatus, limparAgendamentosDoContato, reagendarFollowups } from '../automacao/followup.js';
 import { proximoHorarioValido, horarioComercialDe } from '../automacao/horario.js';
 import { apagarMidia, guardarBase64 } from '../nucleo/midia.js';
 import { transcrever } from '../ia/audio.js';
@@ -881,6 +881,11 @@ export function registrarAtendimento(rotas) {
     const ids = corpo.ids || [];
     const alvos = ids.map((id) => achar('contatos', id)).filter((c) => c && podeVerConversa(ctx, c));
     let afetados = 0;
+    /* Quantas conversas deste lote ganharam sequencia de follow-up, e quando o lote comecou:
+       e por elas que a partida das seguintes e espalhada. */
+    let followupsDoLote = 0;
+    const inicioDoLote = agora();
+    const espacoDoLoteMs = Math.max(30, Number(corpo.intervaloSegundos) || ESPACO_ENTRE_INICIOS_EM_SEGUNDOS) * 1000;
 
     for (const contato of alvos) {
       switch (corpo.acao) {
@@ -903,7 +908,19 @@ export function registrarAtendimento(rotas) {
            * nunca saia sozinho — tinha que ser mandado a mao, um por um.
            */
           const ehFollowUp = normalizar(status.nome) === normalizar('Follow up');
-          await aplicarStatus(contato, status, { tipo: 'membro', nome: ctx.usuario.nome }, { dispararFollowups: ehFollowUp });
+          /* Em "Follow up" a sequencia comeca para TODAS as escolhidas, inclusive as que ja
+             estavam nele sem nada agendado (escolher o mesmo status nao era uma troca, e
+             elas ficavam paradas). O lote sai espalhado: a primeira mensagem de cada
+             conversa, N segundos depois da anterior, para o numero nao levar tudo junto. */
+          await aplicarStatus(
+            contato,
+            status,
+            { tipo: 'membro', nome: ctx.usuario.nome },
+            { dispararFollowups: ehFollowUp, reiniciar: ehFollowUp, atrasoMs: ehFollowUp ? followupsDoLote * espacoDoLoteMs : 0 },
+          );
+          if (ehFollowUp && listar('agendamentos', { contatoId: contato.id, estado: 'pendente' }).some((a) => a.tipo === 'followup' && a.criadoEm >= inicioDoLote)) {
+            followupsDoLote += 1;
+          }
           afetados += 1;
           break;
         }
@@ -975,7 +992,23 @@ export function registrarAtendimento(rotas) {
       nome: ctx.usuario.nome,
     });
     emitir(ctx.workspaceId, 'contatos', {});
-    return { ok: true, afetados };
+    return { ok: true, afetados, followups: followupsDoLote };
+  });
+
+  /**
+   * Comeca o follow-up de UMA conversa que ja esta no status (o botao da aba "O que
+   * ainda vai ser enviado"). Quem tem follow-up a sair nao e reiniciado.
+   */
+  rotas.post('/api/contatos/:id/iniciar-followup', async ({ ctx, params }) => {
+    const contato = conversaOu404(ctx, params.id);
+    const status = contato.statusId ? achar('status', contato.statusId) : null;
+    if (!status || !(status.followups || []).length) {
+      throw comCodigo('O status desta conversa nao tem sequencia de follow-up. Configure em Configuracoes > Status e follow-up.', 400);
+    }
+    const resultado = iniciarFollowupDoStatus(contato, status, { autor: { tipo: 'membro', nome: ctx.usuario.nome } });
+    if (resultado.motivo === 'em-andamento') throw comCodigo('Esta conversa ja tem follow-up em andamento.', 409);
+    emitir(ctx.workspaceId, 'contato', { contatoId: contato.id });
+    return { ok: true, criados: resultado.criados };
   });
 
   /**

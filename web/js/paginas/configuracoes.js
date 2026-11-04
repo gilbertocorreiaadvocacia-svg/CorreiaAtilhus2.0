@@ -889,6 +889,15 @@ async function secaoStatus(recarregarTela) {
           : selo('limpa o departamento', 'alerta'),
         selo(plural((item.followups || []).length, 'follow-up', 'follow-ups'), (item.followups || []).length ? 'ouro' : ''),
         podeConfigurar() ? botao('Editar', { pequeno: true, aoClicar: () => editarStatus(item, recarregarTela) }) : null,
+        /* A sequencia so nasce na TROCA de status: quem ja estava aqui antes de ela existir
+           fica parado, e este botao comeca o follow-up dessas conversas. */
+        podeConfigurar() && (item.followups || []).length
+          ? botao('Iniciar follow-up', {
+              pequeno: true,
+              titulo: `Comeca o follow-up de quem ja esta em ${item.nome} e nao tem nada a sair`,
+              aoClicar: () => iniciarFollowupNoStatus(item, recarregarTela),
+            })
+          : null,
         /* Unificar so faz sentido havendo com quem unificar. */
         podeConfigurar() && status.length > 1
           ? botao('Unificar', {
@@ -923,6 +932,50 @@ async function secaoStatus(recarregarTela) {
       : null,
     cartao(null, null, lista),
   ]);
+}
+
+/**
+ * Comeca o follow-up de quem JA esta neste status e nao tem nada a sair.
+ *
+ * Mostra a conta antes (quantas conversas, em quanto tempo sai o lote, quem fica de
+ * fora e por que), vinda do proprio servidor em modo previa, e so entao pede a
+ * confirmacao: sao mensagens de verdade para clientes de verdade. Exportado para o
+ * menu da coluna do quadro usar a mesma tela.
+ */
+export async function iniciarFollowupNoStatus(status, aoTerminar) {
+  let previa;
+  try {
+    previa = await api.post(`/api/status/${status.id}/iniciar-followup`, { previa: true });
+  } catch (erro) {
+    aviso(erro.message, 'erro');
+    return;
+  }
+
+  const linhas = [
+    previa.elegiveis
+      ? `${plural(previa.elegiveis, 'conversa vai', 'conversas vão')} começar a sequência: ${plural(previa.mensagensPorConversa, 'mensagem', 'mensagens')} para cada uma.`
+      : 'Nenhuma conversa está esperando para começar.',
+    previa.elegiveis
+      ? `A primeira mensagem de cada uma sai com ${previa.intervaloSegundos} segundos de intervalo, das conversas mais recentes para as mais antigas. O lote leva ${duracao(Math.max(1, previa.duracaoMinutos))}, e tudo respeita o horário comercial.`
+      : null,
+    previa.esperandoNossaResposta
+      ? `${plural(previa.esperandoNossaResposta, 'conversa fica', 'conversas ficam')} de fora: o cliente escreveu por último e está esperando resposta nossa, não follow-up.`
+      : null,
+    previa.comFollowupEmAndamento ? `${plural(previa.comFollowupEmAndamento, 'conversa já tem', 'conversas já têm')} follow-up a sair e não muda.` : null,
+    previa.concluidas ? `${plural(previa.concluidas, 'conversa concluída não entra', 'conversas concluídas não entram')}.` : null,
+  ].filter(Boolean);
+
+  modal({
+    titulo: `Iniciar o follow-up em ${status.nome}`,
+    corpo: el('div', { class: 'lista-simples' }, linhas.map((t) => el('div', { class: 'lista-item' }, [el('div', { class: 'corpo' }, [el('div', { class: 'desc', texto: t })])]))),
+    confirmar: previa.elegiveis ? 'Iniciar' : 'Fechar',
+    aoConfirmar: async () => {
+      if (!previa.elegiveis) return;
+      const r = await api.post(`/api/status/${status.id}/iniciar-followup`, {});
+      aviso(`Follow-up iniciado em ${plural(r.iniciadas, 'conversa', 'conversas')}.`, 'sucesso');
+      await aoTerminar?.();
+    },
+  });
 }
 
 /**

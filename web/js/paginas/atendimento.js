@@ -1,6 +1,6 @@
 import { api, enviarArquivo } from '../api.js';
 import { abrirVisualizador, campoComDica, cartaoDeArquivo, dica, menuAcoes, paginacao, previaDaMidia } from '../componentes.js';
-import { editarStatus } from './configuracoes.js';
+import { editarStatus, iniciarFollowupNoStatus } from './configuracoes.js';
 import { editarTemplate } from './templates.js';
 import { cartaoDoResumo } from './resumo-da-conversa.js';
 import {
@@ -23,6 +23,7 @@ import {
   campo,
   confirmar,
   dataHora,
+  duracao,
   el,
   entradaTexto,
   icone,
@@ -3455,11 +3456,45 @@ export async function paginaAtendimento({
   async function painelAgendamentos(contato) {
     const agendamentos = await api.get(`/api/contatos/${contato.id}/agendamentos`);
     const pendentes = agendamentos.filter((a) => a.estado === 'pendente');
+
+    /* A sequencia so nasce na TROCA de status. Conversa que ja estava no status quando a
+       sequencia foi configurada ficava aqui em "Nada agendado", sem jeito de comecar. */
+    const statusDaConversa = estado.status.find((s) => s.id === contato.statusId);
+    const passos = statusDaConversa?.followups || [];
+    const semFollowup = passos.length > 0 && !pendentes.some((a) => a.tipo === 'followup' || a.tipo === 'desistencia');
+    const iniciar = semFollowup
+      ? el('div', { class: 'alerta-caixa mb-3' }, [
+          el('div', { texto: `Esta conversa está em ${statusDaConversa.nome}, mas nenhum follow-up está programado.` }),
+          el('div', {
+            class: 't-xs c-suave mt-1',
+            texto: `A sequência tem ${plural(passos.length, 'mensagem', 'mensagens')}. A primeira sai ${duracao(Number(passos[0].minutos) || 0)} depois de iniciar, dentro do horário comercial.`,
+          }),
+          el('div', { class: 'mt-2' }, [
+            botao('Iniciar follow-up agora', {
+              tipo: 'principal',
+              pequeno: true,
+              aoClicar: async () => {
+                try {
+                  await api.post(`/api/contatos/${contato.id}/iniciar-followup`, {});
+                  aviso('Follow-up iniciado.', 'sucesso');
+                  await desenhar();
+                } catch (erro) {
+                  aviso(erro.message, 'erro');
+                }
+              },
+            }),
+          ]),
+        ])
+      : null;
+
     if (!agendamentos.length) {
-      return vazio('Nada agendado', 'Follow-ups e mensagens marcadas para depois aparecem aqui.');
+      return iniciar
+        ? el('div', { class: 'painel-bloco' }, [iniciar])
+        : vazio('Nada agendado', 'Follow-ups e mensagens marcadas para depois aparecem aqui.');
     }
 
     const bloco = el('div', { class: 'painel-bloco' });
+    if (iniciar) bloco.append(iniciar);
     /* O que ainda vai acontecer primeiro, e o resto depois: quem abre esta aba
        quer saber se o cliente vai receber alguma coisa hoje, nao o que ele
        recebeu no mes passado. */
@@ -3968,6 +4003,23 @@ export async function paginaAtendimento({
     }[tipo];
 
     const escolha = selecao(opcoes, '');
+    /* "Follow up" e a excecao da trava (o servidor comeca a sequencia de todas as escolhidas, espalhada).
+       O aviso fixo de antes dizia que NADA disparava, e quem trocava um lote para Follow up concluia
+       que nao ia acontecer nada. Agora o aviso acompanha o status escolhido. */
+    const ehFollowUp = (id) => /^follow\s*up$/i.test(String(estado.status.find((s) => s.id === id)?.nome || '').trim());
+    const avisoDoStatus = el('div', { class: 'alerta-caixa' });
+    const pintarAviso = () => {
+      const alvo = estado.status.find((s) => s.id === escolha.value);
+      if (ehFollowUp(escolha.value) && (alvo?.followups || []).length) {
+        avisoDoStatus.textContent = `Follow-up: a sequência começa em todas as conversas escolhidas (${plural(alvo.followups.length, 'mensagem', 'mensagens')} cada), inclusive nas que já estão em ${alvo.nome} sem nada programado. A primeira mensagem de cada uma sai com 45 segundos de intervalo, para proteger o número.`;
+      } else if (ehFollowUp(escolha.value)) {
+        avisoDoStatus.textContent = `${alvo.nome} ainda não tem mensagens configuradas: nada será enviado. Configure em Configurações > Status e follow-up.`;
+      } else {
+        avisoDoStatus.textContent = 'Ação em massa não dispara follow-up. Só o status Follow up começa a sequência em lote.';
+      }
+    };
+    escolha.addEventListener('change', pintarAviso);
+    if (tipo === 'status') pintarAviso();
     modal({
       titulo: `Alterar ${tipo} em ${plural(ids.length, 'conversa', 'conversas')}`,
       // O aviso de que a acao nao dispara follow-up muda o que a pessoa esta
@@ -3981,9 +4033,7 @@ export async function paginaAtendimento({
           : null,
       corpo: el('div', {}, [
         campo(tipo[0].toUpperCase() + tipo.slice(1), escolha),
-        tipo === 'status'
-          ? el('div', { class: 'alerta-caixa', texto: 'Ação em massa não dispara follow-up.' })
-          : null,
+        tipo === 'status' ? avisoDoStatus : null,
       ]),
       confirmar: 'Aplicar',
       aoConfirmar: async () => {
@@ -4689,6 +4739,9 @@ export async function paginaAtendimento({
       const menuColuna = menuAcoes(
         [
           podeConfigurar() ? { rotulo: 'Configurar coluna', icone: 'ajustes', aoClicar: () => editarStatus(statusDaColuna, aposMexerNoStatus) } : null,
+          podeConfigurar() && (statusDaColuna?.followups || []).length
+            ? { rotulo: 'Iniciar o follow-up desta coluna', icone: 'agenda', aoClicar: () => iniciarFollowupNoStatus(statusDaColuna, aposMexerNoStatus) }
+            : null,
           podeConfigurar() ? { rotulo: 'Mover para a esquerda', icone: 'voltar', aoClicar: () => moverColuna(coluna.id, -1) } : null,
           podeConfigurar() ? { rotulo: 'Mover para a direita', icone: 'abrir', aoClicar: () => moverColuna(coluna.id, +1) } : null,
           { rotulo: 'Esconder da minha vista', icone: 'arquivar', aoClicar: () => esconderColuna(coluna.id) },

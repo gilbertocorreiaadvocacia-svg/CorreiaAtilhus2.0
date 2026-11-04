@@ -12,6 +12,7 @@ import { acharOuCriarContato, receberMensagem } from '../whatsapp/recebimento.js
 import { modeloDe, provedorDisponivel, conversar } from '../ia/provedores.js';
 import { comCodigo, exigirConfiguracao } from './sessao.js';
 import { removerTemplate } from '../automacao/remover-template.js';
+import { ESPACO_ENTRE_INICIOS_EM_SEGUNDOS, iniciarFollowupDoStatus, temFollowupEmAndamento } from '../automacao/followup.js';
 
 /**
  * Tudo o que configura o comportamento do sistema: as classes da conversa,
@@ -238,6 +239,57 @@ export function registrarAutomacoes(rotas) {
     if (corpo.momentos !== undefined) corpo.momentos = normalizarMomentos(corpo.momentos);
 
     return atualizar('status', params.id, corpo);
+  });
+
+  /**
+   * Comeca a sequencia de follow-up em quem JA esta neste status e nao tem nada a
+   * sair (o botao da tela de Status e follow-up).
+   *
+   * A sequencia so nascia na troca de status: o que estava em "Follow up" antes de
+   * ela ser configurada ficava parado para sempre. Aqui entram so as conversas que
+   * nao estao concluidas, nao sao de grupo e nao tem follow-up em andamento. As que
+   * esperam uma resposta NOSSA ficam de fora e voltam contadas: quem escreveu por
+   * ultimo precisa de resposta, nao de "conseguiu pensar melhor?". Sai espalhado,
+   * com `intervaloSegundos` entre a primeira mensagem de uma conversa e a da proxima
+   * (mais recentes primeiro, que sao as mais quentes).
+   *
+   * Com `previa: true` so conta, sem agendar nada.
+   */
+  rotas.post('/api/status/:id/iniciar-followup', async ({ ctx, params, corpo }) => {
+    exigirConfiguracao(ctx);
+    const status = doWorkspace(ctx, 'status', params.id);
+    if (!(status.followups || []).length) throw comCodigo('Este status nao tem sequencia de follow-up.', 400);
+
+    const intervalo = Math.max(30, Number(corpo?.intervaloSegundos) || ESPACO_ENTRE_INICIOS_EM_SEGUNDOS);
+    const aqui = listar('contatos', { workspaceId: ctx.workspaceId }).filter((c) => c.statusId === status.id);
+    const abertas = aqui.filter((c) => c.estado !== 'arquivado' && !c.grupo);
+    const semSequencia = abertas.filter((c) => !temFollowupEmAndamento(c));
+    const esperando = semSequencia.filter((c) => c.ultimaEntradaEm && (!c.ultimaSaidaEm || c.ultimaSaidaEm < c.ultimaEntradaEm));
+    const elegiveis = semSequencia
+      .filter((c) => !esperando.includes(c))
+      .sort((a, b) => String(b.ultimaMensagemEm || '').localeCompare(String(a.ultimaMensagemEm || '')));
+
+    const resumo = {
+      noStatus: aqui.length,
+      concluidas: aqui.length - abertas.length,
+      comFollowupEmAndamento: abertas.length - semSequencia.length,
+      esperandoNossaResposta: esperando.length,
+      elegiveis: elegiveis.length,
+      intervaloSegundos: intervalo,
+      duracaoMinutos: Math.ceil((elegiveis.length * intervalo) / 60),
+      mensagensPorConversa: status.followups.length,
+    };
+    if (corpo?.previa) return resumo;
+
+    const autor = { tipo: 'membro', nome: ctx.usuario.nome };
+    let iniciadas = 0;
+    for (const contato of elegiveis) {
+      const resultado = iniciarFollowupDoStatus(contato, status, { atrasoMs: iniciadas * intervalo * 1000, autor });
+      if (resultado.criados) iniciadas += 1;
+    }
+    registrarLog(ctx.workspaceId, null, 'massa', `Follow-up iniciado em ${iniciadas} conversas que ja estavam em "${status.nome}"`, autor);
+    emitir(ctx.workspaceId, 'contatos', {});
+    return { ...resumo, ok: true, iniciadas };
   });
 
   rotas.delete('/api/status/:id', async ({ ctx, params }) => {

@@ -125,6 +125,7 @@ export function saudeDoAtendimento(workspaceId, agora = Date.now()) {
      enviados". A sequencia so nasce quando a conversa ENTRA num status que
      tem follow-up (automacao/followup.js): aqui fica, por status, quantos
      passos ele tem e quantas conversas estao nele. */
+  const comFollowupPendente = new Set(pendentes.filter((a) => a.tipo === 'followup').map((a) => a.contatoId));
   const followupPorStatus = listar('status', { workspaceId })
     .map((status) => ({
       status: status.nome,
@@ -143,6 +144,12 @@ export function saudeDoAtendimento(workspaceId, agora = Date.now()) {
       aguardandoDesistir: contatos.filter((c) => c.statusId === status.id && c.desistenciaPrevista).length,
       conversas: contatos.filter((c) => c.statusId === status.id).length,
       concluidas: contatos.filter((c) => c.statusId === status.id && c.estado === 'arquivado').length,
+      /* As que estao abertas no status e NAO tem follow-up a sair nem desqualificacao
+         esperando: e o que a sequencia nao alcanca sozinha (a conversa ja estava no
+         status quando ela foi configurada) e o botao "Iniciar o follow-up" resolve. */
+      semFollowupEmAndamento: (status.followups || []).length
+        ? contatos.filter((c) => c.statusId === status.id && c.estado !== 'arquivado' && !c.grupo && !c.desistenciaPrevista && !comFollowupPendente.has(c.id)).length
+        : null,
     }))
     .filter((s) => s.passos || s.conversas);
 

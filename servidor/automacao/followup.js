@@ -28,13 +28,31 @@ export function cancelarFollowups(contatoId, motivo = 'status alterado') {
   return pendentes.length;
 }
 
-/** Cria a sequencia do status, ja respeitando o horario comercial. */
-export function agendarFollowupsDoStatus(contato, status) {
+/**
+ * Espaco entre as primeiras mensagens quando varias conversas entram na
+ * sequencia juntas. Mandar o lote todo no mesmo minuto e o que derruba o numero
+ * (30 s e o minimo recomendado, ver /api/agendamentos/reagendar).
+ */
+export const ESPACO_ENTRE_INICIOS_EM_SEGUNDOS = 45;
+
+/** Ha follow-up a sair, ou uma desqualificacao esperando depois da ultima mensagem? */
+export function temFollowupEmAndamento(contato) {
+  if (agendamentosPendentes(contato.id).some((a) => a.tipo === 'followup')) return true;
+  return Boolean(achar('contatos', contato.id)?.desistenciaPrevista);
+}
+
+/**
+ * Cria a sequencia do status, ja respeitando o horario comercial.
+ *
+ * `atrasoMs` empurra a sequencia inteira: e como um lote se espalha, cada conversa
+ * comecando alguns segundos depois da anterior.
+ */
+export function agendarFollowupsDoStatus(contato, status, { atrasoMs = 0 } = {}) {
   const sequencia = status?.followups || [];
   if (!sequencia.length) return 0;
 
   const horario = horarioComercialDe(contato.workspaceId);
-  const base = Date.now();
+  const base = Date.now() + atrasoMs;
   let criados = 0;
 
   sequencia.forEach((passo, indice) => {
@@ -63,10 +81,42 @@ export function agendarFollowupsDoStatus(contato, status) {
 }
 
 /**
+ * Comeca a sequencia do status em uma conversa que JA esta nele.
+ *
+ * A sequencia so nascia na TROCA de status. Conversa que ja estava em "Follow up"
+ * quando a sequencia foi configurada (ou que entrou la antes) ficava para sempre
+ * sem nada agendado: escolher o mesmo status de novo nao muda nada, e a aba "O que
+ * ainda vai ser enviado" mostrava "Nada agendado" sem jeito de comecar. Aqui e uma
+ * ordem explicita de uma pessoa, entao nao vale para a IA reafirmando o status
+ * (isso reiniciaria o relogio a toda reafirmacao, ver aplicarStatus).
+ *
+ * Nao mexe em quem ja tem follow-up a sair: nao reinicia o relogio de ninguem.
+ */
+export function iniciarFollowupDoStatus(contato, status, { atrasoMs = 0, autor = null } = {}) {
+  if (!(status?.followups || []).length) return { criados: 0, motivo: 'sem-passos' };
+  if (temFollowupEmAndamento(contato)) return { criados: 0, motivo: 'em-andamento' };
+  const criados = agendarFollowupsDoStatus(contato, status, { atrasoMs });
+  if (criados) {
+    registrarLog(
+      contato.workspaceId,
+      contato.id,
+      'followup_iniciado',
+      `Follow-up iniciado em ${status.nome}: ${criados} ${criados === 1 ? 'mensagem programada' : 'mensagens programadas'}`,
+      autor,
+    );
+  }
+  return { criados, motivo: criados ? null : 'sem-passos' };
+}
+
+/**
  * Aplica um status a conversa. Puxa o departamento junto, inclusive limpando,
  * quando o status nao tem departamento, e dispara a sequencia de follow-up.
+ *
+ * `reiniciar`: a pessoa escolheu este status de novo de proposito (acao em massa).
+ * Se a conversa ja estava nele e nao tem follow-up a sair, a sequencia comeca.
+ * `atrasoMs`: empurra a sequencia, para um lote sair espalhado.
  */
-export async function aplicarStatus(contato, status, autor, { dispararFollowups = true } = {}) {
+export async function aplicarStatus(contato, status, autor, { dispararFollowups = true, reiniciar = false, atrasoMs = 0 } = {}) {
   const anterior = contato.statusId ? achar('status', contato.statusId) : null;
   /* O momento e o passo DENTRO do status: o de uma etapa nao vale na outra. */
   const trocouDeStatus = anterior?.id !== status.id;
@@ -105,7 +155,9 @@ export async function aplicarStatus(contato, status, autor, { dispararFollowups 
    */
   if (trocouDeStatus) {
     cancelarFollowups(contato.id, 'status alterado');
-    if (dispararFollowups) agendarFollowupsDoStatus(contato, status);
+    if (dispararFollowups) agendarFollowupsDoStatus(contato, status, { atrasoMs });
+  } else if (reiniciar && dispararFollowups) {
+    iniciarFollowupDoStatus(contato, status, { atrasoMs, autor });
   }
 
   // Devolve o resultado para a Meta, para o anuncio otimizar por contrato

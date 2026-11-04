@@ -102,6 +102,7 @@ import { testarArrumacaoDeAtivos, testarArrumacaoDoHistoricoSoDoCelular } from '
 import { testarVoz } from './voz.js';
 import { testarVozQueOWhatsappRecusa } from './voz-que-o-whatsapp-recusa.js';
 import { testarAudioQueToca } from './audio-que-toca.js';
+import { testarIniciarFollowup } from './iniciar-followup.js';
 import { testarTranscricaoDeAudio } from './transcricao-audio.js';
 import { testarTranscricaoLocal } from './transcricao-local.js';
 import { testarModeloDeVoz } from './modelo-de-voz.js';
@@ -401,6 +402,7 @@ async function principal() {
     suites.push(await testarResumoDaConversa({ raiz: RAIZ }));
     suites.push(await testarRotasDoResumo({ base }));
     suites.push(await testarAudioQueToca({ base, raiz: RAIZ }));
+    suites.push(await testarIniciarFollowup({ base }));
     /* Por ultimo na base compartilhada: usa uma conexao de QR Code propria e a apaga ao fim. */
     suites.push(await testarVozQueOWhatsappRecusa({ base, evolucao, chaveEvolucao: CHAVE_EVOLUCAO, anthropic, openai }));
     suites.push(await testarConclusaoPelaEquipe({ raiz: RAIZ }));
