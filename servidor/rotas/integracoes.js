@@ -271,6 +271,18 @@ export function registrarIntegracoes(rotas) {
   });
 
   /**
+   * Sugere que modelo da ZapSign vale para cada tipo de caso, pelo nome dos modelos
+   * ja sincronizados. Nao grava: a tela preenche as escolhas, a pessoa confere e salva.
+   */
+  rotas.post('/api/integracoes/zapsign/sugerir-modelos', async ({ ctx }) => {
+    exigirConfiguracao(ctx);
+    const { sugerirModelos } = await import('../integracoes/zapsign.js');
+    const modelos = achar('integracoes', { workspaceId: ctx.workspaceId })?.zapsign?.modelos || [];
+    if (!modelos.length) throw comCodigo('Sincronize os modelos da ZapSign antes.', 400);
+    return { ok: true, ...sugerirModelos(modelos) };
+  });
+
+  /**
    * Importa da LiderHub a classificacao dos contatos: status, etiquetas e
    * departamento. Com { simular: true } (padrao) so devolve o relatorio do que
    * mudaria, sem gravar nada; a equipe confere e so entao importa de verdade.

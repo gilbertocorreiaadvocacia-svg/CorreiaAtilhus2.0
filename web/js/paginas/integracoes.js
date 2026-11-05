@@ -13,6 +13,7 @@ import {
   entradaSegredo,
   entradaTexto,
   limpar,
+  modal,
   selecao,
   selo,
 } from '../ui.js';
@@ -481,6 +482,44 @@ function blocoZapsign(integracoes, recarregarTela) {
               const resultado = await api.post('/api/integracoes/zapsign/sincronizar', {});
               aviso(resultado.ok ? `${resultado.modelos.length} modelos encontrados.` : resultado.erro, resultado.ok ? 'sucesso' : 'erro');
               await recarregarTela();
+            },
+          })
+        : null,
+      /* Sem modelo escolhido o agente nao tem o que mandar. A escolha vem do NOME dos
+         modelos sincronizados, so quando e clara; aqui ela so PREENCHE a tela: quem
+         confere e clica em Salvar e a pessoa. */
+      podeConfigurar() && (zs.modelos || []).length
+        ? botao('Escolher modelos automaticamente', {
+            pequeno: true,
+            titulo: 'Preenche as escolhas pelo nome dos modelos da ZapSign. Nada é salvo até você conferir e clicar em Salvar.',
+            aoClicar: async () => {
+              let r;
+              try {
+                r = await api.post('/api/integracoes/zapsign/sugerir-modelos', {});
+              } catch (erro) {
+                aviso(erro.message, 'erro');
+                return;
+              }
+              if (r.modeloPadraoId) modelo.value = r.modeloPadraoId;
+              if (r.procuracaoPadraoId) procuracao.value = r.procuracaoPadraoId;
+              for (const linha of porCaso) {
+                const sugerido = r.modelosPorCaso?.[linha.tipo.caso];
+                if (sugerido?.contratoId) linha.contrato.value = sugerido.contratoId;
+                if (sugerido?.procuracaoId) linha.procuracao.value = sugerido.procuracaoId;
+              }
+              const linhas = [
+                ...r.escolhas.map((e) => `${e.para}: ${e.modelo}`),
+                ...r.semEscolha.map((e) => `Sem escolha clara — ${e.para} (${e.motivo})${e.candidatos?.length ? `: ${e.candidatos.join('; ')}` : ''}`),
+              ];
+              modal({
+                titulo: r.escolhas.length ? 'Modelos escolhidos pelo nome' : 'Não deu para escolher pelo nome',
+                corpo: el('div', {}, [
+                  el('div', { class: 'lista-simples' }, linhas.map((t) => el('div', { class: 'lista-item' }, [el('div', { class: 'corpo' }, [el('div', { class: 'desc', texto: t })])]))),
+                  el('div', { class: 'alerta-caixa mt-3', texto: 'Isto só preencheu a tela. Confira cada escolha (o que ficou em branco você escolhe na lista) e clique em Salvar para valer.' }),
+                ]),
+                confirmar: 'Entendi',
+                aoConfirmar: async () => {},
+              });
             },
           })
         : null,

@@ -3,10 +3,11 @@ import path from 'node:path';
 import { PASTA_ARQUIVOS } from '../config.js';
 import { achar, atualizar, inserir, listar, registrarLog } from '../nucleo/banco.js';
 import { membrosQuePodemVer } from '../nucleo/auth.js';
-import { definirMomento, tipoDeCasoDa } from '../nucleo/casos.js';
+import { TIPOS_DE_CASO, definirMomento, tipoDeCasoDa } from '../nucleo/casos.js';
 import { contratoAbertoDe } from '../nucleo/contratos.js';
 import { emitir } from '../nucleo/eventos.js';
 import { disparar } from '../nucleo/ganchos.js';
+import { avisarAdministradores } from '../nucleo/avisar-administradores.js';
 import { agora, formatarTelefone, garantirPasta, normalizar, novoId } from '../nucleo/util.js';
 import { enviarMensagem } from '../whatsapp/envio.js';
 import { aplicarStatus } from '../automacao/followup.js';
@@ -121,6 +122,91 @@ export async function sincronizarModelos(workspaceId) {
   return { ok: true, modelos };
 }
 
+/**
+ * Palavras que, no NOME de um modelo da ZapSign, dizem de que tipo de caso ele e.
+ * "Auxilio" sozinho nao entra: serve a doenca e ao acidente, e adivinhar mandaria o
+ * contrato errado para o cliente.
+ */
+const PALAVRAS_DO_CASO = {
+  bpc: ['bpc', 'loas', 'beneficio de prestacao continuada'],
+  auxilio: ['auxilio doenca', 'auxilio por incapacidade', 'incapacidade temporaria', 'incapacidade'],
+  auxilio_acidente: ['auxilio acidente', 'acidente'],
+  maternidade: ['maternidade'],
+  trabalhista: ['trabalhista', 'reclamacao trabalhista'],
+  civel: ['civel', 'consumidor'],
+};
+
+const textoDoNome = (nome) => ` ${normalizar(String(nome || '')).replace(/[^a-z0-9]+/g, ' ').trim()} `;
+
+/**
+ * Os casos que o NOME de um modelo indica. "Auxilio acidente" tambem cita "incapacidade"
+ * as vezes: quando o acidente aparece, o auxilio-doenca nao conta.
+ */
+const casosDoModelo = (modelo) => {
+  const achados = Object.keys(PALAVRAS_DO_CASO).filter((caso) => PALAVRAS_DO_CASO[caso].some((p) => modelo.texto.includes(` ${p}`)));
+  return achados.includes('auxilio_acidente') ? achados.filter((caso) => caso !== 'auxilio') : achados;
+};
+
+/**
+ * Sugere que modelo da ZapSign usar para cada coisa, lendo o NOME dos modelos que
+ * a sincronizacao trouxe. So devolve o que e claro: um modelo so serve a um caso se o
+ * nome indica exatamente aquele caso; com dois modelos que servem, ou nenhum, a
+ * escolha fica em branco e aparece em `semEscolha` — enviar o contrato errado a um
+ * cliente e pior do que pedir para a pessoa escolher.
+ *
+ * Nao grava nada: quem chama mostra a sugestao, a pessoa confere e salva.
+ */
+export function sugerirModelos(modelos = []) {
+  const lista = modelos.map((m) => ({ ...m, texto: textoDoNome(m.nome) })).map((m) => ({ ...m, casos: casosDoModelo(m) }));
+  const ehProcuracao = (m) => m.texto.includes(' procura');
+  const contratos = lista.filter((m) => !ehProcuracao(m));
+  const procuracoes = lista.filter(ehProcuracao);
+
+  const escolhas = [];
+  const semEscolha = [];
+  const modelosPorCaso = {};
+
+  /* Modelo cujo nome cita mais de um caso nao vai para nenhum: a pessoa decide. */
+  for (const m of lista.filter((x) => x.casos.length > 1)) {
+    semEscolha.push({ para: m.nome, motivo: 'o nome cita mais de um tipo de caso', candidatos: [] });
+  }
+
+  const unicoDoCaso = (conjunto, caso) => {
+    const achados = conjunto.filter((m) => m.casos.length === 1 && m.casos[0] === caso);
+    return { escolhido: achados.length === 1 ? achados[0] : null, varios: achados.length > 1 ? achados : [] };
+  };
+
+  for (const tipo of TIPOS_DE_CASO) {
+    const contrato = unicoDoCaso(contratos, tipo.caso);
+    const procuracao = unicoDoCaso(procuracoes, tipo.caso);
+    if (contrato.escolhido || procuracao.escolhido) {
+      modelosPorCaso[tipo.caso] = { contratoId: contrato.escolhido?.id || null, procuracaoId: procuracao.escolhido?.id || null };
+      if (contrato.escolhido) escolhas.push({ para: `${tipo.nome}: contrato`, modelo: contrato.escolhido.nome });
+      if (procuracao.escolhido) escolhas.push({ para: `${tipo.nome}: procuracao`, modelo: procuracao.escolhido.nome });
+    }
+    if (contrato.varios.length) semEscolha.push({ para: `${tipo.nome}: contrato`, motivo: 'mais de um modelo serve', candidatos: contrato.varios.map((m) => m.nome) });
+    if (procuracao.varios.length) semEscolha.push({ para: `${tipo.nome}: procuracao`, motivo: 'mais de uma procuracao serve', candidatos: procuracao.varios.map((m) => m.nome) });
+  }
+
+  /* O padrao: o modelo que nao e de caso nenhum, quando so ha um. */
+  const geraisContrato = contratos.filter((m) => m.casos.length === 0);
+  const geraisProcuracao = procuracoes.filter((m) => m.casos.length === 0);
+  const padrao = geraisContrato.length === 1 ? geraisContrato[0] : null;
+  const procuracaoPadrao = geraisProcuracao.length === 1 ? geraisProcuracao[0] : null;
+  if (padrao) escolhas.push({ para: 'Modelo de contrato (padrao)', modelo: padrao.nome });
+  else semEscolha.push({ para: 'Modelo de contrato (padrao)', motivo: geraisContrato.length ? 'mais de um modelo geral' : 'nenhum modelo geral', candidatos: geraisContrato.map((m) => m.nome) });
+  if (procuracaoPadrao) escolhas.push({ para: 'Procuracao (padrao)', modelo: procuracaoPadrao.nome });
+  else if (geraisProcuracao.length > 1) semEscolha.push({ para: 'Procuracao (padrao)', motivo: 'mais de uma procuracao geral', candidatos: geraisProcuracao.map((m) => m.nome) });
+
+  return {
+    modeloPadraoId: padrao?.id || null,
+    procuracaoPadraoId: procuracaoPadrao?.id || null,
+    modelosPorCaso,
+    escolhas,
+    semEscolha,
+  };
+}
+
 /** "{{NOME COMPLETO}}" -> "nome_completo". */
 const chaveDoCampo = (campo) =>
   normalizar(String(campo).replace(/[{}]/g, ''))
@@ -192,6 +278,51 @@ const avisarEquipe = (contato, titulo, texto) => {
   }
 };
 
+const avisadoSemModeloNoDia = new Map();
+
+/** O que fazer quando nenhum modelo de contrato foi escolhido para esta conversa. */
+function semModeloDeContrato({ contato, cfg, modelo, quem }) {
+  const workspaceId = contato.workspaceId;
+  const caso = modelo.caso ? tipoDeCasoDa(contato)?.nome || modelo.caso : null;
+  const motivo = !cfg.chave
+    ? 'A chave da ZapSign nao esta configurada em Integracoes.'
+    : caso
+      ? `Nao ha modelo de contrato escolhido para ${caso}, nem um modelo padrao, em Integracoes.`
+      : 'Nao ha modelo de contrato padrao escolhido em Integracoes.';
+  const comoResolver = `${motivo} Abra Integracoes > ZapSign, clique em "Escolher modelos automaticamente" (ou escolha o modelo na lista), salve, e peca o contrato de novo.`;
+
+  /* Uma vez por conversa: o agente pode chamar a ferramenta a cada resposta, e a
+     equipe nao precisa de um aviso por tentativa. */
+  if (!contato.contratoSemModeloAvisadoEm) {
+    atualizar('contatos', contato.id, { contratoSemModeloAvisadoEm: agora() });
+    contato.contratoSemModeloAvisadoEm = agora();
+    inserirNota(contato, `O contrato nao pode ser gerado: ${comoResolver} O cliente foi avisado de que uma pessoa do escritorio envia o contrato.`, quem);
+    avisarEquipe(contato, 'Contrato sem modelo', `${contato.nome}: ${motivo} Enviem o contrato na mao ou configurem em Integracoes.`);
+    registrarLog(workspaceId, contato.id, 'contrato', `Contrato nao gerado: ${motivo}`, quem);
+  }
+
+  /* Quem resolve e um administrador, e o problema trava TODOS os contratos: avisa uma vez por dia. */
+  const dia = agora().slice(0, 10);
+  const chaveDoDia = `${workspaceId}:${dia}`;
+  for (const antiga of avisadoSemModeloNoDia.keys()) if (!antiga.endsWith(dia)) avisadoSemModeloNoDia.delete(antiga);
+  if (!avisadoSemModeloNoDia.has(chaveDoDia)) {
+    avisadoSemModeloNoDia.set(chaveDoDia, true);
+    avisarAdministradores(workspaceId, {
+      titulo: 'Os agentes nao conseguem mandar contrato',
+      texto: `${motivo} Enquanto isso, nenhum contrato sai pela IA. Abra Integracoes > ZapSign e clique em "Escolher modelos automaticamente"; confira e salve. Este aviso vem uma vez por dia.`,
+      tipo: 'contrato',
+      contatoId: contato.id,
+    });
+  }
+
+  return {
+    ok: false,
+    situacao: 'sem_modelo',
+    erro: comoResolver,
+    instrucao: 'O contrato ainda nao esta configurado no sistema. NAO peca mais dados ao cliente e NAO prometa o link na hora. Diga que uma pessoa do escritorio envia o contrato e a procuracao por esta conversa em seguida.',
+  };
+}
+
 /**
  * Passo 1: pede o contrato. Nunca manda nada para a ZapSign.
  *
@@ -244,6 +375,19 @@ export async function pedirContrato({ contato, agente = null, conexao = null, da
    */
   const direto = cfg.envioDireto !== false;
   const modelo = modeloDaConversa(cfg, contato);
+
+  /*
+   * Sem modelo, nao ha contrato para gerar: nem o agente nem a equipe conseguem
+   * mandar. Ate 05/11/2026 isto so aparecia no FIM: o agente pedia ao cliente os
+   * sete dados do modelo-padrao, o cliente respondia, e so entao o envio falhava
+   * ("Escolha o modelo de contrato em Integracoes"). Em producao as chaves da
+   * ZapSign e os 12 modelos estavam la, nenhum modelo escolhido, e nenhum contrato
+   * foi pedido nunca. Agora a falta aparece na PRIMEIRA chamada: o agente nao pede
+   * mais nada ao cliente nem promete o link na hora, a equipe e avisada na conversa
+   * e os administradores no sino, com o que fazer.
+   */
+  if (!modelo.contratoId) return semModeloDeContrato({ contato, cfg, modelo, quem });
+
   const { valores, faltando, emBranco, paraColetar } = montarValores(cfg, modelo, contato);
   if (direto && paraColetar.length) {
     return {
