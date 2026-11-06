@@ -11,6 +11,12 @@ import { cliente, suite } from './apoio.js';
  * o texto junto (a equipe le o historico sem abrir cada audio), com a voz e a
  * velocidade escolhidas no agente; e se a OpenAI falhar, o cliente recebe o
  * texto — nunca o silencio.
+ *
+ * 06/11/2026 — pedido do escritorio: "so mande audio se o cliente pedir". Ate
+ * aqui o cliente so ter MANDADO um audio tambem ligava a voz sozinho, sem
+ * ninguem pedir (29/10/2026); agora isso nao basta mais — audio so sai quando
+ * alguem liga o modo de proposito, a equipe na tela ou o agente com
+ * @ativaraudio porque o cliente pediu para ouvir.
  */
 const MARCA = 'MARCA-DA-SUITE-VOZ';
 
@@ -130,8 +136,10 @@ export async function testarVoz({ base, anthropic, openai }) {
   s.ok('sem chave da OpenAI, sai texto', escritas.length >= 1 && escritas.every((m) => m.tipo !== 'audio'), JSON.stringify(escritas.map((m) => m.tipo)));
   s.ok('e nenhuma chamada e feita', (await pedidos()).length === 0, JSON.stringify(await pedidos()));
 
-  /* --- 7. O cliente manda audio: a resposta sai em audio (29/10/2026) ---
-     Sem o agente ligar modo nenhum. E quando ele volta a escrever, texto. */
+  /* --- 7. O cliente manda audio SOZINHO nao liga a voz (06/11/2026) -----
+     Ate aqui isso bastava (29/10/2026); o escritorio pediu para so falar
+     quando o cliente pede. Sem o modo ligado, a resposta continua texto —
+     mesmo com o cliente tendo mandado audio e a chave estando configurada. */
   await api.patch('/api/integracoes', { ia: { chaveOpenai: 'sk-openai-de-mentira' } });
   await oa.post('/__zerar', {});
   sufixo += 1;
@@ -150,15 +158,23 @@ export async function testarVoz({ base, anthropic, openai }) {
   await api.post(`/api/agentes/${agente.id}/responder-agora`, { contatoId: falou });
   const aoAudio = await saidas(falou);
   s.ok(
-    'o cliente mandou audio: a resposta sai em audio, sem o agente ligar o modo',
-    aoAudio.length === 1 && aoAudio[0].tipo === 'audio' && String(aoAudio[0].conteudo || '').includes('Ouvi o seu audio'),
+    'o cliente mandou audio, mas ninguem pediu nem ligou o modo: a resposta continua TEXTO',
+    aoAudio.length === 1 && aoAudio[0].tipo !== 'audio' && String(aoAudio[0].conteudo || '').includes('Ouvi o seu audio'),
     JSON.stringify(aoAudio.map((m) => [m.tipo, m.conteudo])),
   );
-  await api.post('/api/simulador/mensagem', { conexaoId: simulador.id, agenteId: agente.id, telefone: telefoneQueFala, nome: 'Cliente que fala', conteudo: 'Agora escrevi' });
-  await roteiro([{ status: 200, texto: 'Resposta escrita de volta.' }]);
+  s.ok('e a OpenAI nao e chamada so porque o cliente mandou audio', (await pedidos()).length === 0, JSON.stringify(await pedidos()));
+
+  /* --- 8. Mas se o cliente PEDE (o agente liga @ativaraudio), ai fala ---- */
+  await roteiro([{ status: 200, texto: 'Claro, te explico por audio entao.', chamadas: [ligar] }]);
+  await api.post(`/api/agentes/${agente.id}/responder-agora`, { contatoId: falou });
+  const depoisDoPedido = (await saidas(falou)).at(-1);
+  s.ok('quando ele pede, o agente liga o modo e a resposta sai falada', depoisDoPedido?.tipo === 'audio', JSON.stringify(depoisDoPedido));
+
+  /* --- 9. E volta a texto quando o agente desliga de novo --------------- */
+  await roteiro([{ status: 200, texto: 'Certo, volto a escrever.', chamadas: [desligar] }]);
   await api.post(`/api/agentes/${agente.id}/responder-agora`, { contatoId: falou });
   const voltouAEscrever = (await saidas(falou)).at(-1);
-  s.ok('quando ele volta a escrever, a resposta volta a ser texto', voltouAEscrever?.tipo !== 'audio', JSON.stringify(voltouAEscrever));
+  s.ok('e volta a texto quando o agente desliga o modo', voltouAEscrever?.tipo !== 'audio', JSON.stringify(voltouAEscrever));
 
   /* Limpeza: a suite seguinte conta agente e depende de nao haver chave. */
   await falsa.post('/__roteiro', { roteiro: [] });

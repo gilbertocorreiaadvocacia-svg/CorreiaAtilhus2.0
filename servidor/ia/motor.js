@@ -238,10 +238,14 @@ export function montarSistema({ agente, contato, workspace }) {
     ...(contato.boasVindasEnviadasEm
       ? ['- O vídeo de boas-vindas do escritório já foi enviado a este cliente, automaticamente, antes da sua primeira resposta. Não envie o template de boas-vindas de novo.']
       : []),
-    /* A resposta sai falada quando o cliente mandou audio (executarAgente):
-       texto de ouvir, e nao de ler. */
-    ...(vozDisponivel(contato.workspaceId) && mensagensDe(contato.id).findLast((m) => m.direcao === 'entrada')?.tipo === 'audio'
-      ? ['- O cliente mandou áudio: sua resposta sai em áudio. Escreva como quem fala, com frases curtas, sem listas, sem emojis e sem links (link vai em outra mensagem).']
+    /* Com o modo ligado a resposta sai falada de verdade (executarAgente); o
+       agente precisa saber disso para escrever como quem fala, nao como quem
+       escreve. O cliente ter mandado audio NAO liga o modo sozinho desde
+       06/11/2026 (pedido do escritorio: "so mande audio se o cliente pedir") —
+       quem liga e a equipe, na tela, ou o proprio agente com @ativaraudio
+       quando o cliente pede para ouvir. */
+    ...(contato.modoAudio && vozDisponivel(contato.workspaceId)
+      ? ['- Com o modo áudio ligado, sua resposta sai falada: escreva como quem fala, com frases curtas, sem listas, sem emojis e sem links (link vai em outra mensagem).']
       : []),
     '',
     'DADOS JÁ COLETADOS:',
@@ -682,15 +686,18 @@ async function rodarAgente(contatoId, passo, { corrigirPassagem = false } = {}) 
          conversa a uma pessoa. Se no meio da rodada a conversa foi passada a
          outro agente, o texto deste nao sai mais. */
       if (despedida || (atualizado.responsavel?.tipo === 'agente' && atualizado.responsavel.id === agente.id)) {
-        // Com o modo audio ligado, a resposta vai falada, e o texto vai junto,
-        // para a equipe conseguir ler o historico sem abrir cada audio.
-        // Tambem quando a ultima mensagem do cliente foi um audio: quem fala
-        // ouve a resposta. Pedido do escritorio em 29/10/2026 ("quero que os
-        // agentes enviem audio"), com a voz da OpenAI (chave em Integracoes).
-        const ultimaDoCliente = mensagensDe(contatoId).findLast((m) => m.direcao === 'entrada');
-        const clienteFalou = ultimaDoCliente?.tipo === 'audio';
+        /* Com o modo audio ligado, a resposta vai falada, e o texto vai junto, para
+           a equipe conseguir ler o historico sem abrir cada audio. Pedido do
+           escritorio em 29/10/2026 ("quero que os agentes enviem audio"), com a
+           voz da OpenAI (chave em Integracoes).
+           Ate 06/11/2026 o cliente so ter MANDADO audio tambem ligava a resposta
+           falada sozinho, sem ninguem pedir — a IA passou a responder em audio
+           para quem so tinha o habito de mandar audio, nao necessariamente quem
+           queria ouvir de volta. O escritorio pediu para voltar: audio so quando
+           alguem liga o modo de proposito — a equipe na tela, ou o agente com
+           @ativaraudio porque o cliente pediu para ouvir a resposta. */
         let midia = null;
-        if ((atualizado.modoAudio || clienteFalou) && vozDisponivel(contato.workspaceId)) {
+        if (atualizado.modoAudio && vozDisponivel(contato.workspaceId)) {
           midia = await sintetizar({
             workspaceId: contato.workspaceId,
             contatoId: atualizado.id,
