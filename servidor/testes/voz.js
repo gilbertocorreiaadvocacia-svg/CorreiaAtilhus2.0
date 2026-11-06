@@ -35,6 +35,27 @@ export async function testarVoz({ base, anthropic, openai }) {
   await oa.post('/__zerar', {});
   await api.patch('/api/integracoes', { ia: { chaveAnthropic: 'sk-ant-de-mentira', chaveOpenai: 'sk-openai-de-mentira' } });
 
+  /* --- 0. As vozes novas do gpt-4o-mini-tts estao no catalogo (06/11/2026) ---
+     "quero uma voz masculina e outra feminina bem natural". Sem entrar no
+     catalogo (config.js VOZES) elas nem apareciam na tela Vozes nem passavam
+     no botao "Ouvir" — o tts-1 antigo nao as tinha. */
+  const catalogo = (await api.get('/api/vozes')).dados?.base || [];
+  s.ok(
+    'o catalogo ganhou as vozes novas, femininas e masculinas',
+    ['coral', 'sage'].every((id) => catalogo.some((v) => v.id === id && /feminin/i.test(v.descricao))) &&
+      ['ash', 'ballad'].every((id) => catalogo.some((v) => v.id === id && /masculin/i.test(v.descricao))),
+    JSON.stringify(catalogo.map((v) => [v.id, v.descricao])),
+  );
+  const ouvirVozNova = await api.post('/api/vozes/testar', { vozBase: 'coral' });
+  s.ok(
+    'e o botao "Ouvir" aceita uma voz nova direto do catalogo, sem precisar cadastrar antes',
+    ouvirVozNova.status === 200 && Boolean(ouvirVozNova.dados?.url),
+    JSON.stringify(ouvirVozNova.dados),
+  );
+  /* Zera de novo: o resto da suite conta chamadas a partir daqui, e o "Ouvir"
+     acima ja deixou uma registrada. */
+  await oa.post('/__zerar', {});
+
   const voz = (await api.post('/api/vozes', { nome: 'Voz do Teste', vozBase: 'shimmer', velocidade: 0.9 })).dados;
   if (!s.ok('a voz e cadastrada', Boolean(voz?.id), JSON.stringify(voz))) return s;
   const agente = (await api.post('/api/agentes', { nome: 'Agente que fala' })).dados;

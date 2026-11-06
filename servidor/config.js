@@ -143,14 +143,28 @@ export function enderecoPermitido(endereco) {
 /** Limite de corpo aceito em uma requisicao (uploads chegam em base64). */
 export const LIMITE_CORPO = 32 * 1024 * 1024;
 
-/** Vozes disponiveis para a resposta em audio. */
+/*
+ * Vozes disponiveis para a resposta em audio.
+ *
+ * As seis primeiras sao as do tts-1, que a OpenAI ja tinha havia anos. As
+ * quatro ultimas (ash, ballad, coral, sage) so a troca para o gpt-4o-mini-tts
+ * (06/11/2026) destravou — o modelo antigo nao as tinha. Pedido do escritorio
+ * no mesmo dia, "quero uma voz masculina e outra feminina bem natural": coral
+ * e ash sao as que a propria OpenAI mostra como exemplo do quanto o modelo
+ * novo soa mais humano; ainda assim, qual soa melhor em portugues e questao
+ * de ouvir (botao "Ouvir" na tela Vozes), nao de ler a descricao.
+ */
 export const VOZES = [
   { id: 'nova', nome: 'Nova', descricao: 'Feminina, jovem e clara. Boa para triagem.' },
   { id: 'shimmer', nome: 'Shimmer', descricao: 'Feminina, suave e acolhedora.' },
+  { id: 'coral', nome: 'Coral', descricao: 'Feminina, animada e simpatica.' },
+  { id: 'sage', nome: 'Sage', descricao: 'Feminina, serena e calma.' },
   { id: 'alloy', nome: 'Alloy', descricao: 'Neutra e equilibrada.' },
   { id: 'echo', nome: 'Echo', descricao: 'Masculina, sobria.' },
   { id: 'onyx', nome: 'Onyx', descricao: 'Masculina, grave. Passa autoridade.' },
   { id: 'fable', nome: 'Fable', descricao: 'Masculina, narrativa.' },
+  { id: 'ash', nome: 'Ash', descricao: 'Masculina, natural e cheia de energia.' },
+  { id: 'ballad', nome: 'Ballad', descricao: 'Masculina, calma e serena.' },
 ];
 
 /** Intervalo do agendador que dispara follow-ups e mensagens agendadas. */
