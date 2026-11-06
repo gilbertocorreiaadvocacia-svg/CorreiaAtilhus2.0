@@ -221,6 +221,20 @@ export function anotarFalhaDoEnvioDoAudio(workspaceId, contatoId, motivoBruto) {
   registrarLog(workspaceId, contatoId, 'erro_voz', `O WhatsApp recusou o audio: ${motivo}. A resposta saiu em texto.`);
 }
 
+/*
+ * O tts-1 le o texto em portugues com a entonacao de quem aprendeu ingles — o
+ * idioma das palavras muda, o sotaque nao. Pedido do escritorio em 06/11/2026:
+ * "a voz esta com sotaque americano, quero mais cara de humano". O
+ * gpt-4o-mini-tts fala pelo mesmo endereco e custa o mesmo (por volta de 1,5
+ * centavo de dolar por minuto nos dois), mas aceita uma instrucao de COMO
+ * falar, nao so o texto — e e so com ela que da para pedir sotaque brasileiro
+ * de verdade.
+ */
+const MODELO_DE_VOZ = 'gpt-4o-mini-tts';
+const INSTRUCAO_DE_VOZ =
+  'Fale em português do Brasil, com sotaque brasileiro natural — nunca sotaque americano ou de quem aprendeu o idioma. ' +
+  'Tom de atendente de verdade: caloroso, calmo e profissional, como alguém conversando ao telefone, não lendo um texto em voz alta.';
+
 /** Gera o audio da resposta com a voz configurada no agente. */
 export async function sintetizar({ workspaceId, contatoId, texto, vozId, agenteId = null }) {
   const chave = chaveOpenai(workspaceId);
@@ -234,10 +248,14 @@ export async function sintetizar({ workspaceId, contatoId, texto, vozId, agenteI
       method: 'POST',
       headers: { Authorization: `Bearer ${chave}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'tts-1',
+        model: MODELO_DE_VOZ,
         voice: nomeVoz,
         input: texto.slice(0, 4000),
+        instructions: INSTRUCAO_DE_VOZ,
         response_format: 'mp3',
+        /* Alguns relatos dizem que este modelo ignora o valor numerico — mandamos
+           mesmo assim, inofensivo se for ignorado, e o pedido de ritmo tambem
+           vale como instrucao de fala, cobrindo os dois jeitos. */
         speed: voz?.velocidade || 1,
       }),
     });

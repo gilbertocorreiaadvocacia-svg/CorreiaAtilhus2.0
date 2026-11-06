@@ -90,6 +90,15 @@ export async function testarVoz({ base, anthropic, openai }) {
   s.ok('na velocidade da voz', fala[0]?.speed === 0.9, JSON.stringify(fala[0]));
   s.ok('com a chave do escritorio', fala[0]?.autorizacao === 'Bearer sk-openai-de-mentira', String(fala[0]?.autorizacao));
   s.ok('lendo a fala inteira (as duas falas da rodada)', String(fala[0]?.input || '').includes('eu explico tudo'), String(fala[0]?.input));
+  /* 06/11/2026: "a voz esta com sotaque americano, quero mais cara de humano" — o
+     modelo que entende instrucao de COMO falar, e a instrucao pedindo sotaque
+     brasileiro, nao so o idioma do texto. */
+  s.ok('com o modelo que aceita instrucao de sotaque (nao o tts-1 antigo)', fala[0]?.model === 'gpt-4o-mini-tts', String(fala[0]?.model));
+  s.ok(
+    'pedindo sotaque brasileiro, nunca americano',
+    /portugu[eê]s do brasil/i.test(fala[0]?.instructions || '') && /brasileir/i.test(fala[0]?.instructions || '') && /americano/i.test(fala[0]?.instructions || ''),
+    String(fala[0]?.instructions),
+  );
 
   /* --- 3. A conversa continua em audio na mensagem seguinte ------------- */
   await oa.post('/__zerar', {});
