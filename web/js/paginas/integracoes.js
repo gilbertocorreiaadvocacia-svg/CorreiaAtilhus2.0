@@ -485,6 +485,10 @@ function blocoZapsign(integracoes, recarregarTela) {
             },
           })
         : null,
+      /* A lista dos modelos ja sincronizados, com as variaveis de cada um — o que
+         falta para escolher sem adivinhar o que "ZAPSIGN_procuracao_trab_titular.docx"
+         pede. So leitura; escolher o modelo continua nos campos acima. */
+      (zs.modelos || []).length ? botao(`Ver modelos (${zs.modelos.length})`, { pequeno: true, aoClicar: () => abrirModelosZapsign(zs.modelos) }) : null,
       /* Sem modelo escolhido o agente nao tem o que mandar. A escolha vem do NOME dos
          modelos sincronizados, so quando e clara; aqui ela so PREENCHE a tela: quem
          confere e clica em Salvar e a pessoa. */
@@ -525,6 +529,56 @@ function blocoZapsign(integracoes, recarregarTela) {
         : null,
     ),
   );
+}
+
+/**
+ * A lista dos modelos da ZapSign, com as variaveis de cada um.
+ *
+ * O nome sozinho ("ZAPSIGN_procuracao_trab_titular.docx") nao diz o que o
+ * modelo pede nem se e mesmo o contrato certo para um tipo de caso — so as
+ * variaveis dizem. Pedido do escritorio em 06/11/2026 (o mesmo painel que a
+ * LiderHub mostra para os modelos da conta). So leitura: escolher o modelo
+ * continua nos campos do cartao do ZapSign.
+ */
+function abrirModelosZapsign(modelos) {
+  const busca = entradaTexto('', { placeholder: 'Buscar modelo...' });
+  const lista = el('div', { class: 'lista-simples' });
+
+  const normalizado = (t) => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
+  function pintar() {
+    limpar(lista);
+    const termo = normalizado(busca.value.trim());
+    const filtrados = modelos.filter((m) => !termo || normalizado(m.nome).includes(termo));
+    if (!filtrados.length) {
+      lista.append(el('div', { class: 'c-fraco t-sm', texto: 'Nenhum modelo com este nome.' }));
+      return;
+    }
+    for (const m of filtrados) {
+      lista.append(
+        el('div', { class: 'lista-item' }, [
+          el('div', { class: 'corpo' }, [
+            el('div', { class: 'titulo', texto: m.nome }),
+            (m.variaveis || []).length
+              ? el('div', { class: 'linha-botoes mt-1' }, m.variaveis.map((v) => selo(v, '')))
+              : el('div', { class: 't-xs c-fraco mt-1', texto: 'Sem variavel nenhuma neste modelo.' }),
+            (m.extras || []).length ? el('div', { class: 't-xs c-fraco mt-1', texto: `Traz anexado: ${m.extras.join(', ')}` }) : null,
+          ]),
+        ]),
+      );
+    }
+  }
+
+  busca.addEventListener('input', pintar);
+  pintar();
+
+  gaveta({
+    titulo: `Modelos da ZapSign (${modelos.length})`,
+    descricao: 'Direto da conta, para conferir o que cada um pede antes de escolher nos campos acima.',
+    larga: true,
+    rotuloCancelar: 'Fechar',
+    corpo: [campo('Buscar', busca), lista],
+  });
 }
 
 /* ------------------------------------------------------------------ */
