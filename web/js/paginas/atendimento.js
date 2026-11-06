@@ -301,7 +301,7 @@ export async function paginaAtendimento({
   const container = el('div', { class: 'atendimento' });
 
   /* Referencias da conversa aberta agora. Trocadas a cada redesenho. */
-  const vivo = { indicador: null, painel: null, contatoId: null, recarregar: null, creditosEl: null };
+  const vivo = { indicador: null, painel: null, contatoId: null, recarregar: null, creditosEl: null, rolagemAntes: null };
 
   /**
    * "O agente esta escrevendo" e estado, nao pintura.
@@ -480,9 +480,30 @@ export async function paginaAtendimento({
     alvo.scrollTop = foco.rolagem;
   }
 
+  /*
+   * O mesmo problema do foco (acima), mas para a rolagem da lista de
+   * mensagens: onde a pessoa esta na lista nao e informacao que o painel novo
+   * tem como saber sozinho. `colunaConversa()` usa isto para decidir a
+   * rolagem do painel que ela acabou de montar — ver o comentario la.
+   */
+  const PERTO_DO_FIM_EM_PIXELS = 80;
+  function medirRolagem(painel) {
+    if (!painel) return null;
+    return {
+      rolagem: painel.scrollTop,
+      pertoDoFim: painel.scrollHeight - painel.scrollTop - painel.clientHeight < PERTO_DO_FIM_EM_PIXELS,
+    };
+  }
+
   async function desenhar() {
     await buscar();
     const foco = guardarFoco();
+    /* Precisa ser medido AQUI, antes do limpar(container) logo abaixo tirar o
+       painel de mensagens do documento — depois disso scrollHeight/clientHeight
+       de um elemento ja desconectado leem 0, e colunaConversa() (que roda
+       depois do limpar) nao tem mais como saber onde a pessoa estava. Ela so
+       usa isto quando a conversa aberta continua a mesma. */
+    vivo.rolagemAntes = medirRolagem(vivo.painel);
     limpar(container);
 
     // A largura das colunas sai toda do tema, pelo nome da classe. Escrita no
@@ -1115,6 +1136,25 @@ export async function paginaAtendimento({
     }
     selecionadoId = contato.id;
 
+    /*
+     * Quem subiu para ler o comeco da conversa nao pode ser jogado de volta ao
+     * fim so porque o cliente escreveu, ou o status mudou, ou um follow-up
+     * disparou em OUTRA conversa.
+     *
+     * desenhar() (acima na pagina) refaz a tela inteira a cada evento do
+     * servidor — por isso o foco do campo de texto e guardado e devolvido la.
+     * Ate 06/11/2026 a rolagem desta lista nao tinha a mesma protecao: o
+     * atendente subia para ler o comeco do caso, QUALQUER evento vivo (mesmo
+     * sem relacao com esta mensagem, como 'contato'/'contatos' no evento de
+     * uma conversa totalmente diferente) remontava este painel do zero, e a
+     * rolagem voltava ao fim. `vivo.rolagemAntes` ja foi medido em desenhar(),
+     * antes do painel velho sair do documento (depois disso nao ha mais como
+     * medir). So vale quando e a MESMA conversa que ja estava aberta
+     * (vivo.contatoId ainda aponta para o painel de antes, aqui em cima):
+     * trocar de conversa continua abrindo no fim, como sempre.
+     */
+    const rolagemAnterior = vivo.contatoId === contato.id ? vivo.rolagemAntes : null;
+
     const painelMensagens = el('div', { class: 'mensagens' });
     const compositor = montarCompositor(contato);
     /* O aviso do contrato em conferencia, quando houver (ver mais abaixo). Mora
@@ -1236,7 +1276,7 @@ export async function paginaAtendimento({
     const PASSO_DE_MENSAGENS = 300;
     let quantasCarregar = PASSO_DE_MENSAGENS;
 
-    async function carregarMensagens() {
+    async function carregarMensagens({ antes = null } = {}) {
       const resposta = await api.get(`/api/contatos/${contato.id}/mensagens?limite=${quantasCarregar}`);
       const mensagens = resposta.mensagens || [];
       const totalNaConversa = resposta.total ?? mensagens.length;
@@ -1324,7 +1364,13 @@ export async function paginaAtendimento({
       if (cartaoDoContrato) painelMensagens.append(cartaoDoContrato);
       // O indicador vive no fim da lista e precisa voltar a cada redesenho dela.
       painelMensagens.append(aviso3Pontos);
-      painelMensagens.scrollTop = painelMensagens.scrollHeight;
+      /* Sem `antes` (trocar de conversa, trocar o filtro, "Ver mensagens
+         anteriores"): sempre o fim. Com `antes` (ver vivo.recarregar e
+         rolagemAnterior, acima): so quem ja estava perto do fim acompanha a
+         mensagem nova; quem subiu para ler continua exatamente onde estava —
+         nada muda ACIMA da posicao dele, so se acrescenta embaixo, entao o
+         mesmo numero de pixels basta. */
+      painelMensagens.scrollTop = !antes || antes.pertoDoFim ? painelMensagens.scrollHeight : antes.rolagem;
       if (contato.naoLidas) api.post(`/api/contatos/${contato.id}/ler`).catch(() => {});
     }
 
@@ -1342,9 +1388,12 @@ export async function paginaAtendimento({
     vivo.indicador = aviso3Pontos;
     vivo.painel = painelMensagens;
     vivo.contatoId = contato.id;
-    vivo.recarregar = carregarMensagens;
+    // O painel ainda esta montado (nenhum desenhar() aconteceu entre a chamada e
+    // agora), entao medir de novo, na hora, da a posicao certa — usado pelo
+    // favoritar uma mensagem (ver estrelaDa) e por quem chama direto.
+    vivo.recarregar = () => carregarMensagens({ antes: medirRolagem(painelMensagens) });
 
-    carregarMensagens();
+    carregarMensagens({ antes: rolagemAnterior });
 
     /*
      * O contrato que espera conferencia, no fim da conversa.
