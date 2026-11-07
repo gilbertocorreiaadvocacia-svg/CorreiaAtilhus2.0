@@ -381,6 +381,18 @@ export function registrarIntegracoes(rotas) {
     return testarJuri(ctx.workspaceId);
   });
 
+  /**
+   * Varredura unica, pedida pelo escritorio em 07/11/2026: manda ao Atilhus
+   * Juri as conversas que ja estavam em "Contrato fechado" (ou outro status
+   * de sucesso) antes de o envio automatico por status existir. So isso; o
+   * automatico ja cobre toda conversa daqui para frente.
+   */
+  rotas.post('/api/integracoes/atilhus-juri/mandar-fechados', async ({ ctx }) => {
+    exigirConfiguracao(ctx);
+    const { varrerFechadosSemEnvio } = await import('../integracoes/atilhus-juri.js');
+    return varrerFechadosSemEnvio(ctx.workspaceId);
+  });
+
   /* ---------------- Chamadas personalizadas ---------------- */
 
   rotas.post('/api/custom-tools', async ({ ctx, corpo }) => {

@@ -262,6 +262,38 @@ export async function testarJuri({ base, zapsign, juri }) {
   const voltouFechamento = await ate(async () => ((await juriDoFechamentoDe(setimo.id))?.situacao === 'enviado' ? true : null));
   s.ok('e a fila reenvia sozinha quando o Juri volta', voltouFechamento, JSON.stringify(await juriDoFechamentoDe(setimo.id)));
 
+  /* ---------------- Varredura: manda quem ja estava fechado antes (07/11/2026) ----------------
+   * Pedido do escritorio depois de ver o recurso no ar: as ~18 conversas que
+   * ja estavam em "Contrato fechado" antes deste recurso existir tambem
+   * precisam ir, de uma vez, com um clique — nao so as novas. Simula isso
+   * aqui desligando a integracao antes de fechar (fica "aguardando
+   * configuracao", exatamente como uma conversa fechada antes de o recurso
+   * existir), religa a integracao e roda a varredura.
+   */
+  await api.patch('/api/integracoes', { atilhusJuri: { ativo: false } });
+  const oitavo = await leadFechado(8, { ...dadosCompletos, cpf: '22233344455' });
+  const aguardandoConfig = await ate(async () => ((await juriDoFechamentoDe(oitavo.id))?.situacao === 'aguardando_configuracao' ? true : null));
+  s.ok(
+    'sem a integracao ligada, fica esperando configuracao (como uma conversa fechada antes deste recurso existir)',
+    aguardandoConfig,
+    JSON.stringify(await juriDoFechamentoDe(oitavo.id)),
+  );
+
+  await api.patch('/api/integracoes', { atilhusJuri: { ativo: true } });
+  const varredura = (await api.post('/api/integracoes/atilhus-juri/mandar-fechados', {})).dados;
+  s.ok('a varredura manda quem ficou para tras (integracao chegou depois, ou configurada depois)', varredura?.ok && varredura.enviados >= 1, JSON.stringify(varredura));
+  const enviadoPelaVarredura = await ate(async () => ((await juriDoFechamentoDe(oitavo.id))?.situacao === 'enviado' ? true : null));
+  s.ok('e essa conversa antiga agora foi', enviadoPelaVarredura, JSON.stringify(await juriDoFechamentoDe(oitavo.id)));
+
+  const antesDaSegundaVarredura = ((await falsoJuri.get('/__recebidos')).dados || []).length;
+  const segundaVarredura = (await api.post('/api/integracoes/atilhus-juri/mandar-fechados', {})).dados;
+  s.ok(
+    'rodar a varredura de novo nao manda nada duas vezes (nem as desta conversa, nem as de qualquer outra ja processada)',
+    ((await falsoJuri.get('/__recebidos')).dados || []).length === antesDaSegundaVarredura,
+    `${((await falsoJuri.get('/__recebidos')).dados || []).length} vs ${antesDaSegundaVarredura}`,
+  );
+  s.ok('e a segunda vez conta como "ja estava", nao como enviada de novo', segundaVarredura?.jaEstavam >= 1 && segundaVarredura.enviados === 0, JSON.stringify(segundaVarredura));
+
   /* ---------------- Limpeza ---------------- */
 
   await falsoJuri.post('/__modo', { status: 200 });

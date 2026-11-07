@@ -559,6 +559,36 @@ export async function enviarFechamentoAoJuri(contatoId) {
   }
 }
 
+/**
+ * Varredura unica, disparada a mao em Integracoes: manda ao Juri as conversas
+ * que JA estao num status de sucesso (ex. "Contrato fechado") mas nunca
+ * passaram por aqui — fechadas antes desta integracao existir, ou fechadas a
+ * mao sem contrato assinado por este sistema. So essas; o disparo automatico
+ * (gancho 'status_contrato_fechado') ja cobre toda conversa daqui para frente.
+ *
+ * Clicar de novo e seguro: reaproveita as mesmas checagens do envio
+ * automatico (enviarFechamentoAoJuri ja ignora quem foi, quem tem contrato
+ * assinado, e recusa quem falta CPF ou tipo de caso), entao reclicar so tenta
+ * de novo quem ainda nao foi ou falhou — nunca abre um segundo caso.
+ */
+export async function varrerFechadosSemEnvio(workspaceId) {
+  const idsDeSucesso = new Set(listar('status', { workspaceId }).filter((s) => s.tipo === 'sucesso').map((s) => s.id));
+  const contatos = listar('contatos', {}).filter((c) => c.workspaceId === workspaceId && !c.grupo && idsDeSucesso.has(c.statusId));
+
+  const resultado = { total: contatos.length, enviados: 0, jaEstavam: 0, ignorados: 0, recusados: 0, falharam: 0, aguardandoConfiguracao: 0 };
+  for (const contato of contatos) {
+    const jaEnviado = contato.juriDoFechamento?.situacao === 'enviado';
+    const r = await enviarFechamentoAoJuri(contato.id);
+    if (jaEnviado) resultado.jaEstavam += 1;
+    else if (r.situacao === 'enviado') resultado.enviados += 1;
+    else if (r.situacao === 'ignorado') resultado.ignorados += 1;
+    else if (r.erro === 'Configure o Atilhus Juri em Integracoes.') resultado.aguardandoConfiguracao += 1;
+    else if (r.vaiTentarDeNovo) resultado.falharam += 1;
+    else resultado.recusados += 1;
+  }
+  return { ok: true, ...resultado };
+}
+
 let laco = null;
 let ocupado = false;
 

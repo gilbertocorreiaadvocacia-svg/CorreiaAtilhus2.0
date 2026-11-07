@@ -633,6 +633,30 @@ function blocoAtilhusJuri(integracoes, recarregarTela) {
             },
           })
         : null,
+      /* Pedido do escritorio em 07/11/2026: o envio automatico so vale "a
+         partir de agora" (conversa daqui para frente); as que ja estavam em
+         "Contrato fechado" antes de a integracao existir ficam de fora, a
+         nao ser que alguem clique aqui, uma vez, de proposito. */
+      podeConfigurar()
+        ? botao('Mandar as já fechadas', {
+            pequeno: true,
+            aoClicar: () => {
+              confirmar(
+                'Mandar as conversas já fechadas?',
+                'Manda agora ao Atilhus Juri toda conversa que já está em "Contrato fechado" (ou outro status de sucesso) e ainda não foi enviada. Quem está sem CPF ou sem tipo de caso fica de fora, com o motivo anotado — não é mandado incompleto. Pode clicar mais de uma vez sem duplicar.',
+                async () => {
+                  await salvar();
+                  const r = await api.post('/api/integracoes/atilhus-juri/mandar-fechados', {});
+                  aviso(
+                    `${r.enviados} enviada(s), ${r.ignorados} ja tinham contrato assinado, ${r.recusados} recusada(s) (sem CPF ou tipo de caso), ${r.falharam} na fila (Juri nao respondeu agora), ${r.aguardandoConfiguracao} aguardando configuracao, de ${r.total} encontrada(s).`,
+                    'sucesso',
+                  );
+                },
+                'Mandar agora',
+              );
+            },
+          })
+        : null,
     ),
   );
 }
