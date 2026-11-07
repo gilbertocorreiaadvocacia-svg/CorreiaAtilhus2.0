@@ -4,6 +4,7 @@ import { agora, aplicarVariaveis, novoId } from '../nucleo/util.js';
 import { enviarMensagem } from '../whatsapp/envio.js';
 import { FUSO, horarioComercialDe, proximoHorarioValido } from './horario.js';
 import { contratoAbertoDe } from '../nucleo/contratos.js';
+import { disparar } from '../nucleo/ganchos.js';
 
 /**
  * O status e o gatilho de tudo. Trocou de status: cancela a sequencia antiga e
@@ -158,6 +159,24 @@ export async function aplicarStatus(contato, status, autor, { dispararFollowups 
     if (dispararFollowups) agendarFollowupsDoStatus(contato, status, { atrasoMs });
   } else if (reiniciar && dispararFollowups) {
     iniciarFollowupDoStatus(contato, status, { atrasoMs, autor });
+  }
+
+  /*
+   * Entrou numa coluna do tipo "Sucesso" (a que o escritorio chama de
+   * "Contrato fechado", ou uma renomeada com o mesmo papel): manda para o
+   * Atilhus Juri, em A validar. Pedido do escritorio em 06/11/2026 — ate
+   * aqui so ia quem assinava um contrato pelo ZapSign DAQUI; a maioria das
+   * conversas que chegam a esta coluna nunca passou por la (fechadas na
+   * mao, importadas do historico antigo). integracoes/atilhus-juri.js
+   * decide sozinho se ja existe um contrato assinado cuidando disto, e nao
+   * manda duas vezes. So numa troca de verdade: reafirmar o mesmo status
+   * nao reabre o caso no Juri, do mesmo jeito que nao reinicia o follow-up
+   * acima. Sem await, igual a Meta e ao TikTok logo abaixo: o Juri pode
+   * levar ate 30s para responder, e isso nao pode travar quem arrastou o
+   * cartao no Kanban esperando a tela atualizar.
+   */
+  if (trocouDeStatus && status.tipo === 'sucesso' && !contato.grupo) {
+    disparar('status_contrato_fechado', { workspaceId: contato.workspaceId, contatoId: contato.id }).catch(() => {});
   }
 
   // Devolve o resultado para a Meta, para o anuncio otimizar por contrato
