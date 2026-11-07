@@ -1,15 +1,17 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { AREAS, PASTA_ARQUIVOS } from '../config.js';
+import { AREAS, CUSTO, PASTA_ARQUIVOS } from '../config.js';
 import { achar, atualizar, listar, mensagensDe, registrarLog } from '../nucleo/banco.js';
 import { membrosQuePodemVer } from '../nucleo/auth.js';
-import { TIPOS_DE_CASO, definirMomento, tipoDeCasoDa } from '../nucleo/casos.js';
+import { TIPOS_DE_CASO, definirMomento, tipoDeCasoDa, umTipoDeCaso } from '../nucleo/casos.js';
+import { lancar } from '../nucleo/creditos.js';
 import { emitir } from '../nucleo/eventos.js';
 import { aoAcontecer, disparar } from '../nucleo/ganchos.js';
-import { tipoDoArquivo } from '../nucleo/midia.js';
+import { caminhoDaMidia, tipoDoArquivo } from '../nucleo/midia.js';
 import { agora, normalizar } from '../nucleo/util.js';
 import { inserirNota, notificar } from '../ia/mencoes.js';
+import { conversar, provedorDisponivel } from '../ia/provedores.js';
 
 /**
  * Contrato assinado vai para o Atilhus Juri.
@@ -289,16 +291,48 @@ function temContratoAssinado(contatoId) {
 const LIMITE_DOCUMENTOS_DA_NUVEM = 15;
 const LIMITE_BYTES_DOS_DOCUMENTOS = 24 * 1024 * 1024;
 
-function documentosDaNuvem(contato) {
-  const todos = contato.arquivos || [];
+/* A nuvem da conversa (arquivos que a equipe subiu a mao) e os anexos que o
+   PROPRIO CLIENTE mandou direto no WhatsApp (foto do RG, do CPF, laudo, etc.)
+   moram em lugares diferentes — a equipe raramente reenvia pela nuvem o que o
+   cliente ja mandou na conversa. Pedido do escritorio em 07/11/2026: juntar
+   as duas fontes, para a documentacao ir completa sem depender de alguem
+   reupload-ar. */
+function candidatosDaNuvem(contato) {
+  return (contato.arquivos || []).map((arquivo) => {
+    const caminho = path.join(PASTA_ARQUIVOS, arquivo.caminho);
+    return { nome: arquivo.nome, tipo: arquivo.tipo || 'documento', ler: () => fs.readFileSync(caminho), mime: () => tipoDoArquivo(caminho) };
+  });
+}
+
+function candidatosDasMensagens(contato) {
+  return mensagensDe(contato.id)
+    .filter((m) => m.direcao === 'entrada' && m.midia?.url)
+    .map((m) => ({
+      nome: m.midia.nome || 'anexo',
+      tipo: 'documento',
+      ler: () => {
+        const caminho = caminhoDaMidia(m.midia.url);
+        if (!caminho) throw new Error('midia sumiu do disco');
+        return fs.readFileSync(caminho);
+      },
+      mime: () => m.midia.mime || 'application/octet-stream',
+    }));
+}
+
+function documentosDoCliente(contato) {
+  const candidatos = [...candidatosDaNuvem(contato), ...candidatosDasMensagens(contato)];
   const documentos = [];
   let bytes = 0;
-  let deixados = Math.max(0, todos.length - LIMITE_DOCUMENTOS_DA_NUVEM);
+  let deixados = 0;
 
-  for (const arquivo of todos.slice(0, LIMITE_DOCUMENTOS_DA_NUVEM)) {
+  for (const candidato of candidatos) {
+    if (documentos.length >= LIMITE_DOCUMENTOS_DA_NUVEM) {
+      deixados += 1;
+      continue;
+    }
     let dados;
     try {
-      dados = fs.readFileSync(path.join(PASTA_ARQUIVOS, arquivo.caminho));
+      dados = candidato.ler();
     } catch {
       continue; // arquivo sumiu do disco: segue sem ele, e a pos-venda ve na validacao
     }
@@ -307,19 +341,14 @@ function documentosDaNuvem(contato) {
       continue;
     }
     bytes += dados.length;
-    documentos.push({
-      tipo: arquivo.tipo || 'documento',
-      nome: arquivo.nome,
-      mime: tipoDoArquivo(path.join(PASTA_ARQUIVOS, arquivo.caminho)),
-      base64: dados.toString('base64'),
-    });
+    documentos.push({ tipo: candidato.tipo, nome: candidato.nome, mime: candidato.mime(), base64: dados.toString('base64') });
   }
   return { documentos, deixados };
 }
 
 export function montarPacoteDoFechamento(contato) {
   const v = contato.variaveis || {};
-  const { documentos, deixados } = documentosDaNuvem(contato);
+  const { documentos, deixados } = documentosDoCliente(contato);
   return {
     versao: 1,
     /* Nunca um token de verdade da ZapSign (nao houve assinatura por aqui):
@@ -340,7 +369,7 @@ export function montarPacoteDoFechamento(contato) {
     caso: casoParaOJuri(contato),
     resumo: montarResumoDoFechamento(
       contato,
-      deixados ? `${deixados} arquivo(s) da nuvem da conversa nao couberam neste envio; confira o restante na propria conversa do Atilhus Chat.` : null,
+      deixados ? `${deixados} arquivo(s) do cliente nao couberam neste envio; confira o restante na propria conversa do Atilhus Chat.` : null,
     ),
     documentos,
   };
@@ -486,6 +515,138 @@ function recusadoFechamento(contato, erro) {
   return { ok: false, erro };
 }
 
+/** O CPF de verdade, com os dois digitos verificadores — nunca uma sequencia repetida. */
+function cpfValido(cpf) {
+  const d = String(cpf || '').replace(/\D/g, '');
+  if (d.length !== 11 || /^(\d)\1{10}$/.test(d)) return false;
+  const calc = (tamanho) => {
+    let soma = 0;
+    for (let i = 0; i < tamanho; i += 1) soma += Number(d[i]) * (tamanho + 1 - i);
+    const resto = (soma * 10) % 11;
+    return resto === 10 ? 0 : resto;
+  };
+  return calc(9) === Number(d[9]) && calc(10) === Number(d[10]);
+}
+
+function transcricaoBrutaDaConversa(contato) {
+  return mensagensDe(contato.id)
+    .filter((m) => !m.nota && m.conteudo)
+    .slice(-MENSAGENS_NO_RESUMO)
+    .map((m) => `[${quandoPt(m.criadoEm)}] ${m.direcao === 'entrada' ? 'Cliente' : m.autor?.nome || 'Escritorio'}: ${String(m.conteudo).slice(0, 500)}`)
+    .join('\n');
+}
+
+const SISTEMA_EXTRACAO_DE_DADOS = `Voce le uma conversa de atendimento de um escritorio de advocacia e extrai, SOMENTE o que estiver escrito literalmente na conversa, os dados abaixo. Nunca invente, nunca deduza, nunca complete um numero incompleto ou arredonde uma data.
+
+FORMATO: uma linha por campo encontrado, exatamente "Campo: valor". Omita por completo a linha de um campo que nao aparece na conversa.
+
+CAMPOS (todos opcionais, so inclua o que achar)
+CPF: so os numeros, 11 digitos
+RG
+Nascimento: data de nascimento
+Estado civil
+Profissao
+Nacionalidade
+Endereco: rua, numero, bairro, cidade, estado e CEP, do jeito que estiver escrito
+
+Se der para saber com o que o cliente busca ajuda, inclua tambem uma linha "Tipo de caso:" com EXATAMENTE uma destas palavras (a que corresponde), ou omita se nao estiver claro:
+${TIPOS_DE_CASO.map((t) => `${t.caso} (${t.nome})`).join(', ')}`;
+
+function lerCamposExtraidos(texto) {
+  const achados = {};
+  for (const linha of String(texto || '').split('\n')) {
+    const casou = /^\s*[-*•]?\s*\**(CPF|RG|Nascimento|Estado civil|Profissao|Profiss[aã]o|Nacionalidade|Endereco|Endere[cç]o|Tipo de caso)\**\s*:\s*\**\s*(.+?)\s*$/i.exec(linha);
+    if (!casou) continue;
+    const valor = casou[2].trim();
+    if (!valor) continue;
+    const chave = casou[1]
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .replace(/\s+/g, '_');
+    achados[chave] = valor;
+  }
+  return achados;
+}
+
+/**
+ * Pedido do escritorio em 07/11/2026: o cliente, no meio da conversa, ja
+ * mandou o CPF e o resto por mensagem de texto — so ninguem clicou "salvar"
+ * naquele momento. Antes de recusar por falta de CPF ou de tipo de caso, uma
+ * ultima chamada a IA rele a conversa inteira atras do que falta. So roda
+ * quando falta algo de verdade (nunca gasta credito a toa), e so GRAVA o que
+ * achar depois de validar — o CPF passa pelo digito verificador antes de
+ * confiar nele, nunca um numero que a IA "lembrou" errado.
+ */
+async function preencherDadosComIA(contato) {
+  /* "Tem CPF" aqui e o MESMO criterio frouxo (so o tamanho) que a validacao
+     final usa — nunca a checagem de digito verificador, que serve so para
+     decidir se confiamos no que a IA disse, nao para decidir se vale a pena
+     chamar a IA. Senao todo CPF de teste (ou real, mas com erro de digitacao
+     que a equipe aceitou do jeito que esta) dispararia a IA sem necessidade. */
+  const temCpf = String(contato.variaveis?.cpf || '').replace(/\D/g, '').length === 11;
+  const temTipoDeCaso = Boolean(tipoDeCasoDa(contato));
+  if (temCpf && temTipoDeCaso) return false;
+
+  const modeloId = achar('integracoes', { workspaceId: contato.workspaceId })?.ia?.modeloResumo || 'claude-sonnet-5';
+  if (!provedorDisponivel(modeloId, contato.workspaceId)) return false;
+
+  const transcricao = transcricaoBrutaDaConversa(contato);
+  if (!transcricao) return false;
+
+  let texto;
+  try {
+    const resposta = await conversar({
+      modeloId,
+      workspaceId: contato.workspaceId,
+      sistema: SISTEMA_EXTRACAO_DE_DADOS,
+      mensagens: [{ papel: 'usuario', texto: `CONVERSA:\n${transcricao}` }],
+    });
+    texto = resposta.texto;
+  } catch {
+    return false; // a IA falhou: segue para a validacao normal (e a recusa, se for o caso), sem travar o envio por causa dela
+  }
+
+  const achados = lerCamposExtraidos(texto);
+  const variaveis = { ...(contato.variaveis || {}) };
+  let mudouVariaveis = false;
+
+  if (!temCpf && achados.cpf && cpfValido(achados.cpf)) {
+    variaveis.cpf = achados.cpf.replace(/\D/g, '');
+    mudouVariaveis = true;
+  }
+  for (const chave of ['rg', 'nascimento', 'estado_civil', 'profissao', 'nacionalidade', 'endereco']) {
+    if (!variaveis[chave] && achados[chave]) {
+      variaveis[chave] = achados[chave].slice(0, 200);
+      mudouVariaveis = true;
+    }
+  }
+
+  let etiquetas = contato.etiquetas;
+  let mudouEtiquetas = false;
+  if (!temTipoDeCaso && achados.tipo_de_caso) {
+    const tipo = TIPOS_DE_CASO.find((t) => t.caso === achados.tipo_de_caso.trim().toLowerCase());
+    const etiqueta = tipo && listar('etiquetas', { workspaceId: contato.workspaceId, tipo: 'caso', caso: tipo.caso })[0];
+    if (etiqueta) {
+      etiquetas = umTipoDeCaso([...(contato.etiquetas || []), etiqueta.id], contato.etiquetas);
+      mudouEtiquetas = true;
+    }
+  }
+
+  if (!mudouVariaveis && !mudouEtiquetas) return false;
+
+  const mudancas = {};
+  if (mudouVariaveis) mudancas.variaveis = variaveis;
+  if (mudouEtiquetas) mudancas.etiquetas = etiquetas;
+  atualizar('contatos', contato.id, mudancas);
+  if (mudouVariaveis) contato.variaveis = variaveis;
+  if (mudouEtiquetas) contato.etiquetas = etiquetas;
+
+  lancar(contato.workspaceId, contato.id, 'juri_extrair_dados', CUSTO.processamentoIA);
+  registrarLog(contato.workspaceId, contato.id, 'juri', 'A IA releu a conversa e completou dados do cliente antes de mandar ao Atilhus Juri', sistema);
+  return true;
+}
+
 const enviandoFechamento = new Set();
 
 /**
@@ -516,6 +677,8 @@ export async function enviarFechamentoAoJuri(contatoId) {
       guardarNoContato(contato, { situacao: 'aguardando_configuracao', erro: null });
       return { ok: false, erro: 'Configure o Atilhus Juri em Integracoes.' };
     }
+
+    await preencherDadosComIA(contato);
 
     const pacote = montarPacoteDoFechamento(contato);
     if (pacote.contato.documento.length !== 11) return recusadoFechamento(contato, 'o CPF do cliente esta faltando ou incompleto');

@@ -318,7 +318,7 @@ async function principal() {
     suites.push(await testarCasos({ base }));
     suites.push(await testarPacotes({ base }));
     suites.push(await testarContratos({ base, zapsign }));
-    suites.push(await testarJuri({ base, zapsign, juri }));
+    suites.push(await testarJuri({ base, zapsign, juri, anthropic }));
     suites.push(await testarChatDeTeste({ base }));
     suites.push(await testarIa(base, anthropic));
     /* Depois da IA: poe a chave de mentira de volta e tira no fim. */

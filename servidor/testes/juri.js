@@ -26,7 +26,7 @@ async function ate(condicao, ms = 6000) {
   return null;
 }
 
-export async function testarJuri({ base, zapsign, juri }) {
+export async function testarJuri({ base, zapsign, juri, anthropic }) {
   const s = suite('Contrato assinado vai para o Atilhus Juri');
   const api = cliente(base);
   await api.entrar();
@@ -181,7 +181,7 @@ export async function testarJuri({ base, zapsign, juri }) {
   if (!s.ok('ha os status "Em análise" e "Contrato fechado"', Boolean(emAnalise && fechado))) return s;
 
   const contatosDoFechamento = [];
-  async function leadFechado(sufixo, variaveis, { comEtiqueta = true, antesDeFechar } = {}) {
+  async function leadFechado(sufixo, variaveis, { comEtiqueta = true, antesDeFechar, mensagem = 'Fechamos direto com o cliente, por fora do sistema.' } = {}) {
     const contato = (
       await api.post('/api/contatos', { conexaoId: simulador.id, telefone: TELEFONE(sufixo), nome: `Fechamento Sem Contrato ${sufixo}` })
     ).dados;
@@ -191,7 +191,7 @@ export async function testarJuri({ base, zapsign, juri }) {
       etiquetas: comEtiqueta ? [bpc.id] : [],
       variaveis,
     });
-    await api.post(`/api/contatos/${contato.id}/mensagens`, { conteudo: 'Fechamos direto com o cliente, por fora do sistema.' });
+    await api.post(`/api/contatos/${contato.id}/mensagens`, { conteudo: mensagem });
     if (antesDeFechar) await antesDeFechar(contato);
     await api.patch(`/api/contatos/${contato.id}`, { statusId: fechado.id });
     return contato;
@@ -294,8 +294,45 @@ export async function testarJuri({ base, zapsign, juri }) {
   );
   s.ok('e a segunda vez conta como "ja estava", nao como enviada de novo', segundaVarredura?.jaEstavam >= 1 && segundaVarredura.enviados === 0, JSON.stringify(segundaVarredura));
 
+  /* ---------------- A IA rele a conversa inteira e completa o que falta (07/11/2026) ----------------
+   * Pedido do escritorio depois de ver recusas por falta de CPF: o cliente
+   * muitas vezes ja mandou o CPF (e o resto) na propria conversa, por
+   * mensagem de texto comum — so ninguem clicou "salvar" naquele momento. Em
+   * vez de recusar na hora, uma IA rele a conversa inteira atras do que
+   * falta, e so grava o que achar DEPOIS de validar (nunca confia cegamente
+   * no que a IA "lembrou": o CPF passa pelo digito verificador).
+   */
+  await api.patch('/api/integracoes', { ia: { chaveAnthropic: 'sk-ant-juri-teste' } });
+  const falsaIa = cliente(anthropic);
+  await falsaIa.post('/__roteiro', {
+    marca: 'Voce le uma conversa de atendimento',
+    roteiro: [{ status: 200, texto: 'CPF: 111.444.777-35\nEndereco: Av. Teste, 500, Centro, Recife-PE, 50000-000\nTipo de caso: bpc' }],
+  });
+
+  const nono = await leadFechado(9, { idade: '70' }, {
+    comEtiqueta: false,
+    mensagem: 'Oi, meu CPF é 111.444.777-35. Moro na Av. Teste, 500, Centro, Recife-PE, 50000-000.',
+  });
+  const foiPelaIa = await ate(async () => ((await juriDoFechamentoDe(nono.id))?.situacao === 'enviado' ? true : null));
+  s.ok('a IA le a conversa, acha o CPF que o cliente ja tinha mandado, e o caso vai mesmo sem ninguem preencher a mao', foiPelaIa, JSON.stringify(await juriDoFechamentoDe(nono.id)));
+
+  const pacoteDoNono = ((await falsoJuri.get('/__recebidos')).dados || []).find((p) => p.token_documento === `chat-fechamento-${nono.id}`);
+  s.ok('com o CPF certo (passou pelo digito verificador) no campo proprio, nunca so copiado cru do texto', pacoteDoNono?.contato?.documento === '11144477735', pacoteDoNono?.contato?.documento);
+  s.ok('e com o tipo de caso que a IA tambem identificou na conversa', pacoteDoNono?.caso?.area_juri === 'previdenciario_administrativo', JSON.stringify(pacoteDoNono?.caso));
+
+  const nonoAtualizado = (await api.get(`/api/contatos/${nono.id}`)).dados;
+  s.ok('a etiqueta de tipo de caso fica salva na conversa, nao so usada na hora do envio', nonoAtualizado?.etiquetas?.includes(bpc.id), JSON.stringify(nonoAtualizado?.etiquetas));
+  s.ok('e o CPF tambem fica salvo no cadastro, pronto pra proxima vez', nonoAtualizado?.variaveis?.cpf === '11144477735', nonoAtualizado?.variaveis?.cpf);
+
+  const chamadasAntes = (await falsaIa.get('/__chamadas')).dados?.total ?? 0;
+  const decimo = await leadFechado(10, dadosCompletos); // ja chega com CPF e tipo de caso (etiqueta BPC por padrao): nao devia gastar IA
+  await ate(async () => ((await juriDoFechamentoDe(decimo.id))?.situacao === 'enviado' ? true : null));
+  const chamadasDepois = (await falsaIa.get('/__chamadas')).dados?.total ?? 0;
+  s.ok('quem ja chega com CPF e tipo de caso nao gasta IA a toa (a IA nunca e chamada)', chamadasDepois === chamadasAntes, `${chamadasAntes} -> ${chamadasDepois}`);
+
   /* ---------------- Limpeza ---------------- */
 
+  await api.patch('/api/integracoes', { ia: { chaveAnthropic: null } });
   await falsoJuri.post('/__modo', { status: 200 });
   await api.patch('/api/integracoes', { atilhusJuri: { url: '', segredo: null, ativo: false }, zapsign: { chave: null } });
   for (const c of [primeiro, segundo, terceiro]) await api.delete(`/api/contatos/${c.contato.id}`);
