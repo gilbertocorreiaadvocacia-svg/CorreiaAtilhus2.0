@@ -48,10 +48,14 @@ inserir('workspaces', { id: 'w1', nome: 'Escritorio de Teste' });
 
 const tpl = inserir('templates', { id: 'tpl1', workspaceId: 'w1', nome: 'Follow-up 1', conteudo: 'Oi {{nome}}' });
 
+/* Pedido do escritorio em 09/11/2026: so o status chamado "Follow up" dispara
+   follow-up automatico. O nome aqui e so para exercitar o algoritmo (a
+   reafirmacao nao pode reiniciar o relogio); a base deste teste e isolada
+   e descartavel. */
 const qualificado = inserir('status', {
   id: 'sts_qualificado',
   workspaceId: 'w1',
-  nome: 'Qualificado',
+  nome: 'Follow up',
   tipo: 'qualificado',
   followups: [
     { id: 'fup1', templateId: tpl.id, minutos: 60, desistir: null },
@@ -60,7 +64,19 @@ const qualificado = inserir('status', {
 });
 const proposta = inserir('status', { id: 'sts_proposta', workspaceId: 'w1', nome: 'Proposta', tipo: 'proposta', followups: [] });
 
+/* Pedido do escritorio em 09/11/2026: so o status chamado "Follow up" manda
+   mensagem automatica sozinha. Este status TEM passos configurados (igual
+   "Qualificado" acima), mas o nome e outro — nao pode disparar nada. */
+const outroComPassos = inserir('status', {
+  id: 'sts_outro_com_passos',
+  workspaceId: 'w1',
+  nome: 'Preparar kit',
+  tipo: 'nenhum',
+  followups: [{ id: 'fup3', templateId: tpl.id, minutos: 60, desistir: null }],
+});
+
 const contato = inserir('contatos', { id: 'c1', workspaceId: 'w1', nome: 'Lead de Teste', telefone: '5581900000001' });
+const contato2 = inserir('contatos', { id: 'c2', workspaceId: 'w1', nome: 'Lead de Teste 2', telefone: '5581900000002' });
 
 // 1. Aplica Qualificado pela primeira vez: cria os dois passos.
 await aplicarStatus(contato, qualificado, { tipo: 'agente', id: 'a1', nome: 'Agente' });
@@ -74,10 +90,15 @@ const depoisDeReafirmar = agendamentosPendentes(contato.id).filter((a) => a.tipo
 await aplicarStatus(contato, proposta, { tipo: 'agente', id: 'a1', nome: 'Agente' });
 const depoisDeTrocarDeVerdade = agendamentosPendentes(contato.id).filter((a) => a.tipo === 'followup');
 
+// 4. Status com passos configurados, mas que NAO se chama "Follow up": nada e agendado.
+await aplicarStatus(contato2, outroComPassos, { tipo: 'agente', id: 'a1', nome: 'Agente' });
+const noStatusComOutroNome = agendamentosPendentes(contato2.id).filter((a) => a.tipo === 'followup');
+
 console.log(JSON.stringify({
   idsPrimeiraVez: primeiraVez.map((a) => a.id).sort(),
   idsDepoisDeReafirmar: depoisDeReafirmar.map((a) => a.id).sort(),
   quantosDepoisDeTrocarDeVerdade: depoisDeTrocarDeVerdade.length,
+  quantosNoStatusComOutroNome: noStatusComOutroNome.length,
 }));
 await encerrarBanco();
 process.exit(0);
@@ -99,6 +120,11 @@ process.exit(0);
       'uma troca de status de verdade continua cancelando os do status anterior',
       b.quantosDepoisDeTrocarDeVerdade === 0,
       String(b.quantosDepoisDeTrocarDeVerdade),
+    );
+    s.ok(
+      'status com passos configurados mas que nao se chama "Follow up" nao dispara nada (pedido do escritorio, 09/11/2026)',
+      b.quantosNoStatusComOutroNome === 0,
+      String(b.quantosNoStatusComOutroNome),
     );
   } finally {
     fs.rmSync(pasta, { recursive: true, force: true });

@@ -51,10 +51,13 @@ inserir('status', { id: 'st-qual', workspaceId: 'w1', nome: 'Qualificado', tipo:
 /* O status com a sequencia de 4 mensagens e a desistencia com espera de 1 dia. */
 const passos = (desistir) => ['fu1', 'fu2', 'fu2', 'fu3'].map((a, i, todos) => ({ id: 'p' + i, templateId: 'tpl-' + a, minutos: [30, 2910, 7230, 14430][i], desistir: i === todos.length - 1 ? desistir : null }));
 inserir('status', { id: 'st-fu', workspaceId: 'w1', nome: 'Follow up', tipo: 'nenhum', followups: passos({ ativo: true, statusId: 'st-desq', responsavel: null, arquivar: true, esperaMinutos: 1440, templateId: 'tpl-final' }) });
-/* Aviso de encerramento SEM dias de espera: sai na hora (no proximo tique), depois de conferir que ninguem respondeu. */
-inserir('status', { id: 'st-so-aviso', workspaceId: 'w1', nome: 'So aviso', tipo: 'nenhum', followups: passos({ ativo: true, statusId: 'st-desq', responsavel: null, arquivar: true, templateId: 'tpl-final' }) });
+/* Aviso de encerramento SEM dias de espera: sai na hora (no proximo tique), depois de conferir que ninguem respondeu.
+   Pedido do escritorio em 09/11/2026: so o status chamado "Follow up" dispara follow-up automatico — os tres
+   status deste teste (acima e abaixo) tem esse nome de proposito, so para exercitar o algoritmo em configuracoes
+   diferentes; sao isolados nesta base de teste descartavel, sem conflito de nome entre eles. */
+inserir('status', { id: 'st-so-aviso', workspaceId: 'w1', nome: 'Follow up', tipo: 'nenhum', followups: passos({ ativo: true, statusId: 'st-desq', responsavel: null, arquivar: true, templateId: 'tpl-final' }) });
 /* O de antes: desiste na hora, sem espera. */
-inserir('status', { id: 'st-antigo', workspaceId: 'w1', nome: 'Antigo', tipo: 'nenhum', followups: passos({ ativo: true, statusId: 'st-desq', responsavel: null, arquivar: true }) });
+inserir('status', { id: 'st-antigo', workspaceId: 'w1', nome: 'Follow up', tipo: 'nenhum', followups: passos({ ativo: true, statusId: 'st-desq', responsavel: null, arquivar: true }) });
 
 let numero = 5581900000000;
 const lead = (id, extra = {}) => { numero += 1; return inserir('contatos', { id, workspaceId: 'w1', conexaoId: 'cx1', telefone: String(numero), nome: id, estado: 'pendente', responsavel: { tipo: 'membro', id: 'm1', nome: 'Ana' }, statusId: null, etiquetas: [], ...extra }); };

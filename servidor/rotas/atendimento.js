@@ -28,7 +28,7 @@ import { driverDa } from '../whatsapp/drivers/index.js';
 import { agendarFoto } from '../whatsapp/fotos.js';
 import { configDoResumo, gerarResumo, salvarConfigDoResumo, situacaoDoResumo } from '../ia/resumo-da-conversa.js';
 import { LIBERAR_PARA_A_IA, mudancasDeConcluir } from '../nucleo/conclusao-pela-equipe.js';
-import { ESPACO_ENTRE_INICIOS_EM_SEGUNDOS, agendarFollowupsDoStatus, aplicarStatus, cancelarFollowups, iniciarFollowupDoStatus, limparAgendamentosDoContato, reagendarFollowups } from '../automacao/followup.js';
+import { ESPACO_ENTRE_INICIOS_EM_SEGUNDOS, agendarFollowupsDoStatus, aplicarStatus, cancelarFollowups, ehStatusDeFollowUp, iniciarFollowupDoStatus, limparAgendamentosDoContato, reagendarFollowups } from '../automacao/followup.js';
 import { proximoHorarioValido, horarioComercialDe } from '../automacao/horario.js';
 import { apagarMidia, guardarBase64 } from '../nucleo/midia.js';
 import { transcrever } from '../ia/audio.js';
@@ -907,7 +907,7 @@ export function registrarAtendimento(rotas) {
            * de volta ao contato, e sem a sequencia disparar aqui o follow-up
            * nunca saia sozinho — tinha que ser mandado a mao, um por um.
            */
-          const ehFollowUp = normalizar(status.nome) === normalizar('Follow up');
+          const ehFollowUp = ehStatusDeFollowUp(status);
           /* Em "Follow up" a sequencia comeca para TODAS as escolhidas, inclusive as que ja
              estavam nele sem nada agendado (escolher o mesmo status nao era uma troca, e
              elas ficavam paradas). O lote sai espalhado: a primeira mensagem de cada
@@ -1002,8 +1002,11 @@ export function registrarAtendimento(rotas) {
   rotas.post('/api/contatos/:id/iniciar-followup', async ({ ctx, params }) => {
     const contato = conversaOu404(ctx, params.id);
     const status = contato.statusId ? achar('status', contato.statusId) : null;
-    if (!status || !(status.followups || []).length) {
-      throw comCodigo('O status desta conversa nao tem sequencia de follow-up. Configure em Configuracoes > Status e follow-up.', 400);
+    if (!status || !ehStatusDeFollowUp(status)) {
+      throw comCodigo('Follow-up automatico so existe no status "Follow up".', 400);
+    }
+    if (!(status.followups || []).length) {
+      throw comCodigo('O status "Follow up" nao tem sequencia configurada. Configure em Configuracoes > Status e follow-up.', 400);
     }
     const resultado = iniciarFollowupDoStatus(contato, status, { autor: { tipo: 'membro', nome: ctx.usuario.nome } });
     if (resultado.motivo === 'em-andamento') throw comCodigo('Esta conversa ja tem follow-up em andamento.', 409);

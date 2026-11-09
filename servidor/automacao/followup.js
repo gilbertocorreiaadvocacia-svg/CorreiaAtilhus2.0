@@ -1,6 +1,6 @@
 import { achar, atualizar, inserir, listar, registrarLog, removerOnde } from '../nucleo/banco.js';
 import { emitir } from '../nucleo/eventos.js';
-import { agora, aplicarVariaveis, novoId } from '../nucleo/util.js';
+import { agora, aplicarVariaveis, normalizar, novoId } from '../nucleo/util.js';
 import { enviarMensagem } from '../whatsapp/envio.js';
 import { FUSO, horarioComercialDe, proximoHorarioValido } from './horario.js';
 import { contratoAbertoDe } from '../nucleo/contratos.js';
@@ -48,7 +48,17 @@ export function temFollowupEmAndamento(contato) {
  * `atrasoMs` empurra a sequencia inteira: e como um lote se espalha, cada conversa
  * comecando alguns segundos depois da anterior.
  */
+/* Pedido do escritorio em 09/11/2026: so a coluna "Follow up" manda mensagem
+   automatica sozinha. Status configurado com passos (de fabrica, ou por
+   engano depois) NUNCA dispara nada, mesmo que alguem cadastre uma
+   sequencia nele — regra fixa, nao e so limpar o que ja esta configurado
+   hoje. "Follow up" e reconhecido pelo nome (sem acento, sem maiusculas),
+   do mesmo jeito que o resto do sistema ja faz (ver status-em-massa.js,
+   iniciar-followup.js). */
+export const ehStatusDeFollowUp = (status) => normalizar(status?.nome) === 'follow up';
+
 export function agendarFollowupsDoStatus(contato, status, { atrasoMs = 0 } = {}) {
+  if (!ehStatusDeFollowUp(status)) return 0;
   const sequencia = status?.followups || [];
   if (!sequencia.length) return 0;
 
@@ -94,6 +104,7 @@ export function agendarFollowupsDoStatus(contato, status, { atrasoMs = 0 } = {})
  * Nao mexe em quem ja tem follow-up a sair: nao reinicia o relogio de ninguem.
  */
 export function iniciarFollowupDoStatus(contato, status, { atrasoMs = 0, autor = null } = {}) {
+  if (!ehStatusDeFollowUp(status)) return { criados: 0, motivo: 'nao-e-follow-up' };
   if (!(status?.followups || []).length) return { criados: 0, motivo: 'sem-passos' };
   if (temFollowupEmAndamento(contato)) return { criados: 0, motivo: 'em-andamento' };
   const criados = agendarFollowupsDoStatus(contato, status, { atrasoMs });
