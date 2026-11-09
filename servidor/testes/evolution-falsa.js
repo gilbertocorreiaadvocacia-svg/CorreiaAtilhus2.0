@@ -47,6 +47,9 @@ let celular = { chats: [], mensagens: [], contatos: [], fotos: {}, anexos: {} };
 /* Cada consulta de foto que o sistema fez, com a hora: e assim que o teste
    confere que a fila anda devagar, e nao em rajada. */
 const consultasDeFoto = [];
+/* Cada pedido de anexo (id da mensagem, com a hora): e assim que o teste
+   confere que uma falha e tentada de novo sozinha, sem reiniciar o servidor. */
+const consultasDeMidia = [];
 
 /**
  * Um PNG com cara de QR Code, desenhado aqui.
@@ -184,6 +187,7 @@ export function subirEvolucaoFalsa(porta = PORTA, chave = CHAVE) {
       marcadasLidas.length = 0;
       instancias.clear();
       consultasDeFoto.length = 0;
+      consultasDeMidia.length = 0;
       celular = { chats: [], mensagens: [], contatos: [], fotos: {}, anexos: {} };
       return responder(200, { ok: true });
     }
@@ -202,6 +206,7 @@ export function subirEvolucaoFalsa(porta = PORTA, chave = CHAVE) {
       return responder(200, { ok: true });
     }
     if (caminho === '/__fotos') return responder(200, consultasDeFoto);
+    if (caminho === '/__midias') return responder(200, consultasDeMidia);
     if (caminho === '/__marcadas-lidas') return responder(200, marcadasLidas);
 
     /* O protocolo de verdade. */
@@ -245,6 +250,7 @@ export function subirEvolucaoFalsa(porta = PORTA, chave = CHAVE) {
     }
     if (caminho.startsWith('/chat/getBase64FromMediaMessage/')) {
       const id = (corpo ? JSON.parse(corpo) : {})?.message?.key?.id;
+      consultasDeMidia.push({ id, quando: Date.now() });
       const anexo = celular.anexos?.[id];
       /* Como a Evolution quando o WhatsApp ja nao tem o arquivo: erro. */
       if (!anexo) return responder(400, { message: 'Media not found' });

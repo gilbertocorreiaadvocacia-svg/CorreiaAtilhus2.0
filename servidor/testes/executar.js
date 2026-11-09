@@ -267,6 +267,11 @@ async function principal() {
       /* A fila de arquivos do historico anda de 3 em 3 s no escritorio; aqui,
          de 30 ms, para o download em segundo plano caber no teste. */
       CORREIA_MIDIA_INTERVALO: '30',
+      /* A espera de uma falha (5 min, 15 min...) e a varredura periodica (15
+         min) no escritorio; aqui, bem mais rapido, para o teste nao esperar
+         minutos de verdade por um anexo que falhou de proposito. */
+      CORREIA_MIDIA_ESPERAS: '150,150,150',
+      CORREIA_MIDIA_VARREDURA_INTERVALO: '200',
       /* A Evolution desta maquina nao entra no teste: a conexao nova leria a
          chave real de windows/evolution/.env. O teste le um .env proprio,
          com chave de mentira, escrito logo abaixo. */

@@ -400,9 +400,23 @@ export async function testarHistorico({ base, evolucao, chaveEvolucao }) {
 
   /* O laudo o WhatsApp ja nao tem (nao esta em `anexos`): a fila tenta, falha e
      segue sem travar; o anexo fica sem arquivo (ainda da para carregar sob
-     demanda), e a fila nao fica insistindo nele em laco. */
+     demanda), e a fila nao fica insistindo nele SEM ESPERAR (nao em rajada). */
   const laudoDepois = ((await api.get(`/api/contatos/${e?.id}/midias`)).dados || []).find((m) => m.id === laudo?.id);
   s.ok('anexo que o WhatsApp ja apagou fica sem arquivo, sem travar a fila', !laudoDepois?.midia?.url, JSON.stringify(laudoDepois?.midia));
+
+  /* Achado em 09/11/2026: antes, essa falha ficava marcada "nao insisto mais"
+     ATE O PROXIMO REINICIO do servidor — um fim de semana sem deploy e um
+     anexo perdido ate segunda, mesmo que a causa real fosse so um instante
+     de instabilidade da Evolution. Agora espera um pouco (CORREIA_MIDIA_ESPERAS)
+     e a propria varredura periodica (CORREIA_MIDIA_VARREDURA_INTERVALO) tenta
+     de novo sozinha — sem reiniciar nada e sem ninguem clicar em Carregar. */
+  const consultasAntes = (await evo('/__midias')).length;
+  let tentouDeNovo = false;
+  for (let i = 0; i < 30 && !tentouDeNovo; i += 1) {
+    await esperar(100);
+    tentouDeNovo = (await evo('/__midias')).length > consultasAntes;
+  }
+  s.ok('a falha nao fica marcada para sempre: a fila tenta de novo sozinha, mais tarde', tentouDeNovo, `${consultasAntes} -> ${(await evo('/__midias')).length}`);
 
   /* O progresso da fila fica na conexao, para a tela mostrar. */
   const conexaoDepois = ((await api.get('/api/conexoes')).dados || []).find((c) => c.id === id);
