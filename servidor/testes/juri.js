@@ -281,7 +281,15 @@ export async function testarJuri({ base, zapsign, juri, anthropic }) {
 
   await api.patch('/api/integracoes', { atilhusJuri: { ativo: true } });
   const varredura = (await api.post('/api/integracoes/atilhus-juri/mandar-fechados', {})).dados;
-  s.ok('a varredura manda quem ficou para tras (integracao chegou depois, ou configurada depois)', varredura?.ok && varredura.enviados >= 1, JSON.stringify(varredura));
+  /* "enviados" ou "jaEstavam": o laco periodico (iniciarIntegracaoJuri) TAMBEM
+     retoma sozinho quem ficou "aguardando_configuracao" assim que a integracao
+     volta a ativa — corrida valida com esta varredura manual, nao um erro;
+     quem venceu primeiro e por sorte de tempo, os dois estao certos. */
+  s.ok(
+    'a varredura manda quem ficou para tras (integracao chegou depois, ou configurada depois)',
+    varredura?.ok && varredura.enviados + varredura.jaEstavam >= 1,
+    JSON.stringify(varredura),
+  );
   const enviadoPelaVarredura = await ate(async () => ((await juriDoFechamentoDe(oitavo.id))?.situacao === 'enviado' ? true : null));
   s.ok('e essa conversa antiga agora foi', enviadoPelaVarredura, JSON.stringify(await juriDoFechamentoDe(oitavo.id)));
 

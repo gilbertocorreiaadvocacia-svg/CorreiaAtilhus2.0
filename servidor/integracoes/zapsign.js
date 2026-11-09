@@ -361,7 +361,17 @@ export async function pedirContrato({ contato, agente = null, conexao = null, da
     };
   }
   if (aberto) {
-    await enviarLink(aberto, contato, saida, quem, { reenvio: true });
+    const envio = await enviarLink(aberto, contato, saida, quem, { reenvio: true });
+    if (!envio.entregue) {
+      avisarEquipe(contato, 'Reenvio do link falhou', `${contato.nome}: o reenvio do link do contrato falhou pelo WhatsApp${envio.erro ? ` (${envio.erro})` : ''}. Mande o link a mao: ${aberto.link}`);
+      return {
+        ok: true,
+        contrato_id: aberto.id,
+        situacao: aberto.situacao,
+        reenviado: false,
+        instrucao: 'O reenvio do link falhou agora (instabilidade no envio). NAO diga que ja foi mandado. Avise o cliente que houve um problema tecnico e que a equipe vai reenviar o link em instantes.',
+      };
+    }
     return { ok: true, contrato_id: aberto.id, situacao: aberto.situacao, reenviado: true };
   }
 
@@ -420,7 +430,7 @@ export async function pedirContrato({ contato, agente = null, conexao = null, da
 
   if (direto) {
     const enviado = await aprovarContrato(contrato.id, { autor: quem, direto: true });
-    if (enviado.ok) {
+    if (enviado.ok && enviado.entregue) {
       inserirNota(
         contato,
         `Contrato e procuração gerados${agente ? ` por ${agente.nome}` : ''} e enviados para assinatura, sem conferência (envio direto, em Integrações).${enviado.aviso ? ` ${enviado.aviso}` : ''}`,
@@ -432,6 +442,18 @@ export async function pedirContrato({ contato, agente = null, conexao = null, da
         contrato_id: contrato.id,
         situacao: 'link_enviado',
         instrucao: 'O link do contrato e da procuração já foi enviado nesta conversa, com o vídeo de como assinar. Peça ao cliente para abrir, conferir os dados e assinar. Não repita o link.',
+      };
+    }
+    if (enviado.ok && !enviado.entregue) {
+      /* O documento existe na ZapSign, mas a mensagem com o link falhou ao
+         sair — aprovarContrato ja avisou a equipe. O agente nao pode
+         prometer algo que o cliente nao recebeu. */
+      inserirNota(contato, `Contrato e procuração gerados${agente ? ` por ${agente.nome}` : ''}, mas a mensagem com o link falhou ao enviar pelo WhatsApp.`, quem);
+      return {
+        ok: true,
+        contrato_id: contrato.id,
+        situacao: 'link_enviado',
+        instrucao: 'O contrato foi gerado, mas a mensagem com o link NAO chegou ao cliente agora (uma instabilidade no envio). Nao diga que ja foi enviado. Avise o cliente que houve um problema tecnico e que o link chega em instantes — a equipe ja foi avisada e vai reenviar.',
       };
     }
     /* A ZapSign recusou (chave, modelo, plano sem API): o contrato fica com a
@@ -468,10 +490,21 @@ export async function pedirContrato({ contato, agente = null, conexao = null, da
   };
 }
 
+/**
+ * Manda a mensagem com o link (e o video, quando ha).
+ *
+ * Achado em 09/11/2026: `enviarMensagem` NUNCA lanca excecao — uma falha de
+ * envio (WhatsApp fora do ar, tempo esgotado) vira uma mensagem com
+ * `situacao: 'erro'` na propria conversa, e a funcao devolve normalmente.
+ * Esta funcao ignorava esse retorno: o contrato ficava marcado "link_enviado"
+ * e a equipe nunca sabia que a mensagem com o link, a UNICA forma de o
+ * cliente assinar, nunca saiu. Devolve agora se entregou de verdade, para
+ * quem chama decidir o que fazer com isso.
+ */
 async function enviarLink(contrato, contato, conexao, autor, { reenvio = false } = {}) {
   const cfg = configuracao(contato.workspaceId);
   const primeiro = String(contato.variaveis?.nome_completo || contato.nome || '').split(' ')[0];
-  await enviarMensagem({
+  const mensagem = await enviarMensagem({
     contato,
     conexao,
     conteudo: `${reenvio ? 'Aqui está de novo' : 'Pronto'}, ${primeiro}! O contrato e a procuração estão prontos para assinar:\n\n${contrato.link}\n\nÉ só abrir, conferir os dados e assinar na tela do celular. Leva menos de 2 minutos.`,
@@ -488,6 +521,8 @@ async function enviarLink(contrato, contato, conexao, autor, { reenvio = false }
       autor,
     });
   }
+  /* O video e so apoio; a mensagem com o link e a que importa de verdade. */
+  return { entregue: mensagem.situacao !== 'erro', erro: mensagem.erro?.mensagem || null };
 }
 
 /**
@@ -569,7 +604,7 @@ export async function aprovarContrato(contratoId, { valores: corrigidos = {}, au
     if (!extra.ok) aviso = 'O contrato foi criado, mas a procuracao nao entrou no envelope. Confira na ZapSign.';
   }
 
-  const atualizado = atualizar('contratos', contrato.id, {
+  let atualizado = atualizar('contratos', contrato.id, {
     situacao: 'link_enviado',
     valores,
     tokenExterno: token,
@@ -582,7 +617,18 @@ export async function aprovarContrato(contratoId, { valores: corrigidos = {}, au
     proximaConsultaEm: new Date(Date.now() + ESPERA_CURTA).toISOString(),
   });
 
-  await enviarLink(atualizado, contato, conexao, autor || { tipo: 'sistema', nome: 'Sistema' });
+  const envio = await enviarLink(atualizado, contato, conexao, autor || { tipo: 'sistema', nome: 'Sistema' });
+  /* Achado em 09/11/2026: o contrato nascia "link_enviado" mesmo quando a
+     mensagem com o link falhava ao sair pelo WhatsApp — o cliente nunca via
+     nada, e nada na tela de Contratos ou na equipe contava disso. Agora o
+     aviso fica no proprio contrato (a mesma caixa que ja mostra "procuracao
+     nao entrou") e a equipe e avisada, para reenviar pela conversa. */
+  if (!envio.entregue) {
+    const avisoDeEntrega = `O contrato foi criado na ZapSign, mas a mensagem com o link falhou ao enviar pelo WhatsApp${envio.erro ? ` (${envio.erro})` : ''}. O cliente ainda não recebeu o link.`;
+    aviso = [aviso, avisoDeEntrega].filter(Boolean).join(' ');
+    atualizado = atualizar('contratos', contrato.id, { aviso });
+    avisarEquipe(contato, 'Contrato nao chegou ao cliente', `${contato.nome}: ${avisoDeEntrega} Peca para o agente ou a equipe mandar o link de novo pela conversa.`);
+  }
 
   /* Webhook por documento, so quando houver endereco publico configurado. O
      webhook geral da conta e do escritorio, e nao e mexido daqui. */
@@ -600,10 +646,22 @@ export async function aprovarContrato(contratoId, { valores: corrigidos = {}, au
   }
 
   definirMomento(contato, 'Link enviado', autor);
-  registrarLog(contrato.workspaceId, contato.id, 'contrato', direto ? 'Contrato enviado direto, sem conferencia' : 'Contrato conferido e link enviado', autor);
-  if (aviso) avisarEquipe(contato, 'Procuracao nao entrou', `${contato.nome}: ${aviso}`);
+  registrarLog(
+    contrato.workspaceId,
+    contato.id,
+    'contrato',
+    `${direto ? 'Contrato enviado direto, sem conferencia' : 'Contrato conferido e link enviado'}${envio.entregue ? '' : ' (a mensagem com o link falhou)'}`,
+    autor,
+  );
+  if (!envio.entregue) {
+    /* Nada de dar "procuracao nao entrou" duas vezes: so avisa dela aqui
+       quando a mensagem do link saiu certo (senao o aviso de entrega acima
+       ja cobre os dois problemas juntos). */
+  } else if (aviso) {
+    avisarEquipe(contato, 'Procuracao nao entrou', `${contato.nome}: ${aviso}`);
+  }
   emitir(contrato.workspaceId, 'contrato', { contatoId: contato.id, contratoId: contrato.id });
-  return { ok: true, link, aviso };
+  return { ok: true, link, aviso, entregue: envio.entregue };
 }
 
 /** A pessoa achou algo errado: volta ao agente com o que corrigir. */

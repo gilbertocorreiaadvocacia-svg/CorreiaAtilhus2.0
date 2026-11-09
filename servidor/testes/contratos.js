@@ -236,9 +236,50 @@ export async function testarContratos({ base, zapsign }) {
   );
   s.ok('o momento vira Link enviado', (await conversa(c3.id))?.momento?.nome === 'Link enviado');
 
+  /* ---------------- O cliente nunca recebe o link (09/11/2026) ----------------
+   * Achado depois de "os contratos pela ZapSign nao estao sendo enviados":
+   * enviarMensagem NUNCA lanca excecao — uma falha de envio (WhatsApp fora do
+   * ar, tempo esgotado) vira uma mensagem com situacao:'erro' na propria
+   * conversa, e a funcao devolve normalmente. Isso ficava ignorado aqui: o
+   * contrato nascia "link_enviado" mesmo quando a mensagem com o link nunca
+   * saiu, e ninguem — nem a equipe, nem o agente — sabia que o cliente nunca
+   * recebeu nada. Simula a falha com uma conexao de QR Code sem configurar:
+   * enviarMensagem falha de verdade, do mesmo jeito que falharia com o
+   * servico de WhatsApp fora do ar.
+   */
+  const qrSemConfigurar = (await api.post('/api/conexoes', { nome: 'QR sem configurar (teste)', tipo: 'qrcode' })).dados;
+  const c4 = (await api.post('/api/contatos', { conexaoId: qrSemConfigurar.id, telefone: TELEFONE(4), nome: 'Maria Exemplo Contrato 4' })).dados;
+  await api.patch(`/api/contatos/${c4.id}`, { variaveis: { ...dadosCompletos, rg: '1234567 SDS/PE' }, etiquetas: [bpc.id] });
+  const semEntrega = await pedir(c4.id);
+  s.ok(
+    'o contrato ainda vai para a ZapSign mesmo com o envio da mensagem falhando',
+    semEntrega?.ok && semEntrega.situacao === 'link_enviado',
+    JSON.stringify(semEntrega),
+  );
+  s.ok(
+    'mas o agente e avisado de que o link NAO chegou, para nao prometer ao cliente algo que nao aconteceu',
+    /NAO chegou/.test(semEntrega?.instrucao || '') && /nao diga que/i.test(semEntrega?.instrucao || ''),
+    JSON.stringify(semEntrega?.instrucao),
+  );
+  const contratoSemEntrega = (await contratosDe(c4.id))[0];
+  s.ok(
+    'o contrato fica com o aviso de que o link nao chegou, na mesma caixa que a equipe ja ve na conversa',
+    /nao chegou ao cliente|falhou ao enviar/i.test(contratoSemEntrega?.aviso || ''),
+    JSON.stringify(contratoSemEntrega?.aviso),
+  );
+  const avisosDoEscritorio = (await api.get('/api/notificacoes')).dados || [];
+  s.ok(
+    'e a equipe recebe um aviso proprio (nao o generico de "contrato enviado", que seria enganoso aqui)',
+    avisosDoEscritorio.some(
+      (n) => n.tipo === 'contrato' && n.contatoId === c4.id && /nao chegou ao cliente/i.test(n.titulo || '') && /ainda n[aã]o recebeu o link/i.test(n.texto || ''),
+    ),
+    JSON.stringify(avisosDoEscritorio.filter((n) => n.contatoId === c4.id).map((n) => [n.titulo, n.texto])),
+  );
+
   /* ---------------- Limpeza ---------------- */
 
   await api.patch('/api/integracoes', { zapsign: { chave: null, segredoWebhook: null, envioDireto: null } });
-  for (const c of [c1, c2, c3]) await api.delete(`/api/contatos/${c.id}`);
+  for (const c of [c1, c2, c3, c4]) await api.delete(`/api/contatos/${c.id}`);
+  if (qrSemConfigurar?.id) await api.delete(`/api/conexoes/${qrSemConfigurar.id}`);
   return s;
 }
