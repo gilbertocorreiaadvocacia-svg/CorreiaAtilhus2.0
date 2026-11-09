@@ -139,8 +139,13 @@ async function andar() {
       try {
         await baixarUma(tarefa);
       } catch {
-        /* Falha de um arquivo nao para a fila: fica para a proxima varredura. */
-        falharam.add(tarefa.mensagemId);
+        /* Falha de um arquivo nao para a fila: fica para a proxima varredura
+           (achado em 09/11/2026: `falharam` virou Map nesse mesmo dia, e este
+           catch — o de QUANDO A PROPRIA TAREFA LANCA, como a conexao caindo no
+           meio — ainda chamava o `.add` de Set, derrubando o laco inteiro). */
+        const tentativas = (falharam.get(tarefa.mensagemId)?.tentativas || 0) + 1;
+        const espera = ESPERAS_DA_FALHA[Math.min(tentativas - 1, ESPERAS_DA_FALHA.length - 1)];
+        falharam.set(tarefa.mensagemId, { tentativas, proximaTentativaEm: Date.now() + espera });
       } finally {
         naFila.delete(tarefa.mensagemId);
       }
