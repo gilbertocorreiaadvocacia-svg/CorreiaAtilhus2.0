@@ -95,6 +95,7 @@ import { testarSituacaoExterna } from './situacao-externa.js';
 import { testarFollowup } from './followup.js';
 import { testarRegrasAntiAlucinacao } from './regras-anti-alucinacao.js';
 import { testarAplicarRegrasInstitucionais, testarRegrasInstitucionais } from './regras-institucionais.js';
+import { testarAvisoAoDesligarIa, testarDesqualificarSemSilenciar, testarMigrarDesqualificacao } from './desqualificar-sem-calar.js';
 import { testarGatilhoAutomaticoDeHistorico, testarLiderhubHistorico } from './liderhub-historico.js';
 import { testarMigrarSemIdentificacao } from './sem-identificacao.js';
 import { testarDeduplicarContatos } from './duplicados.js';
@@ -431,6 +432,9 @@ async function principal() {
     suites.push(await testarRegrasAntiAlucinacao());
     suites.push(await testarRegrasInstitucionais());
     suites.push(await testarAplicarRegrasInstitucionais({ raiz: RAIZ }));
+    suites.push(await testarDesqualificarSemSilenciar());
+    suites.push(await testarMigrarDesqualificacao({ raiz: RAIZ }));
+    suites.push(await testarAvisoAoDesligarIa({ raiz: RAIZ }));
     suites.push(await testarVozDosAgentes({ raiz: RAIZ }));
     suites.push(await testarDeduplicarVozes({ raiz: RAIZ }));
     suites.push(await testarReorganizarAgentes({ raiz: RAIZ }));

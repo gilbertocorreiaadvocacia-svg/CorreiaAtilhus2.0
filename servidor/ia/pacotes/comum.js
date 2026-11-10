@@ -18,6 +18,31 @@ export const PASSAGEM = `PASSAGEM PARA OUTRO AGENTE: ao passar a conversa com @r
 
 PASSAGEM PARA PESSOA: ao passar para uma pessoa da equipe ou usar @desativarIA, a mensagem que você escrever nessa mesma resposta sai antes para o cliente. Quando o roteiro mandar passar para alguém da equipe pelo nome e essa pessoa não estiver na equipe, passe com @responsavel para "distribuir".`;
 
+/*
+ * Desqualificar nao e encerrar (pedido do escritorio em 10/11/2026).
+ *
+ * Os roteiros mandavam marcar o status "Desqualificado" e chamar a mencao que
+ * desliga a IA na MESMA frase. A ferramenta grava responsavel: null e estado: 'pendente'
+ * (ia/mencoes.js), e dali em diante nada mais responde (as guardas de
+ * ia/motor.js e whatsapp/recebimento.js olham o responsavel, nunca o status).
+ * O cliente ficava sem resposta no meio do atendimento, e ninguem da equipe
+ * era avisado.
+ *
+ * O status fica; o silencio sai. O modelo ja existia no proprio codigo: o BPC
+ * e a maternidade desqualificam sem desligar nada, e ainda deixam a porta
+ * aberta para outra pessoa conhecida.
+ *
+ * NAO cite aqui o nome da mencao que desliga a IA: cita-la neste texto
+ * reconcederia a ferramenta a todo agente que recebe este bloco
+ * (ferramentasDoAgente, em ia/mencoes.js, monta as ferramentas varrendo as
+ * mencoes escritas no prompt).
+ *
+ * O cabecalho funciona como marcador: a migracao de boot
+ * (nucleo/desqualificar-sem-calar.js) procura por ele para nao acrescentar
+ * duas vezes no mesmo agente ja instalado.
+ */
+export const DESQUALIFICAR_NAO_E_ENCERRAR = `DESQUALIFICAR NÃO É ENCERRAR: o status "Desqualificado" é uma etiqueta interna do escritório, para a equipe saber que o caso não entra agora. Depois de marcá-lo você CONTINUA o atendimento normalmente: responda com educação tudo o que o cliente ainda perguntar e NUNCA desligue as respostas automáticas nem deixe de responder por causa da desqualificação. Pergunte também se há outra pessoa conhecida que precise de ajuda e, se houver, recomece a análise por ela.`;
+
 /* Nome, CNPJ, OAB, endereco e redes chegam no contexto de todo agente
    (montarSistema, em ia/motor.js). Na LiderHub eram mencoes; aqui sao dados. */
 export const DADOS_DO_ESCRITORIO = `DADOS DO ESCRITÓRIO: nome, responsável, CNPJ, OAB, endereço, telefone, e-mail, site e Instagram estão em DADOS DO ESCRITÓRIO, no seu contexto. Use só o que estiver lá e nunca invente o que faltar.`;

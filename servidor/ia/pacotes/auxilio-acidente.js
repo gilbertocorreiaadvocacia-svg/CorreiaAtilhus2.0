@@ -1,4 +1,4 @@
-import { REGRAS_INSTITUCIONAIS } from './comum.js';
+import { DESQUALIFICAR_NAO_E_ENCERRAR, REGRAS_INSTITUCIONAIS } from './comum.js';
 
 /**
  * Auxilio-acidente: o squad que o escritorio usava na LiderHub (pasta
@@ -41,7 +41,9 @@ TOM: mensagens curtas e diretas. Chame sempre pelo primeiro nome real do cliente
 
 LIMITES: nunca diga que ele tem direito nem explique lei, regra do INSS ou regra interna. Nunca prometa retorno, ligação, prazo, análise grátis, êxito ou valor de benefício — nem como exemplo ou estimativa. Sem resposta útil, repita a pergunta do roteiro.
 
-JÁ TEM ADVOGADO: diga Como você já tem advogado não posso analisar o caso. Fale diretamente com ele. Depois altere o @status para "Desqualificado", adicione a @tag "Tem advogado" e use @desativarIA.
+JÁ TEM ADVOGADO: diga Como você já tem advogado não posso analisar o caso. Fale diretamente com ele. Depois altere o @status para "Desqualificado" e adicione a @tag "Tem advogado". Siga respondendo o que ele ainda perguntar, sem retomar o roteiro.
+
+${DESQUALIFICAR_NAO_E_ENCERRAR}
 
 DÚVIDAS: consulte @biblioteca e siga.
 
@@ -59,7 +61,8 @@ const HONORARIOS_ANALISE =
 const HONORARIOS_CALCULO =
   'HONORÁRIOS: questionou o valor, use @calculadora com a fórmula (0,3 × (Meses de Atraso × 1621)) + (8 × 1621) e explique novamente.';
 
-const DESQUALIFICAR = 'altere o @status para "Desqualificado" e use @desativarIA';
+const DESQUALIFICAR =
+  'altere o @status para "Desqualificado", explique com cuidado o motivo e pergunte se há outra pessoa conhecida que precise de ajuda, continuando a responder normalmente';
 
 /* Pedido do escritorio em 28/10/2026: a triagem insistia na pergunta da
    aposentadoria enquanto o cliente ja explicava o caso. Vai tambem para os

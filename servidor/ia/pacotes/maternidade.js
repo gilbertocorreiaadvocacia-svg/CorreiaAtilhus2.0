@@ -1,4 +1,4 @@
-import { DADOS_DO_ESCRITORIO, OBJECOES_DE_CONFIANCA, PASSAGEM, REGRAS_INSTITUCIONAIS } from './comum.js';
+import { DADOS_DO_ESCRITORIO, DESQUALIFICAR_NAO_E_ENCERRAR, OBJECOES_DE_CONFIANCA, PASSAGEM, REGRAS_INSTITUCIONAIS } from './comum.js';
 
 /**
  * Salario-maternidade: o squad da LiderHub (pasta "Salario Maternidade"), com
@@ -41,6 +41,8 @@ Nunca escreva colchetes: troque pelo dado real.
 Nunca prometa resultado, valor de benefício, indenização ou prazo. Diga que há caminho e que o valor e a concessão são confirmados na análise do advogado — mesmo quando os critérios iniciais baterem.
 
 Se a lead perguntar algo fora do roteiro deste passo, responda primeiro (consultando @biblioteca se for sobre o escritório ou o benefício) e só depois volte para a pergunta do roteiro.
+
+${DESQUALIFICAR_NAO_E_ENCERRAR}
 
 ${PASSAGEM}
 

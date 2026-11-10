@@ -6,6 +6,7 @@ import { enviarMensagem } from '../whatsapp/envio.js';
 import { aplicarStatus, reagendarFollowups } from '../automacao/followup.js';
 import { definirMomento, umTipoDeCaso } from '../nucleo/casos.js';
 import { jaEnviouAsBoasVindas } from '../nucleo/boas-vindas-automaticas.js';
+import { avisarAdministradores } from '../nucleo/avisar-administradores.js';
 
 /**
  * As mencoes sao o que separa um chatbot de um agente: cada @ do prompt vira
@@ -1011,6 +1012,19 @@ export async function executarFerramenta({ nome, argumentos, contato, agente, co
       lancar(workspaceId, contato.id, 'mencao_desativarIA', custoDaMencao('desativarIA'), null, agente.id);
       registrar(`IA desativada: ${argumentos.motivo}`);
       emitir(workspaceId, 'contato', { contatoId: contato.id });
+      /*
+       * Sem responsavel a conversa cai em Pendentes e, ate 10/11/2026, NINGUEM
+       * era avisado — diferente de transferir_conversa, que notifica quem
+       * recebeu. Foi assim que lead desqualificado ficou sem resposta sem o
+       * escritorio saber. Aqui nao ha pessoa destino, entao o aviso vai para o
+       * dono e os administradores, como os outros avisos sobre a IA.
+       */
+      avisarAdministradores(workspaceId, {
+        titulo: 'IA desligada numa conversa',
+        texto: `${agente.nome} desligou as respostas automaticas de ${contato.nome || contato.telefone}: ${argumentos.motivo || 'sem motivo informado'}. A conversa esta em Pendentes, sem responsavel.`,
+        tipo: 'ia',
+        contatoId: contato.id,
+      });
       return { ok: true, pare_de_responder: true };
     }
 

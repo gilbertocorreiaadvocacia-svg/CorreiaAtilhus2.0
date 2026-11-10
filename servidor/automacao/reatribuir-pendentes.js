@@ -7,6 +7,7 @@ import { resumoDosTemplates } from '../nucleo/diagnostico.js';
 import { templatesDoPacoteGanhamOArquivo } from '../ia/pacotes.js';
 import { agentesComAvisoDaSenhaDoGov } from '../nucleo/senha-do-gov.js';
 import { aposentadoriaNosAgentes } from '../nucleo/aposentadoria-sem-insistir.js';
+import { desqualificacaoNosAgentes } from '../nucleo/desqualificar-sem-calar.js';
 import { agentesSemAcento } from '../nucleo/acentos-dos-agentes.js';
 import { usoDosTemplates } from '../nucleo/uso-dos-templates.js';
 import { situacaoDasBoasVindas } from '../nucleo/boas-vindas-automaticas.js';
@@ -125,6 +126,9 @@ function resumirEscritorios() {
       eduardaPassaTrabalhistaPara: comoEduardaPassaOTrabalhista(workspace.id),
       avisoDaSenhaDoGov: agentesComAvisoDaSenhaDoGov(workspace.id),
       aposentadoriaNoAuxilioAcidente: aposentadoriaNosAgentes(workspace.id),
+      /* Agentes que ainda mandam desligar a IA ao desqualificar (10/11/2026).
+         Vazio e o esperado depois da migracao: so o nome e a conta. */
+      desqualificacaoSemCalar: desqualificacaoNosAgentes(workspace.id),
       /* Agentes que ainda tem palavra sem acento no roteiro (so o nome e a conta). */
       agentesSemAcento: agentesSemAcento(workspace.id),
       templates: resumoDosTemplates(workspace.id),

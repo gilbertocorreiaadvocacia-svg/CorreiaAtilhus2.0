@@ -20,6 +20,7 @@ import { migrarNomesDeAgentes } from './nucleo/migrar-agentes.js';
 import { aplicarRegrasInstitucionais } from './nucleo/migrar-regras-institucionais.js';
 import { tirarAvisoDaSenhaDoGov } from './nucleo/senha-do-gov.js';
 import { aposentadoriaSemInsistir } from './nucleo/aposentadoria-sem-insistir.js';
+import { desqualificarSemCalar } from './nucleo/desqualificar-sem-calar.js';
 import { corrigirAcentosDosAgentes } from './nucleo/acentos-dos-agentes.js';
 import { templatesDoPacoteGanhamOArquivo } from './ia/pacotes.js';
 import { garantirModeloDeVoz, situacaoDoModeloDeVoz } from './ia/modelo-de-voz.js';
@@ -227,6 +228,12 @@ const avisosDaSenhaDoGov = naSubida('senha do gov', tirarAvisoDaSenhaDoGov, 0);
 if (avisosDaSenhaDoGov) console.log(`Senha do gov.br: aviso antigo tirado de ${avisosDaSenhaDoGov} agente(s).`);
 /* A triagem do auxilio-acidente para de insistir na pergunta da aposentadoria (28/10/2026). */
 const semInsistirNaAposentadoria = naSubida('aposentadoria', aposentadoriaSemInsistir, 0);
+/* Desqualificar deixa de calar o atendimento (10/11/2026): a ordem de desligar a
+   IA sai dos agentes ja instalados, e a trava entra. O status fica. */
+const desqualificacoesSemCalar = naSubida('desqualificar sem calar', desqualificarSemCalar, 0);
+if (desqualificacoesSemCalar) {
+  console.log(`Desqualificacao: ordem de desligar a IA tirada de ${desqualificacoesSemCalar} agente(s).`);
+}
 /* O portugues dos agentes ja instalados, com acento (30/10/2026): troca so as linhas que o proprio sistema escreveu. */
 const acentuados = naSubida('acentos dos agentes', corrigirAcentosDosAgentes, {});
 if (acentuados.agentes || acentuados.templates || acentuados.conhecimento) {
