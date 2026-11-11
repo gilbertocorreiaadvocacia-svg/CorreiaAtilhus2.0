@@ -1,6 +1,8 @@
-import { achar, listar } from './banco.js';
+import { achar, listar, mensagensDe } from './banco.js';
 import { podeVerConversa } from './auth.js';
+import { mensagensDoResumo, resumoPadrao, situacaoDoResumo } from '../ia/resumo-da-conversa.js';
 import { passosDoFunil } from './funil-da-conversa.js';
+import { tipoDeCasoDa } from './casos.js';
 
 /**
  * A ficha do cliente de um contrato fechado.
@@ -130,6 +132,34 @@ export function fichaDoCaso(ctx, { contratoId = null, contatoId = null } = {}) {
     .map(([chave, valor]) => ({ chave, rotulo: rotuloDaVariavel(chave), valor: String(valor).trim() }))
     .sort((a, b) => a.rotulo.localeCompare(b.rotulo, 'pt-BR'));
 
+  /*
+   * A DESCRICAO DO CASO. Pedido do escritorio em 11/11/2026: "no relatorio
+   * quero uma descricao do caso".
+   *
+   * Nao e campo novo para alguem preencher: o sistema JA escreve isto. O
+   * resumo da conversa (ia/resumo-da-conversa.js) sai sozinho quando a conversa
+   * sossega, com os campos "Quem e", "O que busca", "Em que pe esta", "Dados e
+   * documentos" e "Proximo passo" — e exatamente a descricao do caso, ja
+   * redigida e mantida atualizada. Pedir para a equipe digitar de novo seria
+   * criar trabalho para repetir o que ja esta escrito.
+   *
+   * Sem resumo guardado (conversa curta, ou que nunca sossegou), entra o resumo
+   * PADRAO, que e montado da propria conversa sem IA e sem custo. Nunca fica
+   * vazio: um relatorio de caso sem descricao nenhuma nao serve para protocolar.
+   */
+  const situacao = situacaoDoResumo(contato);
+  const mensagens = mensagensDoResumo(mensagensDe(contato.id));
+  const campos = situacao.resumo?.campos?.length
+    ? situacao.resumo.campos
+    : mensagens.length
+      ? resumoPadrao(contato, mensagens)
+      : [];
+  const tipoDeCaso = tipoDeCasoDa(contato);
+
+  /* O caminho do caso: por onde ele passou e quando. Sai do mesmo historico do
+     funil que a lateral da conversa desenha. */
+  const caminho = passosDoFunil(contato.id).map((passo) => ({ em: passo.em, nome: passo.nome, autor: passo.autor?.nome || null }));
+
   /* Os documentos: tudo o que esta na nuvem da conversa, inclusive os PDFs do
      contrato e da procuracao assinados, que a ZapSign guarda ali quando a
      assinatura confirma (integracoes/zapsign.js). O caminho no disco nao sai
@@ -177,6 +207,16 @@ export function fichaDoCaso(ctx, { contratoId = null, contatoId = null } = {}) {
     },
     dados,
     documentos,
+    descricao: {
+      tipoDeCaso: tipoDeCaso ? { nome: tipoDeCaso.nome, cor: tipoDeCaso.cor } : null,
+      campos,
+      /* De onde veio o texto: o escritorio precisa saber se leu a redacao do
+         agente ou o resumo automatico montado da conversa. */
+      daIa: Boolean(situacao.resumo?.usouIa && situacao.resumo?.campos?.length),
+      geradoEm: situacao.resumo?.geradoEm || null,
+      novasDepois: situacao.novas || 0,
+      caminho,
+    },
   };
 }
 

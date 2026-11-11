@@ -72,7 +72,7 @@ console.log('preparado', png ? '' : '');
   fs.writeFileSync(
     script,
     `import { PDFDocument } from ${pdfLib};
-import { iniciarBanco, inserir, encerrarBanco } from ${url('servidor/nucleo/banco.js')};
+import { iniciarBanco, inserir, inserirMensagem, encerrarBanco } from ${url('servidor/nucleo/banco.js')};
 import { relatorioDoCaso } from ${url('servidor/nucleo/relatorio-do-caso.js')};
 iniciarBanco();
 
@@ -120,8 +120,15 @@ inserir('contatos', {
   statusId: 'st-sucesso',
   responsavel: { tipo: 'agente', id: 'ag1', nome: 'Triagem BPC/LOAS' },
   variaveis: { cpf: '07579533448' },
+  etiquetas: ['et-caso'],
   arquivos: [{ id: 'b1', nome: 'CNIS.pdf', caminho: 'c1/cnis.pdf', tamanho: 10, tipo: 'documento' }],
 });
+/* Duas mensagens: sem elas o resumo padrao nao tem o que descrever, e a
+   descricao do caso sairia vazia. */
+inserirMensagem('c2', { id: 'm1', direcao: 'entrada', conteudo: 'Caí da escada no servico e fiquei com sequela no joelho', criadoEm: '2026-11-10T12:00:00.000Z' });
+inserirMensagem('c2', { id: 'm2', direcao: 'saida', conteudo: 'Vou te ajudar a ver o auxilio-acidente.', criadoEm: '2026-11-10T12:01:00.000Z' });
+inserir('etiquetas', { id: 'et-caso', workspaceId: 'w1', nome: 'Auxílio-acidente', tipo: 'caso', caso: 'auxilio_acidente', cor: 'var(--serie-2)' });
+
 inserir('logs', {
   workspaceId: 'w1',
   contatoId: 'c2',
@@ -152,6 +159,13 @@ console.log(JSON.stringify({
     ehPdf: semZapsign?.bytes.slice(0, 5).toString('latin1'),
     paginas: (await PDFDocument.load(semZapsign.bytes)).getPageCount(),
     documentos: semZapsign?.documentos,
+  },
+  descricao: {
+    tipoDeCaso: fichaSemZapsign?.descricao?.tipoDeCaso?.nome,
+    rotulos: (fichaSemZapsign?.descricao?.campos || []).map((c) => c.rotulo),
+    oQueBusca: (fichaSemZapsign?.descricao?.campos || []).find((c) => c.rotulo === 'O que busca')?.texto,
+    daIa: fichaSemZapsign?.descricao?.daIa,
+    caminho: (fichaSemZapsign?.descricao?.caminho || []).map((p) => p.nome),
   },
   fichaSemZapsign: {
     temZapsign: fichaSemZapsign?.contrato?.temZapsign,
@@ -239,6 +253,28 @@ process.exit(0);
       String(b.fichaSemZapsign?.agente),
     );
     s.ok('a data do fechamento vem da entrada na coluna', b.fichaSemZapsign?.fechadoEm === true, JSON.stringify(b.fichaSemZapsign));
+
+    /* ---- A descricao do caso ---- */
+    s.ok(
+      'a descricao do caso sai do resumo da conversa, com os campos dele',
+      b.descricao?.rotulos?.includes('Quem é') && b.descricao?.rotulos?.includes('O que busca'),
+      JSON.stringify(b.descricao?.rotulos),
+    );
+    s.ok(
+      'e conta o que o cliente procurou, com as palavras dele',
+      /escada/.test(b.descricao?.oQueBusca || ''),
+      b.descricao?.oQueBusca || '(vazio)',
+    );
+    s.ok('o tipo de caso vem junto', b.descricao?.tipoDeCaso === 'Auxílio-acidente', String(b.descricao?.tipoDeCaso));
+    /* Conversa sem resumo da IA cai no resumo PADRAO, e a ficha diz isso: numa
+       peca que vai para o processo, importa saber se o texto e leitura do
+       agente ou montagem automatica. */
+    s.ok('e a ficha diz que o texto nao e do agente, mas montado da conversa', b.descricao?.daIa === false, String(b.descricao?.daIa));
+    s.ok(
+      'o caminho do caso traz as etapas por onde passou',
+      (b.descricao?.caminho || []).includes('Contrato fechado'),
+      JSON.stringify(b.descricao?.caminho),
+    );
   } finally {
     fs.rmSync(pasta, { recursive: true, force: true });
   }

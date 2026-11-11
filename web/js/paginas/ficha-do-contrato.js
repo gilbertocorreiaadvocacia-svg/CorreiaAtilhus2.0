@@ -59,7 +59,7 @@ export async function paginaFichaDoContrato({ parametros = [], definirAcoes = ()
     return raiz;
   }
 
-  const { contrato, cliente, dados, documentos } = ficha;
+  const { contrato, cliente, dados, documentos, descricao } = ficha;
 
   /*
    * Baixar tudo: dispara o download de cada documento, um a um.
@@ -231,6 +231,69 @@ export async function paginaFichaDoContrato({ parametros = [], definirAcoes = ()
       )
     : vazio('Nenhum documento guardado', 'Os PDFs assinados entram aqui sozinhos; o resto é o que a equipe anexou na conversa.');
 
+  /*
+   * A descricao do caso, antes dos dados: quem abre precisa saber DO QUE se
+   * trata antes de conferir CPF. O texto e o resumo que o sistema ja escreve
+   * da conversa — o mesmo que aparece no alto da lateral — e nao um campo novo.
+   */
+  const corpoDaDescricao = el('div', {}, [
+    descricao?.campos?.length
+      ? el(
+          'div',
+          { class: 'ficha-descricao' },
+          descricao.campos.map((campo) =>
+            el('div', { class: 'ficha-descricao-linha' }, [
+              el('span', { class: 'ficha-descricao-rotulo', texto: campo.rotulo }),
+              el('span', { texto: campo.texto }),
+            ]),
+          ),
+        )
+      : el('p', { class: 'painel-resumo-vazio', texto: 'Conversa curta demais para descrever: não há mensagens suficientes.' }),
+    descricao?.campos?.length
+      ? el('p', {
+          class: 'painel-resumo-rodape',
+          texto: descricao.daIa
+            ? `Resumo escrito pelo agente de IA${descricao.geradoEm ? ` em ${dataHora(descricao.geradoEm)}` : ''}${descricao.novasDepois ? ` · ${descricao.novasDepois} ${descricao.novasDepois === 1 ? 'mensagem depois dele' : 'mensagens depois dele'}` : ''}`
+            : 'Resumo montado automaticamente da conversa, sem leitura do agente.',
+        })
+      : null,
+  ]);
+
+  raiz.append(
+    el('div', { class: 'mb-4' }, [
+      cartao(
+        descricao?.tipoDeCaso?.nome ? `Descrição do caso · ${descricao.tipoDeCaso.nome}` : 'Descrição do caso',
+        'O que o sistema entendeu da conversa.',
+        corpoDaDescricao,
+      ),
+    ]),
+  );
+
+  /* O caminho do caso: por onde passou e quando. */
+  if (descricao?.caminho?.length) {
+    raiz.append(
+      el('div', { class: 'mb-4' }, [
+        cartao(
+          'Caminho do caso',
+          'As mudanças de coluna, da mais antiga para a mais recente.',
+          el(
+            'ol',
+            { class: 'funil-historico' },
+            descricao.caminho.map((passo) =>
+              el('li', { class: 'funil-historico-item' }, [
+                el('span', { class: 'funil-historico-quando', texto: dataHora(passo.em) }),
+                el('span', { class: 'funil-historico-corpo' }, [
+                  el('span', { class: 'funil-historico-nome', texto: passo.nome }),
+                  passo.autor ? el('span', { class: 'funil-historico-autor', texto: `por ${passo.autor}` }) : null,
+                ]),
+              ]),
+            ),
+          ),
+        ),
+      ]),
+    );
+  }
+
   raiz.append(
     el('div', { class: 'grade g2' }, [
       cartao('Dados do cliente', 'O que está preenchido na conversa.', dados.length || cliente.telefone ? blocoDeDados : vazio('Sem dados preenchidos', 'Nenhuma variável foi preenchida nesta conversa.')),
@@ -271,6 +334,12 @@ export async function paginaFichaDoContrato({ parametros = [], definirAcoes = ()
           <div class="sub">${escapar(cliente.nome)} · ${contrato.assinadoEm ? `assinado em ${escapar(dataHora(contrato.assinadoEm))}` : escapar(contrato.situacao || '')}</div>
         </div>
       </header>
+      <h2>Descrição do caso${descricao?.tipoDeCaso?.nome ? ` — ${escapar(descricao.tipoDeCaso.nome)}` : ''}</h2>
+      <table>
+        ${(descricao?.campos || []).map((campo) => linha(campo.rotulo, campo.texto)).join('')}
+        ${!descricao?.campos?.length ? '<tr><td colspan="2">Conversa curta demais para descrever.</td></tr>' : ''}
+      </table>
+      ${descricao?.caminho?.length ? `<h2>Caminho do caso</h2><table>${descricao.caminho.map((p) => linha(dataHora(p.em), `${p.nome}${p.autor ? ` — ${p.autor}` : ''}`)).join('')}</table>` : ''}
       <h2>Quem fechou</h2>
       <table>
         ${linha('Conduziu o atendimento', contrato.agente?.nome)}

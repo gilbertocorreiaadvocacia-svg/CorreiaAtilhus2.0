@@ -177,7 +177,7 @@ export async function relatorioDoCaso(ctx, alvo) {
   const ficha = fichaDoCaso(ctx, typeof alvo === 'string' ? { contratoId: alvo } : alvo);
   if (!ficha) return null;
 
-  const { contrato, cliente, dados, documentos } = ficha;
+  const { contrato, cliente, dados, documentos, descricao } = ficha;
 
   /*
    * O caminho no disco vem do contato, e nao da ficha: a ficha e a resposta de
@@ -211,6 +211,41 @@ export async function relatorioDoCaso(ctx, alvo) {
     { cor: CINZA },
   );
   f.pular(10);
+
+  /*
+   * A DESCRICAO DO CASO vem antes de tudo: quem abre o relatorio precisa saber
+   * DO QUE se trata antes de ler quem fechou e qual o CPF. Pedido do escritorio
+   * em 11/11/2026. O texto e o resumo que o sistema ja escreve da conversa
+   * (ver nucleo/ficha-do-contrato.js), e nao um campo novo para preencher.
+   */
+  f.titulo('Descrição do caso', 12);
+  if (descricao?.tipoDeCaso?.nome) f.campo('Tipo de caso', descricao.tipoDeCaso.nome);
+  for (const campo of descricao?.campos || []) f.campo(campo.rotulo, campo.texto);
+  if (!descricao?.campos?.length) {
+    f.paragrafo('Conversa curta demais para descrever: não há mensagens suficientes.', { cor: CINZA });
+  }
+  /* De onde veio o texto. Sem isto, quem le nao sabe se esta diante da leitura
+     do agente ou de um resumo montado da conversa, e os dois pesam diferente
+     numa peca que vai para o processo. */
+  if (descricao?.campos?.length) {
+    f.paragrafo(
+      descricao.daIa
+        ? `Resumo escrito pelo agente de IA${descricao.geradoEm ? ` em ${brData(descricao.geradoEm)}` : ''}${descricao.novasDepois ? `, com ${descricao.novasDepois} ${descricao.novasDepois === 1 ? 'mensagem depois dele' : 'mensagens depois dele'}` : ''}.`
+        : 'Resumo montado automaticamente da conversa, sem leitura do agente.',
+      { tamanho: 8, cor: CINZA },
+    );
+  }
+  f.pular(14);
+
+  /* O caminho do caso: por onde passou e quando. E a historia do atendimento
+     em cinco linhas, e e o que falta numa ficha de dados soltos. */
+  if (descricao?.caminho?.length) {
+    f.titulo('Caminho do caso', 12);
+    for (const passo of descricao.caminho) {
+      f.campo(brData(passo.em), `${passo.nome}${passo.autor ? ` — ${passo.autor}` : ''}`);
+    }
+    f.pular(14);
+  }
 
   f.titulo('Quem fechou', 12);
   if (contrato.agente) f.campo('Conduziu o atendimento', `${contrato.agente.nome} (agente de IA)`);

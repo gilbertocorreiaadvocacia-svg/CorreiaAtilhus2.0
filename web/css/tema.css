@@ -8421,6 +8421,28 @@ button.mencao-chip:focus-visible {
   }
 }
 
+/* A descricao do caso: rotulo em cima, texto embaixo. Diferente de .ficha-dado,
+   que poe rotulo e valor lado a lado — ali o valor e um CPF, aqui e um
+   paragrafo, e paragrafo preso numa coluna de 170px fica num fio. */
+.ficha-descricao {
+  display: grid;
+  gap: var(--e3);
+}
+
+.ficha-descricao-linha {
+  display: grid;
+  gap: 2px;
+  font-size: var(--t-sm);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.ficha-descricao-rotulo {
+  color: var(--texto-fraco);
+  font-size: var(--t-nota);
+  font-weight: 600;
+}
+
 .ficha-documentos {
   display: grid;
   gap: var(--e2);
