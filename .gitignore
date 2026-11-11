@@ -54,8 +54,10 @@ desktop.ini
 # ---------------------------------------------------------------
 # Node
 # ---------------------------------------------------------------
-# O projeto roda sem instalar pacote nenhum, entao isto nao deveria aparecer.
-# Fica na lista para o dia em que alguem rodar npm install sem pensar.
+# Desde 11/11/2026 o projeto tem UMA dependencia (pdf-lib, para o relatorio do
+# caso em PDF), entao node_modules/ passa a existir na maquina de quem
+# desenvolve. Continua fora do repositorio: quem clona roda `npm ci`, e o
+# package-lock.json (esse sim versionado) diz exatamente qual versao.
 node_modules/
 npm-debug.log*
 *.tgz

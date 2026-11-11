@@ -1,7 +1,8 @@
 # O CorreiaAtilhus2.0 num conteiner, para a hospedagem. Guia: HOSPEDAGEM.md
 #
-# Sem npm install: o sistema nao tem dependencia nenhuma, so o Node.
-# A pasta de dados e o volume /dados; a imagem nao carrega dado nenhum.
+# Uma unica dependencia (pdf-lib, para o relatorio do caso em PDF); o resto e
+# so o Node. A pasta de dados e o volume /dados; a imagem nao carrega dado
+# nenhum.
 
 # ---------------------------------------------------------------
 # Etapa 1: compilar o whisper-cli, que transcreve o audio do cliente
@@ -63,7 +64,21 @@ ENV NODE_ENV=production \
     CORREIA_MODELOS_DIR=/dados/modelos
 
 WORKDIR /app
-COPY package.json ./
+
+# A UNICA dependencia do sistema: pdf-lib, para montar o relatorio do caso num
+# PDF so (servidor/nucleo/relatorio-do-caso.js) — criar as paginas do
+# relatorio, costurar os PDFs que o cliente mandou e embutir as imagens. E JS
+# puro, sem compilacao nativa, entao nao precisa de toolchain nesta etapa.
+#
+# Instalado ANTES de copiar o codigo de proposito: assim a camada do npm so e
+# refeita quando o package.json ou o lock mudam, e a implantacao do dia a dia
+# (que muda so servidor/ e web/) nao reinstala nada na VPS de 1 vCPU.
+#
+# `npm ci` e nao `npm install`: instala exatamente o que esta no lock, sem
+# resolver versao nova no meio de uma implantacao.
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --no-audit --no-fund
+
 COPY servidor ./servidor
 COPY web ./web
 

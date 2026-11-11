@@ -498,6 +498,34 @@ export function registrarIntegracoes(rotas) {
     return ficha;
   });
 
+  /*
+   * O relatorio do caso num PDF so: o relatorio e, atras dele, os documentos
+   * do cliente (nucleo/relatorio-do-caso.js). E o botao da ficha.
+   *
+   * Responde o PDF direto, e nao um JSON com base64: arquivo de dezenas de
+   * paginas em base64 cresce um terco e ainda obriga a tela a remontar o
+   * binario na mao.
+   */
+  rotas.get('/api/contratos/:id/relatorio.pdf', async ({ ctx, params, res }) => {
+    const { relatorioDoCaso } = await import('../nucleo/relatorio-do-caso.js');
+    const relatorio = await relatorioDoCaso(ctx, params.id);
+    if (!relatorio) throw comCodigo('Contrato nao encontrado.', 404);
+    res.writeHead(200, {
+      'Content-Type': 'application/pdf',
+      'Content-Length': relatorio.bytes.length,
+      'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(relatorio.nome)}`,
+      /* Documento do cliente: nunca em cache de proxy nem do navegador. */
+      'Cache-Control': 'private, no-store',
+      'X-Content-Type-Options': 'nosniff',
+      /* A tela avisa quando algum anexo ficou de fora; sem isto ela teria que
+         abrir o PDF para descobrir. */
+      'X-Documentos': String(relatorio.documentos),
+      'X-Documentos-Falharam': String(relatorio.falhas.length),
+    });
+    res.end(relatorio.bytes);
+    return null;
+  });
+
   rotas.post('/api/contratos/:id/aprovar', async ({ ctx, params, corpo }) => {
     contratoOu404(ctx, params.id);
     const { aprovarContrato } = await import('../integracoes/zapsign.js');

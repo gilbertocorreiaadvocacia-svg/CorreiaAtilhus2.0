@@ -71,10 +71,55 @@ export async function paginaFichaDoContrato({ parametros = [], definirAcoes = ()
     aviso(`${documentos.length === 1 ? 'Documento baixado' : `${documentos.length} documentos baixados`}.`, 'sucesso');
   }
 
+  /*
+   * O relatorio do caso: UM PDF com o relatorio e, atras dele, os documentos
+   * do cliente. Pedido do escritorio em 11/11/2026 — "um botao em que ao
+   * clicar ele vai fazer o relatorio do caso, com todos os dados do cliente e
+   * com suas documentacoes". E o botao principal da tela: imprimir a ficha
+   * sozinha e util, mas o que se protocola e o pacote.
+   *
+   * O servidor monta e devolve o PDF pronto (nucleo/relatorio-do-caso.js);
+   * aqui so se pede e se guarda. Costurar PDF no navegador nao da: ele imprime
+   * o que a pagina desenha, e nao sabe juntar um PDF que ja existe.
+   */
+  async function gerarRelatorio() {
+    aviso('Montando o relatório do caso…', '');
+    try {
+      const resposta = await fetch(`/api/contratos/${contratoId}/relatorio.pdf`);
+      if (!resposta.ok) {
+        const erro = await resposta.json().catch(() => null);
+        throw new Error(erro?.erro || `Erro ${resposta.status}`);
+      }
+      const blob = await resposta.blob();
+      /* O nome vem do proprio servidor (Content-Disposition), e nao montado de
+         novo aqui: duas receitas para o mesmo nome acabam divergindo, e o
+         servidor ja sabe limpar acento e caractere que o sistema de arquivos
+         nao aceita. */
+      const dispo = resposta.headers.get('Content-Disposition') || '';
+      const achado = /filename\*=UTF-8''([^;]+)/i.exec(dispo);
+      const nome = achado ? decodeURIComponent(achado[1]) : 'relatorio-do-caso.pdf';
+      const link = el('a', { href: URL.createObjectURL(blob), download: nome });
+      link.click();
+      URL.revokeObjectURL(link.href);
+
+      /* Anexo que nao entrou e avisado aqui, e nao so escrito no fim do PDF:
+         quem clicou e foi protocolar pode nao abrir o arquivo antes. */
+      const falharam = Number(resposta.headers.get('X-Documentos-Falharam') || 0);
+      if (falharam) {
+        aviso(`Relatório gerado, mas ${falharam} ${falharam === 1 ? 'documento não entrou' : 'documentos não entraram'}. A última página do PDF diz quais.`, 'erro');
+      } else {
+        aviso(`Relatório gerado com ${documentos.length} ${documentos.length === 1 ? 'documento' : 'documentos'}.`, 'sucesso');
+      }
+    } catch (erro) {
+      aviso(`Não consegui gerar o relatório: ${erro.message}`, 'erro');
+    }
+  }
+
   definirAcoes(
     botao('Abrir a conversa', { icone: 'conversas', pequeno: true, aoClicar: () => (location.hash = `#/atendimento/${cliente.id}`) }),
     documentos.length ? botao('Baixar documentos', { icone: 'baixo', pequeno: true, aoClicar: baixarTudo }) : null,
-    botao('Imprimir', { icone: 'contrato', pequeno: true, aoClicar: imprimir }),
+    botao('Imprimir a ficha', { icone: 'contrato', pequeno: true, aoClicar: imprimir }),
+    botao('Gerar relatório do caso', { tipo: 'principal', icone: 'contrato', pequeno: true, aoClicar: gerarRelatorio }),
   );
 
   /* ---------------- Quem fechou ---------------- */
