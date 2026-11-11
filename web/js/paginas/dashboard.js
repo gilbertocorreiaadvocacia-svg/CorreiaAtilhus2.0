@@ -1,7 +1,7 @@
 import { api } from '../api.js';
 import { estado, ouvir, recarregar } from '../estado.js';
 import { cartaoComDica, dica, seletorPeriodo } from '../componentes.js';
-import { funilBarras, graficoEvolucao, legenda, miniLinha, rosca, sankeyPorOrigem } from '../graficos.js';
+import { COR_SEM_SERIE, PALETA_SERIES, funilBarras, graficoEvolucao, legenda, miniLinha, rosca, sankeyPorOrigem } from '../graficos.js';
 import { aviso, botao, campo, cartao, el, icone, limpar, modal, numero, preferencia, salvarPreferencia, selecao, selo, vazio } from '../ui.js';
 
 /**
@@ -20,17 +20,11 @@ import { aviso, botao, campo, cartao, el, icone, limpar, modal, numero, preferen
    Token de tema, e nao hex: com o valor fixo, a serie Proposta (creme) sobre o
    cartao branco do tema claro ficava em 1,3:1 e a linha sumia da tela. Os
    valores dos dois temas estao em web/css/tema.css. */
-const PALETA = [
-  'var(--serie-1)',
-  'var(--serie-2)',
-  'var(--serie-3)',
-  'var(--serie-4)',
-  'var(--serie-5)',
-  'var(--serie-6)',
-  'var(--serie-7)',
-  'var(--serie-8)',
-];
-const COR_SEM_CATEGORIA = 'var(--texto-fraco)';
+/* As cores de serie vem de graficos.js: o relatorio de contratos desenha uma
+   linha por agente igual a este painel, e os dois tem que pintar o mesmo
+   agente da mesma cor. */
+const PALETA = PALETA_SERIES;
+const COR_SEM_CATEGORIA = COR_SEM_SERIE;
 
 /** Perdas nao e um tipo unico: e a soma dos tres desfechos negativos. */
 const CHAVES_PERDA = ['desqualificado', 'recusada', 'desistencia'];

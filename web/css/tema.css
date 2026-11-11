@@ -8333,6 +8333,103 @@ button.mencao-chip:focus-visible {
   padding: var(--e1) var(--e3);
 }
 
+/* Contratos por agente, mes a mes (web/js/paginas/contratos-por-mes.js) ----- */
+
+/* O .metrica do painel tem padding-bottom zero de proposito: a minilinha sangra
+   ate a borda de baixo. O cartao de numero do relatorio nao tem minilinha, e
+   sem esta regra o texto de apoio encostava no fim do cartao. */
+.metrica-sem-linha {
+  padding-bottom: var(--e4);
+}
+
+.metrica-numeros .variacao {
+  display: block;
+  margin-top: var(--e1);
+}
+
+/*
+ * A tabela de meses. Uma coluna por mes mais a estatistica: com 24 meses nao
+ * cabe em tela nenhuma, entao ela rola dentro do cartao (.tabela-rolagem) em
+ * vez de espremer a coluna ate o numero sumir.
+ */
+.tabela-mensal {
+  /* Sem isto a tabela obedece ao width:100% de `table` e as colunas voltam a
+     se espremer em vez de deixar a rolagem acontecer. */
+  width: auto;
+  min-width: 100%;
+}
+
+.tabela-mensal th,
+.tabela-mensal td {
+  padding: var(--e2);
+}
+
+.tabela-mensal .n {
+  text-align: right;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+/* O nome do agente fica preso na primeira coluna: rolando ate o fim do ano,
+   quem olha precisa continuar sabendo de quem e a linha. A cor de fundo e
+   obrigatoria — sem ela os numeros passam por baixo do nome. */
+.tabela-mensal .coluna-presa {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--superficie);
+  color: var(--texto);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.tabela-mensal thead .coluna-presa,
+.tabela-mensal tfoot .coluna-presa {
+  background: var(--superficie-3);
+}
+
+.tabela-mensal thead th {
+  background: var(--superficie-3);
+}
+
+/* Mes sem contrato sai com travessao apagado, e nao com zero: uma coluna de
+   zeros chama tanta atencao quanto os numeros que importam. */
+.tabela-mensal .zero {
+  color: var(--texto-fraco);
+}
+
+/* O melhor mes do agente, marcado na propria celula: o olho acha o pico da
+   linha sem ter que comparar doze numeros. Negrito e filete, nao fundo colorido
+   — sao ate 24 celulas marcadas e fundo em todas viraria ruido. */
+.tabela-mensal .melhor {
+  color: var(--texto);
+  font-weight: 700;
+  box-shadow: inset 0 -2px 0 var(--ouro);
+}
+
+.tabela-mensal .forte {
+  color: var(--texto);
+  font-weight: 600;
+}
+
+.tabela-mensal tfoot td,
+.tabela-mensal tfoot th {
+  border-top: 1px solid var(--borda-forte);
+  border-bottom: none;
+  background: var(--superficie-3);
+}
+
+/* Contrato criado a mao: linha de apoio, mais apagada que a dos agentes, mas
+   presente — sem ela a soma das linhas nao bate com o total do mes. */
+.tabela-mensal .apoio th,
+.tabela-mensal .apoio td {
+  color: var(--texto-fraco);
+  font-style: italic;
+}
+
+.tabela-mensal .apoio .coluna-presa {
+  color: var(--texto-fraco);
+}
+
 .tabela-densa td {
   font-size: var(--t-sm);
 }

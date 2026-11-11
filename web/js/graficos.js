@@ -458,6 +458,28 @@ export function miniLinha(valores, { cor = 'var(--ouro)', altura = 44 } = {}) {
   return svg;
 }
 
+/*
+ * As cores de serie, na ordem em que entram num grafico de varias linhas.
+ *
+ * Mora aqui, junto dos graficos que as usam, e nao em cada tela: o painel e o
+ * relatorio desenham a mesma coisa (uma linha por agente) e precisam pintar o
+ * mesmo agente da mesma cor, senao a pessoa que olha as duas telas acha que sao
+ * agentes diferentes. Os tokens trocam junto com o tema (web/css/tema.css).
+ */
+export const PALETA_SERIES = [
+  'var(--serie-1)',
+  'var(--serie-2)',
+  'var(--serie-3)',
+  'var(--serie-4)',
+  'var(--serie-5)',
+  'var(--serie-6)',
+  'var(--serie-7)',
+  'var(--serie-8)',
+];
+
+/** A cor do balde "Outros"/"Sem categoria": cinza, para nao competir com as series. */
+export const COR_SEM_SERIE = 'var(--texto-fraco)';
+
 export function legenda(series) {
   return el(
     'div',

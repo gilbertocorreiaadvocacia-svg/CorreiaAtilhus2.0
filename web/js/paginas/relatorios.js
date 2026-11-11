@@ -2,6 +2,7 @@ import { api } from '../api.js';
 import { seletorPeriodo } from '../componentes.js';
 import { aviso, botao, cartao, el, limpar, numero, plural, selo, vazio } from '../ui.js';
 import { pintarAgenteDeRelatorios } from './relatorio-do-agente.js';
+import { blocoContratosPorMes } from './contratos-por-mes.js';
 
 /**
  * Relatorios: quantos contratos cada pessoa e cada agente de IA fecharam.
@@ -17,8 +18,12 @@ export async function paginaRelatorios({ definirAcoes = () => {} } = {}) {
      acoes da barra (planilha e PDF) valendo so para eles. */
   const raiz = el('div');
   const areaDoAgente = el('div', { class: 'mb-4' });
+  /* O mes a mes vem antes do recorte por periodo: e a leitura que o escritorio
+     abre esta tela para fazer ("todo mes, quantos contratos os agentes
+     fecharam"), e ele tem periodo proprio, independente do seletor da barra. */
+  const areaMensal = blocoContratosPorMes();
   const container = el('div');
-  raiz.append(areaDoAgente, container);
+  raiz.append(areaDoAgente, areaMensal, container);
 
   const hoje = new Date();
   const trintaDias = new Date(hoje.getTime() - 29 * 24 * 60 * 60 * 1000);
@@ -53,14 +58,16 @@ export async function paginaRelatorios({ definirAcoes = () => {} } = {}) {
     const linhas = grupo.lista.map((x) =>
       el('div', { class: 'lista-item' }, [
         el('div', { class: 'corpo' }, [el('div', { class: 'titulo', texto: x.nome })]),
-        selo(`${numero(x.quantidade)} ${plural(x.quantidade, 'contrato', 'contratos')}`, 'ouro'),
+        /* plural() ja escreve o numero ("5 contratos"): o numero() na frente
+           fazia o selo sair "5 5 contratos" nas duas tabelas. */
+        selo(plural(x.quantidade, 'contrato', 'contratos'), 'ouro'),
       ]),
     );
     if (grupo.semAtribuicao) {
       linhas.push(
         el('div', { class: 'lista-item' }, [
           el('div', { class: 'corpo' }, [el('div', { class: 'titulo c-suave', texto: rotuloColuna })]),
-          selo(`${numero(grupo.semAtribuicao)} ${plural(grupo.semAtribuicao, 'contrato', 'contratos')}`, ''),
+          selo(plural(grupo.semAtribuicao, 'contrato', 'contratos'), ''),
         ]),
       );
     }
@@ -72,10 +79,15 @@ export async function paginaRelatorios({ definirAcoes = () => {} } = {}) {
     limpar(container);
     container.append(
       el('h2', { class: 'cartao-titulo', texto: 'Contratos fechados' }),
-      el('div', { class: 'metricas g1 mb-4' }, [
-        el('div', { class: 'metrica-cartao' }, [
-          el('div', { class: 'metrica-valor', texto: numero(dados.total) }),
-          el('div', { class: 'metrica-rotulo', texto: `${plural(dados.total, 'contrato assinado', 'contratos assinados')} no período` }),
+      /* .metrica/.valor/.rotulo sao as classes que existem no tema; antes este
+         cartao pedia .metrica-cartao/.metrica-valor/.metrica-rotulo, que nunca
+         foram escritas no tema.css — o total saia sem estilo nenhum, como texto
+         solto. Mesma forma do painel e do bloco mensal logo acima. */
+      el('div', { class: 'metricas mb-4' }, [
+        el('div', { class: 'metrica metrica-sem-linha', estilo: { '--metrica-cor': 'var(--ouro)' } }, [
+          el('div', { class: 'metrica-topo' }, [el('span', { class: 'nome', texto: 'No período escolhido' })]),
+          el('div', { class: 'metrica-numeros' }, [el('div', { class: 'valor', texto: numero(dados.total) })]),
+          el('div', { class: 'rotulo', texto: `${plural(dados.total, 'contrato assinado', 'contratos assinados')}` }),
         ]),
       ]),
       el('div', { class: 'grade g2' }, [

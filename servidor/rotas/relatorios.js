@@ -1,5 +1,6 @@
 import { achar, listar, remover } from '../nucleo/banco.js';
 import { ehAdministrador, filtrarConversasVisiveis } from '../nucleo/auth.js';
+import { contratosPorMes } from '../nucleo/contratos-por-mes.js';
 import { periodoDe, sabadoDoFimDeSemana, somarDias } from '../nucleo/relatorio-do-fim-de-semana.js';
 import {
   configDoAgenteDeRelatorios,
@@ -37,6 +38,16 @@ export function registrarRelatorios(rotas) {
 
   rotas.get('/api/relatorios/contratos', async ({ ctx, query }) => montarRelatorio(ctx, query));
 
+  /*
+   * O mesmo "por agente de IA" de cima, so que mes a mes, para o grafico e a
+   * estatistica (nucleo/contratos-por-mes.js). Rota separada e nao um campo a
+   * mais em /contratos porque as duas respondem a periodos diferentes: aquela
+   * obedece ao seletor de datas da barra, esta anda por meses fechados.
+   */
+  rotas.get('/api/relatorios/contratos-por-mes', async ({ ctx, query }) =>
+    contratosPorMes(ctx, { meses: query?.meses }),
+  );
+
   rotas.get('/api/relatorios/contratos.csv', async ({ ctx, query }) => {
     const r = montarRelatorio(ctx, query);
     const linhas = [
@@ -51,9 +62,38 @@ export function registrarRelatorios(rotas) {
       'Por agente de IA (quem conduziu);Contratos',
       ...r.porAgente.lista.map((x) => `${csv(x.nome)};${x.quantidade}`),
       ...(r.porAgente.semAtribuicao ? [`Sem agente (criado a mao);${r.porAgente.semAtribuicao}`] : []),
+      '',
+      /* O mes a mes entra na MESMA planilha, e nao numa segunda: quem baixa
+         quer abrir um arquivo so e ver o ano inteiro ao lado do recorte que
+         escolheu na tela. A janela mensal tem periodo proprio (query `meses`),
+         independente do seletor de datas das tabelas acima. */
+      ...linhasDoMensal(ctx, query),
     ];
     return { csv: linhas.join('\n'), total: r.total };
   });
+}
+
+/**
+ * O bloco mensal da planilha: uma linha por agente, uma coluna por mes.
+ *
+ * Sai do mesmo nucleo que a tela desenha (nucleo/contratos-por-mes.js), entao
+ * planilha e grafico nunca divergem — se dessem numeros diferentes, a conversa
+ * no escritorio viraria sobre qual dos dois esta certo.
+ */
+function linhasDoMensal(ctx, query) {
+  const m = contratosPorMes(ctx, { meses: query?.meses });
+  if (!m.totais.total) return ['Contratos por agente, mes a mes', 'Nenhum contrato assinado no periodo.'];
+  const totalDoMes = (mes) => m.serie.find((l) => l.periodo === mes)?.__total || 0;
+  return [
+    ['Contratos por agente, mes a mes', ...m.meses, 'Total', 'Media por mes', 'Fatia'].join(';'),
+    ...m.agentes.map((a) =>
+      [csv(a.nome), ...m.meses.map((mes) => a.porMes[mes] || 0), a.total, a.mediaMensal, `${a.fatia}%`].join(';'),
+    ),
+    ...(m.semAgente.total
+      ? [['Criado a mao (sem agente)', ...m.meses.map((mes) => m.semAgente.porMes[mes] || 0), m.semAgente.total, '', ''].join(';')]
+      : []),
+    ['Total do mes', ...m.meses.map(totalDoMes), m.totais.total, m.totais.mediaMensal, ''].join(';'),
+  ];
 }
 
 /** Ponto e virgula e o separador do CSV; no texto vira virgula para nao quebrar a coluna. */

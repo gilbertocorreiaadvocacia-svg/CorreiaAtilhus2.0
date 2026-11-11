@@ -23,6 +23,7 @@ import { testarEncadeamento } from './encadeamento.js';
 import { testarPassagemDeVerdade } from './passagem-de-verdade.js';
 import { testarSenhaDoGov } from './senha-do-gov.js';
 import { testarAposentadoriaSemInsistir } from './aposentadoria-sem-insistir.js';
+import { testarContratosPorMes, testarRotaContratosPorMes } from './contratos-por-mes.js';
 import { testarVideoDoTemplate } from './video-do-template.js';
 import { testarLeituraPdf } from './leitura-pdf.js';
 import { testarAssumirConversa } from './assumir-conversa.js';
@@ -333,6 +334,7 @@ async function principal() {
     suites.push(await testarPassagemDeVerdade({ base, anthropic, raiz: RAIZ }));
     suites.push(await testarSenhaDoGov({ anthropic, raiz: RAIZ }));
     suites.push(await testarAposentadoriaSemInsistir({ raiz: RAIZ }));
+    suites.push(await testarContratosPorMes({ raiz: RAIZ }));
     suites.push(await testarVideoDoTemplate({ base, raiz: RAIZ }));
     suites.push(await testarLeituraPdf({ anthropic, raiz: RAIZ }));
     suites.push(await testarAssumirConversa({ base, anthropic, raiz: RAIZ }));
@@ -377,6 +379,7 @@ async function principal() {
     suites.push(await testarExcluirEmMassa({ base }));
     suites.push(await testarStatusEmMassa({ base }));
     suites.push(await testarKanbanConcluido({ base }));
+    suites.push(await testarRotaContratosPorMes({ base }));
     suites.push(await testarFunilDaConversa({ base }));
     suites.push(await testarExcluirTodosOsContatos({ base }));
     suites.push(await testarHigiene({ base }));
