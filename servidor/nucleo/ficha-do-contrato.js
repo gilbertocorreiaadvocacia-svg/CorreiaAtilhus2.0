@@ -1,6 +1,7 @@
 import { achar, listar, mensagensDe } from './banco.js';
 import { podeVerConversa } from './auth.js';
 import { mensagensDoResumo, resumoPadrao, situacaoDoResumo } from '../ia/resumo-da-conversa.js';
+import { descricaoValida } from '../ia/descricao-do-caso.js';
 import { passosDoFunil } from './funil-da-conversa.js';
 import { tipoDeCasoDa } from './casos.js';
 
@@ -147,6 +148,10 @@ export function fichaDoCaso(ctx, { contratoId = null, contatoId = null } = {}) {
    * PADRAO, que e montado da propria conversa sem IA e sem custo. Nunca fica
    * vazio: um relatorio de caso sem descricao nenhuma nao serve para protocolar.
    */
+  /* A redacao do caso, se ja houver uma valida. Quem gera e o relatorio (e o
+     botao de reescrever na ficha): a ficha so le, para abrir rapido e sem
+     gastar credito a cada visita. */
+  const redacao = descricaoValida(contato);
   const situacao = situacaoDoResumo(contato);
   const mensagens = mensagensDoResumo(mensagensDe(contato.id));
   const campos = situacao.resumo?.campos?.length
@@ -209,6 +214,17 @@ export function fichaDoCaso(ctx, { contratoId = null, contatoId = null } = {}) {
     documentos,
     descricao: {
       tipoDeCaso: tipoDeCaso ? { nome: tipoDeCaso.nome, cor: tipoDeCaso.cor } : null,
+      /*
+       * O texto corrido e detalhado, escrito para o relatorio
+       * (ia/descricao-do-caso.js). Pedido do escritorio em 11/11/2026: "quero
+       * bem mais detalhado e sem topicos".
+       *
+       * `campos` continua indo junto, e nao no lugar: e o resumo de dez
+       * segundos da conversa, que serve a outra leitura. Quando ha redacao, a
+       * tela e o PDF mostram ela; os campos ficam como apoio.
+       */
+      texto: redacao?.texto || null,
+      redigidaEm: redacao?.geradoEm || null,
       campos,
       /* De onde veio o texto: o escritorio precisa saber se leu a redacao do
          agente ou o resumo automatico montado da conversa. */

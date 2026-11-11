@@ -27,6 +27,7 @@ import { testarContratosPorMes, testarRotaContratosPorMes } from './contratos-po
 import { testarTetoDeCasos } from './teto-de-casos.js';
 import { testarFichaDoContrato } from './ficha-do-contrato.js';
 import { testarRelatorioDoCaso } from './relatorio-do-caso.js';
+import { testarDescricaoDoCaso } from './descricao-do-caso.js';
 import { testarVideoDoTemplate } from './video-do-template.js';
 import { testarLeituraPdf } from './leitura-pdf.js';
 import { testarAssumirConversa } from './assumir-conversa.js';
@@ -399,6 +400,7 @@ async function principal() {
     suites.push(await testarCopiarWorkspace({ base }));
     suites.push(await testarRelatorios({ base, zapsign }));
     suites.push(await testarFichaDoContrato({ base, zapsign }));
+    suites.push(await testarDescricaoDoCaso({ base, anthropic }));
     /* Sobe processos proprios, em porta propria: nao encosta no servidor acima. */
     suites.push(await testarPortaOcupada({ raiz: RAIZ, portaLivre }));
     /* Tambem sobe processos proprios: o sistema como fica na VPS. */

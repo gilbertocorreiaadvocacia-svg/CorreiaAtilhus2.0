@@ -4,6 +4,7 @@ import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { PASTA_ARQUIVOS } from '../config.js';
 import { achar } from './banco.js';
 import { fichaDoCaso } from './ficha-do-contrato.js';
+import { descricaoDoCaso } from '../ia/descricao-do-caso.js';
 
 /**
  * O relatorio do caso num PDF so: o relatorio e, logo atras, os documentos do
@@ -39,6 +40,14 @@ const CINZA = rgb(0.42, 0.42, 0.42);
 const LINHA = rgb(0.85, 0.85, 0.85);
 
 const EXTENSOES_DE_IMAGEM = /\.(png|jpe?g)$/i;
+
+/* O texto da descricao vem em paragrafos separados por linha em branco; aqui
+   eles viram a lista que o escritor da folha desenha um a um. */
+const paragrafosDe = (texto) =>
+  String(texto || '')
+    .split(/\n\s*\n/)
+    .map((t) => t.replace(/\s+/g, ' ').trim())
+    .filter(Boolean);
 
 const brData = (iso) => {
   if (!iso) return '';
@@ -171,11 +180,26 @@ function lerDocumento(caminhoRelativo) {
  * Monta o PDF do caso. Devolve { nome, bytes } ou null quando o contrato nao
  * existe (ou a pessoa nao pode ver a conversa — fichaDoContrato ja decide).
  */
-export async function relatorioDoCaso(ctx, alvo) {
+export async function relatorioDoCaso(ctx, alvo, { reescrever = false } = {}) {
   /* Aceita o id do contrato ou o da conversa: a maioria dos casos fechados
      deste escritorio nao tem contrato da ZapSign (ver fichaDoCaso). */
   const ficha = fichaDoCaso(ctx, typeof alvo === 'string' ? { contratoId: alvo } : alvo);
   if (!ficha) return null;
+
+  /*
+   * A DESCRICAO REDIGIDA e escrita AQUI, na hora de montar o relatorio, e nao
+   * ao abrir a ficha: e no relatorio que ela e necessaria, e gerar custa
+   * credito e alguns segundos. Fica guardada com a marca da ultima mensagem
+   * lida, entao baixar o mesmo relatorio de novo (conferir, imprimir, anexar)
+   * nao paga de novo nem espera.
+   *
+   * Nunca lanca: sem IA o relatorio sai assim mesmo, com os dados e os
+   * documentos. Melhor um relatorio sem a redacao do que nenhum relatorio.
+   */
+  const contatoDoCaso = achar('contatos', ficha.cliente.id);
+  const redacao = contatoDoCaso
+    ? await descricaoDoCaso(contatoDoCaso, { forcar: reescrever })
+    : { texto: null, aviso: null };
 
   const { contrato, cliente, dados, documentos, descricao } = ficha;
 
@@ -220,14 +244,34 @@ export async function relatorioDoCaso(ctx, alvo) {
    */
   f.titulo('Descrição do caso', 12);
   if (descricao?.tipoDeCaso?.nome) f.campo('Tipo de caso', descricao.tipoDeCaso.nome);
-  for (const campo of descricao?.campos || []) f.campo(campo.rotulo, campo.texto);
-  if (!descricao?.campos?.length) {
-    f.paragrafo('Conversa curta demais para descrever: não há mensagens suficientes.', { cor: CINZA });
+  if (descricao?.tipoDeCaso?.nome) f.pular(6);
+
+  /*
+   * O texto corrido vem primeiro e sozinho quando existe: foi pedido "bem mais
+   * detalhado e sem topicos", e emendar os campos do resumo logo abaixo
+   * devolveria os topicos pela porta dos fundos.
+   */
+  if (redacao?.texto) {
+    for (const paragrafo of paragrafosDe(redacao.texto)) {
+      f.paragrafo(paragrafo, { tamanho: 10 });
+      f.pular(6);
+    }
+  } else {
+    for (const campo of descricao?.campos || []) f.campo(campo.rotulo, campo.texto);
+    if (!descricao?.campos?.length) {
+      f.paragrafo('Conversa curta demais para descrever: não há mensagens suficientes.', { cor: CINZA });
+    }
+    if (redacao?.aviso) f.paragrafo(redacao.aviso, { tamanho: 8, cor: CINZA });
   }
   /* De onde veio o texto. Sem isto, quem le nao sabe se esta diante da leitura
      do agente ou de um resumo montado da conversa, e os dois pesam diferente
      numa peca que vai para o processo. */
-  if (descricao?.campos?.length) {
+  if (redacao?.texto) {
+    f.paragrafo(
+      `Descrição escrita pelo agente de IA a partir da conversa e dos documentos${redacao.geradoEm ? `, em ${brData(redacao.geradoEm)}` : ''}.`,
+      { tamanho: 8, cor: CINZA },
+    );
+  } else if (descricao?.campos?.length) {
     f.paragrafo(
       descricao.daIa
         ? `Resumo escrito pelo agente de IA${descricao.geradoEm ? ` em ${brData(descricao.geradoEm)}` : ''}${descricao.novasDepois ? `, com ${descricao.novasDepois} ${descricao.novasDepois === 1 ? 'mensagem depois dele' : 'mensagens depois dele'}` : ''}.`

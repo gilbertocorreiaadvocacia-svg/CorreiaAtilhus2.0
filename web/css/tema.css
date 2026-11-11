@@ -8421,6 +8421,21 @@ button.mencao-chip:focus-visible {
   }
 }
 
+/* A redacao do caso: texto corrido, em paragrafos. Largura de leitura e nao a
+   do cartao inteiro — linha de 150 caracteres cansa e faz o olho perder a
+   proxima. */
+.ficha-redacao p {
+  margin: 0 0 var(--e3);
+  max-width: 78ch;
+  font-size: var(--t-sm);
+  line-height: 1.65;
+  color: var(--texto);
+}
+
+.ficha-redacao p:last-child {
+  margin-bottom: 0;
+}
+
 /* A descricao do caso: rotulo em cima, texto embaixo. Diferente de .ficha-dado,
    que poe rotulo e valor lado a lado — ali o valor e um CPF, aqui e um
    paragrafo, e paragrafo preso numa coluna de 170px fica num fio. */

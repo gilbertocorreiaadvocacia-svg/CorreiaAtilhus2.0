@@ -19,6 +19,13 @@ import { aviso, botao, cartao, dataHora, el, limpar, selo, vazio } from '../ui.j
  * outra — e a divisao e a mesma do relatorio de contratos.
  */
 
+/* O texto da descricao vem em paragrafos separados por linha em branco. */
+const paragrafosDe = (texto) =>
+  String(texto || '')
+    .split(/\n\s*\n/)
+    .map((t) => t.replace(/\s+/g, ' ').trim())
+    .filter(Boolean);
+
 const tamanhoEmTexto = (bytes) => {
   if (!bytes) return '';
   if (bytes < 1024) return `${bytes} B`;
@@ -236,7 +243,22 @@ export async function paginaFichaDoContrato({ parametros = [], definirAcoes = ()
    * trata antes de conferir CPF. O texto e o resumo que o sistema ja escreve
    * da conversa — o mesmo que aparece no alto da lateral — e nao um campo novo.
    */
-  const corpoDaDescricao = el('div', {}, [
+  /* A redacao detalhada, quando ja existe. Ela e escrita na hora de gerar o
+     relatorio (custa credito), entao aqui a ficha so mostra o que ja ha — e
+     diz onde consegui-la quando ainda nao ha. */
+  const corpoDaDescricao = descricao?.texto
+    ? el('div', {}, [
+        el(
+          'div',
+          { class: 'ficha-redacao' },
+          paragrafosDe(descricao.texto).map((paragrafo) => el('p', { texto: paragrafo })),
+        ),
+        el('p', {
+          class: 'painel-resumo-rodape',
+          texto: `Escrita pelo agente de IA a partir da conversa e dos documentos${descricao.redigidaEm ? ` · ${dataHora(descricao.redigidaEm)}` : ''}`,
+        }),
+      ])
+    : el('div', {}, [
     descricao?.campos?.length
       ? el(
           'div',
@@ -257,7 +279,11 @@ export async function paginaFichaDoContrato({ parametros = [], definirAcoes = ()
             : 'Resumo montado automaticamente da conversa, sem leitura do agente.',
         })
       : null,
-  ]);
+        el('p', {
+          class: 'painel-resumo-rodape',
+          texto: 'A descrição detalhada do caso é escrita quando você gera o relatório.',
+        }),
+      ]);
 
   raiz.append(
     el('div', { class: 'mb-4' }, [
