@@ -2607,15 +2607,21 @@ export async function paginaAtendimento({
     });
 
     /*
-     * O contrato fica no "Ver mais", menos quando espera conferencia.
+     * O contrato fica no "Ver mais", menos em dois estados.
      *
-     * Conferir e um clique que ninguem mais da: o link so sai para o cliente
-     * depois dele. Escondido atras de um botao, o contrato ficaria parado sem
-     * ninguem ver — entao, nesse estado, ele sobe para o corpo do painel.
+     * ESPERANDO CONFERENCIA: conferir e um clique que ninguem mais da, e o
+     * link so sai para o cliente depois dele. Escondido atras de um botao, o
+     * contrato ficaria parado sem ninguem ver.
+     *
+     * ASSINADO: e dali que se abre a ficha e se gera o relatorio do caso com
+     * os documentos. O escritorio relatou em 11/11/2026 que procurou o botao
+     * na conversa do contrato fechado e nao achou — ele existia, mas atras do
+     * "Ver mais". Os dois momentos tem a mesma natureza: ha um ato a praticar,
+     * e um painel recolhido esconde justamente a hora de praticá-lo.
      */
     const contratoEmDestaque = el('div', { class: 'painel-cartao', hidden: true });
     const contrato = blocoContrato(contato, {
-      aoPedirConferencia: (bloco) => {
+      aoPrecisarDeAtencao: (bloco) => {
         contratoEmDestaque.append(bloco);
         contratoEmDestaque.hidden = false;
       },
@@ -3085,7 +3091,7 @@ export async function paginaAtendimento({
       }
 
       if (atual.situacao === 'em_conferencia') {
-        opcoes.aoPedirConferencia?.(bloco);
+        opcoes.aoPrecisarDeAtencao?.(bloco);
         const entradas = Object.entries(atual.valores || {}).map(([chave, valor]) => {
           const entrada = entradaTexto(valor);
           corpo.append(campo(chave.replace(/[{}]/g, '').trim(), entrada));
@@ -3130,7 +3136,29 @@ export async function paginaAtendimento({
         corpo.append(el('a', { href: atual.link, target: '_blank', rel: 'noopener', class: 't-sm quebra-palavra', texto: atual.link }));
       }
       if (atual.situacao === 'assinado') {
+        /* Sobe para o corpo do painel: e aqui que se gera o relatorio do caso,
+           e atras do "Ver mais" ninguem achava (ver o comentario do gancho). */
+        opcoes.aoPrecisarDeAtencao?.(bloco);
         corpo.append(el('p', { class: 't-sm c-fraco sem-margem', texto: `Assinado em ${dataHora(atual.assinadoEm)}. Os PDFs estão em Arquivos.` }));
+        /*
+         * O caminho ate a ficha e o relatorio do caso, AQUI na conversa.
+         *
+         * Quando a ficha nasceu (11/11/2026) ela so se alcancava pelo aviso no
+         * sino e pela tela de Contratos. Quem acabava de fechar um contrato
+         * procurava na lateral da conversa — que e onde o contrato esta — e nao
+         * achava nada. Relatado pelo escritorio no mesmo dia: "nao estou
+         * achando".
+         */
+        corpo.append(
+          el('div', { class: 'linha-botoes' }, [
+            botao('Relatório do caso', {
+              tipo: 'principal',
+              pequeno: true,
+              titulo: 'Ficha do cliente e o PDF com os documentos',
+              aoClicar: () => (location.hash = `#/ficha/${atual.id}`),
+            }),
+          ]),
+        );
         /* O caminho ate o Atilhus Juri: aberto la, na fila, ou recusado. */
         const juri = atual.juri;
         const rotuloJuri = {
