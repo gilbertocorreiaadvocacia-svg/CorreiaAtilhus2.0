@@ -1,5 +1,6 @@
 import { achar, listar } from './banco.js';
 import { podeVerConversa } from './auth.js';
+import { passosDoFunil } from './funil-da-conversa.js';
 
 /**
  * A ficha do cliente de um contrato fechado.
@@ -53,16 +54,67 @@ const rotuloDaVariavel = (chave) =>
  * contrato aponta para a conversa, e nao o contrario (uma conversa pode ter
  * mais de um contrato ao longo do tempo).
  */
-export function fichaDoContrato(ctx, contratoId) {
-  const contrato = achar('contratos', contratoId);
-  if (!contrato || contrato.workspaceId !== ctx.workspaceId) return null;
-  const contato = achar('contatos', contrato.contatoId);
+/**
+ * Quem fechou um caso que NAO tem contrato da ZapSign.
+ *
+ * A resposta esta no historico do funil: o log da troca para a coluna de tipo
+ * "sucesso" guarda quem moveu — uma pessoa da equipe, a IA, ou o sistema
+ * (passosDoFunil, nucleo/funil-da-conversa.js). E o unico registro de autoria
+ * que existe para o caso fechado na mao.
+ */
+function quemMoveuParaSucesso(contato) {
+  const idsDeSucesso = new Set(
+    listar('status', { workspaceId: contato.workspaceId }).filter((s) => s.tipo === 'sucesso').map((s) => s.id),
+  );
+  if (!idsDeSucesso.size) return null;
+  /* O ultimo, e nao o primeiro: se a conversa saiu e voltou para a coluna, o
+     que vale e a passagem de agora. */
+  const passo = [...passosDoFunil(contato.id)].reverse().find((p) => idsDeSucesso.has(p.statusId));
+  return passo ? { em: passo.em, autor: passo.autor } : null;
+}
+
+/**
+ * A ficha de um caso, pelo CONTRATO ou pela CONVERSA.
+ *
+ * Nasceu so com o contrato da ZapSign, e isso estava errado para este
+ * escritorio: a maioria das conversas que chegam a coluna "Contrato fechado"
+ * nunca passou pela ZapSign — sao fechadas na mao ou importadas do historico
+ * antigo (esta escrito em automacao/followup.js, no gancho que manda o caso
+ * para o Atilhus Juri). Preso ao contrato, o relatorio do caso simplesmente
+ * nao existia para a maior parte dos casos fechados. Relatado pelo escritorio
+ * em 11/11/2026, com a conversa de um caso fechado aberta e nenhum botao nela.
+ *
+ * Agora aceita os dois: `{ contratoId }` ou `{ contatoId }`. Pela conversa,
+ * pega o contrato dela se houver (o assinado na frente), e segue sem contrato
+ * se nao houver — a ficha e do CASO, e o contrato e um detalhe dele.
+ */
+export function fichaDoCaso(ctx, { contratoId = null, contatoId = null } = {}) {
+  let contrato = null;
+  let contato = null;
+
+  if (contratoId) {
+    contrato = achar('contratos', contratoId);
+    if (!contrato || contrato.workspaceId !== ctx.workspaceId) return null;
+    contato = achar('contatos', contrato.contatoId);
+  } else if (contatoId) {
+    contato = achar('contatos', contatoId);
+    if (!contato || contato.workspaceId !== ctx.workspaceId) return null;
+    const daConversa = listar('contratos', { contatoId: contato.id });
+    contrato = daConversa.find((c) => c.situacao === 'assinado') || daConversa[0] || null;
+  }
   if (!contato || !podeVerConversa(ctx, contato)) return null;
 
   const status = contato.statusId ? achar('status', contato.statusId) : null;
   const departamento = contato.departamentoId ? achar('departamentos', contato.departamentoId) : null;
   const origem = contato.origemId ? achar('origens', contato.origemId) : null;
-  const agente = contrato.agenteId ? achar('agentes', contrato.agenteId) : null;
+  /* Sem contrato, o agente que conduziu e o que esta na conversa — que e o que
+     o escritorio ve no cabecalho dela. */
+  const agente = contrato?.agenteId
+    ? achar('agentes', contrato.agenteId)
+    : contato.responsavel?.tipo === 'agente'
+      ? achar('agentes', contato.responsavel.id)
+      : null;
+  const fechamento = contrato ? null : quemMoveuParaSucesso(contato);
 
   /*
    * Os dados do cliente, um por linha, com rotulo legivel.
@@ -93,15 +145,21 @@ export function fichaDoContrato(ctx, contratoId) {
 
   return {
     contrato: {
-      id: contrato.id,
-      situacao: contrato.situacao,
-      criadoEm: contrato.criadoEm || null,
-      assinadoEm: contrato.assinadoEm || null,
-      /* As duas maos, separadas de proposito (ver o cabecalho). */
-      aprovadoPor: contrato.aprovadoPor?.nome
+      id: contrato?.id || null,
+      /* Sem contrato da ZapSign, a situacao do caso e a da coluna do funil: e
+         o que o escritorio chama de "contrato fechado" na tela. */
+      situacao: contrato?.situacao || (status?.tipo === 'sucesso' ? 'fechado_sem_zapsign' : null),
+      criadoEm: contrato?.criadoEm || null,
+      assinadoEm: contrato?.assinadoEm || fechamento?.em || null,
+      temZapsign: Boolean(contrato),
+      /* As duas maos, separadas de proposito (ver o cabecalho). Sem contrato,
+         "quem aprovou" vira quem moveu a conversa para a coluna de fechado. */
+      aprovadoPor: contrato?.aprovadoPor?.nome
         ? { nome: contrato.aprovadoPor.nome, tipo: contrato.aprovadoPor.tipo || null }
-        : null,
-      agente: agente ? { id: agente.id, nome: agente.nome } : contrato.agenteId ? { id: contrato.agenteId, nome: 'Agente removido' } : null,
+        : fechamento?.autor?.nome
+          ? { nome: fechamento.autor.nome, tipo: fechamento.autor.tipo || null, moveuAColuna: true }
+          : null,
+      agente: agente ? { id: agente.id, nome: agente.nome } : contrato?.agenteId ? { id: contrato.agenteId, nome: 'Agente removido' } : null,
     },
     cliente: {
       id: contato.id,
@@ -137,3 +195,7 @@ export function quemFechou(contrato) {
   if (pessoa) partes.push(`aprovado por ${pessoa}`);
   return partes.length ? partes.join(', ') : 'sem agente nem aprovação registrados';
 }
+
+/* O nome antigo, de quando a ficha so existia para contrato da ZapSign. Mantido
+   porque e assim que o relatorio do caso e a rota a chamam. */
+export const fichaDoContrato = (ctx, contratoId) => fichaDoCaso(ctx, { contratoId });

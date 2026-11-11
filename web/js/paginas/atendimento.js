@@ -3067,6 +3067,25 @@ export async function paginaAtendimento({
       if (!resposta.ok) throw new Error(resposta.erro);
     }, 'Contrato em conferência.');
 
+    /*
+     * O botao do relatorio do caso: leva a ficha, e de la ao PDF com os
+     * documentos.
+     *
+     * Aponta para a CONVERSA, e nao para o contrato: a maioria dos casos
+     * fechados deste escritorio nao tem contrato da ZapSign — sao fechados na
+     * mao ou vieram do historico antigo. Preso ao contrato, o botao nao
+     * aparecia justamente nos casos em que o escritorio foi procura-lo
+     * (relatado em 11/11/2026, numa conversa fechada que mostrava so "Pedir
+     * contrato"). Pela conversa ele funciona nos dois casos.
+     */
+    const botaoDoCaso = () =>
+      botao('Relatório do caso', {
+        tipo: 'principal',
+        pequeno: true,
+        titulo: 'Ficha do cliente e o PDF com os documentos',
+        aoClicar: () => (location.hash = `#/ficha/${contato.id}`),
+      });
+
     (async () => {
       let contratos = [];
       try {
@@ -3077,6 +3096,10 @@ export async function paginaAtendimento({
       limpar(corpo);
       const atual = contratos[0];
       const encerrado = !atual || ['devolvido', 'recusado', 'expirado', 'cancelado'].includes(atual.situacao);
+      /* O caso esta fechado pelo FUNIL, com ou sem contrato da ZapSign. E o
+         que decide se o relatorio tem o que relatar. */
+      const statusAtual = estado.status.find((st) => st.id === contato.statusId);
+      const casoFechado = statusAtual?.tipo === 'sucesso';
 
       if (atual) {
         const [rotulo, tipo] = SITUACAO_DO_CONTRATO[atual.situacao] || [atual.situacao, ''];
@@ -3086,6 +3109,16 @@ export async function paginaAtendimento({
       }
       if (encerrado) {
         if (atual?.motivoDevolucao) corpo.append(el('p', { class: 't-sm c-fraco sem-margem', texto: `Motivo: ${atual.motivoDevolucao}` }));
+        /* Caso fechado sem contrato da ZapSign: o relatorio vem primeiro, que e
+           o que se faz nesse momento. "Pedir contrato" continua ali embaixo,
+           para quem ainda vai gerar um. */
+        if (casoFechado) {
+          opcoes.aoPrecisarDeAtencao?.(bloco);
+          corpo.append(
+            el('p', { class: 't-sm c-fraco sem-margem', texto: 'Caso fechado sem contrato da ZapSign.' }),
+            el('div', { class: 'linha-botoes' }, [botaoDoCaso()]),
+          );
+        }
         corpo.append(botao('Pedir contrato', { pequeno: true, aoClicar: pedir }));
         return;
       }
@@ -3149,16 +3182,7 @@ export async function paginaAtendimento({
          * achava nada. Relatado pelo escritorio no mesmo dia: "nao estou
          * achando".
          */
-        corpo.append(
-          el('div', { class: 'linha-botoes' }, [
-            botao('Relatório do caso', {
-              tipo: 'principal',
-              pequeno: true,
-              titulo: 'Ficha do cliente e o PDF com os documentos',
-              aoClicar: () => (location.hash = `#/ficha/${atual.id}`),
-            }),
-          ]),
-        );
+        corpo.append(el('div', { class: 'linha-botoes' }, [botaoDoCaso()]));
         /* O caminho ate o Atilhus Juri: aberto la, na fila, ou recusado. */
         const juri = atual.juri;
         const rotuloJuri = {

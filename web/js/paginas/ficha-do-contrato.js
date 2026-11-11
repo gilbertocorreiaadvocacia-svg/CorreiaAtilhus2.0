@@ -27,22 +27,33 @@ const tamanhoEmTexto = (bytes) => {
 };
 
 export async function paginaFichaDoContrato({ parametros = [], definirAcoes = () => {} } = {}) {
-  const contratoId = parametros[0];
+  const alvo = parametros[0];
   const raiz = el('div');
 
-  if (!contratoId) {
-    raiz.append(vazio('Ficha sem contrato', 'Abra a ficha pelo aviso de contrato fechado ou pela conversa do cliente.'));
+  if (!alvo) {
+    raiz.append(vazio('Ficha sem caso', 'Abra a ficha pelo aviso de contrato fechado ou pela conversa do cliente.'));
     return raiz;
   }
 
+  /*
+   * A ficha abre pelo contrato OU pela conversa, e o prefixo do id diz qual.
+   *
+   * A maioria dos casos fechados deste escritorio nao tem contrato da ZapSign
+   * (sao fechados na mao, ou vieram do historico antigo), e enquanto a ficha
+   * so existiu por contrato ela simplesmente nao abria para eles. Conversa
+   * nasce com `ctt_` (novoId), contrato com `ctr_`.
+   */
+  const porConversa = String(alvo).startsWith('ctt_');
+  const caminho = porConversa ? `/api/contatos/${alvo}/ficha` : `/api/contratos/${alvo}/ficha`;
+
   let ficha = null;
   try {
-    ficha = await api.get(`/api/contratos/${contratoId}/ficha`);
+    ficha = await api.get(caminho);
   } catch (erro) {
     raiz.append(
       vazio(
         'Não consegui abrir esta ficha',
-        erro.codigo === 404 ? 'O contrato não existe ou é de uma conversa que você não pode ver.' : erro.message,
+        erro.codigo === 404 ? 'O caso não existe ou é de uma conversa que você não pode ver.' : erro.message,
       ),
     );
     return raiz;
@@ -85,7 +96,7 @@ export async function paginaFichaDoContrato({ parametros = [], definirAcoes = ()
   async function gerarRelatorio() {
     aviso('Montando o relatório do caso…', '');
     try {
-      const resposta = await fetch(`/api/contratos/${contratoId}/relatorio.pdf`);
+      const resposta = await fetch(porConversa ? `/api/contatos/${alvo}/relatorio.pdf` : `/api/contratos/${alvo}/relatorio.pdf`);
       if (!resposta.ok) {
         const erro = await resposta.json().catch(() => null);
         throw new Error(erro?.erro || `Erro ${resposta.status}`);
@@ -137,9 +148,14 @@ export async function paginaFichaDoContrato({ parametros = [], definirAcoes = ()
   if (contrato.aprovadoPor) {
     maos.push(
       el('div', { class: 'ficha-mao' }, [
-        el('div', { class: 'ficha-mao-papel', texto: 'Aprovou e enviou' }),
+        el('div', { class: 'ficha-mao-papel', texto: contrato.aprovadoPor.moveuAColuna ? 'Fechou o caso' : 'Aprovou e enviou' }),
         el('div', { class: 'ficha-mao-nome', texto: contrato.aprovadoPor.nome }),
-        el('div', { class: 'ficha-mao-nota', texto: 'Conferiu a ficha e mandou o link de assinatura' }),
+        el('div', {
+          class: 'ficha-mao-nota',
+          texto: contrato.aprovadoPor.moveuAColuna
+            ? 'Moveu a conversa para a coluna de contrato fechado'
+            : 'Conferiu a ficha e mandou o link de assinatura',
+        }),
       ]),
     );
   }
@@ -148,7 +164,7 @@ export async function paginaFichaDoContrato({ parametros = [], definirAcoes = ()
       el('div', { class: 'ficha-mao' }, [
         el('div', { class: 'ficha-mao-papel', texto: 'Sem atribuição' }),
         el('div', { class: 'ficha-mao-nome', texto: '—' }),
-        el('div', { class: 'ficha-mao-nota', texto: 'Contrato criado à mão, sem agente e sem aprovação registrada' }),
+        el('div', { class: 'ficha-mao-nota', texto: 'Sem agente e sem registro de quem fechou' }),
       ]),
     );
   }
@@ -162,9 +178,12 @@ export async function paginaFichaDoContrato({ parametros = [], definirAcoes = ()
         el('p', { class: 'bloco-legenda' }, [
           document.createTextNode(
             contrato.assinadoEm
-              ? `Contrato assinado em ${dataHora(contrato.assinadoEm)}.`
-              : `Contrato em ${contrato.situacao || 'situação desconhecida'}.`,
+              ? `${contrato.temZapsign ? 'Contrato assinado' : 'Caso fechado'} em ${dataHora(contrato.assinadoEm)}.`
+              : 'Caso ainda em andamento.',
           ),
+          contrato.temZapsign
+            ? null
+            : el('span', { class: 'c-fraco', texto: ' Fechado fora do sistema: não há contrato assinado pela ZapSign nesta conversa.' }),
         ]),
       ]),
       el('div', { class: 'linha-p quebra' }, [

@@ -492,24 +492,42 @@ export function registrarIntegracoes(rotas) {
    * que o cliente existe.
    */
   rotas.get('/api/contratos/:id/ficha', async ({ ctx, params }) => {
-    const { fichaDoContrato } = await import('../nucleo/ficha-do-contrato.js');
-    const ficha = fichaDoContrato(ctx, params.id);
+    const { fichaDoCaso } = await import('../nucleo/ficha-do-contrato.js');
+    const ficha = fichaDoCaso(ctx, { contratoId: params.id });
     if (!ficha) throw comCodigo('Contrato nao encontrado.', 404);
     return ficha;
   });
 
   /*
-   * O relatorio do caso num PDF so: o relatorio e, atras dele, os documentos
-   * do cliente (nucleo/relatorio-do-caso.js). E o botao da ficha.
+   * A mesma ficha, pela CONVERSA.
    *
+   * A maioria dos casos fechados deste escritorio nao tem contrato da ZapSign
+   * (sao fechados na mao ou vieram do historico antigo), e preso ao contrato o
+   * relatorio nao existia justamente para eles. Pela conversa funciona sempre.
+   */
+  rotas.get('/api/contatos/:id/ficha', async ({ ctx, params }) => {
+    const { fichaDoCaso } = await import('../nucleo/ficha-do-contrato.js');
+    const ficha = fichaDoCaso(ctx, { contatoId: params.id });
+    if (!ficha) throw comCodigo('Conversa nao encontrada.', 404);
+    return ficha;
+  });
+
+  /* O relatorio do caso num PDF so: o relatorio e, atras dele, os documentos
+     do cliente (nucleo/relatorio-do-caso.js). E o botao da ficha. */
+  /** Monta o PDF, ou 404 quando o alvo nao existe / a pessoa nao pode ver. */
+  const montarRelatorio = async (ctx, alvo) => {
+    const { relatorioDoCaso } = await import('../nucleo/relatorio-do-caso.js');
+    const relatorio = await relatorioDoCaso(ctx, alvo);
+    if (!relatorio) throw comCodigo('Caso nao encontrado.', 404);
+    return relatorio;
+  };
+
+  /*
    * Responde o PDF direto, e nao um JSON com base64: arquivo de dezenas de
    * paginas em base64 cresce um terco e ainda obriga a tela a remontar o
    * binario na mao.
    */
-  rotas.get('/api/contratos/:id/relatorio.pdf', async ({ ctx, params, res }) => {
-    const { relatorioDoCaso } = await import('../nucleo/relatorio-do-caso.js');
-    const relatorio = await relatorioDoCaso(ctx, params.id);
-    if (!relatorio) throw comCodigo('Contrato nao encontrado.', 404);
+  const responderRelatorio = (res, relatorio) => {
     res.writeHead(200, {
       'Content-Type': 'application/pdf',
       'Content-Length': relatorio.bytes.length,
@@ -524,7 +542,17 @@ export function registrarIntegracoes(rotas) {
     });
     res.end(relatorio.bytes);
     return null;
-  });
+  };
+
+  rotas.get('/api/contratos/:id/relatorio.pdf', async ({ ctx, params, res }) =>
+    responderRelatorio(res, await montarRelatorio(ctx, { contratoId: params.id })),
+  );
+
+  /* O mesmo relatorio, pela conversa: ver a rota da ficha acima. */
+  rotas.get('/api/contatos/:id/relatorio.pdf', async ({ ctx, params, res }) =>
+    responderRelatorio(res, await montarRelatorio(ctx, { contatoId: params.id })),
+  );
+
 
   rotas.post('/api/contratos/:id/aprovar', async ({ ctx, params, corpo }) => {
     contratoOu404(ctx, params.id);

@@ -105,7 +105,35 @@ inserir('contratos', {
   aprovadoPor: { tipo: 'membro', id: 'm1', nome: 'Dani' },
 });
 
+/*
+ * O CASO FECHADO SEM CONTRATO DA ZAPSIGN, que e a maioria neste escritorio:
+ * conversa na coluna de tipo "sucesso", nenhum contrato, e o log do funil
+ * dizendo quem a moveu para la. Enquanto o relatorio dependia do contrato, ele
+ * simplesmente nao existia para esses casos.
+ */
+inserir('status', { id: 'st-sucesso', workspaceId: 'w1', nome: 'Contrato fechado', tipo: 'sucesso' });
+inserir('contatos', {
+  id: 'c2',
+  workspaceId: 'w1',
+  nome: 'Rick Sem Zapsign',
+  telefone: '5582820138 86',
+  statusId: 'st-sucesso',
+  responsavel: { tipo: 'agente', id: 'ag1', nome: 'Triagem BPC/LOAS' },
+  variaveis: { cpf: '07579533448' },
+  arquivos: [{ id: 'b1', nome: 'CNIS.pdf', caminho: 'c1/cnis.pdf', tamanho: 10, tipo: 'documento' }],
+});
+inserir('logs', {
+  workspaceId: 'w1',
+  contatoId: 'c2',
+  tipo: 'status',
+  descricao: 'Status: Qualificado -> Contrato fechado',
+  autor: { tipo: 'membro', nome: 'Milena' },
+  dados: { statusId: 'st-sucesso', tipo: 'sucesso', anteriorId: null },
+});
+
 const ctx = { workspaceId: 'w1', papel: 'owner' };
+const semZapsign = await relatorioDoCaso(ctx, { contatoId: 'c2' });
+const fichaSemZapsign = (await import(${url('servidor/nucleo/ficha-do-contrato.js')})).fichaDoCaso(ctx, { contatoId: 'c2' });
 const r = await relatorioDoCaso(ctx, 'ct1');
 const relido = await PDFDocument.load(r.bytes);
 const inexistente = await relatorioDoCaso(ctx, 'ct-naoexiste');
@@ -119,6 +147,19 @@ console.log(JSON.stringify({
   documentos: r.documentos,
   falhas: r.falhas,
   inexistente,
+  semZapsign: {
+    nome: semZapsign?.nome,
+    ehPdf: semZapsign?.bytes.slice(0, 5).toString('latin1'),
+    paginas: (await PDFDocument.load(semZapsign.bytes)).getPageCount(),
+    documentos: semZapsign?.documentos,
+  },
+  fichaSemZapsign: {
+    temZapsign: fichaSemZapsign?.contrato?.temZapsign,
+    situacao: fichaSemZapsign?.contrato?.situacao,
+    fechadoEm: Boolean(fichaSemZapsign?.contrato?.assinadoEm),
+    aprovadoPor: fichaSemZapsign?.contrato?.aprovadoPor,
+    agente: fichaSemZapsign?.contrato?.agente?.nome,
+  },
 }));
 await encerrarBanco();
 process.exit(0);
@@ -174,6 +215,30 @@ process.exit(0);
     s.ok('os quatro anexos sao contados, inclusive os que falharam', b.documentos === 4, String(b.documentos));
 
     s.ok('contrato que nao existe devolve nulo, e nao um PDF vazio', b.inexistente === null, JSON.stringify(b.inexistente));
+
+    /* ---- O caso fechado SEM contrato da ZapSign ---- */
+    s.ok(
+      'o caso fechado sem contrato da ZapSign tambem gera relatorio',
+      b.semZapsign?.ehPdf === '%PDF-' && b.semZapsign?.nome === 'Rick-Sem-Zapsign-caso.pdf',
+      JSON.stringify(b.semZapsign),
+    );
+    s.ok(
+      'e os documentos dele entram do mesmo jeito (1 relatorio + 2 do CNIS)',
+      b.semZapsign?.paginas === 3 && b.semZapsign?.documentos === 1,
+      JSON.stringify(b.semZapsign),
+    );
+    s.ok('a ficha marca que nao ha contrato da ZapSign', b.fichaSemZapsign?.temZapsign === false, JSON.stringify(b.fichaSemZapsign));
+    s.ok(
+      'quem fechou sai do historico do funil, que e o unico registro que existe',
+      b.fichaSemZapsign?.aprovadoPor?.nome === 'Milena' && b.fichaSemZapsign?.aprovadoPor?.moveuAColuna === true,
+      JSON.stringify(b.fichaSemZapsign?.aprovadoPor),
+    );
+    s.ok(
+      'e o agente que conduziu vem do responsavel da conversa',
+      b.fichaSemZapsign?.agente === 'Triagem BPC/LOAS',
+      String(b.fichaSemZapsign?.agente),
+    );
+    s.ok('a data do fechamento vem da entrada na coluna', b.fichaSemZapsign?.fechadoEm === true, JSON.stringify(b.fichaSemZapsign));
   } finally {
     fs.rmSync(pasta, { recursive: true, force: true });
   }

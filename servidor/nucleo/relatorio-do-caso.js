@@ -3,7 +3,7 @@ import path from 'node:path';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { PASTA_ARQUIVOS } from '../config.js';
 import { achar } from './banco.js';
-import { fichaDoContrato } from './ficha-do-contrato.js';
+import { fichaDoCaso } from './ficha-do-contrato.js';
 
 /**
  * O relatorio do caso num PDF so: o relatorio e, logo atras, os documentos do
@@ -171,8 +171,10 @@ function lerDocumento(caminhoRelativo) {
  * Monta o PDF do caso. Devolve { nome, bytes } ou null quando o contrato nao
  * existe (ou a pessoa nao pode ver a conversa — fichaDoContrato ja decide).
  */
-export async function relatorioDoCaso(ctx, contratoId) {
-  const ficha = fichaDoContrato(ctx, contratoId);
+export async function relatorioDoCaso(ctx, alvo) {
+  /* Aceita o id do contrato ou o da conversa: a maioria dos casos fechados
+     deste escritorio nao tem contrato da ZapSign (ver fichaDoCaso). */
+  const ficha = fichaDoCaso(ctx, typeof alvo === 'string' ? { contratoId: alvo } : alvo);
   if (!ficha) return null;
 
   const { contrato, cliente, dados, documentos } = ficha;
@@ -200,17 +202,26 @@ export async function relatorioDoCaso(ctx, contratoId) {
   f.titulo('Correia Advogados Associados', 13);
   f.paragrafo('Relatório do caso', { tamanho: 20, fonte: fontes.negrito });
   f.paragrafo(cliente.nome, { tamanho: 14, fonte: fontes.negrito });
+  /* Sem contrato da ZapSign o caso nao fica sem data: vale a entrada na coluna
+     de fechado, que e o que o escritorio chama de fechamento. */
   f.paragrafo(
-    contrato.assinadoEm ? `Contrato assinado em ${brData(contrato.assinadoEm)}.` : `Contrato em ${contrato.situacao || 'situação desconhecida'}.`,
+    contrato.assinadoEm
+      ? `${contrato.temZapsign ? 'Contrato assinado' : 'Caso fechado'} em ${brData(contrato.assinadoEm)}.`
+      : `Caso em ${contrato.situacao || 'situação desconhecida'}.`,
     { cor: CINZA },
   );
   f.pular(10);
 
   f.titulo('Quem fechou', 12);
   if (contrato.agente) f.campo('Conduziu o atendimento', `${contrato.agente.nome} (agente de IA)`);
-  if (contrato.aprovadoPor) f.campo('Aprovou e enviou', contrato.aprovadoPor.nome);
+  if (contrato.aprovadoPor) {
+    f.campo(contrato.aprovadoPor.moveuAColuna ? 'Fechou o caso' : 'Aprovou e enviou', contrato.aprovadoPor.nome);
+  }
   if (!contrato.agente && !contrato.aprovadoPor) {
-    f.campo('Atribuição', 'Contrato criado à mão, sem agente e sem aprovação registrada.');
+    f.campo('Atribuição', 'Sem agente e sem registro de quem fechou.');
+  }
+  if (!contrato.temZapsign) {
+    f.campo('Contrato', 'Fechado fora do sistema: não há contrato assinado pela ZapSign nesta conversa.');
   }
   f.pular(14);
 
