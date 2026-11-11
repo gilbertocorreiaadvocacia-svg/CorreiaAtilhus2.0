@@ -11656,3 +11656,175 @@ body.compacto {
   color: var(--texto-fraco);
   font-size: var(--t-nota);
 }
+
+/* Funil da conversa, logo abaixo do resumo (web/js/paginas/funil-da-conversa.js).
+   A escada e as colunas do Kanban: um degrau por coluna, com a data em que a
+   conversa entrou. So leitura — mudar de coluna e no seletor de Status. */
+
+.painel-funil {
+  padding: var(--e3) var(--e4);
+}
+
+.painel-funil-topo {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  margin-bottom: var(--e2);
+}
+
+.funil-escada {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.funil-degrau {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  gap: var(--e2);
+  padding: 3px 0;
+  font-size: var(--t-sm);
+  line-height: 1.35;
+}
+
+/* O fio que liga um degrau ao proximo. Sai da marca para baixo, e o ultimo
+   degrau nao tem: fio solto embaixo pareceria etapa faltando. O `bottom`
+   negativo cobre o espaco entre as linhas. */
+.funil-degrau::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 14px;
+  bottom: -3px;
+  width: 1px;
+  background: var(--borda);
+}
+
+.funil-degrau:last-child::before {
+  display: none;
+}
+
+/* A marca do degrau. A FORMA e o que distingue os tres estados, nao a cor:
+   circulo cheio no que passou, anel grosso no de agora, circulo vazio no que
+   nao aconteceu. Em tela ruim, impressa ou para quem nao distingue cor, a
+   leitura continua inteira. */
+.funil-marca {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  margin-top: 5px;
+  border-radius: var(--raio-pilula);
+  border: 1px solid var(--borda);
+  background: var(--superficie-3);
+}
+
+.funil-feita .funil-marca {
+  border-color: transparent;
+  background: var(--cor-degrau, var(--texto-fraco));
+}
+
+.funil-atual .funil-marca {
+  width: 11px;
+  height: 11px;
+  margin-top: 4px;
+  border: 3px solid var(--cor-degrau, var(--ouro));
+  background: var(--superficie-2);
+}
+
+.funil-nome {
+  flex: 1;
+  min-width: 0;
+  color: var(--texto-suave);
+  overflow-wrap: anywhere;
+}
+
+.funil-atual .funil-nome {
+  color: var(--texto);
+  font-weight: 600;
+}
+
+/* Etapa que ainda nao aconteceu fica mais apagada que as outras, mas acima do
+   minimo de contraste: e informacao ("ainda falta"), nao enfeite. */
+.funil-futura .funil-nome {
+  color: var(--texto-fraco);
+}
+
+.funil-quando {
+  flex: none;
+  color: var(--texto-fraco);
+  font-size: var(--t-nota);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.funil-atual .funil-quando {
+  color: var(--texto-suave);
+}
+
+/* As colunas de encerramento (Desqualificado, Recusada, Desistencia) vem
+   separadas da escada, depois de um filete: nao sao passo do caminho normal. */
+.funil-encerradas {
+  margin-top: var(--e2);
+  padding-top: var(--e2);
+  border-top: 1px solid var(--borda);
+}
+
+.painel-funil-nota {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--e1);
+  margin: var(--e2) 0 0;
+  color: var(--texto-fraco);
+  font-size: var(--t-nota);
+  line-height: 1.4;
+}
+
+.painel-funil-nota svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+/* O historico, dentro da secao recolhivel: uma linha por mudanca, a data a
+   esquerda em largura fixa para as datas alinharem entre si (mesmo arranjo da
+   lista de eventos da conexao). */
+.funil-historico {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.funil-historico-item {
+  display: flex;
+  gap: var(--e2);
+  padding: var(--e1) 0;
+  font-size: var(--t-sm);
+}
+
+.funil-historico-item + .funil-historico-item {
+  border-top: 1px solid var(--borda);
+}
+
+.funil-historico-quando {
+  flex: none;
+  width: 98px;
+  color: var(--texto-fraco);
+  font-size: var(--t-nota);
+  font-variant-numeric: tabular-nums;
+}
+
+.funil-historico-corpo {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.funil-historico-nome {
+  color: var(--texto-suave);
+  overflow-wrap: anywhere;
+}
+
+.funil-historico-autor {
+  color: var(--texto-fraco);
+  font-size: var(--t-nota);
+}

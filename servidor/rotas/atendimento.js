@@ -19,6 +19,7 @@ import {
 } from '../nucleo/banco.js';
 import { aplicarModoFoco, ehAdministrador, filtrarConversasVisiveis, podeVerConversa } from '../nucleo/auth.js';
 import { creditosMesDoContato, creditosPorAgenteDoContato } from '../nucleo/creditos.js';
+import { funilDaConversa } from '../nucleo/funil-da-conversa.js';
 import { emitir } from '../nucleo/eventos.js';
 import { agora, aplicarVariaveis, garantirPasta, normalizar, normalizarTelefone, novoId, ordenarPor } from '../nucleo/util.js';
 import { enviarMensagem, janelaAberta, marcarComoLida } from '../whatsapp/envio.js';
@@ -429,6 +430,19 @@ export function registrarAtendimento(rotas) {
   rotas.get('/api/contatos/:id/logs', async ({ ctx, params }) => {
     const contato = conversaOu404(ctx, params.id);
     return logsDe(contato.id);
+  });
+
+  /*
+   * O funil desta conversa: quando ela entrou em cada coluna do Kanban.
+   *
+   * Rota propria, e nao um pedaco de /logs: aquela devolve os 200 ultimos logs
+   * de todo tipo, e numa conversa movimentada as trocas de coluna ficariam
+   * fora da janela — justamente o que a lateral precisa. Ver
+   * nucleo/funil-da-conversa.js.
+   */
+  rotas.get('/api/contatos/:id/funil', async ({ ctx, params }) => {
+    const contato = conversaOu404(ctx, params.id);
+    return funilDaConversa(contato);
   });
 
   /*

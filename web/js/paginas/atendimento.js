@@ -3,7 +3,9 @@ import { abrirVisualizador, campoComDica, cartaoDeArquivo, dica, menuAcoes, pagi
 import { editarStatus, iniciarFollowupNoStatus } from './configuracoes.js';
 import { editarTemplate } from './templates.js';
 import { cartaoDoResumo } from './resumo-da-conversa.js';
+import { cartaoDoFunil } from './funil-da-conversa.js';
 import {
+  TIPOS_DE_PERDA,
   acharConexao,
   acharEtiqueta,
   disparar,
@@ -103,8 +105,8 @@ const ETAPAS_DA_VENDA = [
   { rotulo: 'Pós-venda', tipos: ['sucesso'], cor: 'var(--tom-2)' },
 ];
 
-/* Os tipos que tiram a conversa da venda: no lugar das etapas, o nome do status. */
-const TIPOS_DE_PERDA = ['desqualificado', 'recusada', 'desistencia'];
+/* Os tipos que tiram a conversa da venda vem do estado (TIPOS_DE_PERDA):
+   o funil da lateral usa o mesmo corte, e os dois precisam concordar. */
 
 function etapaDoStatus(status) {
   if (!status) return -1;
@@ -2677,6 +2679,13 @@ export async function paginaAtendimento({
         pessoa,
         /* O resumo da conversa, escrito pelo agente de resumo (resumo-da-conversa.js). */
         cartaoDoResumo(contato),
+        /*
+         * O funil desta conversa, logo abaixo do resumo (funil-da-conversa.js):
+         * em que coluna do Kanban ela esta, por quais passou e quando. Pedido
+         * do escritorio em 10/11/2026, nesta ordem — primeiro quem e o cliente
+         * e o que ele busca, depois em que pe esta a venda.
+         */
+        cartaoDoFunil(contato),
         el('div', { class: 'painel-cartao' }, [campoResponsavel]),
         el('div', { class: 'painel-cartao' }, [
           el('div', { class: 'propriedade' }, [el('span', { texto: 'Créditos este mês' }), valorCreditosMes]),

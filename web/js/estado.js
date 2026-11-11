@@ -110,6 +110,20 @@ export const acharEtiqueta = (id) => estado.etiquetas.find((e) => e.id === id) |
 export const acharConexao = (id) => estado.conexoes.find((c) => c.id === id) || null;
 
 /*
+ * Os tipos de status que tiram a conversa do caminho da venda: desqualificado,
+ * proposta recusada e desistencia (TIPOS_STATUS em servidor/config.js).
+ *
+ * Mora aqui porque duas telas precisam do mesmo corte e precisam concordar: o
+ * Kanban separa por ele as abas CRM e Encerrado, e o funil da lateral da
+ * conversa decide por ele qual coluna e degrau da escada e qual e fim de
+ * linha. Pelo TIPO, nunca pelo nome: o escritorio renomeia e cria coluna a
+ * vontade, e o tipo e o que diz o que cada uma e.
+ */
+export const TIPOS_DE_PERDA = ['desqualificado', 'recusada', 'desistencia'];
+
+export const ehStatusDePerda = (status) => Boolean(status) && TIPOS_DE_PERDA.includes(status.tipo);
+
+/*
  * O numero de WhatsApp escolhido na tela de Conversas.
  *
  * Mora aqui, e nao na tela, porque duas telas mexem nele: Conversas escolhe,
