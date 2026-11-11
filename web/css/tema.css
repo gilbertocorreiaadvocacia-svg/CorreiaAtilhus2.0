@@ -8333,6 +8333,44 @@ button.mencao-chip:focus-visible {
   padding: var(--e1) var(--e3);
 }
 
+/* Cabecalho de bloco da tela de Relatorios: o titulo e a legenda de um lado, o
+   controle do periodo do outro. Cada bloco carrega o proprio controle, porque
+   a tela tem dois periodos ao mesmo tempo e um controle solto na barra do topo
+   nao dizia a qual deles obedecia. */
+.bloco-cabeca {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--e3);
+  flex-wrap: wrap;
+  margin-bottom: var(--e3);
+}
+
+.bloco-cabeca-texto {
+  flex: 1;
+  min-width: 240px;
+}
+
+/* O controle do bloco (o select de meses, o seletor de datas) nao estica: o
+   `select` do tema nasce com width 100%, e solto aqui ele tomava a linha
+   inteira embaixo da legenda, parecendo um campo de formulario em vez de um
+   filtro. Encolhe ate o conteudo e fica a direita do titulo; em tela estreita
+   a linha quebra e ele desce, ainda do proprio tamanho. */
+.bloco-cabeca > select,
+.bloco-cabeca > .seletor-periodo {
+  flex: none;
+  width: auto;
+  min-width: 10rem;
+}
+
+.bloco-legenda {
+  margin: var(--e1) 0 0;
+  max-width: 68ch;
+  color: var(--texto-suave);
+  font-size: var(--t-sm);
+  line-height: 1.45;
+}
+
 /* Contratos por agente, mes a mes (web/js/paginas/contratos-por-mes.js) ----- */
 
 /* O .metrica do painel tem padding-bottom zero de proposito: a minilinha sangra

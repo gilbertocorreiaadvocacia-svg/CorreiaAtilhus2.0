@@ -182,6 +182,7 @@ export function blocoContratosPorMes() {
 
   function pintar() {
     limpar(corpo);
+    escreverLegenda();
     const { totais } = dados;
 
     if (!totais.total) {
@@ -238,7 +239,7 @@ export function blocoContratosPorMes() {
     corpo.append(
       cartao(
         'Contratos por agente, mês a mês',
-        'Cada linha é um agente de IA. Conta o contrato no mês em que o cliente assinou.',
+        'Cada linha é um agente de IA.',
         grafico
           ? el('div', {}, [grafico, legenda(series)])
           : vazio('Nada para desenhar', 'Nenhum contrato assinado tem agente associado neste período.'),
@@ -248,13 +249,36 @@ export function blocoContratosPorMes() {
     corpo.append(el('div', { class: 'mt-4' }, [cartao('Número por mês', 'A mesma contagem do gráfico, para conferir e copiar.', tabelaMensal())]));
   }
 
+  /*
+   * O cabecalho DIZ de que periodo o bloco fala, e o seletor fica aqui dentro.
+   *
+   * A tela tem dois periodos ao mesmo tempo (este, em meses, e o do bloco de
+   * baixo, em datas). Enquanto um dos controles morava na barra do topo, nada
+   * dizia qual numero obedecia a qual: dava para ler "152" aqui e "16" logo
+   * abaixo sem entender por que diferem. Cada bloco agora carrega o proprio
+   * controle e a propria legenda.
+   */
+  const legendaDoPeriodo = el('p', { class: 'bloco-legenda' });
+  function escreverLegenda() {
+    const janela = dados?.meses || [];
+    legendaDoPeriodo.textContent = janela.length
+      ? `Últimos ${janela.length} meses — de ${mesPorExtenso(janela[0])} a ${mesPorExtenso(janela[janela.length - 1])}. Conta o contrato no mês em que o cliente assinou.`
+      : 'Conta o contrato no mês em que o cliente assinou.';
+  }
+  escreverLegenda();
+
   raiz.append(
-    el('div', { class: 'linha-g entre mb-3' }, [
-      el('h2', { class: 'cartao-titulo', texto: 'Contratos fechados pelos agentes' }),
+    el('div', { class: 'bloco-cabeca' }, [
+      el('div', { class: 'bloco-cabeca-texto' }, [
+        el('h2', { class: 'cartao-titulo', texto: 'Contratos fechados pelos agentes' }),
+        legendaDoPeriodo,
+      ]),
       seletor,
     ]),
     corpo,
   );
   carregar();
-  return raiz;
+  /* `dados` para o PDF da pagina poder imprimir o mesmo que esta na tela, sem
+     buscar de novo e correr o risco de imprimir outro recorte. */
+  return { no: raiz, dados: () => dados };
 }
