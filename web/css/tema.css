@@ -11681,6 +11681,7 @@ body.compacto {
 .funil-degrau {
   position: relative;
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   gap: var(--e2);
   padding: 3px 0;
@@ -11690,7 +11691,12 @@ body.compacto {
 
 /* O fio que liga um degrau ao proximo. Sai da marca para baixo, e o ultimo
    degrau nao tem: fio solto embaixo pareceria etapa faltando. O `bottom`
-   negativo cobre o espaco entre as linhas. */
+   negativo cobre o espaco entre as linhas.
+
+   --borda-forte, e nao --borda: a escada mora dentro do cartao, sobre
+   --superficie-2, e ali o fio de --borda (#1c1c1c sobre #070707) simplesmente
+   nao aparecia — os degraus ficavam soltos, sem a linha que mostra que um leva
+   ao outro. Conferido na tela, nos dois temas. */
 .funil-degrau::before {
   content: '';
   position: absolute;
@@ -11698,7 +11704,7 @@ body.compacto {
   top: 14px;
   bottom: -3px;
   width: 1px;
-  background: var(--borda);
+  background: var(--borda-forte);
 }
 
 .funil-degrau:last-child::before {
@@ -11758,8 +11764,19 @@ body.compacto {
   text-align: right;
 }
 
+/*
+ * Na etapa de agora a legenda e comprida ("desde 11/11/26 - ha 3 dias - 2x") e
+ * disputava a linha com o nome: medido na tela, sobravam 115px para o nome
+ * contra 139px para a data, e "Qualificado com objecao" quebrava em duas
+ * linhas espremidas. Ela desce para a propria linha, alinhada com o nome (a
+ * marca de 9px mais o vao de 8px), e o nome fica com a largura toda. Nas
+ * outras etapas a data e curta ("11/11/26") e continua a direita.
+ */
 .funil-atual .funil-quando {
+  flex-basis: 100%;
+  margin-left: 17px;
   color: var(--texto-suave);
+  text-align: left;
 }
 
 /* As colunas de encerramento (Desqualificado, Recusada, Desistencia) vem
