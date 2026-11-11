@@ -1081,13 +1081,14 @@ export function inserirNota(contato, texto, autor, mencoes = []) {
 }
 
 /**
- * `tarefaId`/`conexaoId` existem para o clique da notificacao saber para onde
- * ir (ver web/js/notificacoes.js, destinoDaNotificacao): uma notificacao de
- * tarefa nova leva direto a tarefa dentro da conversa, e uma notificacao de
- * conexao (sem contatoId nenhum) leva ate o numero. Opcionais e sem efeito
- * nos 11 pontos que ja chamam notificar() sem eles.
+ * `tarefaId`/`conexaoId`/`contratoId` existem para o clique da notificacao
+ * saber para onde ir (ver web/js/notificacoes.js, destinoDaNotificacao): uma
+ * notificacao de tarefa nova leva direto a tarefa dentro da conversa, uma de
+ * conexao (sem contatoId nenhum) leva ate o numero, e a de contrato fechado
+ * leva a ficha do cliente. Opcionais e sem efeito nos pontos que ja chamam
+ * notificar() sem eles.
  */
-export function notificar(workspaceId, membroId, tipo, titulo, texto, contatoId = null, { tarefaId = null, conexaoId = null } = {}) {
+export function notificar(workspaceId, membroId, tipo, titulo, texto, contatoId = null, { tarefaId = null, conexaoId = null, contratoId = null } = {}) {
   const membro = achar('membros', membroId);
   if (!membro) return null;
   const notificacao = inserir('notificacoes', {
@@ -1101,6 +1102,7 @@ export function notificar(workspaceId, membroId, tipo, titulo, texto, contatoId 
     contatoId,
     tarefaId,
     conexaoId,
+    contratoId,
     lida: false,
   });
   emitirParaUsuario(workspaceId, membro.usuarioId, 'notificacao', { notificacao });

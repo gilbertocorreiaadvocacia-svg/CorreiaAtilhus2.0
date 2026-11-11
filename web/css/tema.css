@@ -8333,6 +8333,127 @@ button.mencao-chip:focus-visible {
   padding: var(--e1) var(--e3);
 }
 
+/* Ficha do cliente de um contrato fechado (web/js/paginas/ficha-do-contrato.js)
+   ------------------------------------------------------------------------- */
+
+.ficha-cabeca {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--e3);
+  flex-wrap: wrap;
+  margin-bottom: var(--e4);
+}
+
+/* As duas maos que fecham um contrato, lado a lado: o agente que conduziu e a
+   pessoa que aprovou. Lado a lado e nao em lista, porque sao papeis diferentes
+   no mesmo fato — empilhados, o segundo parece consequencia do primeiro. */
+.ficha-maos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--e3);
+}
+
+.ficha-mao {
+  padding: var(--e3) var(--e4);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio-g);
+  background: var(--superficie-2);
+}
+
+.ficha-mao-papel {
+  color: var(--texto-fraco);
+  font-size: var(--t-nota);
+  font-weight: 600;
+  letter-spacing: var(--tr-alta);
+  text-transform: uppercase;
+}
+
+.ficha-mao-nome {
+  margin-top: var(--e1);
+  color: var(--texto);
+  font-size: var(--t-lg);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.ficha-mao-nota {
+  margin-top: 2px;
+  color: var(--texto-suave);
+  font-size: var(--t-sm);
+  line-height: 1.4;
+}
+
+/* Rotulo a esquerda em largura fixa e valor a direita: a coluna de rotulos
+   alinhada e o que deixa a ficha conferivel de relance. Em tela estreita os
+   dois empilham, senao o valor ficaria num fio. */
+.ficha-dados {
+  display: grid;
+  gap: 0;
+}
+
+.ficha-dado {
+  display: grid;
+  grid-template-columns: 170px 1fr;
+  gap: var(--e2);
+  padding: var(--e2) 0;
+  font-size: var(--t-sm);
+  border-bottom: 1px solid var(--borda);
+}
+
+.ficha-dado:last-child {
+  border-bottom: none;
+}
+
+.ficha-dado-rotulo {
+  color: var(--texto-fraco);
+}
+
+.ficha-dado-valor {
+  color: var(--texto);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 560px) {
+  .ficha-dado {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+}
+
+.ficha-documentos {
+  display: grid;
+  gap: var(--e2);
+}
+
+.ficha-documento {
+  display: block;
+  padding: var(--e2) var(--e3);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  background: var(--superficie-2);
+  color: var(--texto);
+  text-decoration: none;
+}
+
+.ficha-documento:hover {
+  border-color: var(--borda-forte);
+  background: var(--superficie-3);
+}
+
+.ficha-documento-nome {
+  display: block;
+  font-size: var(--t-sm);
+  overflow-wrap: anywhere;
+}
+
+.ficha-documento-nota {
+  display: block;
+  margin-top: 2px;
+  color: var(--texto-fraco);
+  font-size: var(--t-nota);
+}
+
 /* Cabecalho de bloco da tela de Relatorios: o titulo e a legenda de um lado, o
    controle do periodo do outro. Cada bloco carrega o proprio controle, porque
    a tela tem dois periodos ao mesmo tempo e um controle solto na barra do topo

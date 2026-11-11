@@ -305,6 +305,18 @@ export async function paginaContratos({ parametros = [], definirAcoes = () => {}
 
     if (contrato.situacao === 'assinado') {
       bloco.append(el('p', { class: 't-sm sem-margem', texto: `Assinado em ${dataHora(contrato.assinadoEm)}. Os PDFs estão nos arquivos da conversa.` }));
+      /* A ficha tambem se abre daqui, e nao so pelo aviso de contrato fechado:
+         o aviso some do sino depois de lido, e a ficha e o lugar onde os dados
+         e os documentos deste caso ficam juntos. */
+      bloco.append(
+        el('div', { class: 'linha-p mt-2' }, [
+          botao('Ver a ficha do cliente', {
+            pequeno: true,
+            icone: 'contrato',
+            aoClicar: () => (location.hash = `#/ficha/${contrato.id}`),
+          }),
+        ]),
+      );
       const juri = contrato.juri ? JURI[contrato.juri.situacao] : null;
       if (juri) {
         bloco.append(el('div', { class: 'linha-p mt-2' }, [pilula(juri.rotulo, juri.tipo)]));

@@ -446,8 +446,11 @@ export function registrarIntegracoes(rotas) {
     return contrato;
   }
   const autorDe = (ctx) => ({ tipo: 'membro', id: ctx.membro?.id || null, nome: ctx.usuario?.nome || 'Equipe' });
+  /* `codigo` quando a falha nao e "pedido malformado": o bloqueio pelo teto de
+     casos responde 409, que e conflito com o estado de agora e nao erro de
+     quem pediu. Sem ele o padrao continua 400, como sempre foi. */
   const exigirOk = (resultado) => {
-    if (!resultado.ok) throw comCodigo(resultado.erro || 'Nao foi possivel.', 400);
+    if (!resultado.ok) throw comCodigo(resultado.erro || 'Nao foi possivel.', resultado.codigo || 400);
     return resultado;
   };
 
@@ -479,6 +482,20 @@ export function registrarIntegracoes(rotas) {
     if (!podeVerConversa(ctx, contato)) throw comCodigo('Voce nao tem acesso a esta conversa.', 403);
     const { pedirContrato } = await import('../integracoes/zapsign.js');
     return pedirContrato({ contato, autor: autorDe(ctx) });
+  });
+
+  /*
+   * A ficha do cliente de um contrato: quem fechou, todos os dados e a lista
+   * de documentos. E para onde o aviso de "Contrato fechado" leva.
+   * Devolve 404 — e nao 403 — para contrato de outro escritorio ou de conversa
+   * que a pessoa nao pode ver: dizer "existe, mas voce nao pode" ja entrega
+   * que o cliente existe.
+   */
+  rotas.get('/api/contratos/:id/ficha', async ({ ctx, params }) => {
+    const { fichaDoContrato } = await import('../nucleo/ficha-do-contrato.js');
+    const ficha = fichaDoContrato(ctx, params.id);
+    if (!ficha) throw comCodigo('Contrato nao encontrado.', 404);
+    return ficha;
   });
 
   rotas.post('/api/contratos/:id/aprovar', async ({ ctx, params, corpo }) => {

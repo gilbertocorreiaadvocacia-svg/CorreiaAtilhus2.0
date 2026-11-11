@@ -5,6 +5,8 @@ import { achar, atualizar, inserir, listar, registrarLog } from '../nucleo/banco
 import { membrosQuePodemVer } from '../nucleo/auth.js';
 import { TIPOS_DE_CASO, definirMomento, tipoDeCasoDa } from '../nucleo/casos.js';
 import { contratoAbertoDe } from '../nucleo/contratos.js';
+import { quemFechou } from '../nucleo/ficha-do-contrato.js';
+import { conferirTeto, motivoDoBloqueio } from '../nucleo/teto-de-casos.js';
 import { emitir } from '../nucleo/eventos.js';
 import { disparar } from '../nucleo/ganchos.js';
 import { avisarAdministradores } from '../nucleo/avisar-administradores.js';
@@ -539,6 +541,28 @@ export async function aprovarContrato(contratoId, { valores: corrigidos = {}, au
   if (!cfg.chave) return { ok: false, erro: 'Configure a chave da ZapSign em Integracoes antes de enviar.' };
   if (!contrato.modelo?.contratoId) return { ok: false, erro: 'Escolha o modelo de contrato em Integracoes antes de enviar.' };
 
+  /*
+   * O teto de casos em aberto (nucleo/teto-de-casos.js), pedido do escritorio
+   * em 11/11/2026 para ninguem acumular caso e fechar contrato atras de meta.
+   *
+   * Aqui e o lugar: este e o passo em que uma PESSOA fecha. O envio direto
+   * (`direto`) nao passa por aqui com membro nenhum — nele quem manda e a IA,
+   * e nao ha pessoa para quem contar meta. Sem teto configurado, conferirTeto
+   * libera, e nada muda para quem nunca ligou isso.
+   */
+  if (!direto && autor?.tipo === 'membro' && autor?.id) {
+    const limite = conferirTeto(contrato.workspaceId, autor.id);
+    if (!limite.pode) {
+      avisarAdministradores(contrato.workspaceId, {
+        titulo: 'Fechamento barrado pelo limite de casos',
+        texto: `${autor.nome || 'Um membro'} tentou aprovar um contrato com ${limite.abertos} casos em aberto (limite ${limite.teto}).`,
+        tipo: 'contrato',
+        contatoId: contrato.contatoId,
+      });
+      return { ok: false, erro: motivoDoBloqueio(limite), codigo: 409 };
+    }
+  }
+
   const contato = achar('contatos', contrato.contatoId);
   if (!contato) return { ok: false, erro: 'A conversa deste contrato nao existe mais.' };
   const conexao = achar('conexoes', contato.conexaoId);
@@ -883,9 +907,26 @@ export async function confirmarAssinatura(contratoId) {
     }
   }
 
-  registrarLog(contrato.workspaceId, contato.id, 'contrato', 'Contrato assinado', sistema);
+  registrarLog(contrato.workspaceId, contato.id, 'contrato', `Contrato assinado (${quemFechou(contrato)})`, sistema);
+  /*
+   * O aviso do contrato fechado leva a atribuicao e abre a FICHA do cliente,
+   * e nao mais a conversa. Pedido do escritorio em 11/11/2026: antes saia
+   * "Fulano assinou o contrato" e ponto — quem recebia tinha que abrir a
+   * conversa, cacar o CPF nas variaveis, descer ate os arquivos e conferir na
+   * mao quem tinha conduzido. Agora a linha ja diz quem fechou, e o clique cai
+   * na ficha com todos os dados e os documentos (nucleo/ficha-do-contrato.js).
+   */
+  const resumoDeQuemFechou = quemFechou(contrato);
   for (const membro of listar('membros', { workspaceId: contrato.workspaceId })) {
-    notificar(contrato.workspaceId, membro.id, 'contrato', 'Contrato assinado', `${contato.nome} assinou o contrato.`, contato.id);
+    notificar(
+      contrato.workspaceId,
+      membro.id,
+      'contrato',
+      'Contrato fechado',
+      `${contato.nome} assinou o contrato — ${resumoDeQuemFechou}. Abra para ver a ficha com os dados e os documentos.`,
+      contato.id,
+      { contratoId },
+    );
   }
   emitir(contrato.workspaceId, 'contrato', { contatoId: contato.id, contratoId, situacao: 'assinado' });
 

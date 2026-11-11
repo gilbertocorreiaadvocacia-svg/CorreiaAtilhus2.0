@@ -15,6 +15,7 @@ import {
   el,
   entradaSegredo,
   entradaTexto,
+  faixa,
   icone,
   limpar,
   modal,
@@ -100,6 +101,13 @@ const GRUPOS = [
         rotulo: 'Membros',
         descricao: 'Quem entra no workspace, com que permissão e até onde enxerga.',
         montar: secaoMembros,
+      },
+      {
+        id: 'teto',
+        rotulo: 'Limite de casos',
+        descricao:
+          'Teto de conversas em aberto por pessoa. Serve para ninguém acumular caso e fechar contrato atrás de meta, tirando dos colegas: passando do teto, o sistema barra a aprovação de contrato daquela pessoa e avisa os administradores. Nasce desligado — sem número escolhido aqui, nada muda para ninguém.',
+        montar: secaoTetoDeCasos,
       },
       {
         id: 'horario',
@@ -1540,6 +1548,85 @@ function pedirMotivoEReiniciar2fa(membro, recarregarTela) {
 /* ------------------------------------------------------------------ */
 /* Horario comercial                                                   */
 /* ------------------------------------------------------------------ */
+
+/**
+ * Limite de casos em aberto por pessoa (servidor/nucleo/teto-de-casos.js).
+ *
+ * Pedido do escritorio em 11/11/2026. "Caso em aberto" e conversa que a pessoa
+ * assumiu e ainda nao concluiu — a aba Ativos dela. Passando do teto, aprovar
+ * contrato e barrado e os administradores sao avisados.
+ *
+ * Vazio em todo lugar = desligado, e e assim que ele nasce: a tela deixa isso
+ * escrito, porque um limite que ninguem configurou nao pode parecer um limite
+ * que alguem esqueceu de configurar.
+ */
+async function secaoTetoDeCasos(recarregarTela) {
+  const { config, pessoas } = await api.get('/api/teto-de-casos');
+
+  const campoPadrao = el('input', {
+    type: 'number',
+    min: '1',
+    step: '1',
+    value: config.padrao ?? '',
+    placeholder: 'sem limite',
+    'aria-label': 'Limite padrão de casos em aberto',
+  });
+
+  /* Um campo por pessoa, com o teto dela. Vazio herda o padrao, e o texto de
+     apoio diz quantos casos ela tem agora — o numero que decide se o teto
+     escolhido e realista. */
+  const campos = {};
+  const linhasDasPessoas = pessoas.map((p) => {
+    const campo = el('input', {
+      type: 'number',
+      min: '1',
+      step: '1',
+      value: p.proprio ?? '',
+      placeholder: config.padrao ? `padrão: ${config.padrao}` : 'sem limite',
+      'aria-label': `Limite de ${p.nome}`,
+    });
+    campos[p.membroId] = campo;
+    const situacao = p.teto
+      ? `${p.abertos} de ${p.teto} em aberto${p.excedeu ? ' — acima do limite' : ''}`
+      : `${p.abertos} ${p.abertos === 1 ? 'caso' : 'casos'} em aberto, sem limite`;
+    return ajuste(p.nome, campo, situacao);
+  });
+
+  const acima = pessoas.filter((p) => p.excedeu);
+
+  return el('div', {}, [
+    acima.length
+      ? faixa(
+          `${acima.map((p) => p.nome).join(', ')} ${acima.length === 1 ? 'está' : 'estão'} acima do limite e não ${acima.length === 1 ? 'consegue' : 'conseguem'} aprovar contrato até concluir um atendimento.`,
+          { tipo: 'alerta', iconeNome: 'alerta' },
+        )
+      : null,
+    ajustes(
+      ajuste(
+        'Limite padrão',
+        campoPadrao,
+        config.padrao
+          ? 'Vale para quem não tem um número próprio abaixo.'
+          : 'Em branco: ninguém tem limite e nada é barrado. Escreva um número para ligar.',
+      ),
+      ...linhasDasPessoas,
+      rodapeAjustes(
+        podeConfigurar()
+          ? botao('Salvar', {
+              tipo: 'principal',
+              aoClicar: async () => {
+                const porMembro = {};
+                for (const [membroId, campo] of Object.entries(campos)) porMembro[membroId] = campo.value;
+                await api.put('/api/teto-de-casos', { padrao: campoPadrao.value, porMembro });
+                aviso('Limite salvo.', 'sucesso');
+                await recarregarTela();
+              },
+            })
+          : null,
+      ),
+    ),
+  ]);
+}
 
 async function secaoHorario(recarregarTela) {
   const { horario, resumo } = await api.get('/api/horario-comercial');

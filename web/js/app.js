@@ -52,6 +52,15 @@ const raiz = document.getElementById('raiz');
  */
 const PAGINAS = {
   dashboard: { titulo: 'Dashboard', montar: (args) => import('./paginas/dashboard.js').then((m) => m.paginaDashboard(args)) },
+  /* A ficha do cliente de um contrato fechado. Fora do menu de proposito: ela
+     se abre pelo aviso de "Contrato fechado" e pela conversa, sempre com um
+     contrato na mao — um item de menu levaria a uma tela que nao sabe de qual
+     contrato falar. */
+  ficha: {
+    titulo: 'Ficha do contrato',
+    subtitulo: 'Quem fechou, os dados do cliente e os documentos do caso.',
+    montar: (args) => import('./paginas/ficha-do-contrato.js').then((m) => m.paginaFichaDoContrato(args)),
+  },
   relatorios: {
     titulo: 'Relatórios',
     subtitulo: 'Quantos contratos os agentes fecharam, mês a mês e no período que você escolher.',
@@ -194,7 +203,10 @@ const ITENS_DO_MENU = [...MENU.flatMap((item) => item.itens || [item]), CONFIGUR
 
 /* Telas que moram dentro de outra no menu: abrir uma delas acende o item de
    quem as contem (Templates e uma secao de Configuracoes). */
-const DENTRO_DE = { templates: 'configuracoes' };
+/* Rota que nao tem item proprio no menu: diz debaixo de qual item ela acende,
+   para a barra e o tom da area nao ficarem apagados enquanto ela esta aberta.
+   A ficha do contrato vive dentro do Atendimento, que e de onde ela vem. */
+const DENTRO_DE = { templates: 'configuracoes', ficha: 'atendimento' };
 const itemDoMenuDa = (rota) => DENTRO_DE[rota] || rota;
 
 /* ------------------------------------------------------------------ */

@@ -22,6 +22,7 @@ import {
   uriOtpauth,
 } from '../nucleo/doisfatores.js';
 import { agora, conferirSenha, hashSenha, normalizar, normalizarTelefone, novoId } from '../nucleo/util.js';
+import { conferirTeto } from '../nucleo/teto-de-casos.js';
 import { semearWorkspace } from '../nucleo/seed.js';
 import { criarWorkspacesPorArea, WORKSPACES_POR_AREA } from '../nucleo/workspaces-por-area.js';
 import { SELECIONAVEIS, copiarConfiguracoes } from '../nucleo/copiar-workspace.js';
@@ -291,6 +292,10 @@ export function registrarSessao(rotas) {
        propria copia dos numeros (ver PROMPT em config.js). */
     prompt: PROMPT,
     areas: AREAS,
+    /* A propria carga de casos: a tela avisa a pessoa que ela esta no limite
+       ANTES de ela montar um contrato e levar um "nao" no fim. Vale para todo
+       mundo, e nao so para administrador — e informacao sobre ela mesma. */
+    meusCasos: conferirTeto(ctx.workspaceId, ctx.membro?.id),
   }));
 
   rotas.post('/api/sessao/workspace', async ({ ctx, corpo }) => {
@@ -599,6 +604,61 @@ export function registrarSessao(rotas) {
 
     if (!Object.keys(mudancas).length) return achar('workspaces', params.id);
     return atualizar('workspaces', params.id, mudancas);
+  });
+
+  /* ---------------- Teto de casos em aberto ---------------- */
+
+  /*
+   * Quantos casos cada pessoa tem na mao e qual o limite dela
+   * (nucleo/teto-de-casos.js). Pedido do escritorio em 11/11/2026, para
+   * ninguem acumular caso e fechar contrato atras de meta.
+   *
+   * Leitura so para administrador: a lista diz a carga de todo mundo, que e
+   * informacao de gestao. Quem nao e administrador le a propria situacao em
+   * /api/sessao, junto do resto do contexto dele.
+   */
+  rotas.get('/api/teto-de-casos', async ({ ctx }) => {
+    exigirAdministrador(ctx);
+    const { casosPorPessoa, tetoDoEscritorio } = await import('../nucleo/teto-de-casos.js');
+    return { config: tetoDoEscritorio(ctx.workspaceId), pessoas: casosPorPessoa(ctx.workspaceId) };
+  });
+
+  rotas.put('/api/teto-de-casos', async ({ ctx, corpo }) => {
+    exigirAdministrador(ctx);
+    const { casosPorPessoa, tetoDoEscritorio } = await import('../nucleo/teto-de-casos.js');
+
+    /* Numero positivo vira teto; vazio e nulo tiram o teto. Zero tambem tira,
+       e nao "zera o limite": um teto de zero impediria a pessoa de fechar
+       qualquer coisa, que nunca e o que alguem quer dizer ao digitar 0. */
+    const numeroOuNulo = (valor) => {
+      if (valor === null || valor === undefined || valor === '') return null;
+      const n = Number(valor);
+      return Number.isFinite(n) && n > 0 ? Math.floor(n) : null;
+    };
+
+    const atual = tetoDoEscritorio(ctx.workspaceId);
+    const porMembro = { ...atual.porMembro };
+    if (corpo?.porMembro && typeof corpo.porMembro === 'object') {
+      for (const [membroId, valor] of Object.entries(corpo.porMembro)) {
+        /* So membro deste escritorio: id solto no corpo nao cria entrada. */
+        const membro = achar('membros', membroId);
+        if (!membro || membro.workspaceId !== ctx.workspaceId) continue;
+        const n = numeroOuNulo(valor);
+        if (n === null) delete porMembro[membroId];
+        else porMembro[membroId] = n;
+      }
+    }
+
+    const padrao = corpo?.padrao === undefined ? atual.padrao : numeroOuNulo(corpo.padrao);
+    atualizar('workspaces', ctx.workspaceId, { tetoDeCasos: { padrao, porMembro } });
+    registrarLog(
+      ctx.workspaceId,
+      null,
+      'teto_de_casos',
+      padrao ? `Limite de casos em aberto: ${padrao} por pessoa.` : 'Limite de casos em aberto desligado.',
+      { tipo: 'membro', id: ctx.membro?.id || null, nome: ctx.usuario?.nome || 'Equipe' },
+    );
+    return { config: tetoDoEscritorio(ctx.workspaceId), pessoas: casosPorPessoa(ctx.workspaceId) };
   });
 
   /* ---------------- Membros ---------------- */
