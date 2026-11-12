@@ -49,6 +49,11 @@ const COLECOES = [
   'relatoriosDoAgente',
   /* O resumo de cada conversa, um por contato (ver ia/resumo-da-conversa.js). */
   'resumosDasConversas',
+  /* A descricao redigida do caso, uma por contato, usada no relatorio do caso
+     (ver ia/descricao-do-caso.js). Separada do resumo de proposito: aquele e
+     curto e em campos, para quem abre a conversa; esta e texto corrido e
+     detalhado, para o relatorio que acompanha o caso. */
+  'descricoesDoCaso',
 ];
 
 const memoria = new Map();

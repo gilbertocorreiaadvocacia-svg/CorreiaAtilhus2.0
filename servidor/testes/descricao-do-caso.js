@@ -21,7 +21,15 @@ import { cliente, esperar, suite } from './apoio.js';
  *    redacao do que nenhum relatorio — e e o caminho mais provavel de quebrar,
  *    porque depende de coisa de fora.
  */
-const MARCA = 'descricao-do-caso';
+/*
+ * A marca que a Anthropic de mentira usa para saber que a chamada e desta
+ * suite, e nao de um agente que disparou sozinho no meio dela.
+ *
+ * E um trecho do PROPRIO prompt de producao (REGRAS, em ia/descricao-do-caso.js),
+ * como o arquivo da falsa recomenda: nao se inventa cabecalho novo no codigo
+ * de producao so para o teste se reconhecer aqui dentro.
+ */
+const MARCA = 'DESCRIÇÃO DO CASO';
 
 const REDACAO = `Rick Nunes procurou o escritorio pelo Instagram depois de um acidente de trabalho. Ele contou que caiu de uma escada enquanto trabalhava e que ficou com uma limitacao no joelho direito, que o incomoda ate hoje ao subir degraus e ao ficar muito tempo em pe.
 
@@ -35,7 +43,10 @@ export async function testarDescricaoDoCaso({ base, anthropic }) {
   await api.entrar();
   const falsa = cliente(anthropic);
   const roteiro = (itens) => falsa.post('/__roteiro', { roteiro: itens, marca: MARCA });
-  const chamadas = async () => ((await falsa.get('/__chamadas')).dados || []).filter((c) => c.marca === MARCA).length;
+  /* `/__chamadas` responde { total, chamadas, agentes }. A falsa ZERA a
+     contagem a cada roteiro novo, entao cada trecho abaixo conta a partir de
+     zero — e por isso o roteiro vem sempre logo antes do que ele serve. */
+  const chamadas = async () => (await falsa.get('/__chamadas')).dados?.total ?? 0;
 
   const simulador = ((await api.get('/api/conexoes')).dados || []).find((c) => c.tipo === 'simulador');
   if (!s.ok('ha conexao de simulador', Boolean(simulador))) return s;
@@ -53,10 +64,33 @@ export async function testarDescricaoDoCaso({ base, anthropic }) {
     criadas.push(contatoId);
     if (!s.ok('a conversa de teste nasceu', Boolean(contatoId))) return s;
 
-    const baixar = async () => {
-      const r = await api.get(`/api/contatos/${contatoId}/relatorio.pdf`);
-      return r;
+    const baixar = () => api.get(`/api/contatos/${contatoId}/relatorio.pdf`);
+    const quantasMensagens = async () => ((await api.get(`/api/contatos/${contatoId}/mensagens`)).dados?.mensagens || []).length;
+
+    /*
+     * A descricao exige pelo menos duas mensagens: com uma so nao ha caso para
+     * descrever, e ela nem chama a IA.
+     *
+     * As duas sao do CLIENTE, mandadas aqui: esperar um agente responder faria
+     * este teste depender de haver agente ligado, de ele pegar esta conversa e
+     * de o roteiro da IA de mentira estar livre naquele instante — tres coisas
+     * que nao sao o que ele afirma. Ja aconteceu: a conversa ficou com uma
+     * mensagem so e cinco assercoes reprovaram por isso.
+     */
+    const esperarConversa = async () => {
+      for (let i = 0; i < 40; i += 1) {
+        if ((await quantasMensagens()) >= 2) return true;
+        await esperar(100);
+      }
+      return false;
     };
+
+    await api.post('/api/simulador/mensagem', {
+      conexaoId: simulador.id,
+      telefone,
+      conteudo: 'Foi em marco deste ano, eu trabalhava registrado numa construtora',
+    });
+    s.ok('a conversa tem mensagem suficiente para descrever', await esperarConversa(), String(await quantasMensagens()));
 
     /* --- 1. Sem IA configurada: o relatorio tem que sair assim mesmo ----- */
     await api.patch('/api/integracoes', { ia: { chaveAnthropic: null } });
@@ -69,12 +103,13 @@ export async function testarDescricaoDoCaso({ base, anthropic }) {
 
     /* --- 2. Com IA: a redacao entra no PDF ------------------------------ */
     await api.patch('/api/integracoes', { ia: { chaveAnthropic: 'chave-de-mentira' } });
-    await roteiro([{ status: 200, corpo: { content: [{ type: 'text', text: REDACAO }] } }]);
-    const antes = await chamadas();
+    /* `texto` e o campo que a falsa le; `corpo` ela ignora, e a resposta
+       viraria o texto padrao dela, curto demais para passar por redacao. */
+    await roteiro([{ status: 200, texto: REDACAO }]);
 
     const comIa = await baixar();
     s.ok('com IA o relatorio continua saindo', comIa.status === 200 && String(comIa.texto || '').startsWith('%PDF-'), String(comIa.status));
-    s.ok('e a IA foi chamada uma vez para escrever', (await chamadas()) === antes + 1, `${antes} -> ${await chamadas()}`);
+    s.ok('e a IA foi chamada uma vez para escrever', (await chamadas()) === 1, String(await chamadas()));
 
     /* A ficha passa a devolver o texto redigido, que e o que a tela mostra. */
     const ficha = (await api.get(`/api/contatos/${contatoId}/ficha`)).dados;
@@ -99,11 +134,14 @@ export async function testarDescricaoDoCaso({ base, anthropic }) {
       (await chamadas()) === antesDeRepetir,
       `${antesDeRepetir} -> ${await chamadas()}`,
     );
+    s.ok('a contagem conferida e mesmo a de uma chamada so', antesDeRepetir === 1, String(antesDeRepetir));
 
     /* --- 4. Mensagem nova invalida a guardada --------------------------- */
     await api.post('/api/simulador/mensagem', { conexaoId: simulador.id, telefone, conteudo: 'Esqueci de dizer: tambem machuquei o ombro' });
     await esperar(300);
-    await roteiro([{ status: 200, corpo: { content: [{ type: 'text', text: `${REDACAO}\n\nDepois acrescentou que tambem machucou o ombro.` }] } }]);
+    await roteiro([{ status: 200, texto: `${REDACAO}
+
+Depois acrescentou que tambem machucou o ombro.` }]);
     const antesDaNova = await chamadas();
     await baixar();
     s.ok(
@@ -116,7 +154,7 @@ export async function testarDescricaoDoCaso({ base, anthropic }) {
 
     /* --- 5. IA fora do ar: o relatorio ainda sai ------------------------ */
     await api.post('/api/contatos', { conexaoId: simulador.id, telefone: `${telefone}9`, nome: 'Sem Redacao' });
-    await roteiro([{ status: 500, corpo: { error: { message: 'explodiu' } } }]);
+    await roteiro([{ status: 500, mensagem: 'explodiu' }]);
     await api.post('/api/simulador/mensagem', { conexaoId: simulador.id, telefone, conteudo: 'mais uma coisa' });
     await esperar(300);
     const comErro = await baixar();
