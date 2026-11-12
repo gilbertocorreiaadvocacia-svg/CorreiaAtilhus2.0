@@ -167,6 +167,37 @@ function daquiA(iso) {
   return `em ${dias} ${dias === 1 ? 'dia' : 'dias'}`;
 }
 
+/**
+ * Ligar para o contato: registra e abre o discador do aparelho.
+ *
+ * Pedido do escritorio em 12/11/2026, primeiro dentro da conversa e depois
+ * "em cada contato [...] com um novo cliente, com um novo lead" — por isso
+ * mora aqui, no escopo do modulo, e nao dentro de uma tela: a conversa e a
+ * tabela de Contatos chamam a MESMA funcao, e o rastro sai igual nas duas.
+ *
+ * Quem disca e o APARELHO: `tel:` abre o telefone do celular, ou o programa de
+ * telefone do computador quando houver um. O sistema nao tem telefonia — o que
+ * ele acrescenta e o RASTRO, que e o que falta num escritorio onde varias
+ * pessoas mexem na mesma conversa: quem ligou, para que numero e quando.
+ *
+ * O registro vem ANTES de abrir o discador, de proposito: num celular o `tel:`
+ * troca de aplicativo na hora, e o que ficasse pendente aqui poderia nao
+ * terminar. Se o registro falhar, o discador abre do mesmo jeito — ninguem
+ * deixa de ligar para o cliente porque uma nota nao gravou.
+ */
+async function ligarPara(contato) {
+  if (!contato?.telefone) {
+    aviso('Esta conversa nao tem telefone para ligar.', 'alerta');
+    return;
+  }
+  try {
+    await api.post(`/api/contatos/${contato.id}/ligacao`, {});
+  } catch (erro) {
+    aviso(`Discando sem registrar na conversa: ${erro.message}`, 'alerta');
+  }
+  window.location.href = `tel:+${String(contato.telefone).replace(/\D+/g, '')}`;
+}
+
 const normalizarTexto = (texto) =>
   String(texto || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
@@ -1794,6 +1825,10 @@ export async function paginaAtendimento({
     });
     let ehNota = false;
     let agendarPara = null;
+    /* Quem foi citado nesta nota: id -> nome. Na hora de enviar, so vale quem
+       ainda aparece escrito no texto — apagar o "@Fulano" desfaz a citacao, que
+       e o que qualquer um espera ao apagar o que escreveu. */
+    const citados = new Map();
 
     /* Mensagem ou nota interna: dois estados do mesmo campo, lado a lado, e o
        que esta ligado se ve antes de apertar Enter. */
@@ -2019,8 +2054,12 @@ export async function paginaAtendimento({
           conteudo,
           midia: anexoEnviado,
           nota: ehNota,
+          /* So quem continua escrito no texto. O servidor avisa cada um e lhes
+             da acesso a conversa por 24 horas (rotas/atendimento.js). */
+          mencoes: ehNota ? [...citados].filter(([, nome]) => conteudo.includes(`@${nome}`)).map(([id]) => id) : [],
           agendarPara: agendamentoEnviado,
         });
+        citados.clear();
       } catch (erro) {
         texto.value = conteudo;
         if (conteudo) RASCUNHOS.set(contato.id, conteudo);
@@ -2070,6 +2109,24 @@ export async function paginaAtendimento({
       if (evento.key === '/' && !texto.value) {
         evento.preventDefault();
         abrirSeletorTemplate(contato, texto);
+      }
+      /* @ cita alguem da equipe, so na nota interna: numa mensagem ele iria
+         escrito para o CLIENTE, que nao tem o que fazer com isso. */
+      if (evento.key === '@' && ehNota) {
+        evento.preventDefault();
+        abrirSeletorDeMencao(texto, (pessoa) => {
+          const antes = texto.value.slice(0, texto.selectionStart ?? texto.value.length);
+          const depois = texto.value.slice(texto.selectionEnd ?? texto.value.length);
+          /* Espaco antes quando o texto nao termina em espaco: sem ele, o nome
+             colaria na palavra anterior. */
+          const separador = antes && !/\s$/.test(antes) ? ' ' : '';
+          texto.value = `${antes}${separador}@${pessoa.nome} ${depois}`;
+          citados.set(pessoa.id, pessoa.nome);
+          ajustarAltura();
+          texto.focus();
+          const cursor = (antes + separador + '@' + pessoa.nome + ' ').length;
+          texto.setSelectionRange(cursor, cursor);
+        });
       }
     });
 
@@ -2201,6 +2258,69 @@ export async function paginaAtendimento({
       elemento: el('div', { class: 'compositor' }, [avisoJanela, faixaAgente, texto, seletorArquivo, linhaBotoes]),
       partes: { avisoJanela, faixaAgente, texto, seletorArquivo, linhaBotoes },
     };
+  }
+
+  /**
+   * Quem citar na nota interna.
+   *
+   * Pedido do escritorio em 12/11/2026: "toda vez que um usuario for citado em
+   * uma nota interna ele ser notificado". O servidor JA fazia a parte dele —
+   * notifica o mencionado e ainda lhe da acesso a conversa por 24 horas (ver
+   * rotas/atendimento.js, o ramo `corpo.nota`) — mas a tela nunca mandava
+   * `mencoes`, entao esse caminho inteiro era inalcancavel. Aqui ele ganha a
+   * porta de entrada.
+   *
+   * Dispara com @ dentro da nota, no mesmo molde do / que ja abre os templates.
+   * Diferente do /, vale com o campo cheio: cita-se no meio da frase.
+   */
+  function abrirSeletorDeMencao(campoTexto, aoEscolher) {
+    const equipe = (estado.membros || [])
+      .map((m) => ({ id: m.id, nome: m.usuario?.nome || 'Sem nome', papel: m.papel }))
+      .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+
+    const lista = el('div', { class: 'lista-simples' });
+    const busca = entradaTexto('', { placeholder: 'Procurar pelo nome' });
+
+    const pintar = () => {
+      limpar(lista);
+      const procurado = normalizarTexto(busca.value);
+      const achados = equipe.filter((p) => !procurado || normalizarTexto(p.nome).includes(procurado));
+      if (!achados.length) {
+        lista.append(el('div', { class: 'lista-item' }, [el('div', { class: 'corpo t-sm c-fraco', texto: 'Ninguém com esse nome na equipe.' })]));
+        return;
+      }
+      for (const pessoa of achados) {
+        lista.append(
+          el('div', { class: 'lista-item' }, [
+            el('div', { class: 'corpo' }, [
+              el('div', { class: 'titulo', texto: pessoa.nome }),
+              /* O nome do papel vem da sessao (PAPEIS, do servidor), que e a mesma
+                 lista que Configuracoes > Membros mostra. */
+              el('div', { class: 'desc', texto: estado.sessao?.papeis?.[pessoa.papel]?.nome || pessoa.papel || '' }),
+            ]),
+            botao('Citar', {
+              pequeno: true,
+              aoClicar: () => {
+                document.querySelector('.cortina')?.remove();
+                aoEscolher(pessoa);
+              },
+            }),
+          ]),
+        );
+      }
+    };
+    busca.addEventListener('input', pintar);
+    pintar();
+
+    modal({
+      titulo: 'Citar alguém da equipe',
+      corpo: el('div', { class: 'pilha-g' }, [
+        el('p', { class: 'c-suave t-sm sem-margem', texto: 'Quem você citar recebe um aviso na caixa de notificações e passa a enxergar esta conversa por 24 horas.' }),
+        busca,
+        lista,
+      ]),
+    });
+    queueMicrotask(() => busca.focus());
   }
 
   function abrirSeletorTemplate(contato, campoTexto) {
@@ -2563,6 +2683,13 @@ export async function paginaAtendimento({
       el('div', { class: 'painel-pessoa-acoes' }, [
         el('button', { type: 'button', class: 'acao-pilula', aoClick: editarNome }, [icone('contrato', 14), 'Editar nome']),
         oQueCopiar ? el('button', { type: 'button', class: 'acao-pilula', aoClick: copiar }, [icone('copiar', 14), oQueCopiar.rotulo]) : null,
+        /* So com telefone: no Instagram e no TikTok nao ha numero para discar. */
+        contato.telefone
+          ? el('button', { type: 'button', class: 'acao-pilula', title: 'Abre o discador do aparelho e registra na conversa', aoClick: () => ligarPara(contato) }, [
+              icone('enviar', 14),
+              'Ligar',
+            ])
+          : null,
       ]),
     ]);
 
@@ -3945,6 +4072,17 @@ export async function paginaAtendimento({
           ]),
           el('td', { texto: contato.origem?.nome || '-' }),
           el('td', { class: 'contato-quando', texto: quando(contato.ultimaMensagemEm) || '-' }),
+          el('td', { class: 'col-ligar' }, [
+            /* Sem telefone (Instagram, TikTok) nao ha o que discar. */
+            contato.telefone
+              ? botao('', {
+                  icone: 'enviar',
+                  pequeno: true,
+                  titulo: `Ligar para ${telefone(contato.telefone)} — abre o discador e registra na conversa`,
+                  aoClicar: () => ligarPara(contato),
+                })
+              : null,
+          ]),
         ]),
       );
     }
@@ -4034,6 +4172,10 @@ export async function paginaAtendimento({
                 el('th', { texto: 'Departamento' }),
                 el('th', { texto: 'Origem' }),
                 cabecalhoOrdenavel('Ultima mensagem', 'ultimaMensagem'),
+                /* Pedido do escritorio em 12/11/2026: poder ligar de qualquer
+                   contato, sem ter que abrir a conversa antes — inclusive de
+                   um lead novo, que e quem mais se liga. */
+                el('th', { class: 'col-ligar' }, [el('span', { class: 'apenas-leitor', texto: 'Ligar' })]),
               ]),
             ]),
             corpo,

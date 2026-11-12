@@ -2624,6 +2624,14 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
   padding-right: 0;
 }
 
+/* Coluna de ligar, no fim da tabela de Contatos: so o botao, encostado a
+   direita e sem roubar largura das colunas que carregam informacao. */
+.col-ligar {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+}
+
 .vazio {
   padding: var(--e6) var(--e5);
   text-align: center;

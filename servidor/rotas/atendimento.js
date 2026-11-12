@@ -427,6 +427,29 @@ export function registrarAtendimento(rotas) {
     };
   });
 
+  /*
+   * Registra que alguem da equipe ligou para o cliente.
+   *
+   * Pedido do escritorio em 12/11/2026. Quem disca e o APARELHO: o botao da
+   * tela abre o discador do computador ou do celular (um link tel:), e o
+   * sistema nao tem telefonia nenhuma. O que ele faz e deixar o rastro, que e
+   * o que falta num escritorio: quem ligou, para que numero e quando.
+   *
+   * A nota diz "iniciou uma ligacao", e nao "ligou": daqui nao da para saber
+   * se a chamada completou, se o cliente atendeu ou se o computador sequer
+   * tinha um programa de telefone instalado. Afirmar o que nao se sabe seria
+   * pior do que nao registrar — alguem leria "ligou" e nao tentaria de novo.
+   */
+  rotas.post('/api/contatos/:id/ligacao', async ({ ctx, params }) => {
+    const contato = conversaOu404(ctx, params.id);
+    if (!contato.telefone) throw comCodigo('Esta conversa nao tem telefone para ligar.', 400);
+    const autor = { tipo: 'membro', id: ctx.membro?.id || null, nome: ctx.usuario.nome };
+    const nota = inserirNota(contato, `${ctx.usuario.nome} iniciou uma ligação para ${contato.telefone}.`, autor);
+    registrarLog(ctx.workspaceId, contato.id, 'ligacao', `Ligação iniciada para ${contato.telefone}`, autor);
+    emitir(ctx.workspaceId, 'mensagem', { contatoId: contato.id, mensagem: nota });
+    return nota;
+  });
+
   rotas.get('/api/contatos/:id/logs', async ({ ctx, params }) => {
     const contato = conversaOu404(ctx, params.id);
     return logsDe(contato.id);
