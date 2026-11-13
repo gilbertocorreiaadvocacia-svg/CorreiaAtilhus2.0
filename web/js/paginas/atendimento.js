@@ -198,6 +198,42 @@ async function ligarPara(contato) {
   window.location.href = `tel:+${String(contato.telefone).replace(/\D+/g, '')}`;
 }
 
+/* Os tipos de caso do escritorio: etiquetas marcadas com tipo 'caso'
+   (nucleo/casos.js). Sao poucos e fixos, e e por eles que a equipe recorta o
+   dia — por isso ganham filtro proprio, fora da lista geral de etiquetas. */
+/**
+ * Quem esta atendendo a conversa: o nome do agente de IA ou o da pessoa.
+ *
+ * Pedido do escritorio em 13/11/2026: "em cada lead, cada conversa [...] possa
+ * aparecer o nome do responsavel ou a IA que esta atendendo".
+ *
+ * ISTO REVERTE UMA DECISAO ANTERIOR, e de proposito. A lista mostrava so um
+ * selo "IA", com a justificativa de que o nome "repetia em toda linha e vive
+ * no painel da direita". Com varios agentes atendendo areas diferentes (BPC,
+ * trabalhista, auxilio-acidente) e varias pessoas na equipe, saber QUAL esta
+ * na conversa passou a mudar a decisao de quem corre o olho pela fila — era
+ * isso que faltava.
+ *
+ * Mora aqui, no escopo do modulo, porque a lista e o cartao do Kanban
+ * precisam dizer a MESMA coisa: em duas copias, uma acabaria mostrando o nome
+ * inteiro e a outra o primeiro nome, e a mesma conversa pareceria ter dois
+ * responsaveis diferentes em duas telas.
+ */
+function quemAtende(contato) {
+  const responsavel = contato?.responsavel;
+  if (!responsavel?.id) return { classe: 'ninguem', texto: 'Ninguém', titulo: 'Ninguém está com esta conversa' };
+  if (responsavel.tipo === 'agente') {
+    /* O nome do agente vem gravado na conversa; o catalogo e a reserva para
+       conversa antiga, de antes de o nome passar a ser gravado. */
+    const nome = responsavel.nome || (estado.agentes || []).find((a) => a.id === responsavel.id)?.nome || 'Agente';
+    return { classe: 'ia', texto: nome, titulo: `${nome} (agente de IA) está atendendo` };
+  }
+  const nome = responsavel.nome || 'Equipe';
+  return { classe: 'equipe', texto: nome, titulo: `${nome} está atendendo` };
+}
+
+const tiposDeCaso = () => (estado.etiquetas || []).filter((e) => e.tipo === 'caso');
+
 const normalizarTexto = (texto) =>
   String(texto || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
@@ -284,6 +320,10 @@ export async function paginaAtendimento({
     departamento: '',
     responsavel: '',
     etiqueta: '',
+    origem: '',
+    /* Tipo de caso: filtro proprio, pela chave do caso. Ver a rota em
+       servidor/rotas/atendimento.js. */
+    caso: '',
     /* O numero de WhatsApp em que a pessoa esta trabalhando: sai do seletor
        da barra e fica lembrado entre uma visita e outra (ver estado.js). */
     conexao: numeroEscolhido(),
@@ -602,7 +642,14 @@ export async function paginaAtendimento({
           ...estado.departamentos.map((d) => ({ valor: d.id, rotulo: d.nome })),
         ],
       ],
-      ['etiqueta', 'Etiqueta', estado.etiquetas.map((e) => ({ valor: e.id, rotulo: e.nome }))],
+      /* Tipo de caso vem ANTES de Etiqueta, e separado dela: e o recorte que
+         o escritorio mais usa ("so auxilio-acidente", "so o trabalhista"), e
+         dentro da lista geral de etiquetas ele ficava afogado. */
+      ['caso', 'Tipo de caso', tiposDeCaso().map((e) => ({ valor: e.caso, rotulo: e.nome }))],
+      /* A lista de etiquetas aqui exclui os tipos de caso, que ja tem campo
+         proprio acima: repetidos nos dois, a pessoa escolhe num e estranha o
+         outro continuar dizendo "Todos". */
+      ['etiqueta', 'Etiqueta', estado.etiquetas.filter((e) => e.tipo !== 'caso').map((e) => ({ valor: e.id, rotulo: e.nome }))],
       /* A conexao saiu daqui: quem escolhe o numero e o seletor da barra, e
          dois controles para a mesma coisa acabariam discordando. */
       ['responsavel', 'Responsavel', [{ valor: 'nenhum', rotulo: 'Sem responsável' }, ...opcoesResponsavel]],
@@ -643,6 +690,7 @@ export async function paginaAtendimento({
           ? 'Sem departamento'
           : estado.departamentos.find((d) => d.id === filtro.departamento)?.nome,
       etiqueta: () => acharEtiqueta(filtro.etiqueta)?.nome,
+      caso: () => tiposDeCaso().find((e) => e.caso === filtro.caso)?.nome,
       responsavel: () =>
         filtro.responsavel === 'nenhum'
           ? 'Sem responsável'
@@ -1146,10 +1194,19 @@ export async function paginaAtendimento({
            cada um custava uma linha inteira da lista. */
         el('div', { class: 'linha-previa' }, [
           el('div', { class: 'previa', texto: contato.previa || identificacaoDo(contato) }),
-          /* Do responsavel sobra so o caso que muda a decisao: quem esta com a
-             IA, ninguem precisa atender agora. O nome de quem atende repetia em
-             toda linha e vive no painel da direita. */
-          responsavel?.tipo === 'agente' ? el('span', { class: 'marca-ia', texto: 'IA' }) : null,
+          /* Quem atende, pelo nome: com varios agentes por area e varias
+             pessoas na equipe, "IA" sozinho nao dizia QUAL. Pedido do
+             escritorio em 13/11/2026 (ver quemAtende, no alto do arquivo).
+             Conversa sem ninguem nao ganha selo: a fila de Pendentes ja e
+             inteira disso, e um "Ninguem" em cada linha seria ruido. */
+          (() => {
+            if (!responsavel?.id) return null;
+            const quem = quemAtende(contato);
+            return el('span', { class: `marca-quem ${quem.classe}`, title: quem.titulo }, [
+              icone(quem.classe === 'ia' ? 'agentes' : 'pessoa', 11),
+              el('span', { class: 'marca-quem-nome', texto: quem.texto }),
+            ]);
+          })(),
           contato.naoLidas ? el('span', { class: 'nao-lidas', texto: String(contato.naoLidas) }) : null,
         ]),
         etiquetasDa(contato),
@@ -4767,6 +4824,51 @@ export async function paginaAtendimento({
         ],
       );
 
+      /*
+       * Tipo de caso e o resto dos filtros, no quadro.
+       *
+       * Pedido do escritorio em 13/11/2026, relatado por quem usa: o Kanban
+       * JA obedecia aos filtros (as tres vistas dividem o mesmo `filtro` e a
+       * mesma busca), mas a unica coisa que dava para ligar daqui era "quem
+       * conduz" — para recortar por tipo de caso era preciso sair para
+       * Conversas, filtrar la e voltar. O que faltava era o controle, nao o
+       * recorte.
+       */
+      const caso = filtrosLigados().find((ligado) => ligado.chave === 'caso');
+      const porCaso = el(
+        'button',
+        {
+          type: 'button',
+          class: `chip-filtro${caso ? ' ativo' : ''}`,
+          'aria-haspopup': 'dialog',
+          aoClick: () => abrirFiltros(['caso']),
+        },
+        [
+          icone('etiqueta', 14),
+          el('span', { texto: 'Tipo de caso' }),
+          caso ? el('strong', { class: 'chip-filtro-valor', texto: caso.rotulo }) : null,
+        ],
+      );
+
+      /* Os demais (status fica de fora: filtrar por status num quadro de
+         colunas por status esconderia o proprio quadro). */
+      const outros = filtrosLigados().filter((l) => ['departamento', 'etiqueta', 'origem'].includes(l.chave));
+      const maisFiltros = el(
+        'button',
+        {
+          type: 'button',
+          class: `chip-filtro${outros.length ? ' ativo' : ''}`,
+          'aria-haspopup': 'dialog',
+          title: 'Departamento, etiqueta e origem',
+          aoClick: () => abrirFiltros(['departamento', 'etiqueta', 'origem']),
+        },
+        [
+          icone('filtros', 14),
+          el('span', { texto: 'Filtros' }),
+          outros.length ? el('strong', { class: 'chip-filtro-valor', texto: String(outros.length) }) : null,
+        ],
+      );
+
       const relatorios = botao('Relatórios', {
         pequeno: true,
         icone: 'painel',
@@ -4776,7 +4878,7 @@ export async function paginaAtendimento({
         },
       });
 
-      return [partes, quemConduz, relatorios];
+      return [partes, quemConduz, porCaso, maisFiltros, relatorios];
     }
 
     const quadro = el('div', { class: 'kanban' });
@@ -4862,12 +4964,10 @@ export async function paginaAtendimento({
            contorno dourado e uma faixa que diz isso. O clique leva a conversa,
            e la o aviso do contrato leva ao cartao de conferir. */
         const conferir = normalizarTexto(contato.momento?.nome) === 'contrato em conferencia';
-        const responsavel = contato.responsavel;
-        const quem = !responsavel?.id
-          ? { classe: 'ninguem', texto: 'Ninguém' }
-          : responsavel.tipo === 'agente'
-            ? { classe: 'ia', texto: 'IA' }
-            : { classe: 'equipe', texto: String(responsavel.nome || 'Equipe').split(' ')[0] };
+        /* O MESMO quemAtende da lista: antes o cartao mostrava "IA" para
+           qualquer agente e so o primeiro nome da pessoa, e a mesma conversa
+           parecia ter responsaveis diferentes em duas telas. */
+        const quem = quemAtende(contato);
         const cartaoContato = el('button', {
           type: 'button',
           class: `kanban-cartao${conferir ? ' agir' : ''}`,
@@ -4908,11 +5008,7 @@ export async function paginaAtendimento({
             contato.estado === 'arquivado'
               ? el('span', { class: 'selo', title: 'Conversa concluída: fora da fila de atendimento', texto: 'Concluída' })
               : null,
-            el('span', {
-              class: `kanban-quem ${quem.classe}`,
-              title: responsavel?.nome ? `Com ${responsavel.nome}` : 'Sem responsável',
-              texto: quem.texto,
-            }),
+            el('span', { class: `kanban-quem ${quem.classe}`, title: quem.titulo, texto: quem.texto }),
           ]),
           conferir ? el('div', { class: 'kanban-agir' }, [icone('contrato', 13), 'Contrato para conferir']) : null,
           contato.juri ? acaoJuri(contato) : null,

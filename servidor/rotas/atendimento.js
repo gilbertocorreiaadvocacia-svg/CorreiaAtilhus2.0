@@ -221,6 +221,28 @@ export function registrarAtendimento(rotas) {
     if (query.conexao) contatos = contatos.filter((c) => c.conexaoId === query.conexao);
     if (query.origem) contatos = contatos.filter((c) => c.origemId === query.origem);
     if (query.etiqueta) contatos = contatos.filter((c) => (c.etiquetas || []).includes(query.etiqueta));
+    /*
+     * Tipo de caso: filtro proprio, separado de `etiqueta`.
+     *
+     * Pedido do escritorio em 13/11/2026, vindo de quem usa: "filtrar so
+     * auxilio-acidente, so o trabalhista, so o salario-maternidade". O tipo de
+     * caso E uma etiqueta (marcada com tipo: 'caso', ver nucleo/casos.js), mas
+     * no filtro geral de etiquetas ele fica afogado no meio de todas as outras
+     * — e sao seis tipos contra dezenas de etiquetas.
+     *
+     * Filtra pela CHAVE do caso ('auxilio_acidente'), e nao pelo id da
+     * etiqueta: a chave e a mesma em todo escritorio, e o id nao. Assim o
+     * filtro guardado num link continua valendo em outro workspace, e os dois
+     * filtros podem valer juntos (um caso E uma etiqueta qualquer).
+     */
+    if (query.caso) {
+      const doCaso = new Set(
+        listar('etiquetas', { workspaceId: ctx.workspaceId })
+          .filter((e) => e.tipo === 'caso' && e.caso === query.caso)
+          .map((e) => e.id),
+      );
+      contatos = contatos.filter((c) => (c.etiquetas || []).some((id) => doCaso.has(id)));
+    }
     if (query.responsavel) {
       contatos = contatos.filter((c) =>
         query.responsavel === 'nenhum' ? !c.responsavel : c.responsavel?.id === query.responsavel,

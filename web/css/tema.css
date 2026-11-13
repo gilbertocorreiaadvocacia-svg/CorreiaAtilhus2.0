@@ -10320,12 +10320,54 @@ textarea.area-g {
 }
 
 .item-conversa .linha-previa .nao-lidas,
-.item-conversa .marca-ia {
+.item-conversa .marca-ia,
+.item-conversa .marca-quem {
   flex: none;
 }
 
-/* Quem esta com a IA nao precisa de atendente agora. E a unica coisa que
-   sobrou do responsavel na linha, porque e a unica que muda a decisao. */
+/*
+ * Quem atende, na linha da conversa: o nome do agente de IA ou o da pessoa.
+ *
+ * Pedido do escritorio em 13/11/2026. Antes aqui sobrava so um "IA" sem nome,
+ * com a justificativa de que o nome repetia em toda linha — com varios agentes
+ * por area, saber QUAL atende passou a mudar a decisao de quem olha a fila.
+ *
+ * O nome CORTA em vez de empurrar: a previa da conversa e o que ocupa esta
+ * linha, e um agente de nome longo nao pode espremer o texto da mensagem. O
+ * nome inteiro fica no title.
+ */
+.marca-quem {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  max-width: 11ch;
+  padding: 0 var(--e1);
+  border-radius: var(--raio-p);
+  font-size: var(--t-nota);
+  font-weight: 600;
+}
+
+.marca-quem svg {
+  flex: none;
+}
+
+.marca-quem-nome {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.marca-quem.ia {
+  color: var(--ia);
+  background: var(--ia-fraco);
+}
+
+.marca-quem.equipe {
+  color: var(--sucesso);
+  background: color-mix(in srgb, var(--sucesso) 14%, transparent);
+}
+
+/* Quem esta com a IA nao precisa de atendente agora. */
 .marca-ia {
   padding: 0 var(--e1);
   color: var(--ouro);
@@ -10334,6 +10376,15 @@ textarea.area-g {
   font-size: var(--t-nota);
   font-weight: 600;
   letter-spacing: var(--tr-alta);
+}
+
+/* O cartao do Kanban tem mais largura que a linha da fila, mas nao infinita:
+   o nome do agente corta igual, e o inteiro fica no title. */
+.kanban-quem {
+  max-width: 14ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* O atributo hidden precisa vencer o display das classes.
