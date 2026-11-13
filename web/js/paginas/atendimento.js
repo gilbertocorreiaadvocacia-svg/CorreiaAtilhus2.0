@@ -118,23 +118,24 @@ function etapaDoStatus(status) {
 }
 
 /*
- * As duas partes do funil no quadro, pelo tipo do status.
+ * O QUADRO E UM SO: todas as colunas, lado a lado.
  *
- * Venda e o caminho ate o contrato assinado, e tudo que vem depois dele
- * (Documentacao pendente, Processo em andamento): o Comercial nao acompanha
- * pos-venda separado, entao essas colunas ficam juntas das outras, sem aba
- * propria (pedido do escritorio em 20/10/2026). Encerradas sao as perdas.
+ * Ate 13/11/2026 ele era partido em duas abas, "CRM" e "Encerrado", e as
+ * colunas de perda (Proposta recusada, Desistencia, Desqualificado) so
+ * apareciam na segunda. O escritorio pediu o contrario: "nao quero que tenha
+ * essa parte de encerrado [...] quero que tenha no CRM, junto com as outras
+ * colunas".
+ *
+ * E a leitura certa do que um Kanban e. Perder o caso tambem e um desfecho do
+ * funil, e o fim da esteira so faz sentido ao lado do comeco: numa aba
+ * separada, ninguem olha. A conversa que vai para Desqualificado deixava de
+ * existir para quem estava no quadro.
+ *
+ * Quem nao quiser uma coluna na frente continua podendo tirar da PROPRIA vista
+ * pelo menu da coluna ("Esconder da minha vista"), sem mexer no funil de
+ * ninguem — que e a forma certa de resolver isso, porque e escolha de cada um
+ * e nao regra do escritorio.
  */
-const SEGMENTOS_DO_FUNIL = [
-  { id: 'venda', rotulo: 'CRM' },
-  { id: 'encerradas', rotulo: 'Encerrado' },
-];
-
-function segmentoDoStatus(status) {
-  if (!status) return 'venda';
-  if (TIPOS_DE_PERDA.includes(status.tipo)) return 'encerradas';
-  return 'venda';
-}
 
 /*
  * Texto comparavel: sem maiuscula e sem acento.
@@ -305,9 +306,6 @@ export async function paginaAtendimento({
   definirAcoes = () => {},
   definirPrincipal = () => {},
 }) {
-  /* Qual parte do funil o quadro mostra (ver SEGMENTOS_DO_FUNIL). Vive aqui
-     para sobreviver ao redesenho que cada evento do servidor dispara. */
-  let segmentoDoFunil = 'venda';
   /* Cartao do Kanban na mao, ou solto e esperando o servidor: nesse meio tempo
      evento do servidor nao redesenha o quadro (ver redesenharSemAtrapalhar). */
   let cartaoEmMovimento = null;
@@ -4643,15 +4641,21 @@ export async function paginaAtendimento({
     setTimeout(() => document.addEventListener('mousedown', fechar), 0);
   }
 
-  /* A coluna nova do quadro nasce "neutra" (tipo nenhum), para nao virar etapa
-     do funil nem entrar no dashboard como um estagio. Depois de criada, e
-     reposicionada para cair no segmento aberto (Venda/Encerradas). */
-  async function posicionarNoSegmento(novoId) {
+  /*
+   * A coluna nova nasce "neutra" (tipo nenhum), para nao virar etapa do funil
+   * nem entrar no dashboard como um estagio. Depois de criada, e posta ANTES
+   * da primeira coluna de perda.
+   *
+   * Com o quadro inteiro numa tela so, as perdas sao o fim da esteira. Jogar a
+   * coluna nova para o fim de tudo a deixaria depois de Desqualificado, que e
+   * onde o caso morre — e coluna nova quase sempre e um passo do caminho, nao
+   * um novo jeito de perder. Sem nenhuma coluna de perda, vai para o fim.
+   */
+  async function posicionarNoQuadro(novoId) {
     if (!novoId) return;
     const ids = estado.status.map((s) => s.id).filter((id) => id !== novoId);
-    const sucesso = estado.status.find((s) => s.tipo === 'sucesso');
-    let alvo = ids.length;
-    if (sucesso && segmentoDoFunil === 'venda') alvo = Math.max(0, ids.indexOf(sucesso.id));
+    const primeiraPerda = estado.status.find((s) => TIPOS_DE_PERDA.includes(s.tipo) && s.id !== novoId);
+    const alvo = primeiraPerda ? ids.indexOf(primeiraPerda.id) : -1;
     ids.splice(alvo < 0 ? ids.length : alvo, 0, novoId);
     await api.post('/api/status/ordenar', { ordem: ids });
   }
@@ -4684,9 +4688,7 @@ export async function paginaAtendimento({
      e grava a ordem inteira — a mesma que as Configuracoes usam. */
   async function moverColuna(statusId, direcao) {
     const ocultas = colunasOcultas();
-    const visiveis = estado.status
-      .filter((s) => segmentoDoStatus(s) === segmentoDoFunil && !ocultas.has(s.id))
-      .map((s) => s.id);
+    const visiveis = estado.status.filter((s) => !ocultas.has(s.id)).map((s) => s.id);
     const i = visiveis.indexOf(statusId);
     const j = i + direcao;
     if (i < 0 || j < 0 || j >= visiveis.length) return;
@@ -4761,14 +4763,18 @@ export async function paginaAtendimento({
       const criar = async () => {
         const n = nome.value.trim();
         if (!n) return nome.focus();
-        const tipoNovo = segmentoDoFunil === 'encerradas' ? 'desistencia' : 'nenhum';
+        /* Sempre neutra: o tipo marca o que a coluna SIGNIFICA no funil
+           (perda, sucesso, proposta) e isso move dashboard e relatorio. Quem
+           quiser uma coluna de perda nova escolhe o tipo em Configurar coluna,
+           de olho no que esta mudando. */
+        const tipoNovo = 'nenhum';
         try {
           /* api.post devolve o corpo direto; nao ha .dados aqui. Sem o id, o
-             posicionarNoSegmento saia cedo e a coluna nascia fora do segmento, e
-             sem recarregar o status a tela redesenhava a lista antiga — a coluna
+             posicionamento saia cedo e a coluna nascia no lugar errado, e sem
+             recarregar o status a tela redesenhava a lista antiga — a coluna
              era criada no servidor mas nunca aparecia. */
           const criado = await api.post('/api/status', { nome: n, cor: corEscolhida, tipo: tipoNovo });
-          await posicionarNoSegmento(criado?.id);
+          await posicionarNoQuadro(criado?.id);
           await recarregar('status');
           aviso('Coluna criada.', 'sucesso');
           await desenhar();
@@ -4815,32 +4821,23 @@ export async function paginaAtendimento({
     // que cresce, senao a faixa de aviso rouba altura e a rolagem some. Quem
     // faz esse acerto agora e a regra .area-kanban > .kanban.
     /*
-     * A cabeca do Kanban: a parte do funil, o tipo de caso e quem conduz.
+     * A cabeca do Kanban: o tamanho do funil, o tipo de caso e quem conduz.
      *
      * Remontada a cada desenho, porque os numeros mudam com os eventos do
      * servidor. Nao ha campo de digitar ali, entao remontar nao tira foco.
      */
     function acoesDoFunil() {
-      const contar = (segmento) =>
-        estado.status
-          .filter((s) => segmentoDoStatus(s) === segmento)
-          .reduce((soma, s) => soma + (totalPorStatus[s.id] || 0), 0);
-
-      const partes = el(
-        'div',
-        { class: 'grupo-alternado', role: 'group', 'aria-label': 'Parte do funil' },
-        SEGMENTOS_DO_FUNIL.map((segmento) =>
-          botao(`${segmento.rotulo} ${numero(contar(segmento.id))}`, {
-            pequeno: true,
-            tipo: segmento.id === segmentoDoFunil ? 'principal' : '',
-            aoClicar: async () => {
-              if (segmento.id === segmentoDoFunil) return;
-              segmentoDoFunil = segmento.id;
-              await desenhar();
-            },
-          }),
-        ),
-      );
+      /*
+       * No lugar das abas CRM/Encerrado, um numero so: quantas conversas o
+       * funil inteiro tem. Ele vivia dentro dos botoes das abas, e sumiria
+       * junto com elas — e e o unico total da tela, o que cada coluna mostra e
+       * a parte dela.
+       */
+      const noFunil = estado.status.reduce((soma, s) => soma + (totalPorStatus[s.id] || 0), 0);
+      /* Selo, e nao chip: chip e botao, e isto aqui nao clica em lugar nenhum.
+         Um selo que parece botao e convite a um clique que nao acontece. */
+      const partes = selo(`${numero(noFunil)} no funil`, '');
+      partes.title = 'Conversas em todas as colunas do funil, inclusive as de perda';
 
       const conduz = filtrosLigados().find((ligado) => ligado.chave === 'responsavel');
       const quemConduz = el(
@@ -4929,15 +4926,13 @@ export async function paginaAtendimento({
      * coluna escondida da vista de alguem.
      */
     const ocultas = colunasOcultas();
-    const colunas = estado.status
-      .filter((s) => segmentoDoStatus(s) === segmentoDoFunil && !ocultas.has(s.id))
-      .map((s) => ({ id: s.id, nome: s.nome, cor: s.cor }));
+    const colunas = estado.status.filter((s) => !ocultas.has(s.id)).map((s) => ({ id: s.id, nome: s.nome, cor: s.cor }));
     quadro.style.setProperty('--colunas', String(Math.max(colunas.length, 1)));
     definirAcoes(acoesDoFunil());
 
-    /* Barra das colunas escondidas DESTE segmento: cada uma volta num clique. So
-       minha vista, entao o aviso usa "você". */
-    const escondidasAqui = estado.status.filter((s) => segmentoDoStatus(s) === segmentoDoFunil && ocultas.has(s.id));
+    /* Barra das colunas escondidas: cada uma volta num clique. So minha vista,
+       entao o aviso usa "você". */
+    const escondidasAqui = estado.status.filter((s) => ocultas.has(s.id));
     if (escondidasAqui.length) {
       area.append(
         el('div', { class: 'kanban-escondidas' }, [
