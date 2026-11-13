@@ -49,6 +49,13 @@ inserir('usuarios', { id: 'u1', nome: 'Dani' });
 inserir('usuarios', { id: 'u2', nome: 'Milena' });
 inserir('membros', { id: 'm1', workspaceId: 'w1', usuarioId: 'u1', papel: 'atendente', departamentos: ['dep1'] });
 inserir('membros', { id: 'm2', workspaceId: 'w1', usuarioId: 'u2', papel: 'atendente', departamentos: ['dep2'] });
+/* Sara atende e nao fechou nada no periodo: e exatamente quem o ranking antigo
+   fazia sumir da tela, e o motivo do pedido de 13/11/2026. */
+inserir('usuarios', { id: 'u3', nome: 'Sara' });
+inserir('membros', { id: 'm3', workspaceId: 'w1', usuarioId: 'u3', papel: 'atendente', departamentos: ['dep1'] });
+/* E alguem que nao atende nem fecha: tem que aparecer zerado, e nao sumir. */
+inserir('usuarios', { id: 'u4', nome: 'Parado' });
+inserir('membros', { id: 'm4', workspaceId: 'w1', usuarioId: 'u4', papel: 'atendente', departamentos: ['dep1'] });
 inserir('status', { id: 'st-nova', workspaceId: 'w1', nome: 'Nova', tipo: 'nova' });
 inserir('status', { id: 'st-ok', workspaceId: 'w1', nome: 'Contrato fechado', tipo: 'sucesso' });
 inserir('etiquetas', { id: 'et-aux', workspaceId: 'w1', nome: 'Auxilio-acidente', tipo: 'caso', caso: 'auxilio_acidente' });
@@ -62,9 +69,9 @@ const CONFIG = configDoRanking('w1');
 let n = 0;
 /* Uma conversa fechada: entra na coluna de sucesso por um log de funil, que e
    como o sistema registra a passagem de verdade. */
-function fechada({ quem, em, etiquetas = ['et-aux'], arquivos = [], variaveis = {}, departamentoId = 'dep1' }) {
+function fechada({ quem, em, etiquetas = ['et-aux'], arquivos = [], variaveis = {}, departamentoId = 'dep1', aceitoPor = null, aceitoEm = null, estado = 'ativo' }) {
   const id = 'c' + (n += 1);
-  inserir('contatos', { id, workspaceId: 'w1', nome: 'Cliente ' + id, etiquetas, arquivos, variaveis, departamentoId });
+  inserir('contatos', { id, workspaceId: 'w1', nome: 'Cliente ' + id, etiquetas, arquivos, variaveis, departamentoId, aceitoPor, aceitoEm, estado });
   inserir('logs', {
     workspaceId: 'w1',
     contatoId: id,
@@ -86,8 +93,17 @@ const COMPLETO = {
   variaveis: { cpf: '111', endereco: 'Rua A', data_acidente: '2026-02-01' },
 };
 
-/* Dani: dois completos e um basico, nenhum com contrato da ZapSign. */
-fechada({ quem: DANI, em: '2026-11-03T10:00:00.000Z', ...COMPLETO });
+/* Sara atende, e nao fecha. Tres conversas na mao dela:
+   - duas assumidas DENTRO do periodo, uma delas ja concluida;
+   - uma assumida ANTES do periodo, que nao conta em "assumidas" mas continua
+     em aberto hoje. */
+inserir('contatos', { id: 'sara1', workspaceId: 'w1', nome: 'Cliente da Sara 1', departamentoId: 'dep1', aceitoPor: 'm3', aceitoEm: '2026-11-10T09:00:00.000Z', estado: 'ativo' });
+inserir('contatos', { id: 'sara2', workspaceId: 'w1', nome: 'Cliente da Sara 2', departamentoId: 'dep1', aceitoPor: 'm3', aceitoEm: '2026-11-11T09:00:00.000Z', estado: 'arquivado' });
+inserir('contatos', { id: 'sara3', workspaceId: 'w1', nome: 'Cliente da Sara 3', departamentoId: 'dep1', aceitoPor: 'm3', aceitoEm: '2026-09-02T09:00:00.000Z', estado: 'ativo' });
+
+/* Dani: dois completos e um basico, nenhum com contrato da ZapSign. A primeira
+   esta na mao dela e dentro do periodo. */
+fechada({ quem: DANI, em: '2026-11-03T10:00:00.000Z', aceitoPor: 'm1', aceitoEm: '2026-11-02T08:00:00.000Z', ...COMPLETO });
 fechada({ quem: DANI, em: '2026-11-04T10:00:00.000Z', ...COMPLETO });
 fechada({ quem: DANI, em: '2026-11-05T10:00:00.000Z', arquivos: [{ id: 'a3', nome: 'rg.jpg' }], variaveis: { cpf: '222' } });
 /* Milena: um completo. */
@@ -260,11 +276,71 @@ process.exit(0);
       JSON.stringify(daniNova),
     );
 
-    /* --- Visibilidade --------------------------------------------------------- */
+    /* --- A EQUIPE INTEIRA NA LISTA, e o atendimento ---------------------------- */
+    const nomes = b.semZapsign.pessoas.map((p) => p.nome);
     s.ok(
-      'quem so enxerga o proprio departamento ve o ranking da propria fatia',
-      b.daDani.pessoas.length === 1 && b.daDani.pessoas[0]?.nome === 'Dani',
-      JSON.stringify(b.daDani.pessoas),
+      'todo mundo do escritorio aparece, inclusive quem nao fechou nada',
+      ['Dani', 'Milena', 'Sara', 'Parado'].every((n) => nomes.includes(n)),
+      JSON.stringify(nomes),
+    );
+    const sara = b.semZapsign.pessoas.find((p) => p.nome === 'Sara');
+    const parado = b.semZapsign.pessoas.find((p) => p.nome === 'Parado');
+    s.ok('quem atende e nao fecha aparece com os fechamentos zerados', sara?.fechados === 0 && sara?.pontos === 0, JSON.stringify(sara));
+    s.ok(
+      'e com o atendimento dela contado: duas assumidas no periodo',
+      sara?.assumidas === 2,
+      JSON.stringify({ assumidas: sara?.assumidas }),
+    );
+    s.ok(
+      'a assumida ANTES do periodo nao entra em "assumidas"',
+      sara?.assumidas === 2,
+      'a de setembro nao pode contar',
+    );
+    s.ok(
+      'mas "em aberto" e retrato de HOJE: a de setembro continua pesando, e a concluida nao',
+      sara?.emAberto === 2,
+      JSON.stringify({ emAberto: sara?.emAberto }),
+    );
+    s.ok('quem nao atende nem fecha aparece zerado, em vez de sumir', parado?.assumidas === 0 && parado?.emAberto === 0 && parado?.fechados === 0, JSON.stringify(parado));
+    s.ok(
+      'entre duas pessoas sem ponto, quem esta atendendo vem antes de quem nao esta',
+      nomes.indexOf('Sara') < nomes.indexOf('Parado'),
+      JSON.stringify(nomes),
+    );
+    s.ok('e os totais do atendimento batem com as linhas', b.semZapsign.totais.assumidas === b.semZapsign.pessoas.reduce((a, p) => a + p.assumidas, 0), JSON.stringify(b.semZapsign.totais));
+
+    /* --- Visibilidade --------------------------------------------------------- */
+    /*
+     * Para quem tem visao recortada a lista NAO tras a equipe inteira, e isso e
+     * deliberado: o colega apareceria com "0 fechados" quando pode ter fechado
+     * dez casos fora da fatia de quem olha. Zero mentiroso e pior que linha
+     * ausente — um diz uma coisa falsa, o outro nao diz nada.
+     */
+    s.ok(
+      'quem so enxerga o proprio departamento nao recebe a equipe inteira',
+      b.daDani.equipeInteira === false && b.semZapsign.equipeInteira === true,
+      JSON.stringify({ dela: b.daDani.equipeInteira, admin: b.semZapsign.equipeInteira }),
+    );
+    s.ok(
+      'e ve so quem apareceu na propria fatia',
+      b.daDani.pessoas.every((p) => ['Dani', 'Sara'].includes(p.nome)) && !b.daDani.pessoas.some((p) => p.nome === 'Milena'),
+      JSON.stringify(b.daDani.pessoas.map((p) => p.nome)),
+    );
+    /* O numero DELA e o mesmo nos dois recortes, porque as conversas dela estao
+       todas no departamento que ela enxerga. Comparado com o que o admin ve da
+       mesma pessoa, e nao cravado: assim a assercao continua valendo se a
+       montagem acima ganhar mais um caso. */
+    const daniParaEla = b.daDani.pessoas.find((p) => p.nome === 'Dani');
+    const daniParaOAdmin = b.comReguaDoEscritorio.pessoas.find((p) => p.nome === 'Dani');
+    s.ok(
+      'os fechamentos dela sao os mesmos nos dois recortes',
+      daniParaEla?.fechados === daniParaOAdmin?.fechados && daniParaEla?.fechados > 0,
+      JSON.stringify({ paraEla: daniParaEla?.fechados, paraOAdmin: daniParaOAdmin?.fechados }),
+    );
+    s.ok(
+      'e o total da fatia dela e menor que o do escritorio',
+      b.daDani.totais.fechados < b.comReguaDoEscritorio.totais.fechados,
+      JSON.stringify({ dela: b.daDani.totais.fechados, todos: b.comReguaDoEscritorio.totais.fechados }),
     );
     s.ok(
       'e os totais dela tambem sao os da fatia, e nao os do escritorio',

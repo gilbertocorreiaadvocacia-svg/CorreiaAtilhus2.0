@@ -1,5 +1,5 @@
 import { achar, atualizar, listar } from './banco.js';
-import { filtrarConversasVisiveis } from './auth.js';
+import { ehAdministrador, filtrarConversasVisiveis } from './auth.js';
 import { TIPOS_DE_CASO, tipoDeCasoDa } from './casos.js';
 import { passosDoFunil } from './funil-da-conversa.js';
 import { normalizar } from './util.js';
@@ -180,9 +180,12 @@ function fechamentoDo(contato, idsDeSucesso, contratos) {
   };
 }
 
+/** O balde de cada pessoa, zerado. */
+const baldeVazio = (id, nome) => ({ id, nome, completos: 0, basicos: 0, pontos: 0, assumidas: 0, emAberto: 0 });
+
 /** Soma um caso no balde de alguem. */
 function somar(mapa, chave, nome, qualidade, pontos) {
-  const atual = mapa.get(chave) || { id: chave, nome, completos: 0, basicos: 0, pontos: 0 };
+  const atual = mapa.get(chave) || baldeVazio(chave, nome);
   if (qualidade.completo) {
     atual.completos += 1;
     atual.pontos += pontos.completo;
@@ -212,13 +215,77 @@ export function ranking(ctx, { de = '', ate = '' } = {}) {
   const contratos = listar('contratos', { workspaceId });
   const visiveis = filtrarConversasVisiveis(ctx, listar('contatos', { workspaceId }));
 
+  /*
+   * A EQUIPE INTEIRA ENTRA NA LISTA, inclusive quem nao fechou nada.
+   *
+   * Pedido do escritorio em 13/11/2026: "quero que possa aparecer todos os
+   * usuarios e as estatisticas, de quem ta atendendo mais, quem e que ta
+   * fechando contrato mais".
+   *
+   * E a correcao de um defeito de desenho do primeiro ranking: montado so a
+   * partir dos fechamentos, ele fazia sumir da tela exatamente quem o
+   * escritorio mais precisa enxergar — quem atende muito e fecha pouco. Linha
+   * zerada tambem e informacao, e some de proposito nao e o mesmo que nao ter
+   * acontecido.
+   */
   const pessoas = new Map();
+  /*
+   * A equipe inteira so para quem ENXERGA a equipe inteira.
+   *
+   * Para quem tem visao recortada (departamento, conexao), a conta e feita so
+   * sobre as conversas que ela pode abrir. Listar o colega nessa tela o
+   * mostraria com "0 fechados" quando ele pode ter fechado dez casos fora da
+   * fatia dela — e zero mentiroso e pior que linha ausente: um diz uma coisa
+   * falsa, o outro nao diz nada. Quem tem visao recortada ve quem apareceu no
+   * proprio recorte.
+   */
+  const equipeInteira = ehAdministrador(ctx);
+  if (equipeInteira) {
+    for (const membro of listar('membros', { workspaceId })) {
+      const usuario = achar('usuarios', membro.usuarioId);
+      pessoas.set(membro.id, baldeVazio(membro.id, usuario?.nome || 'Sem nome'));
+    }
+  }
+
   const agentes = new Map();
-  const totais = { completos: 0, basicos: 0, semAtribuicao: 0, semTipoDeCaso: 0, semZapsign: 0 };
+  const totais = { completos: 0, basicos: 0, semAtribuicao: 0, semTipoDeCaso: 0, semZapsign: 0, assumidas: 0, emAberto: 0 };
   const faltas = new Map();
 
   for (const contato of visiveis) {
-    if (!idsDeSucesso.size) break;
+    /*
+     * ATENDIMENTO, antes do fechamento: o balde de quem assumiu a conversa.
+     *
+     * `aceitoPor` guarda quem esta com a conversa na mao, e `aceitoEm` quando
+     * ela foi pega. Nao e um historico: se a conversa for transferida, o campo
+     * passa a ser do novo dono e a passagem anterior nao fica em lugar nenhum
+     * que de para contar. Entao "assumidas" e quem esta com ela HOJE, e a tela
+     * diz isso — numero que parece historico e nao e seria pior que numero
+     * nenhum.
+     */
+    let dela = contato.aceitoPor ? pessoas.get(contato.aceitoPor) : null;
+    /* Visao recortada: a lista nao nasceu com a equipe toda, entao a linha de
+       quem atende aparece quando a primeira conversa dela e vista. */
+    if (!dela && contato.aceitoPor && !equipeInteira) {
+      const membro = achar('membros', contato.aceitoPor);
+      const usuario = membro ? achar('usuarios', membro.usuarioId) : null;
+      dela = baldeVazio(contato.aceitoPor, usuario?.nome || 'Sem nome');
+      pessoas.set(contato.aceitoPor, dela);
+    }
+    if (dela) {
+      if (dentroDoPeriodo(contato.aceitoEm, de, ate)) {
+        dela.assumidas += 1;
+        totais.assumidas += 1;
+      }
+      /* Em aberto e RETRATO DE AGORA, nao do periodo: conversa que ninguem
+         concluiu continua pesando na pessoa hoje, tenha ela chegado neste mes
+         ou no passado. E a mesma conta do Limite de casos. */
+      if (contato.estado !== 'arquivado') {
+        dela.emAberto += 1;
+        totais.emAberto += 1;
+      }
+    }
+
+    if (!idsDeSucesso.size) continue;
     const fechamento = fechamentoDo(contato, idsDeSucesso, contratos);
     if (!fechamento || !dentroDoPeriodo(fechamento.em, de, ate)) continue;
 
@@ -242,11 +309,19 @@ export function ranking(ctx, { de = '', ate = '' } = {}) {
     }
   }
 
-  /* Mais pontos na frente; empate desempata por completos, e depois pelo nome,
-     para a ordem nao dancar a cada carregamento. */
+  /* Mais pontos na frente; empate desempata por completos, depois por quem
+     assumiu mais (entre duas pessoas sem fechamento, quem esta atendendo vem
+     antes de quem nao esta) e por fim pelo nome, para a ordem nao dancar a
+     cada carregamento. */
   const ordenar = (mapa) =>
     [...mapa.values()]
-      .sort((a, b) => b.pontos - a.pontos || b.completos - a.completos || a.nome.localeCompare(b.nome, 'pt-BR'))
+      .sort(
+        (a, b) =>
+          b.pontos - a.pontos ||
+          b.completos - a.completos ||
+          (b.assumidas || 0) - (a.assumidas || 0) ||
+          a.nome.localeCompare(b.nome, 'pt-BR'),
+      )
       .map((linha, i) => ({ ...linha, posicao: i + 1, fechados: linha.completos + linha.basicos }));
 
   return {
@@ -254,6 +329,9 @@ export function ranking(ctx, { de = '', ate = '' } = {}) {
     pontos: config.pontos,
     /* A tela avisa quando a regua ainda e o palpite do sistema. */
     reguaConferida: Object.values(config.exigencias).some((e) => e.conferida),
+    /* A lista tras a equipe inteira, ou so quem apareceu na fatia de quem
+       pergunta? A tela precisa saber para nao prometer o que nao mostra. */
+    equipeInteira,
     pessoas: ordenar(pessoas),
     agentes: ordenar(agentes),
     totais: { ...totais, fechados: totais.completos + totais.basicos },

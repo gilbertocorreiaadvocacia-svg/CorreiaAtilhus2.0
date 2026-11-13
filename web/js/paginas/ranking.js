@@ -62,13 +62,21 @@ export async function paginaRanking({ definirAcoes = () => {} } = {}) {
   /* A tabela de posicoes. `rotuloDeQuem` muda entre pessoa e agente porque a
      mesma tabela serve aos dois, e chamar um agente de "pessoa" na coluna seria
      mentira na tela. */
-  function tabela(linhas, rotuloDeQuem) {
+  const traco = () => el('span', { class: 'c-fraco', texto: '–' });
+
+  function tabela(linhas, rotuloDeQuem, { comAtendimento = false } = {}) {
     if (!linhas.length) {
-      return vazio('Ninguém pontuou neste período', 'Assim que um caso entrar na coluna de contrato fechado, ele aparece aqui.');
+      return vazio('Ninguém aqui ainda', 'Assim que houver gente no escritório atendendo, a lista aparece.');
     }
     const cabecalho = el('tr', {}, [
       el('th', { class: 'ranking-posicao', texto: '#' }),
       el('th', { texto: rotuloDeQuem }),
+      comAtendimento
+        ? el('th', { class: 'n', title: 'Conversas que a pessoa pegou para si dentro do período escolhido', texto: 'Assumidas' })
+        : null,
+      comAtendimento
+        ? el('th', { class: 'n', title: 'Conversas na mão dela agora, ainda não concluídas. É um retrato de hoje, não do período', texto: 'Em aberto' })
+        : null,
       el('th', { class: 'n', title: 'Casos fechados com toda a documentação e os dados que o tipo de caso exige', texto: 'Completos' }),
       el('th', { class: 'n', title: 'Casos fechados em que faltou documento ou dado', texto: 'Básicos' }),
       el('th', { class: 'n', texto: 'Fechados' }),
@@ -81,17 +89,23 @@ export async function paginaRanking({ definirAcoes = () => {} } = {}) {
          numeros, a diferenca entre 31 e 28 pontos nao salta, e e ela que diz se
          a disputa esta acirrada ou decidida. */
       const proporcao = Math.max(4, Math.round((linha.pontos / maior) * 100));
-      return el('tr', { class: linha.posicao <= 3 ? 'ranking-podio' : '' }, [
+      /* Podio so para quem pontuou. Com a equipe inteira na lista, quem nao
+         fechou nada tambem ganha uma posicao — e dourar o terceiro lugar de
+         uma lista com dois pontuadores seria premiar o zero. */
+      const noPodio = linha.posicao <= 3 && linha.pontos > 0;
+      return el('tr', { class: noPodio ? 'ranking-podio' : '' }, [
         el('td', { class: 'ranking-posicao', texto: String(linha.posicao) }),
         el('td', {}, [
           el('span', { class: 'ranking-quem' }, [
             avatar({ id: linha.id, nome: linha.nome }, 26),
             el('span', { class: 'cortar', texto: linha.nome }),
           ]),
-          el('span', { class: 'ranking-barra', estilo: { '--parte': `${proporcao}%` }, 'aria-hidden': 'true' }),
+          linha.pontos ? el('span', { class: 'ranking-barra', estilo: { '--parte': `${proporcao}%` }, 'aria-hidden': 'true' }) : null,
         ]),
-        el('td', { class: 'n' }, [linha.completos ? selo(String(linha.completos), 'sucesso') : el('span', { class: 'c-fraco', texto: '–' })]),
-        el('td', { class: 'n' }, [linha.basicos ? selo(String(linha.basicos), '') : el('span', { class: 'c-fraco', texto: '–' })]),
+        comAtendimento ? el('td', { class: 'n', texto: linha.assumidas ? numero(linha.assumidas) : '–' }) : null,
+        comAtendimento ? el('td', { class: 'n', texto: linha.emAberto ? numero(linha.emAberto) : '–' }) : null,
+        el('td', { class: 'n' }, [linha.completos ? selo(String(linha.completos), 'sucesso') : traco()]),
+        el('td', { class: 'n' }, [linha.basicos ? selo(String(linha.basicos), '') : traco()]),
         el('td', { class: 'n', texto: numero(linha.fechados) }),
         el('td', { class: 'n forte', texto: numero(linha.pontos) }),
       ]);
@@ -137,6 +151,12 @@ export async function paginaRanking({ definirAcoes = () => {} } = {}) {
           ]),
           el('div', { class: 'rotulo', texto: 'dos fechamentos vieram com tudo' }),
         ]),
+        el('div', { class: 'metrica metrica-sem-linha', estilo: { '--metrica-cor': 'var(--tom-1)' } }, [
+          el('div', { class: 'metrica-topo' }, [el('span', { class: 'nome', texto: 'Assumidas' })]),
+          el('div', { class: 'metrica-numeros' }, [el('div', { class: 'valor', texto: numero(totais.assumidas) })]),
+          el('div', { class: 'rotulo', texto: 'conversas que a equipe pegou no período' }),
+          el('div', { class: 'nota', texto: `${plural(totais.emAberto, 'ainda em aberto', 'ainda em aberto')} hoje` }),
+        ]),
         el('div', { class: 'metrica metrica-sem-linha' }, [
           el('div', { class: 'metrica-topo' }, [el('span', { class: 'nome', texto: 'Valendo' })]),
           el('div', { class: 'metrica-numeros' }, [el('div', { class: 'valor', texto: `${pontos.completo} / ${pontos.basico}` })]),
@@ -148,7 +168,30 @@ export async function paginaRanking({ definirAcoes = () => {} } = {}) {
       ]),
     );
 
-    corpo.append(cartao('Ranking da equipe', 'Quem fechou, e quantos vieram completos.', tabela(pessoas, 'Pessoa')));
+    corpo.append(
+      cartao(
+        'Ranking da equipe',
+        dados.equipeInteira
+          ? 'Todo mundo do escritório aparece, tenha fechado caso ou não. "Assumidas" e "Em aberto" dizem quem está atendendo; "Fechados" e "Pontos", quem está fechando.'
+          : 'Você enxerga uma parte das conversas, então a lista traz só quem apareceu nela — e os números são os dessa parte, não os do escritório inteiro.',
+        tabela(pessoas, 'Pessoa', { comAtendimento: true }),
+      ),
+    );
+    /*
+     * O que "assumidas" NAO e, dito na tela.
+     *
+     * O sistema guarda quem esta com a conversa na mao agora, e nao a lista de
+     * todas as maos por onde ela passou. Conversa transferida conta para quem
+     * ficou com ela. Quem ler "assumidas" como historico vai cobrar a pessoa
+     * errada, e o numero nao tem como avisar sozinho.
+     */
+    corpo.append(
+      el('p', { class: 'rodape-nota mt-2' }, [
+        document.createTextNode(
+          'Assumidas conta a conversa para quem está com ela hoje: se foi transferida, ela aparece na linha de quem ficou, e não na de quem atendeu antes.',
+        ),
+      ]),
+    );
 
     if (agentes.length) {
       corpo.append(
