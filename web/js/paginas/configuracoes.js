@@ -110,6 +110,13 @@ const GRUPOS = [
         montar: secaoTetoDeCasos,
       },
       {
+        id: 'ranking',
+        rotulo: 'Ranking',
+        descricao:
+          'A régua do Ranking: o que cada tipo de caso precisa ter para o fechamento contar como completo, e quanto vale cada um. O sistema nasce com uma sugestão, que é um palpite — enquanto ninguém conferir esta lista, a tela do Ranking avisa que os números ainda não valem para cobrar ninguém.',
+        montar: secaoRanking,
+      },
+      {
         id: 'horario',
         rotulo: 'Horário comercial',
         descricao:
@@ -1623,6 +1630,96 @@ async function secaoTetoDeCasos(recarregarTela) {
               },
             })
           : null,
+      ),
+    ),
+  ]);
+}
+
+/* ------------------------------------------------------------------ */
+/* Ranking                                                             */
+/* ------------------------------------------------------------------ */
+
+/*
+ * A regua do Ranking, por tipo de caso.
+ *
+ * O escritorio pediu o Ranking "por qualidade do contrato fechado": com
+ * documentacao e informacoes completas de um lado, com o basico do outro. Quem
+ * decide o que e "completo" em BPC ou em Trabalhista e o escritorio, nao o
+ * sistema — por isso esta tela existe. O sistema entra so com uma sugestao
+ * inicial, para o Ranking funcionar no primeiro dia.
+ *
+ * A LISTA DE DOCUMENTOS E CONFERIDA PELO NOME DO ARQUIVO, e a tela diz isso com
+ * todas as letras. O sistema nao le o que ha dentro de um PDF: ele procura a
+ * palavra no nome do anexo. Quem nao souber disso vai achar que o sistema
+ * conferiu o documento, e vai confiar num numero que nao significa o que
+ * parece.
+ */
+const PARA_LISTA = (texto) =>
+  String(texto || '')
+    .split(',')
+    .map((t) => t.trim())
+    .filter(Boolean);
+
+async function secaoRanking(recarregarTela) {
+  const config = await api.get('/api/ranking/exigencias');
+  const casos = Object.values(config.exigencias);
+
+  const campos = {};
+  const cartoesDosCasos = casos.map((caso) => {
+    const documentos = entradaTexto(caso.documentos.join(', '), { placeholder: 'rg, cpf, laudo' });
+    const dados = entradaTexto(caso.dados.join(', '), { placeholder: 'cpf, endereco' });
+    campos[caso.caso] = { documentos, dados };
+    return cartao(
+      caso.nome,
+      caso.conferida ? null : 'Ainda é a sugestão do sistema. Confira e salve.',
+      ajustes(
+        ajuste(
+          'Documentos',
+          documentos,
+          'Separados por vírgula. Cada palavra é procurada no NOME do arquivo anexado — o sistema não lê o que está dentro do PDF. "laudo" encontra "laudo-pericial.pdf".',
+        ),
+        ajuste('Dados', dados, 'Separados por vírgula, pelas chaves das variáveis (Configurações → Classes). O dado conta quando o campo está preenchido na conversa.'),
+      ),
+    );
+  });
+
+  const completo = el('input', { type: 'number', min: '1', step: '1', value: config.pontos.completo, 'aria-label': 'Pontos por caso completo' });
+  const basico = el('input', { type: 'number', min: '1', step: '1', value: config.pontos.basico, 'aria-label': 'Pontos por caso básico' });
+
+  /* As chaves que existem de verdade, para quem preenche nao inventar nome de
+     variavel. Lista, e nao seletor: o campo aceita varias. */
+  const chaves = (estado.variaveis || []).map((v) => v.chave).filter(Boolean);
+
+  return el('div', {}, [
+    casos.some((c) => c.conferida)
+      ? null
+      : faixa('Nenhuma lista foi conferida ainda. Até alguém salvar, o Ranking avisa na tela que a régua é um palpite do sistema.', { tipo: 'alerta', iconeNome: 'alerta' }),
+    chaves.length
+      ? el('p', { class: 't-sm c-fraco mb-3', texto: `Variáveis cadastradas: ${chaves.join(', ')}.` })
+      : null,
+    ...cartoesDosCasos,
+    cartao(
+      'Quanto vale cada um',
+      'A diferença entre os dois é o que faz valer a pena buscar o documento que falta.',
+      ajustes(
+        ajuste('Caso completo', completo, 'Fechado com todos os documentos e dados do tipo de caso.'),
+        ajuste('Caso básico', basico, 'Fechado com o que faltou alguma coisa. Vale menos, mas vale: o caso foi fechado.'),
+        rodapeAjustes(
+          podeConfigurar()
+            ? botao('Salvar', {
+                tipo: 'principal',
+                aoClicar: async () => {
+                  const exigencias = {};
+                  for (const [caso, campo] of Object.entries(campos)) {
+                    exigencias[caso] = { documentos: PARA_LISTA(campo.documentos.value), dados: PARA_LISTA(campo.dados.value) };
+                  }
+                  await api.put('/api/ranking/exigencias', { exigencias, pontos: { completo: completo.value, basico: basico.value } });
+                  aviso('Régua do ranking salva.', 'sucesso');
+                  await recarregarTela();
+                },
+              })
+            : null,
+        ),
       ),
     ),
   ]);

@@ -8552,6 +8552,61 @@ button.mencao-chip:focus-visible {
   line-height: 1.45;
 }
 
+/* Ranking (web/js/paginas/ranking.js) --------------------------------------- */
+
+.tabela-ranking .n {
+  text-align: right;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+.tabela-ranking .forte {
+  color: var(--texto);
+  font-weight: 700;
+}
+
+.ranking-posicao {
+  width: 1%;
+  padding-right: var(--e2);
+  color: var(--texto-fraco);
+  font-variant-numeric: lining-nums tabular-nums;
+  text-align: right;
+}
+
+/* As tres primeiras linhas puxam o olho, e so elas: destacar a tabela inteira
+   seria o mesmo que nao destacar nada. */
+.ranking-podio .ranking-posicao {
+  color: var(--ouro);
+  font-weight: 700;
+}
+
+.ranking-quem {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  min-width: 0;
+}
+
+/*
+ * A barra atras do nome: a distancia em pontos para o primeiro colocado.
+ *
+ * Numa coluna de numeros, a diferenca entre 31 e 28 nao salta — e e ela que
+ * diz se a disputa esta acirrada ou ja decidida. Fica embaixo do nome, fina e
+ * apagada: e contexto, nao conteudo, e nao pode competir com o numero.
+ */
+.ranking-barra {
+  display: block;
+  height: 3px;
+  margin-top: var(--e1);
+  border-radius: var(--raio-pilula);
+  background: linear-gradient(
+    to right,
+    var(--ouro) 0,
+    var(--ouro) var(--parte, 0%),
+    var(--borda) var(--parte, 0%),
+    var(--borda) 100%
+  );
+}
+
 /* Contratos por agente, mes a mes (web/js/paginas/contratos-por-mes.js) ----- */
 
 /* O .metrica do painel tem padding-bottom zero de proposito: a minilinha sangra
@@ -11144,6 +11199,10 @@ tbody tr:focus-within .conexao-alca {
   --area-vozes: var(--tom-6);
   --area-conexoes: var(--tom-8);
   --area-integracoes: var(--tom-1);
+  /* O ranking anda junto dos relatorios: e a mesma materia (o que a equipe
+     fechou) vista de outro angulo. Por isso o dourado dos contratos. */
+  --area-ranking: var(--ouro);
+  --area-relatorios: var(--ouro);
   --area-configuracoes: var(--texto-suave);
   --area-atual: var(--ouro);
 }

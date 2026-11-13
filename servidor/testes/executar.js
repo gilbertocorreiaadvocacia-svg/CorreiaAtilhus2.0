@@ -25,6 +25,7 @@ import { testarSenhaDoGov } from './senha-do-gov.js';
 import { testarAposentadoriaSemInsistir } from './aposentadoria-sem-insistir.js';
 import { testarContratosPorMes, testarRotaContratosPorMes } from './contratos-por-mes.js';
 import { testarTetoDeCasos } from './teto-de-casos.js';
+import { testarRanking, testarRotasDoRanking } from './ranking.js';
 import { testarFichaDoContrato } from './ficha-do-contrato.js';
 import { testarRelatorioDoCaso } from './relatorio-do-caso.js';
 import { testarDescricaoDoCaso } from './descricao-do-caso.js';
@@ -342,6 +343,7 @@ async function principal() {
     suites.push(await testarAposentadoriaSemInsistir({ raiz: RAIZ }));
     suites.push(await testarContratosPorMes({ raiz: RAIZ }));
     suites.push(await testarTetoDeCasos({ raiz: RAIZ }));
+    suites.push(await testarRanking({ raiz: RAIZ }));
     suites.push(await testarRelatorioDoCaso({ raiz: RAIZ }));
     suites.push(await testarVideoDoTemplate({ base, raiz: RAIZ }));
     suites.push(await testarLeituraPdf({ anthropic, raiz: RAIZ }));
@@ -406,6 +408,7 @@ async function principal() {
     suites.push(await testarMencaoNaNota({ base }));
     suites.push(await testarRegistroDeLigacao({ base }));
     suites.push(await testarFiltroPorCaso({ base }));
+    suites.push(await testarRotasDoRanking({ base }));
     /* Sobe processos proprios, em porta propria: nao encosta no servidor acima. */
     suites.push(await testarPortaOcupada({ raiz: RAIZ, portaLivre }));
     /* Tambem sobe processos proprios: o sistema como fica na VPS. */

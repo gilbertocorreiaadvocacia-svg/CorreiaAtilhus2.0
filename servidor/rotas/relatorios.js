@@ -1,4 +1,4 @@
-import { achar, listar, remover } from '../nucleo/banco.js';
+import { achar, listar, registrarLog, remover } from '../nucleo/banco.js';
 import { ehAdministrador, filtrarConversasVisiveis } from '../nucleo/auth.js';
 import { contratosPorMes } from '../nucleo/contratos-por-mes.js';
 import { periodoDe, sabadoDoFimDeSemana, somarDias } from '../nucleo/relatorio-do-fim-de-semana.js';
@@ -47,6 +47,41 @@ export function registrarRelatorios(rotas) {
   rotas.get('/api/relatorios/contratos-por-mes', async ({ ctx, query }) =>
     contratosPorMes(ctx, { meses: query?.meses }),
   );
+
+  /*
+   * Ranking: quem fecha mais casos, e com que qualidade
+   * (nucleo/ranking.js). Pedido do escritorio em 13/11/2026.
+   *
+   * Fica em relatorios porque e a mesma pergunta vista de outro angulo — o
+   * relatorio conta contratos, o ranking conta pessoas — e as duas telas
+   * precisam concordar sobre o que e um caso fechado.
+   */
+  rotas.get('/api/ranking', async ({ ctx, query }) => {
+    const { ranking } = await import('../nucleo/ranking.js');
+    return ranking(ctx, { de: String(query?.de || '').slice(0, 10), ate: String(query?.ate || '').slice(0, 10) });
+  });
+
+  /* A regua do "completo": so administrador LE e MEXE. Ela decide a pontuacao
+     de cada pessoa, e quem e pontuado nao deveria poder mudar a propria regua. */
+  rotas.get('/api/ranking/exigencias', async ({ ctx }) => {
+    exigirAdministrador(ctx);
+    const { configDoRanking } = await import('../nucleo/ranking.js');
+    return configDoRanking(ctx.workspaceId);
+  });
+
+  rotas.put('/api/ranking/exigencias', async ({ ctx, corpo }) => {
+    exigirAdministrador(ctx);
+    const { salvarConfigDoRanking } = await import('../nucleo/ranking.js');
+    const config = salvarConfigDoRanking(ctx.workspaceId, { exigencias: corpo?.exigencias, pontos: corpo?.pontos });
+    registrarLog(
+      ctx.workspaceId,
+      null,
+      'ranking',
+      `Regua do ranking ajustada (completo vale ${config.pontos.completo}, basico ${config.pontos.basico}).`,
+      { tipo: 'membro', id: ctx.membro?.id || null, nome: ctx.usuario?.nome || 'Equipe' },
+    );
+    return config;
+  });
 
   rotas.get('/api/relatorios/contratos.csv', async ({ ctx, query }) => {
     const r = montarRelatorio(ctx, query);

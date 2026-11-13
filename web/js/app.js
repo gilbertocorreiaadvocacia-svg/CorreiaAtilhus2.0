@@ -61,6 +61,11 @@ const PAGINAS = {
     subtitulo: 'Quem fechou, os dados do cliente e os documentos do caso.',
     montar: (args) => import('./paginas/ficha-do-contrato.js').then((m) => m.paginaFichaDoContrato(args)),
   },
+  ranking: {
+    titulo: 'Ranking',
+    subtitulo: 'Quem fechou mais casos no período, e quantos vieram com a documentação completa.',
+    montar: (args) => import('./paginas/ranking.js').then((m) => m.paginaRanking(args)),
+  },
   relatorios: {
     titulo: 'Relatórios',
     subtitulo: 'Quantos contratos os agentes fecharam, mês a mês e no período que você escolher.',
@@ -164,6 +169,7 @@ const PAGINAS = {
 const MENU = [
   { rota: 'dashboard', rotulo: 'Dashboard', icone: 'painel' },
   { rota: 'relatorios', rotulo: 'Relatórios', icone: 'contrato' },
+  { rota: 'ranking', rotulo: 'Ranking', icone: 'estrela' },
   { rota: 'conexoes', rotulo: 'Conexões', icone: 'conexoes' },
   {
     modulo: 'atendimento',
