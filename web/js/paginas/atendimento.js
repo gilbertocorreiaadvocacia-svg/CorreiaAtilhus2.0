@@ -1866,10 +1866,10 @@ export async function paginaAtendimento({
     const novo = construirCompositor(contato);
     const velho = compositorAberto;
     if (velho && velho.contatoId === contato.id) {
-      const { avisoJanela, faixaAgente } = novo.partes;
+      const { avisoJanela, faixaAgente, faixaPessoa } = novo.partes;
       const { texto, seletorArquivo, linhaBotoes } = velho.partes;
-      const elemento = el('div', { class: 'compositor' }, [avisoJanela, faixaAgente, texto, seletorArquivo, linhaBotoes]);
-      compositorAberto = { contatoId: contato.id, partes: { avisoJanela, faixaAgente, texto, seletorArquivo, linhaBotoes } };
+      const elemento = el('div', { class: 'compositor' }, [avisoJanela, faixaAgente, faixaPessoa, texto, seletorArquivo, linhaBotoes]);
+      compositorAberto = { contatoId: contato.id, partes: { avisoJanela, faixaAgente, faixaPessoa, texto, seletorArquivo, linhaBotoes } };
       return elemento;
     }
     compositorAberto = { contatoId: contato.id, partes: novo.partes };
@@ -2237,6 +2237,46 @@ export async function paginaAtendimento({
         ? estado.agentes.find((a) => a.id === contato.responsavel.id) || null
         : null;
 
+    /*
+     * A MESMA FAIXA PARA PESSOA.
+     *
+     * Pedido do escritorio em 13/11/2026: "aquela barrinha com o nome do
+     * vendedor em cada conversa pra poder identificar quem esta atendendo".
+     * Ate aqui ela so aparecia quando quem atendia era a IA — com uma pessoa
+     * na conversa, nada no topo dizia quem era, e quem abria a conversa de um
+     * colega nao tinha como saber de quem era sem ir ao painel da direita.
+     *
+     * Tres frases, porque sao tres situacoes diferentes: a IA respondendo (o
+     * Enter nao toma a conversa dela), um colega atendendo (da para assumir),
+     * e voce mesmo (nao ha nada a fazer, so saber).
+     */
+    const souEu = contato.responsavel?.tipo !== 'agente' && contato.responsavel?.id === estado.sessao?.membro?.id;
+    const assumir = async () => {
+      await api.patch(`/api/contatos/${contato.id}`, {
+        responsavel: { tipo: 'membro', id: estado.sessao.membro.id },
+      });
+      aviso('Voce assumiu a conversa.', 'sucesso');
+      await desenhar();
+    };
+
+    const faixaPessoa =
+      contato.responsavel?.id && contato.responsavel.tipo !== 'agente'
+        ? el('div', { class: `faixa-agente faixa-pessoa${souEu ? ' sou-eu' : ''}` }, [
+            avatar({ id: contato.responsavel.id, nome: contato.responsavel.nome }, 24),
+            el('span', { class: 'flexivel' }, [
+              el('b', { texto: souEu ? 'Você' : contato.responsavel.nome || 'Alguém da equipe' }),
+              document.createTextNode(souEu ? ' está atendendo esta conversa.' : ' está atendendo esta conversa.'),
+            ]),
+            souEu
+              ? null
+              : botao('Assumir a conversa', {
+                  pequeno: true,
+                  titulo: `Tirar de ${contato.responsavel.nome || 'quem está'} e passar para você`,
+                  aoClicar: assumir,
+                }),
+          ])
+        : null;
+
     const faixaAgente =
       contato.responsavel?.tipo === 'agente'
         ? el('div', { class: 'faixa-agente' }, [
@@ -2249,13 +2289,7 @@ export async function paginaAtendimento({
               pequeno: true,
               tipo: 'principal',
               titulo: 'A IA para de responder e a conversa passa a ser sua',
-              aoClicar: async () => {
-                await api.patch(`/api/contatos/${contato.id}`, {
-                  responsavel: { tipo: 'membro', id: estado.sessao.membro.id },
-                });
-                aviso('Voce assumiu a conversa. A IA parou de responder.', 'sucesso');
-                await desenhar();
-              },
+              aoClicar: assumir,
             }),
           ])
         : null;
@@ -2312,8 +2346,8 @@ export async function paginaAtendimento({
     ]);
 
     return {
-      elemento: el('div', { class: 'compositor' }, [avisoJanela, faixaAgente, texto, seletorArquivo, linhaBotoes]),
-      partes: { avisoJanela, faixaAgente, texto, seletorArquivo, linhaBotoes },
+      elemento: el('div', { class: 'compositor' }, [avisoJanela, faixaAgente, faixaPessoa, texto, seletorArquivo, linhaBotoes]),
+      partes: { avisoJanela, faixaAgente, faixaPessoa, texto, seletorArquivo, linhaBotoes },
     };
   }
 

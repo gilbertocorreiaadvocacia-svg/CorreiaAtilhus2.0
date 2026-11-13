@@ -5892,6 +5892,21 @@ select.chat-teste-escolha {
   color: var(--texto);
 }
 
+/* A mesma faixa quando quem atende e uma PESSOA. Verde, e nao dourada: o
+   dourado avisa que outra coisa responde por voce, e aqui nao ha nada
+   respondendo sozinho — e so identificacao. A sua propria fica apagada: saber
+   que a conversa e sua nao precisa competir com o resto da tela. */
+.faixa-pessoa {
+  background: color-mix(in srgb, var(--sucesso) 12%, transparent);
+  box-shadow: inset 3px 0 0 var(--sucesso);
+}
+
+.faixa-pessoa.sou-eu {
+  background: var(--superficie-2);
+  box-shadow: inset 3px 0 0 var(--borda-forte);
+  color: var(--texto-suave);
+}
+
 /* Painel da conversa: as seis abas ------------------------------------ */
 
 /*

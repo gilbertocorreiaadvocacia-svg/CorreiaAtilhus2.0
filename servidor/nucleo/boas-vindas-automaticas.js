@@ -56,13 +56,46 @@ export function templateDasBoasVindas(workspaceId) {
 
 const temVideoDeVerdade = (template) => Boolean(template?.midia && arquivoDoTemplateExiste(template.midia));
 
+/*
+ * Os atalhos que SAO uma recepcao, alem do template das boas-vindas em si.
+ *
+ * Cada area tem o seu video de recepcao gravado com a voz dela
+ * (@recepcaotrabalhista, por exemplo), e o roteiro do agente manda envia-lo.
+ * Sao templates diferentes do @bemvindo, mas dizem a mesma coisa ao cliente:
+ * "seja bem-vindo ao escritorio".
+ */
+const ATALHOS_DE_RECEPCAO = ['bemvindo', 'boas-vindas', 'boasvindas', 'recepcao'];
+
+/** O atalho e de recepcao? Vale o comeco, para pegar @recepcaotrabalhista. */
+const ehDeRecepcao = (template) => {
+  const atalho = normalizar(template?.atalho || '');
+  if (!atalho) return false;
+  return ATALHOS_DE_RECEPCAO.some((inicio) => atalho === inicio || atalho.startsWith(inicio));
+};
+
 /**
- * Este template ja saiu para este cliente pelas boas-vindas automaticas? Usada
- * por enviar_template: o especialista que tenta mandar o mesmo template de novo
- * e ignorado, em vez de o lead receber o video duas vezes.
+ * Este cliente ja recebeu a recepcao do escritorio?
+ *
+ * Usada por enviar_template, para o agente nao mandar um segundo video de
+ * recepcao depois do automatico.
+ *
+ * COMPARA A INTENCAO, E NAO O ID DO TEMPLATE, e foi isso que estava errado.
+ * Ate 13/11/2026 ela so bloqueava o MESMO template: o escritorio tem
+ * @bemvindo (que as boas-vindas automaticas mandam) e @recepcaotrabalhista
+ * (que o roteiro do Triagem Trabalhista manda), e como os dois ids sao
+ * diferentes nada travava — o lead do trabalhista recebia DOIS videos de
+ * recepcao, um atras do outro. Relatado pelo escritorio nesse dia.
+ *
+ * O bloqueio so vale quando a recepcao automatica JA SAIU: sem ela, o agente
+ * continua mandando o video da area dele normalmente, que e o unico que o
+ * cliente vai receber.
  */
 export function jaEnviouAsBoasVindas(contato, template) {
-  return Boolean(contato?.boasVindasEnviadasEm && template && contato.boasVindasTemplateId === template.id);
+  if (!contato?.boasVindasEnviadasEm || !template) return false;
+  /* O mesmo template, sempre. */
+  if (contato.boasVindasTemplateId === template.id) return true;
+  /* Outro template, mas que tambem e uma recepcao. */
+  return ehDeRecepcao(template);
 }
 
 /**

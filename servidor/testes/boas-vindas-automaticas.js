@@ -118,6 +118,27 @@ const agente = achar('agentes', 'ag-w-on');
 const chamada = await executarFerramenta({ nome: 'enviar_template', argumentos: { template: 'bemvindo' }, contato: achar('contatos', 'c-novo'), agente, conexao: achar('conexoes', 'cx-w-on'), workspaceId: 'w-on' });
 resultado.ferramenta = { ok: chamada.ok, jaEnviado: chamada.ja_enviado === true, mensagensNovas: mensagensDe('c-novo').length - antes };
 
+/*
+ * 4b. O ESPECIALISTA TENTA MANDAR OUTRO VIDEO DE RECEPCAO.
+ *
+ * O escritorio tem um video por area (@recepcaotrabalhista, gravado com a voz
+ * de la) e o roteiro do agente manda envia-lo. Ate 13/11/2026 a trava
+ * comparava o ID do template, entao o @bemvindo automatico nao impedia o
+ * @recepcaotrabalhista: o lead recebia DOIS videos de recepcao, um atras do
+ * outro. Relatado pelo escritorio nesse dia.
+ */
+inserir('templates', { id: 'tpl-recepcao-trab', workspaceId: 'w-on', nome: 'Recepcao trabalhista', atalho: 'recepcaotrabalhista', conteudo: 'Bem-vindo ao trabalhista!', midia: video });
+const antesDaRecepcao = mensagensDe('c-novo').length;
+const outraRecepcao = await executarFerramenta({ nome: 'enviar_template', argumentos: { template: 'recepcaotrabalhista' }, contato: achar('contatos', 'c-novo'), agente, conexao: achar('conexoes', 'cx-w-on'), workspaceId: 'w-on' });
+resultado.outraRecepcao = { jaEnviado: outraRecepcao.ja_enviado === true, mensagensNovas: mensagensDe('c-novo').length - antesDaRecepcao, videos: videos('c-novo').length };
+
+/* 4c. Um template que NAO e recepcao continua passando: a trava e sobre
+   recepcao, e nao sobre "qualquer template depois do video". */
+inserir('templates', { id: 'tpl-proposta', workspaceId: 'w-on', nome: 'Video da proposta', atalho: 'videoproposta', conteudo: 'A proposta', midia: video });
+const antesDaProposta = mensagensDe('c-novo').length;
+const proposta = await executarFerramenta({ nome: 'enviar_template', argumentos: { template: 'videoproposta' }, contato: achar('contatos', 'c-novo'), agente, conexao: achar('conexoes', 'cx-w-on'), workspaceId: 'w-on' });
+resultado.propostaDepois = { jaEnviado: proposta.ja_enviado === true, mensagensNovas: mensagensDe('c-novo').length - antesDaProposta };
+
 /* 5. Quem nao recebeu automatico continua mandando normalmente (chave desligada). */
 const normal = await executarFerramenta({ nome: 'enviar_template', argumentos: { template: 'bemvindo' }, contato: achar('contatos', 'c-off'), agente: achar('agentes', 'ag-w-off'), conexao: achar('conexoes', 'cx-w-off'), workspaceId: 'w-off' });
 resultado.chaveDesligadaFerramenta = { jaEnviado: normal.ja_enviado === true, videos: videos('c-off').length };
@@ -220,6 +241,22 @@ process.exit(0);
       'o especialista que tenta mandar o mesmo template e ignorado, sem mensagem nova',
       b.ferramenta.ok === true && b.ferramenta.jaEnviado && b.ferramenta.mensagensNovas === 0,
       JSON.stringify(b.ferramenta),
+    );
+    /*
+     * O defeito relatado em 13/11/2026: o lead do trabalhista recebia DOIS
+     * videos de recepcao. A trava comparava o id do template, e @bemvindo e
+     * @recepcaotrabalhista sao ids diferentes — nada bloqueava o segundo.
+     * Agora ela compara a INTENCAO.
+     */
+    s.ok(
+      'outro video de RECEPCAO depois do automatico e barrado: o lead nao recebe dois',
+      b.outraRecepcao.jaEnviado === true && b.outraRecepcao.mensagensNovas === 0 && b.outraRecepcao.videos === 1,
+      JSON.stringify(b.outraRecepcao),
+    );
+    s.ok(
+      'mas template que nao e recepcao continua saindo (a trava e sobre recepcao, nao sobre tudo)',
+      b.propostaDepois.jaEnviado === false && b.propostaDepois.mensagensNovas === 1,
+      JSON.stringify(b.propostaDepois),
     );
     s.ok('com a chave desligada o template continua saindo pela ferramenta, como sempre', !b.chaveDesligadaFerramenta.jaEnviado && b.chaveDesligadaFerramenta.videos === 1, JSON.stringify(b.chaveDesligadaFerramenta));
 
