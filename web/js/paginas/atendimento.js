@@ -5077,10 +5077,15 @@ export async function paginaAtendimento({
         );
       }
 
-      // Os dois selos nao encolhem: quem cede espaco no cabecalho estreito e o
-      // nome da coluna, que tem reticencias, e nao o numero, que ficaria
-      // cortado. Quem segura isso agora e a regra
-      // .kanban-coluna > header .selo, em web/css/tema.css.
+      // Os selos moram numa LINHA PROPRIA, embaixo do nome (ver
+      // .kanban-coluna > header em web/css/tema.css).
+      //
+      // Antes dividiam a linha com o nome, e num cabecalho de 232px o que
+      // cedia era sempre o nome: o escritorio via "E..." e "Qualificado co..."
+      // e nao sabia em que coluna estava mexendo (pedido de 13/11/2026,
+      // "mostre o nome por completo"). Nome de coluna nao e detalhe de
+      // enfeite — e o rotulo da etapa do funil, e quem arrasta um cartao
+      // precisa ler para onde esta arrastando.
       const contagem = selo(numero(totalDaColuna), '');
       contagem.title = 'Conversas nesta coluna, contadas no servidor';
       const somaNaoLidas = naoLidas ? selo(plural(naoLidas, 'nao lida', 'nao lidas'), 'ouro') : null;
@@ -5135,11 +5140,14 @@ export async function paginaAtendimento({
 
       const colunaNo = el('div', { class: 'kanban-coluna', estilo: { '--cor-coluna': coluna.cor } }, [
         el('header', {}, [
-          pontoCor,
-          el('span', { class: 'flexivel encolhe cortar', texto: coluna.nome }),
-          contagem,
-          somaNaoLidas,
-          menuColuna,
+          el('div', { class: 'kanban-coluna-titulo' }, [
+            pontoCor,
+            /* Sem `cortar`: o nome quebra linha e aparece inteiro. O `title`
+               fica assim mesmo, para o nome longo que ainda assim nao couber. */
+            el('span', { class: 'kanban-coluna-nome', title: coluna.nome, texto: coluna.nome }),
+            menuColuna,
+          ]),
+          el('div', { class: 'kanban-coluna-selos' }, [contagem, somaNaoLidas]),
         ]),
         lista,
       ]);
@@ -5275,6 +5283,43 @@ export async function paginaAtendimento({
       if (evento.relatedTarget && quadro.contains(evento.relatedTarget)) return;
       pararRolagem();
     });
+
+    /*
+     * Todos os cabecalhos com a MESMA altura, qualquer que seja o nome.
+     *
+     * O CSS sozinho ja reserva duas linhas, o que resolve quase todo nome de
+     * coluna deste escritorio. Mas um nome de tres linhas ("Aguardando
+     * documentacao complementar do INSS") empurraria so a lista daquela coluna
+     * para baixo, e o quadro ficaria em degraus. Cabecalho nao e so enfeite
+     * aqui: o olho corre o quadro na horizontal comparando as filas, e degrau
+     * atrapalha essa leitura.
+     *
+     * Entao o maior manda: mede-se o titulo mais alto e todos adotam a medida.
+     * Fica no JavaScript porque irmaos em flex nao conseguem combinar altura
+     * entre si so com CSS, e porque isso depende da largura da coluna — que
+     * muda com a janela e com quantas colunas estao a vista.
+     */
+    const emparelharCabecalhos = () => {
+      if (!document.body.contains(quadro)) return;
+      const titulos = [...quadro.querySelectorAll('.kanban-coluna-titulo')];
+      if (!titulos.length) return;
+      /* Zera antes de medir: sem isto a medida da vez passada vira o piso da
+         proxima, e o cabecalho so sabe crescer. */
+      quadro.style.removeProperty('--altura-do-titulo');
+      const maior = Math.max(...titulos.map((t) => t.getBoundingClientRect().height));
+      quadro.style.setProperty('--altura-do-titulo', `${Math.ceil(maior)}px`);
+    };
+    requestAnimationFrame(emparelharCabecalhos);
+    /* A largura da coluna muda com a janela, e com ela muda onde o nome quebra. */
+    const aoRedimensionar = () => requestAnimationFrame(emparelharCabecalhos);
+    window.addEventListener('resize', aoRedimensionar);
+    /* O quadro e refeito a cada desenho; sem soltar o ouvinte, cada redesenho
+       deixaria mais um preso a um quadro que ja saiu da tela. */
+    new MutationObserver((_, observador) => {
+      if (document.body.contains(quadro)) return;
+      window.removeEventListener('resize', aoRedimensionar);
+      observador.disconnect();
+    }).observe(document.body, { childList: true, subtree: true });
 
     area.append(quadro);
     return area;

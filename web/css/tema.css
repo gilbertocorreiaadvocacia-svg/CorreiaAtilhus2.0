@@ -6501,21 +6501,79 @@ select.chat-teste-escolha {
   flex-direction: column;
 }
 
+/*
+ * O cabecalho da coluna, em DUAS LINHAS: o nome em cima, os numeros embaixo.
+ *
+ * Em uma linha so, o nome disputava 232px com a contagem, o selo de nao lidas
+ * e o menu — e quem perdia era sempre o nome. O escritorio via "E..." e
+ * "Qualificado co..." no quadro inteiro (13/11/2026). Numeros tem largura
+ * conhecida e pequena; nome de coluna nao, e e ele que diz em que etapa do
+ * funil a conversa esta.
+ *
+ * min-height de duas linhas: com os numeros sempre na segunda linha, todos os
+ * cabecalhos ficam da mesma altura e as listas de cartoes comecam alinhadas,
+ * mesmo quando um nome comprido quebra em duas.
+ */
 .kanban-coluna > header {
   padding: var(--e3);
   border-bottom: 1px solid var(--borda);
   display: flex;
-  align-items: center;
-  gap: var(--e2);
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--e1);
   font-size: var(--t-md);
   font-weight: 600;
+}
+
+.kanban-coluna-titulo {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  min-width: 0;
+  /*
+   * Duas linhas de altura, mesmo quando o nome cabe em uma: assim a coluna de
+   * nome curto e a de nome comprido ficam da mesma altura, e as listas de
+   * cartoes comecam todas no mesmo lugar. Sem isto, "Qualificado com objecao"
+   * empurrava os cartoes dela para baixo e o quadro ficava em degraus.
+   *
+   * --altura-do-titulo vem do JavaScript (atendimento.js) e so entra quando
+   * algum nome passa de duas linhas: ai todos acompanham o mais alto. As duas
+   * linhas continuam sendo o piso, para o quadro ja nascer alinhado antes da
+   * primeira medida.
+   */
+  min-height: max(calc(2 * 1.25em), var(--altura-do-titulo, 0px));
+}
+
+/*
+ * O nome inteiro: quebra linha em vez de virar reticencia.
+ *
+ * `overflow-wrap: anywhere` e para o nome de uma palavra so, comprida demais
+ * para a coluna ("Desqualificados"): sem ele a palavra nao quebraria e
+ * estouraria a largura, que e o defeito oposto e pior.
+ */
+.kanban-coluna-nome {
+  flex: 1;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.25;
+}
+
+.kanban-coluna-selos {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--e2);
+  /* O ponto da cor tem 11px e o respiro do titulo e --e2: alinhar os selos com
+     o comeco do NOME, e nao com a borda, deixa as duas linhas em prumo. */
+  padding-left: calc(11px + var(--e2));
 }
 
 /* O menu de opcoes da coluna (reticencias) fica discreto no canto do cabecalho
    e so acende no hover/foco da coluna, para nao competir com o nome. */
 .kanban-coluna > header .menu-acoes {
   flex: none;
-  margin-left: calc(-1 * var(--e1));
+  margin-right: calc(-1 * var(--e1));
   opacity: 0.55;
   transition: opacity var(--transicao);
 }
