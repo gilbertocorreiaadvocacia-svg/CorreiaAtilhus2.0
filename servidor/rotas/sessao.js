@@ -17,6 +17,7 @@ import {
 import { definirCookie } from '../nucleo/http.js';
 import {
   conferirCodigo,
+  desvioDoRelogio,
   gerarSegredo,
   segredoLegivel,
   uriOtpauth,
@@ -117,6 +118,60 @@ function criarDesafio(dados) {
   const token = novoId('dsf');
   desafios.set(token, { ...dados, criadoEm: agoraMs });
   return token;
+}
+
+/*
+ * A recusa do codigo, dita pelo motivo certo.
+ *
+ * Em 13/11/2026 o escritorio ficou trancado do lado de fora e a tela so sabia
+ * dizer "Codigo incorreto" — duas pessoas, os dois celulares certos, o mesmo
+ * erro. Quando um relogio sai de hora, e isso que acontece, e a mensagem manda
+ * cada um procurar o defeito no proprio celular.
+ *
+ * Entao, antes de recusar, o servidor MEDE: se o codigo digitado bate numa
+ * janela larga, o codigo era bom e o que esta errado e um relogio. A recusa
+ * continua sendo recusa — o que muda e o que ela diz.
+ *
+ * DE QUEM E O RELOGIO ERRADO? De um codigo so nao da para saber: o celular
+ * adiantado sete minutos e o servidor atrasado sete minutos produzem
+ * exatamente o mesmo numero. O que separa os dois e QUANTAS CONTAS DIFERENTES
+ * estao errando igual: dois celulares distintos nao saem de hora na mesma
+ * medida por acaso — isso e o relogio daqui. Por isso os desvios recentes
+ * ficam anotados, e a frase so acusa o servidor quando ha mais de uma conta
+ * dizendo a mesma coisa. Acusar o servidor por uma pessoa so mandaria o
+ * escritorio mexer na VPS por causa de um celular desacertado.
+ */
+const desviosRecentes = new Map();
+const DESVIO_LEMBRADO_MINUTOS = 30;
+/* Dois desvios sao "o mesmo" ate um minuto e meio de diferenca: e a folga do
+   proprio TOTP mais o tempo entre duas pessoas tentando entrar. */
+const DESVIO_PARECIDO_SEGUNDOS = 90;
+
+function anotarDesvio(usuarioId, segundos) {
+  const limite = Date.now() - DESVIO_LEMBRADO_MINUTOS * 60000;
+  for (const [id, registro] of desviosRecentes) if (registro.em < limite) desviosRecentes.delete(id);
+  desviosRecentes.set(usuarioId, { segundos, em: Date.now() });
+  return [...desviosRecentes.values()].filter((r) => Math.abs(r.segundos - segundos) <= DESVIO_PARECIDO_SEGUNDOS).length;
+}
+
+function recusaDeCodigo(usuarioId, segredo, codigo) {
+  const desvio = desvioDoRelogio(segredo, codigo);
+  if (!desvio) return { mensagem: 'Codigo incorreto.', relogio: null };
+
+  const contas = anotarDesvio(usuarioId, desvio.segundos);
+  const minutos = Math.abs(desvio.minutos) || 1;
+  /* O sinal e do ponto de vista do servidor; para o celular, e o contrario. */
+  const servidorEsta = desvio.segundos > 0 ? 'atrasado' : 'adiantado';
+  const celularEsta = desvio.segundos > 0 ? 'adiantado' : 'atrasado';
+
+  const mensagem =
+    contas > 1
+      ? `O seu codigo esta certo. Quem esta fora de hora e o RELOGIO DO SERVIDOR, ${minutos} minuto(s) ${servidorEsta} — ja sao ${contas} contas errando igual. ` +
+        'Enquanto a hora da hospedagem nao for acertada, nenhum codigo de ninguem vai entrar.'
+      : `O seu codigo esta certo, mas chegou ${minutos} minuto(s) fora de hora: ou o relogio do seu celular esta ${celularEsta}, ou o do servidor esta ${servidorEsta}. ` +
+        'Acerte a hora do celular (automatica) e tente de novo; se outras pessoas estiverem com o mesmo erro, e a hora da hospedagem.';
+
+  return { mensagem, relogio: { segundos: desvio.segundos, minutos: desvio.minutos, servidorEsta, contas } };
 }
 
 function lerDesafio(token) {
@@ -226,10 +281,31 @@ export function registrarSessao(rotas) {
       return concluirEntrada(res, usuario, workspaces);
     }
 
-    contarErroDeSenha(usuario.id);
-    registrarLog(desafio.workspaceId, null, 'seguranca', 'Codigo de segundo fator incorreto', { tipo: 'usuario', id: usuario.id, nome: usuario.nome });
-    const erro = new Error('Codigo incorreto.');
+    const recusa = recusaDeCodigo(usuario.id, usuario.doisFatores.segredo, corpo.codigo);
+    /* Relogio fora de hora nao e tentativa errada: travar a conta por isso
+       somaria uma trava a outra, e quem tentasse de novo depois de acertado o
+       relogio ainda estaria preso. */
+    if (!recusa.relogio) contarErroDeSenha(usuario.id);
+    registrarLog(
+      desafio.workspaceId,
+      null,
+      'seguranca',
+      recusa.relogio
+        ? `Codigo recusado fora de hora por ${Math.abs(recusa.relogio.minutos) || 1} minuto(s) (${recusa.relogio.contas} conta(s) assim na ultima meia hora)`
+        : 'Codigo de segundo fator incorreto',
+      { tipo: 'usuario', id: usuario.id, nome: usuario.nome },
+    );
+    if (recusa.relogio) {
+      console.error(
+        `[2fa] codigo recusado fora de hora por ${Math.abs(recusa.relogio.minutos) || 1} minuto(s)` +
+          (recusa.relogio.contas > 1
+            ? `: ${recusa.relogio.contas} contas diferentes errando igual, o RELOGIO DESTE SERVIDOR esta ${recusa.relogio.servidorEsta}. Acerte a hora da maquina.`
+            : ' (uma conta so: provavelmente o relogio do celular dela).'),
+      );
+    }
+    const erro = new Error(recusa.mensagem);
     erro.codigo = 401;
+    erro.relogio = recusa.relogio;
     throw erro;
   }, { publica: true });
 
@@ -251,9 +327,13 @@ export function registrarSessao(rotas) {
       throw erro;
     }
     if (!conferirCodigo(desafio.segredoPendente, corpo.codigo)) {
-      contarErroDeSenha(desafio.usuarioId);
-      const erro = new Error('O codigo nao confere. Confira a hora do celular e tente o codigo atual do app.');
+      const recusa = recusaDeCodigo(desafio.usuarioId, desafio.segredoPendente, corpo.codigo);
+      if (!recusa.relogio) contarErroDeSenha(desafio.usuarioId);
+      const erro = new Error(
+        recusa.relogio ? recusa.mensagem : 'O codigo nao confere. Confira a hora do celular e tente o codigo atual do app.',
+      );
       erro.codigo = 401;
+      erro.relogio = recusa.relogio;
       throw erro;
     }
     const usuario = achar('usuarios', desafio.usuarioId);

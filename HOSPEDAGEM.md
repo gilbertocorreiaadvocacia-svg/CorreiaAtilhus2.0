@@ -204,6 +204,65 @@ Para atualizar o sistema, clique em **Deploy** no serviço `sistema`. Os dados f
 
 ---
 
+## Ninguém consegue entrar
+
+A verificação em duas etapas é obrigatória, e isso cria um jeito de ficar
+trancado do lado de fora. Em 13/11/2026 aconteceu. Confira nesta ordem.
+
+### 1. O relógio da VPS
+
+Se o relógio do servidor sair de hora por mais de um minuto, **todo código de
+todo mundo passa a falhar ao mesmo tempo** — os celulares estão certos, o
+servidor é que não está. Abra, no navegador, sem precisar de login:
+
+```
+https://SEU_DOMINIO/api/saude
+```
+
+Procure `segundoFator.horaDesteServidor` (ou `agora`). Compare com a hora de
+verdade. Mais de um minuto de diferença é esse o problema, e o conserto é na
+VPS, não no sistema:
+
+```bash
+timedatectl set-ntp true && timedatectl status
+```
+
+Desde a versão `2026-11-13.3`, a própria tela de login diz isso: quando o
+código digitado está certo mas fora de hora, ela informa de quantos minutos e
+de qual relógio desconfiar, em vez de só dizer "Código incorreto".
+
+### 2. Alguém perdeu o celular
+
+Quem ainda entra reinicia pela tela: **Configurações → Membros → Reiniciar 2
+etapas**, ao lado do nome da pessoa. Ela cadastra o app de novo no próximo
+login (a proteção continua, só muda o aparelho). O motivo fica na trilha de
+segurança.
+
+### 3. Nem o administrador entra
+
+Aí não sobra ninguém logado para reiniciar o de ninguém. No EasyPanel, serviço
+`sistema` → **Environment**, acrescente:
+
+```
+CORREIA_RESETAR_2FA=dani@correia.adv.br,leticia@correia.adv.br
+```
+
+Clique em **Deploy**. Na subida, essas contas perdem o aparelho pareado e
+cadastram outro no login seguinte.
+
+- **Apague a variável depois que todo mundo entrar.** Ela é porta de
+  emergência, não ajuste. Enquanto estiver escrita, toda subida reclama no log,
+  e `/api/saude` mostra `segundoFator.destravaLigada: true`.
+- Deixá-la esquecida **não** zera o segundo fator a cada subida: depois que a
+  pessoa pareia o celular novo, a mesma variável não mexe mais nela.
+- Para destravar a mesma pessoa outra vez, mude o valor — um sufixo depois de
+  `#` basta: `dani@correia.adv.br#2`.
+
+Com acesso ao terminal e o sistema parado, a alternativa antiga continua
+valendo: `npm run resetar-2fa -- --email=fulano@... --aplicar`.
+
+---
+
 ## Segurança, em uma lista
 
 - O `.env` da VPS tem as chaves: nunca vai para o GitHub.
@@ -211,3 +270,4 @@ Para atualizar o sistema, clique em **Deploy** no serviço `sistema`. Os dados f
 - Hospedado, o login é a porta de entrada: troque as senhas da equipe por senhas fortes e não compartilhe contas.
 - O repositório é público. Avalie deixá-lo privado antes de ir para produção.
 - Guarde cópias fora da VPS.
+- `CORREIA_RESETAR_2FA` abre a porta de emergência do segundo fator: use e apague.

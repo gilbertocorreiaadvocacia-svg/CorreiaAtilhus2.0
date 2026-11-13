@@ -59,6 +59,7 @@ import { iniciarRelatorioSemanal } from './ia/agente-de-relatorios.js';
 import { iniciarResumosAutomaticos } from './ia/resumo-da-conversa.js';
 import { marcarConcluidasPelaEquipe } from './nucleo/conclusao-pela-equipe.js';
 import { garantirSequenciaNoStatusFollowUp } from './nucleo/followup-padrao.js';
+import { contar2faDestrancado, destrancar2faPeloAmbiente } from './nucleo/destrancar-2fa.js';
 
 iniciarBanco();
 /* Quando ESTA copia subiu. Vai na saude, para dar para distinguir duas. */
@@ -131,6 +132,15 @@ if (HOSPEDADO) {
     process.exit(1);
   }
 }
+/*
+ * A porta de emergencia do segundo fator (nucleo/destrancar-2fa.js).
+ *
+ * Antes de qualquer outro ajuste da subida, e nao depois: no dia em que isto
+ * importa, o escritorio inteiro esta do lado de fora e o que menos interessa e
+ * que uma migracao qualquer falhe antes de a porta abrir.
+ */
+contar2faDestrancado(naSubida('destravar 2fa', () => destrancar2faPeloAmbiente(), null));
+
 /* Depois de semear, para pegar tambem a base que acabou de nascer. */
 const coresTrocadas = naSubida('cores', () => migrarCoresParaTokens({ listar, atualizar }), 0);
 if (coresTrocadas) console.log(`Paleta: ${coresTrocadas} cores da semeadura antiga viraram token de tema.`);
@@ -452,6 +462,20 @@ rotas.get(
          cresceu — so contagens (26/10/2026, diagnostico completo). */
       lentidao: situacaoDaLentidao(),
       registros: Object.fromEntries(['contatos', 'logs', 'creditos', 'notificacoes', 'temposResposta', 'agendamentos', 'tarefas'].map((c) => [c, tabela(c).length])),
+      /*
+       * O segundo fator depende do RELOGIO desta maquina: fora de hora por
+       * mais de um minuto, nenhum codigo de ninguem entra (13/11/2026). `agora`
+       * ali em cima e a hora que este servidor acha que e — basta comparar com
+       * a hora de verdade para saber se e esse o problema.
+       *
+       * `destravaLigada` diz se a porta de emergencia (CORREIA_RESETAR_2FA)
+       * continua escrita no painel. E so um sim/nao, sem e-mail nenhum: serve
+       * para o escritorio lembrar de apagar a variavel depois de entrar.
+       */
+      segundoFator: {
+        horaDesteServidor: new Date().toISOString(),
+        destravaLigada: Boolean(process.env.CORREIA_RESETAR_2FA),
+      },
       /* Cada subida e como o sistema saiu da vez anterior (29/10/2026). */
       vida: vidaDoSistema(),
       /* A IA so liga e desliga por ordem de quem usa o sistema: o que a trava ja barrou (nucleo/banco.js). */

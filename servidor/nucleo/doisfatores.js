@@ -102,6 +102,46 @@ export function conferirCodigo(segredoBase32, codigo, janela = 1, emSegundos = D
   return false;
 }
 
+/*
+ * Quanto o relogio do SERVIDOR esta fora de hora, medido pelo codigo que a
+ * pessoa acabou de digitar.
+ *
+ * POR QUE ISTO EXISTE
+ *
+ * Em 13/11/2026 o escritorio inteiro ficou do lado de fora: duas pessoas, o
+ * mesmo "Codigo incorreto", os dois celulares certos. Quando o relogio do
+ * servidor sai de hora por mais de um minuto, TODO codigo de TODO mundo passa a
+ * falhar ao mesmo tempo — e a tela dizia "Codigo incorreto", que manda todo
+ * mundo procurar defeito no celular, que e o unico lugar onde o defeito nao
+ * esta. Perdeu-se um dia de trabalho com isso.
+ *
+ * Entao, quando o codigo falha, o servidor procura esse mesmo codigo numa
+ * janela larga (20 minutos para cada lado). Se achar, o codigo era bom: quem
+ * esta fora de hora e o relogio daqui, e a tela passa a dizer isso e por
+ * quantos minutos, em vez de acusar o celular de quem esta tentando entrar.
+ *
+ * NAO DEIXA NINGUEM ENTRAR. So mede, depois da recusa. Aceitar um codigo de
+ * dez minutos atras seria abrir a porta que o segundo fator existe para
+ * fechar.
+ */
+export function desvioDoRelogio(segredoBase32, codigo, minutos = 20, emSegundos = Date.now() / 1000) {
+  const limpo = String(codigo || '').replace(/\D/g, '');
+  if (limpo.length !== DIGITOS) return null;
+  const passos = Math.ceil((minutos * 60) / PASSO);
+  /* De dentro para fora: o desvio verdadeiro e o menor que explica o codigo. */
+  for (let i = 2; i <= passos; i += 1) {
+    for (const lado of [-1, 1]) {
+      const deslocamento = lado * i * PASSO;
+      if (codigoDe(segredoBase32, emSegundos + deslocamento) === limpo) {
+        /* O sinal e do ponto de vista do SERVIDOR: positivo, o relogio daqui
+           esta ATRASADO (o codigo e do futuro em relacao a ele). */
+        return { segundos: deslocamento, minutos: Math.round(deslocamento / 60) };
+      }
+    }
+  }
+  return null;
+}
+
 /**
  * O endereco otpauth:// que vira QR e tambem serve digitado.
  *

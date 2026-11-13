@@ -119,6 +119,7 @@ import { testarTranscricaoLocal } from './transcricao-local.js';
 import { testarModeloDeVoz } from './modelo-de-voz.js';
 import { testarLentidao } from './lentidao.js';
 import { testarDoisFatores } from './doisfatores.js';
+import { testarDesvioDoRelogio, testarDestrancar2fa, testarRecusaExplicada } from './trancado-para-fora.js';
 import { testarDeduplicarVozes, testarVozDosAgentes } from './voz-dos-agentes.js';
 import { testarReorganizarAgentes } from './reorganizar-agentes.js';
 import { subirOpenaiFalsa } from './openai-falsa.js';
@@ -362,6 +363,11 @@ async function principal() {
     suites.push(await testarModeloDeVoz());
     suites.push(await testarLentidao());
     suites.push(await testarDoisFatores({ base }));
+    /* Ficar trancado do lado de fora: a explicacao do codigo recusado e a
+       porta de emergencia da hospedagem (13/11/2026). */
+    suites.push(testarDesvioDoRelogio());
+    suites.push(await testarRecusaExplicada({ base }));
+    suites.push(await testarDestrancar2fa({ raiz: RAIZ }));
     /* Cria workspaces novos: depois de quem conta agentes e etiquetas da origem. */
     suites.push(await testarWorkspacesPorArea({ base }));
     /* Depois do workspaces: usa os numeros por QR Code de cada area, ja

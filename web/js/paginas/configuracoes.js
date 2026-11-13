@@ -1373,6 +1373,23 @@ async function secaoMembros(recarregarTela) {
         ]),
         membro.modoFoco ? selo('modo foco', 'alerta') : null,
         selo(papeis[membro.papel]?.nome || membro.papel, membro.papel === 'owner' ? 'ouro' : ''),
+        /*
+         * Reiniciar a verificacao em duas etapas AQUI, na linha, e nao so
+         * dentro de Editar.
+         *
+         * Em 13/11/2026 duas pessoas ficaram do lado de fora e o escritorio
+         * procurou o botao sem achar: ele existia desde sempre, escondido no
+         * fim do formulario de editar membro. Socorro que so se acha depois de
+         * procurar nao e socorro — e no dia em que ele importa, quem procura
+         * esta com pressa.
+         */
+        ehAdmin() && membro.usuarioId !== estado.sessao.usuario.id && membro.usuario?.doisFatoresAtivo
+          ? botao('Reiniciar 2 etapas', {
+              pequeno: true,
+              titulo: `${membro.usuario?.nome} perde o app pareado e cadastra outro no próximo login.`,
+              aoClicar: () => pedirMotivoEReiniciar2fa(membro, recarregarTela),
+            })
+          : null,
         podeConfigurar() ? botao('Editar', { pequeno: true, aoClicar: () => editarMembro(membro, recarregarTela) }) : null,
         !podeConfigurar() || membro.usuarioId === estado.sessao.usuario.id
           ? null

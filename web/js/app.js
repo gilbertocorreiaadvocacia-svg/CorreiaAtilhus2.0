@@ -369,9 +369,15 @@ function telaEntrada(mensagemInicial) {
       class: 'entrada-codigo-campo',
     });
     const avisoCodigo = el('div', { class: 'selo erro mb-3', role: 'alert', 'aria-live': 'assertive', estilo: { display: 'none' } });
+    /* Recusa curta ("Código incorreto.") continua um selo; a longa vira
+       paragrafo. O servidor passou a explicar o relogio do servidor fora de
+       hora numa frase inteira, e frase inteira espremida em pilula nao se le —
+       que e justamente quando ela mais precisa ser lida. */
     const mostrarErro = (texto) => {
+      const comprida = String(texto || '').length > 60;
       avisoCodigo.textContent = texto;
-      avisoCodigo.style.display = 'inline-flex';
+      avisoCodigo.className = comprida ? 'faixa-contexto alerta mb-3' : 'selo erro mb-3';
+      avisoCodigo.style.display = comprida ? 'block' : 'inline-flex';
     };
     const limparErro = () => {
       avisoCodigo.style.display = 'none';
@@ -396,7 +402,15 @@ function telaEntrada(mensagemInicial) {
     };
     return el('form', { class: 'entrada-form', aoSubmit: enviar }, [
       el('h2', { class: 'entrada-passo-titulo', texto: 'Verificação em duas etapas' }),
-      el('p', { class: 'entrada-passo-texto', texto: 'Abra o app autenticador e digite o código de 6 dígitos de “Correia Advogados”. Sem o celular? Digite aqui um dos seus códigos de reserva.' }),
+      /*
+       * NAO prometa codigo de reserva: este sistema nao tem nenhum (ver
+       * rotas/sessao.js, no passo da adesao). A tela prometia, e em 13/11/2026
+       * duas pessoas trancadas do lado de fora procuraram por um codigo que
+       * nunca existiu. Promessa de tela que o servidor nao cumpre custa um dia
+       * de trabalho.
+       */
+      el('p', { class: 'entrada-passo-texto', texto: 'Abra o app autenticador e digite o código de 6 dígitos de “Correia Advogados”.' }),
+      el('p', { class: 'entrada-passo-texto', texto: 'Sem o celular? Peça a um administrador para reiniciar a sua verificação em duas etapas, em Configurações → Membros. Você cadastra o app de novo no login seguinte.' }),
       campo('Código', entrada),
       avisoCodigo,
       botao('Entrar', { tipo: 'principal', submeter: true, grande: true }),
