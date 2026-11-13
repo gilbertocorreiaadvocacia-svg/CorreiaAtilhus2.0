@@ -76,6 +76,7 @@ import { testarAgentesProtegidos } from './agentes-protegidos.js';
 import { testarAcentosDosAgentes } from './acentos-dos-agentes.js';
 import { testarUsoDosTemplates } from './uso-dos-templates.js';
 import { testarBoasVindasAutomaticas } from './boas-vindas-automaticas.js';
+import { testarContextoDaRecepcao, testarRecepcaoNaoRepete } from './recepcao-nao-repete.js';
 import { testarEnvioConfiavelDeTemplate } from './envio-confiavel-de-template.js';
 import { testarIaSemCredito } from './ia-sem-credito.js';
 import { testarJsonComprimido } from './json-comprimido.js';
@@ -427,6 +428,10 @@ async function principal() {
     suites.push(await testarAcentosDosAgentes({ raiz: RAIZ }));
     suites.push(await testarUsoDosTemplates({ raiz: RAIZ }));
     suites.push(await testarBoasVindasAutomaticas({ base, raiz: RAIZ }));
+    /* A segunda metade do "ola" duplicado: a saudacao escrita pelo proprio
+       agente, depois da recepcao automatica (13/11/2026). */
+    suites.push(testarRecepcaoNaoRepete());
+    suites.push(await testarContextoDaRecepcao({ raiz: RAIZ }));
     suites.push(await testarEnvioConfiavelDeTemplate({ raiz: RAIZ }));
     suites.push(await testarIaSemCredito({ raiz: RAIZ }));
     suites.push(await testarJsonComprimido({ base }));

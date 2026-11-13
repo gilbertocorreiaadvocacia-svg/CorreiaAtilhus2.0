@@ -22,6 +22,7 @@ import { tirarAvisoDaSenhaDoGov } from './nucleo/senha-do-gov.js';
 import { aposentadoriaSemInsistir } from './nucleo/aposentadoria-sem-insistir.js';
 import { desqualificarSemCalar } from './nucleo/desqualificar-sem-calar.js';
 import { corrigirAcentosDosAgentes } from './nucleo/acentos-dos-agentes.js';
+import { pararDeRepetirARecepcao } from './nucleo/recepcao-nao-repete.js';
 import { templatesDoPacoteGanhamOArquivo } from './ia/pacotes.js';
 import { garantirModeloDeVoz, situacaoDoModeloDeVoz } from './ia/modelo-de-voz.js';
 import { motorLocal } from './ia/transcricao-local.js';
@@ -250,6 +251,11 @@ if (acentuados.agentes || acentuados.templates || acentuados.conhecimento) {
   console.log(`Acentos: ${acentuados.agentes} agente(s), ${acentuados.templates} template(s) e ${acentuados.conhecimento} item(ns) da base de conhecimento corrigidos.`);
 }
 if (semInsistirNaAposentadoria) console.log(`Aposentadoria: regra de seguir sem a resposta acrescentada em ${semInsistirNaAposentadoria} agente(s).`);
+/* O agente para de dar boas-vindas depois da recepcao automatica (13/11/2026):
+   o roteiro ja instalado mandava se apresentar SEMPRE, e o cliente recebia dois
+   "ola" seguidos. Ver nucleo/recepcao-nao-repete.js. */
+const semRepetirRecepcao = naSubida('recepcao sem repetir', pararDeRepetirARecepcao, 0);
+if (semRepetirRecepcao) console.log(`Recepcao: ${semRepetirRecepcao} agente(s) deixaram de cumprimentar duas vezes.`);
 /* Beatriz destravada, nomes e pasta do Trabalhista limpos, "Agente 26" repetido fora (07/10/2026). */
 const reorganizacaoDeAgentes = naSubida('nomes de agentes', migrarNomesDeAgentes, {});
 if (reorganizacaoDeAgentes.renomeados || reorganizacaoDeAgentes.removidos) {

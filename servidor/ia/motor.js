@@ -235,8 +235,35 @@ export function montarSistema({ agente, contato, workspace }) {
     `- Departamento: ${departamento?.nome || 'sem departamento'}`,
     `- Etiquetas: ${etiquetas.length ? etiquetas.join(', ') : 'nenhuma'}`,
     `- Modo áudio: ${contato.modoAudio ? 'ligado' : 'desligado'}`,
+    /*
+     * A RECEPCAO JA SAIU: nao cumprimente de novo.
+     *
+     * Esta linha dizia so "nao envie o template de boas-vindas de novo", e o
+     * modelo obedecia ao pe da letra: nao mandava o template, e escrevia o
+     * proprio "Ola! Sou a Eduarda, da equipe do escritorio...". Para o cliente
+     * sao duas boas-vindas seguidas, que foi o que o escritorio reclamou em
+     * 13/11/2026 pela segunda vez — a primeira correcao tratou so o caso de
+     * dois TEMPLATES (ver nucleo/boas-vindas-automaticas.js) e nao alcancava a
+     * saudacao escrita pelo proprio modelo.
+     *
+     * A frase precisa ser forte porque ela DISPUTA com o roteiro: o da Triagem
+     * manda se apresentar com "isso acontece SEMPRE" e "voce nunca pula a
+     * apresentacao". Entre as duas, esta tem que ganhar, e por isso ela diz
+     * explicitamente que vale acima do roteiro: o roteiro e uma regra geral,
+     * isto aqui e um fato desta conversa — o cliente JA foi cumprimentado, e
+     * repetir nao e seguir a regra, e parecer um robo travado.
+     *
+     * Vale para todo agente, inclusive os que o escritorio escreveu, porque
+     * entra no contexto de toda resposta. Corrigir os roteiros nao bastaria:
+     * agente que ja existe guarda o proprio roteiro no banco, e o pacote so
+     * vale para escritorio novo.
+     */
     ...(contato.boasVindasEnviadasEm
-      ? ['- O vídeo de boas-vindas do escritório já foi enviado a este cliente, automaticamente, antes da sua primeira resposta. Não envie o template de boas-vindas de novo.']
+      ? [
+          '- ATENÇÃO: a RECEPÇÃO do escritório JÁ FOI ENVIADA a este cliente, automaticamente, antes da sua primeira resposta. Ele já recebeu o cumprimento e a apresentação do escritório (texto e vídeo).',
+          '  Portanto, NESTA conversa: não cumprimente ("olá", "bom dia", "seja bem-vindo"), não se apresente, não diga de que escritório você é e não envie nenhum outro template de recepção. Comece direto pelo assunto, como quem continua uma conversa já começada.',
+          '  Isto vale ACIMA do seu roteiro: se ele mandar se apresentar sempre, a apresentação já aconteceu e repeti-la só faz o cliente receber duas boas-vindas seguidas.',
+        ]
       : []),
     /* Com o modo ligado a resposta sai falada de verdade (executarAgente); o
        agente precisa saber disso para escrever como quem fala, nao como quem
