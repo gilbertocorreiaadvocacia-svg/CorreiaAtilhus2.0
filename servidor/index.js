@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import http from 'node:http';
-import os from 'node:os';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { monitorEventLoopDelay, performance } from 'node:perf_hooks';
 import { HOSPEDADO, HOST, INTERVALO_AGENDADOR, INTERVALO_REATRIBUICAO, PORTA, RAIZ, enderecoPermitido } from './config.js';
 import { prepararHospedagem } from './nucleo/hospedagem.js';
@@ -690,13 +690,16 @@ const servidor = http.createServer(async (req, res) => {
  * concluiria que a porta esta com "outro programa" — inclusive quando era esta
  * mesma pasta subindo de novo no login do Windows.
  *
- * A marca fica fora do HTTP. So pid e pasta, no diretorio temporario, legivel
- * so pelo dono do arquivo. O segundo processo nao grava: a escrita acontece no
- * listen, e o EADDRINUSE nao chega la. Na saida, so apaga se o pid for o dele,
- * para nao sumir com a marca da copia que ficou no ar.
+ * A marca fica fora do HTTP, dentro desta pasta (.correia-instancia.json, no
+ * .gitignore). So pid e pasta, legivel so pelo dono do arquivo. Nao vai para
+ * o diretorio temporario: la o nome era fixo e qualquer um da maquina podia
+ * plantar o arquivo antes. O segundo processo nao grava: a escrita acontece
+ * no listen, e o EADDRINUSE nao chega la. Na saida, so apaga se o pid for o
+ * dele. Se a outra copia esta em outra pasta, o pid de quem escuta a porta
+ * aponta o index.js dela, e a marca se le de la.
  */
-function arquivoDaInstancia() {
-  return path.join(os.tmpdir(), `correia-atilhus-porta-${PORTA}.json`);
+function arquivoDaInstancia(raiz = RAIZ) {
+  return path.join(raiz, '.correia-instancia.json');
 }
 
 function pidVivo(pid) {
@@ -714,14 +717,135 @@ function gravarMarcaDaInstancia() {
   fs.writeFileSync(arquivoDaInstancia(), JSON.stringify({ pid: process.pid, raiz: RAIZ }), { mode: 0o600 });
 }
 
-function lerMarcaDaInstancia() {
+function lerMarcaEm(raiz) {
   try {
-    const marca = JSON.parse(fs.readFileSync(arquivoDaInstancia(), 'utf8'));
+    const marca = JSON.parse(fs.readFileSync(arquivoDaInstancia(raiz), 'utf8'));
     if (!marca?.raiz || !pidVivo(marca.pid)) return null;
     return marca;
   } catch {
     return null;
   }
+}
+
+function pidsNaPortaLinux(porta) {
+  const portaHex = Number(porta).toString(16).toUpperCase().padStart(4, '0');
+  const inodes = new Set();
+  for (const arquivo of ['/proc/net/tcp', '/proc/net/tcp6']) {
+    let texto = '';
+    try {
+      texto = fs.readFileSync(arquivo, 'utf8');
+    } catch {
+      continue;
+    }
+    for (const linha of texto.split('\n').slice(1)) {
+      const cols = linha.trim().split(/\s+/);
+      if (cols.length < 10 || cols[3] !== '0A') continue;
+      const portaDaLinha = (cols[1].split(':')[1] || '').toUpperCase();
+      if (portaDaLinha !== portaHex) continue;
+      inodes.add(cols[9]);
+    }
+  }
+  if (!inodes.size) return [];
+  const pids = [];
+  let nomes = [];
+  try {
+    nomes = fs.readdirSync('/proc');
+  } catch {
+    return [];
+  }
+  for (const nome of nomes) {
+    if (!/^\d+$/.test(nome)) continue;
+    let fds = [];
+    try {
+      fds = fs.readdirSync(`/proc/${nome}/fd`);
+    } catch {
+      continue;
+    }
+    for (const fd of fds) {
+      let alvo = '';
+      try {
+        alvo = fs.readlinkSync(`/proc/${nome}/fd/${fd}`);
+      } catch {
+        continue;
+      }
+      const inode = /^socket:\[(\d+)\]$/.exec(alvo);
+      if (inode && inodes.has(inode[1])) {
+        pids.push(Number(nome));
+        break;
+      }
+    }
+  }
+  return pids;
+}
+
+function comandoDoPid(pid) {
+  if (process.platform === 'win32') {
+    const consulta = spawnSync(
+      'powershell.exe',
+      ['-NoProfile', '-Command', `(Get-CimInstance Win32_Process -Filter "ProcessId=${Number(pid)}").CommandLine`],
+      { encoding: 'utf8', timeout: 4000, windowsHide: true },
+    );
+    return consulta.stdout || '';
+  }
+  try {
+    return fs.readFileSync(`/proc/${pid}/cmdline`);
+  } catch {
+    return '';
+  }
+}
+
+function pidsNaPorta(porta) {
+  if (process.platform === 'win32') {
+    const consulta = spawnSync('netstat', ['-ano', '-p', 'tcp'], { encoding: 'utf8', timeout: 4000, windowsHide: true });
+    const pids = new Set();
+    for (const linha of String(consulta.stdout || '').split('\n')) {
+      if (!/LISTENING/i.test(linha)) continue;
+      const cols = linha.trim().split(/\s+/);
+      const endereco = cols[1] || '';
+      const pid = Number(cols[cols.length - 1]);
+      if (endereco.endsWith(`:${porta}`) && pid > 0) pids.add(pid);
+    }
+    return [...pids];
+  }
+  return pidsNaPortaLinux(porta);
+}
+
+function raizPeloComando(pid, bruto) {
+  const partes = Buffer.isBuffer(bruto)
+    ? bruto.toString('utf8').split('\0').filter(Boolean)
+    : String(bruto).match(/"[^"]+"|\S+/g)?.map((trecho) => trecho.replace(/^"|"$/g, '')) || [];
+  const script = partes.find((parte) => /servidor[/\\]index\.js$/.test(parte));
+  if (!script) return null;
+  if (path.isAbsolute(script)) return path.resolve(path.dirname(script), '..');
+  let cwd = process.cwd();
+  if (process.platform !== 'win32') {
+    try {
+      cwd = fs.readlinkSync(`/proc/${pid}/cwd`);
+    } catch {
+      /* fica o diretorio deste processo */
+    }
+  }
+  return path.resolve(path.dirname(path.resolve(cwd, script)), '..');
+}
+
+function raizDeQuemOuveAPorta() {
+  for (const pid of pidsNaPorta(PORTA)) {
+    if (pid === process.pid) continue;
+    const raiz = raizPeloComando(pid, comandoDoPid(pid));
+    if (raiz) return raiz;
+  }
+  return null;
+}
+
+function lerMarcaDaInstancia() {
+  const outraRaiz = raizDeQuemOuveAPorta();
+  if (outraRaiz) {
+    const deLa = lerMarcaEm(outraRaiz);
+    if (deLa) return deLa;
+  }
+  const daqui = lerMarcaEm(RAIZ);
+  if (daqui && daqui.pid !== process.pid) return daqui;
+  return null;
 }
 
 function apagarMarcaDaInstancia() {

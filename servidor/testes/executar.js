@@ -327,7 +327,7 @@ async function principal() {
     }
 
     suites.push(await testarBatidaDaHospedagem({ base }));
-    suites.push(await testarSaudeExigeSessao({ base }));
+    suites.push(await testarSaudeExigeSessao({ base, raiz: RAIZ }));
     suites.push(await testarSimuladorEOficial({ base }));
     suites.push(await testarQrCode({ base, evolucao, chaveEvolucao: CHAVE_EVOLUCAO }));
     suites.push(await testarOrigens({ base, evolucao, chaveEvolucao: CHAVE_EVOLUCAO }));
