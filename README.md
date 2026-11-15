@@ -30,8 +30,8 @@ ficam em `windows/`: `INICIAR.bat` sobe com a janela visível, e
 `instalar-inicio.cmd` liga o início automático (o sistema passa a subir sozinho,
 escondido, a cada login).
 
-Abre em `http://localhost:4477`. Primeiro acesso: `admin@correia.adv.br` /
-`correia2026` — **troque a senha em Configurações › Membros assim que entrar.**
+Abre em `http://localhost:4477`. No primeiro acesso, use o e-mail e a senha provisória
+definidos na instalação (a senha não fica documentada aqui) — **troque a senha em Configurações › Membros assim que entrar.**
 
 **Para hospedar numa VPS** (HTTPS, WhatsApp e cópia diária, tudo em Docker),
 siga o [HOSPEDAGEM.md](HOSPEDAGEM.md). Hospedado, a senha padrão não entra: a do
