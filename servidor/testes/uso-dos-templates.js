@@ -15,7 +15,7 @@ import { suite } from './apoio.js';
  *  - cada saida com template conta uma vez, e a falha conta como falha, nunca
  *    como enviada;
  *  - mensagem sem template nao mexe em contador nenhum;
- *  - o motivo da falha sai em /api/saude sem telefone (a rota e aberta);
+ *  - o motivo da falha sai em /api/saude sem telefone (a rota pede sessao de administrador);
  *  - medir nunca derruba o envio (template que nao existe mais);
  *  - a copia do template para outro escritorio comeca do zero.
  */

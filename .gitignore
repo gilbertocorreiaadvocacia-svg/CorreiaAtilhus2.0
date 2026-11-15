@@ -79,6 +79,10 @@ npm-debug.log*
 # Aviso local desta maquina, nao pertence ao repositorio.
 NAO-RODE-DAQUI.txt
 
+# Marca da guarda de porta ocupada: pid e pasta de quem esta no ar.
+# Nasce ao subir e some ao sair. Nao e dado de cliente, mas tambem nao e codigo.
+.correia-instancia.json
+
 # ---------------------------------------------------------------
 # Segredos
 # ---------------------------------------------------------------

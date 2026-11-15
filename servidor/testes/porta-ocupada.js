@@ -65,15 +65,15 @@ export async function testarPortaOcupada({ raiz, portaLivre }) {
   }
 
   try {
-    if (!(await esperarNoAr(`http://127.0.0.1:${porta}/api/saude`))) {
+    if (!(await esperarNoAr(`http://127.0.0.1:${porta}/api/vivo`))) {
       s.ok('a primeira copia subiu', false, 'nao respondeu na porta');
       limpar();
       return s;
     }
     s.ok('a primeira copia subiu e ocupou a porta', true);
 
-    const saude = await (await fetch(`http://127.0.0.1:${porta}/api/saude`)).json();
-    s.ok('a saude diz de qual pasta a copia roda', path.resolve(saude.raiz) === path.resolve(raiz), saude.raiz);
+    const semSessao = await fetch(`http://127.0.0.1:${porta}/api/saude`);
+    s.ok('a saude sem cookie nao entrega a pasta', semSessao.status === 401, String(semSessao.status));
 
     /* O caso que enganou: outra pasta. */
     const outra = await tentarSubir(copia, dadosOutra);

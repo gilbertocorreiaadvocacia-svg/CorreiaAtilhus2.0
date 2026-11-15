@@ -84,7 +84,7 @@ export async function testarHospedagem({ raiz, portaLivre }) {
         CORREIA_EVOLUTION_WEBHOOK: 'http://sistema:4477',
       }),
     );
-    if (!s.ok('com a senha no ambiente, sobe', await esperarNoAr(`${base}/api/saude`))) return s;
+    if (!s.ok('com a senha no ambiente, sobe', await esperarNoAr(`${base}/api/vivo`))) return s;
 
     s.ok('a senha padrao nao entra', (await cliente(base).entrarSenha()).status !== 200);
 

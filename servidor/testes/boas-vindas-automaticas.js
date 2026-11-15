@@ -323,7 +323,7 @@ process.exit(0);
     const desligou = await api.put('/api/boas-vindas', { automatica: false });
     s.ok('desligar guarda a escolha do template e zera a hora', desligou.dados?.automatica === false && desligou.dados?.ligadaEm === null && desligou.dados?.templateId === comVideo.id, JSON.stringify(desligou.dados));
 
-    const saude = (await fetch(`${base}/api/saude`).then((x) => x.json())).varredura?.escritorios || [];
+    const saude = (await api.get('/api/saude')).dados?.varredura?.escritorios || [];
     s.ok('a saude mostra a chave e o template', saude.some((e) => e.boasVindas && 'ligada' in e.boasVindas && 'temVideo' in e.boasVindas), JSON.stringify(saude.map((e) => e.boasVindas)));
 
     await api.delete(`/api/templates/${textoDeTemplate.id}`);

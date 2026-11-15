@@ -86,6 +86,9 @@ export function cliente(base) {
     put: (c, corpo, o) => chamar(c, { ...o, metodo: 'PUT', corpo }),
     delete: (c, o) => chamar(c, { ...o, metodo: 'DELETE' }),
     entrar,
+    /* O cookie cru, para um pedido HTTP que precise ver o corpo comprimido
+       (fetch descomprime sozinho e esconde o que o teste quer medir). */
+    cookie: () => cookie,
     /* O passo cru do login, para o teste do proprio segundo fator afirmar o que
        vem antes do codigo. */
     entrarSenha: (email = 'admin@correia.adv.br', senha = 'correia2026') =>

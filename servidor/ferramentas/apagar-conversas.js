@@ -50,7 +50,9 @@ const DA_CONVERSA = ['logs', 'creditos', 'compromissos', 'contratos', 'notificac
 
 async function servidorNoAr() {
   try {
-    const resposta = await fetch(`http://127.0.0.1:${PORTA}/api/saude`, { signal: AbortSignal.timeout(1500) });
+    /* /api/vivo, nao /api/saude: a saude exige administrador. 401 pareceria
+       "servidor parado", e esta ferramenta gravaria por cima da base no ar. */
+    const resposta = await fetch(`http://127.0.0.1:${PORTA}/api/vivo`, { signal: AbortSignal.timeout(1500) });
     return resposta.ok;
   } catch {
     return false;

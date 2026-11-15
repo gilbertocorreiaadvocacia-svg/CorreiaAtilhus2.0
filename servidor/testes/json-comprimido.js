@@ -1,7 +1,7 @@
 import http from 'node:http';
 import zlib from 'node:zlib';
 
-import { suite } from './apoio.js';
+import { cliente, suite } from './apoio.js';
 
 /**
  * O JSON da API sai comprimido (nucleo/http.js, responderJson), 03/11/2026.
@@ -16,7 +16,8 @@ import { suite } from './apoio.js';
  *  - resposta pequena nao e comprimida: o cabecalho extra custaria mais;
  *  - a compressao realmente encolhe (a lista de saude vai a menos de 40%);
  *  - resposta de erro continua JSON legivel.
- * A rota usada e a de saude, que e publica; o caminho de compressao e o mesmo de
+ * A rota usada e a de saude, com sessao de administrador: o corpo e grande o
+ * bastante para a compressao aparecer. O caminho de compressao e o mesmo de
  * toda resposta JSON, e o resto da suite (que usa fetch, e fetch pede gzip)
  * passa por ele o tempo todo.
  */
@@ -36,13 +37,18 @@ function pedir(base, caminho, cabecalhos = {}) {
 export async function testarJsonComprimido({ base }) {
   const s = suite('O JSON da API sai comprimido quando o navegador aceita');
 
-  const puro = await pedir(base, '/api/saude');
-  const comGzip = await pedir(base, '/api/saude', { 'Accept-Encoding': 'gzip, deflate, br' });
-  const soBrotli = await pedir(base, '/api/saude', { 'Accept-Encoding': 'br' });
+  const api = cliente(base);
+  const entrou = await api.entrar();
+  if (!s.ok('entra como administrador para ler a saude', entrou.status === 200, String(entrou.status))) return s;
+  const sessao = { Cookie: api.cookie() };
+
+  const puro = await pedir(base, '/api/saude', sessao);
+  const comGzip = await pedir(base, '/api/saude', { ...sessao, 'Accept-Encoding': 'gzip, deflate, br' });
+  const soBrotli = await pedir(base, '/api/saude', { ...sessao, 'Accept-Encoding': 'br' });
   const pequeno = await pedir(base, '/api/vivo', { 'Accept-Encoding': 'gzip' });
   const naoAchou = await pedir(base, '/api/rota-que-nao-existe', { 'Accept-Encoding': 'gzip' });
 
-  if (!s.ok('a rota publica de saude responde e e maior que 1 KB (senao este teste nao prova nada)', puro.status === 200 && puro.corpo.length > 1024, `${puro.status} ${puro.corpo.length} bytes`)) return s;
+  if (!s.ok('a saude, com sessao de administrador, responde e e maior que 1 KB (senao este teste nao prova nada)', puro.status === 200 && puro.corpo.length > 1024, `${puro.status} ${puro.corpo.length} bytes`)) return s;
 
   s.ok('sem Accept-Encoding: JSON puro, como sempre saiu', !puro.cabecalhos['content-encoding'] && JSON.parse(puro.corpo.toString('utf8')).ok === true);
 
