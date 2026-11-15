@@ -29,7 +29,7 @@ automático acima.
 **Primeiro acesso:**
 
 - E-mail: `admin@correia.adv.br`
-- Senha: `correia2026`
+- Senha: a senha provisória definida na instalação (não fica documentada aqui)
 
 Troque a senha em **Configurações › Membros** assim que entrar.
 
