@@ -17,6 +17,11 @@
 
 name: Conferencia
 
+# O token deste workflow so le o repositorio. A conferencia nao publica
+# pacote, nao escreve no GitHub e nao pede outro escopo.
+permissions:
+  contents: read
+
 # `push` so na main, e `pull_request` no resto. Com push em todos os ramos, todo
 # commit de uma PR era conferido DUAS vezes, uma por evento, gastando o dobro de
 # tempo de maquina e enchendo a PR de checagem repetida. O ramo sem PR aberta

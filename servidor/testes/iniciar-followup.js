@@ -1,4 +1,113 @@
+import { spawn } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+
 import { cliente, suite } from './apoio.js';
+
+const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+
+/* Quarta-feira 11:00 em Sao Paulo. A semente atende seg-sex 09:00-18:00 e
+   nao atende no domingo (nucleo/seed.js). 30 min depois ainda e expediente,
+   entao proximoHorarioValido devolve o proprio instante. */
+const DIA_UTIL_NO_EXPEDIENTE = '2026-11-18T14:00:00.000Z';
+
+/**
+ * `agendarFollowupsDoStatus` nao aceita `agora`: le `Date.now()` no processo
+ * que chama. O botao HTTP roda no servidor da suite, cujo relogio e o do dia.
+ * Aqui o relogio fica congelado so neste processo, antes de importar a mesma
+ * funcao, com o expediente da semente. Domingo empurra para a proxima janela;
+ * este instante nao.
+ */
+function prazoDaPrimeiraMensagem(instanteIso) {
+  const pasta = fs.mkdtempSync(path.join(os.tmpdir(), 'followup-relogio-'));
+  const url = (arquivo) => JSON.stringify(pathToFileURL(path.join(RAIZ, arquivo)).href);
+  const script = path.join(pasta, 'relogio.mjs');
+  fs.writeFileSync(
+    script,
+    `const FIXO = Date.parse(${JSON.stringify(instanteIso)});
+const Real = Date;
+function Relogio(...args) {
+  if (new.target) return args.length === 0 ? new Real(FIXO) : new Real(...args);
+  return new Real(FIXO).toString();
+}
+Relogio.now = () => FIXO;
+Relogio.parse = (...a) => Real.parse(...a);
+Relogio.UTC = (...a) => Real.UTC(...a);
+Relogio.prototype = Real.prototype;
+Object.setPrototypeOf(Relogio, Real);
+globalThis.Date = Relogio;
+
+const { iniciarBanco, inserir, listar, encerrarBanco } = await import(${url('servidor/nucleo/banco.js')});
+const { iniciarFollowupDoStatus } = await import(${url('servidor/automacao/followup.js')});
+iniciarBanco();
+inserir('workspaces', {
+  id: 'w1',
+  nome: 'Correia',
+  horarioComercial: {
+    fuso: 'America/Sao_Paulo',
+    dias: {
+      0: null,
+      1: { de: '09:00', ate: '18:00' },
+      2: { de: '09:00', ate: '18:00' },
+      3: { de: '09:00', ate: '18:00' },
+      4: { de: '09:00', ate: '18:00' },
+      5: { de: '09:00', ate: '18:00' },
+      6: { de: '09:00', ate: '12:00' },
+    },
+  },
+});
+const status = inserir('status', {
+  id: 'st-fu',
+  workspaceId: 'w1',
+  nome: 'Follow up',
+  followups: [
+    { id: 'p1', templateId: 't1', minutos: 30 },
+    { id: 'p2', templateId: 't1', minutos: 2880 },
+  ],
+});
+const contato = inserir('contatos', {
+  id: 'c1',
+  workspaceId: 'w1',
+  conexaoId: 'cx',
+  telefone: '5581900000000',
+  nome: 'Lead',
+  statusId: status.id,
+  estado: 'aberto',
+});
+iniciarFollowupDoStatus(contato, status, { autor: { tipo: 'membro', nome: 'Teste' } });
+const primeira = listar('agendamentos', { contatoId: 'c1', tipo: 'followup' })
+  .sort((a, b) => String(a.quando).localeCompare(String(b.quando)))[0];
+const delta = primeira ? Date.parse(primeira.quando) - FIXO : null;
+console.log(JSON.stringify({ delta }));
+await encerrarBanco();
+`,
+  );
+
+  return new Promise((resolve) => {
+    const p = spawn(process.execPath, [script], {
+      env: {
+        ...process.env,
+        CORREIA_DADOS: pasta,
+        CORREIA_SUPABASE_URL: '',
+        CORREIA_SUPABASE_CHAVE: '',
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let texto = '';
+    p.stdout.on('data', (d) => (texto += d));
+    p.stderr.on('data', (d) => (texto += d));
+    p.on('close', (codigo) => {
+      try {
+        fs.rmSync(pasta, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+      } catch {
+        /* a pasta temporaria deste relogio nao decide o teste */
+      }
+      resolve({ codigo, texto });
+    });
+  });
+}
 
 /**
  * Follow-up em quem JA esta no status (04/11/2026).
@@ -56,8 +165,19 @@ export async function testarIniciarFollowup({ base }) {
   const depois = await aSair(a);
   s.ok('o botao da conversa comeca a sequencia inteira', iniciou.status === 200 && depois.length === passos, `${iniciou.status} ${depois.length} de ${passos}`);
   s.ok('e deixa o registro de quem iniciou, no historico', await log(a, 'followup_iniciado'));
-  const primeira = depois[0]?.quando ? Date.parse(depois[0].quando) - Date.now() : 0;
-  s.ok('a primeira mensagem sai no prazo do passo (30 min), nao na hora', primeira > 25 * 60000 && primeira < 40 * 60000, `${Math.round(primeira / 60000)} min`);
+  const medido = await prazoDaPrimeiraMensagem(DIA_UTIL_NO_EXPEDIENTE);
+  let minutos = null;
+  try {
+    const linha = medido.texto.split('\n').map((l) => l.trim()).filter((l) => l.startsWith('{')).pop();
+    minutos = JSON.parse(linha).delta / 60000;
+  } catch {
+    /* minutos fica null e o ok abaixo mostra a saida */
+  }
+  s.ok(
+    'a primeira mensagem sai no prazo do passo (30 min), nao na hora',
+    medido.codigo === 0 && minutos > 25 && minutos < 40,
+    minutos == null ? medido.texto.slice(-400) : `${Math.round(minutos)} min`,
+  );
 
   const quandoAntes = depois.map((x) => x.quando).join();
   const denovo = await api.post(`/api/contatos/${a}/iniciar-followup`, {});

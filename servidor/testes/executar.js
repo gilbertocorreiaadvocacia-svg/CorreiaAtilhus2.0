@@ -300,20 +300,57 @@ async function principal() {
   sistema.stdout.on('data', (d) => (saidaDoSistema += d));
   sistema.stderr.on('data', (d) => (saidaDoSistema += d));
 
-  function encerrar() {
+  /* O SIGTERM pede para o servidor gravar e sair (ate 3 s). Apagar a pasta
+     no meio dessa gravacao da ENOTEMPTY e, se estourar antes do relatorio,
+     o placar nao aparece e o processo morre sem dizer quantos testes falharam. */
+  function esperarSaida(processo, tetoMs) {
+    if (!processo || processo.exitCode !== null || processo.signalCode !== null) return Promise.resolve();
+    return new Promise((resolve) => {
+      const timer = setTimeout(resolve, tetoMs);
+      processo.once('exit', () => {
+        clearTimeout(timer);
+        resolve();
+      });
+    });
+  }
+
+  async function encerrar() {
     try {
       sistema.kill();
     } catch {
       /* ja morreu */
     }
-    servicoFalso.close();
-    anthropicFalsa.close();
-    openaiFalsa.close();
-    zapsignFalsa.close();
-    juriFalso.close();
-    redesFalsas.close();
-    liderhubFalsa.close();
-    fs.rmSync(pastaDados, { recursive: true, force: true });
+    for (const falso of [servicoFalso, anthropicFalsa, openaiFalsa, zapsignFalsa, juriFalso, redesFalsas, liderhubFalsa]) {
+      try {
+        falso.close();
+      } catch {
+        /* ja fechou */
+      }
+    }
+    await esperarSaida(sistema, 4000);
+    try {
+      fs.rmSync(pastaDados, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    } catch (erro) {
+      console.error(`Nao consegui apagar a pasta temporaria (${erro.code || erro.message}). O placar acima vale do mesmo jeito.`);
+    }
+  }
+
+  function imprimirPlacar(lista) {
+    let total = 0;
+    let falharam = 0;
+    for (const s of lista) {
+      console.log(`\n${s.nome}`);
+      for (const r of s.resultados) {
+        total += 1;
+        if (!r.passou) falharam += 1;
+        console.log(`  ${r.passou ? 'ok   ' : 'FALHOU'} ${r.titulo}`);
+        if (!r.passou && r.detalhe) console.log(`         ${r.detalhe}`);
+      }
+    }
+    console.log(
+      `\n${total - falharam} de ${total} passaram${falharam ? `, ${falharam} falharam` : ''}.`,
+    );
+    return falharam;
   }
 
   try {
@@ -321,7 +358,7 @@ async function principal() {
     if (!noAr) {
       console.error('O sistema nao subiu. Saida do servidor:\n');
       console.error(saidaDoSistema);
-      encerrar();
+      await encerrar();
       process.exit(1);
     }
 
@@ -483,28 +520,15 @@ async function principal() {
   } catch (erro) {
     console.error('\nA suite quebrou antes de terminar:', erro.message);
     console.error(erro.stack);
-    encerrar();
+    imprimirPlacar(suites);
+    await encerrar();
     process.exit(1);
   }
 
-  encerrar();
-
-  /* Relatorio ---------------------------------------------------------- */
-  let total = 0;
-  let falharam = 0;
-  for (const s of suites) {
-    console.log(`\n${s.nome}`);
-    for (const r of s.resultados) {
-      total += 1;
-      if (!r.passou) falharam += 1;
-      console.log(`  ${r.passou ? 'ok   ' : 'FALHOU'} ${r.titulo}`);
-      if (!r.passou && r.detalhe) console.log(`         ${r.detalhe}`);
-    }
-  }
-
-  console.log(
-    `\n${total - falharam} de ${total} passaram${falharam ? `, ${falharam} falharam` : ''}.`,
-  );
+  /* O placar sai antes da limpeza: uma pasta que resiste nao esconde o
+     resultado, e o codigo de saida e o das falhas, nao o do rmSync. */
+  const falharam = imprimirPlacar(suites);
+  await encerrar();
   process.exit(falharam ? 1 : 0);
 }
 
