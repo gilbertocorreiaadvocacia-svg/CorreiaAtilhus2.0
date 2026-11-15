@@ -10,6 +10,7 @@ import { AGENTE_26 } from './pacotes/suporte.js';
 import { EDUARDA } from './pacotes/triagem.js';
 import { TRABALHISTA } from './pacotes/trabalhista.js';
 import { REGRAS_INSTITUCIONAIS } from './pacotes/comum.js';
+import { CAMINHO_SEGURO_DO_MEU_INSS } from './caminho-seguro-do-meu-inss.js';
 
 /**
  * Pacotes de agentes por area.
@@ -45,16 +46,20 @@ import { REGRAS_INSTITUCIONAIS } from './pacotes/comum.js';
  */
 
 /*
- * Senha: a do gov.br saiu da regra em 26/10/2026, a pedido do escritorio — ele
- * usa esse acesso no caso do cliente, e o agente respondia "nunca compartilhe
- * sua senha do gov.br, nao precisamos dela" (ver a regra da senha do gov.br em
- * montarSistema, ia/motor.js). O texto antigo sai dos agentes ja instalados na
- * subida (nucleo/senha-do-gov.js).
+ * Senha (C-TL1, 15/11/2026, autorizado pelo Dr. Gilberto): o agente nunca pede
+ * nem aceita senha nenhuma pelo WhatsApp, inclusive a do gov.br e a do Meu
+ * INSS. Entre 26/10 e 15/11/2026 a senha do gov.br tinha saido da regra e o
+ * roteiro de auxilio-acidente a pedia como documento obrigatorio: ela ficava em
+ * texto aberto na conversa, no volume da VPS e no historico mandado a IA.
+ * As duas regras antigas saem dos agentes ja instalados na subida
+ * (nucleo/senha-do-gov.js), trocadas pela REGRA_DA_SENHA.
  */
 export const REGRA_DA_SENHA_ATE_26_10 =
   '- Nunca peca senha do gov.br, de banco ou de aplicativo. Se o cliente mandar uma senha, diga que nao precisa e nao a repita em lugar nenhum, nem no resumo.';
-export const REGRA_DA_SENHA =
+export const REGRA_DA_SENHA_26_10_A_15_11 =
   '- Nunca peça senha de banco ou de aplicativo de pagamento. Se o cliente mandar uma dessas, diga que não precisa. Não repita senha nenhuma em lugar nenhum, nem no resumo.';
+export const REGRA_DA_SENHA =
+  `- Nunca peça nem aceite senha de nenhum tipo: gov.br, Meu INSS, banco ou aplicativo. Se o cliente mandar uma senha, não a repita em lugar nenhum, nem no resumo; diga com gentileza que ele não deve mandar senha por aqui e ofereça o caminho seguro: ${CAMINHO_SEGURO_DO_MEU_INSS}.`;
 
 /* As regras que valem para todo agente do pacote Civel. */
 const REGRAS_DE_SEMPRE = [

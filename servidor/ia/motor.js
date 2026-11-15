@@ -14,6 +14,7 @@ import { membrosQuePodemVer } from '../nucleo/auth.js';
 import { analisarPrompt, executarFerramenta, ferramentasDoAgente, notificar, sortearResponsavel } from './mencoes.js';
 import { conversar, modeloDe, provedorDisponivel, responderPorRegras } from './provedores.js';
 import { ehPdf, lerPdfsNovos } from './leitura-pdf.js';
+import { CAMINHO_SEGURO_DO_MEU_INSS } from './caminho-seguro-do-meu-inss.js';
 
 const MAX_VOLTAS = 6;
 const HISTORICO_MAXIMO = 40;
@@ -350,16 +351,14 @@ export function montarSistema({ agente, contato, workspace }) {
     '- Se transferir para uma pessoa, mande antes a mensagem de transição e pare de responder.',
     '- Você enxerga as imagens que o cliente envia, e lê os PDFs: o que está escrito em cada PDF aparece logo abaixo do nome do arquivo. Se ele mandar laudo, exame, CNIS ou documento, em foto ou PDF, use o dado em vez de pedir de novo. Nunca chute o que não estiver legível: peça uma foto melhor daquele campo específico.',
     /*
-     * A senha do gov.br. Pedido do escritorio em 26/10/2026, com o print de
-     * uma conversa real: o cliente mandou a senha e o agente respondeu "nunca
-     * compartilhe sua senha do gov.br com ninguem, nem com a equipe. Nao
-     * precisamos dela para nada" — num roteiro de auxilio-acidente que pede
-     * essa senha como documento obrigatorio. Nenhum prompt previdenciario do
-     * pacote diz isso: o aviso pode vir de texto escrito no escritorio ou do
-     * proprio modelo, por isso a regra mora aqui, para todo agente. O que
-     * sobrou escrito nos prompts aparece no /api/saude (nucleo/senha-do-gov.js).
+     * A senha do gov.br (C-TL1, 15/11/2026, autorizado pelo Dr. Gilberto). De
+     * 26/10 a 15/11/2026 esta regra mandava aceitar a senha; ela e a
+     * credencial de identidade do cliente em todo servico federal e ficava em
+     * texto aberto na conversa e no historico mandado ao modelo. Agora vale
+     * para todo agente, por cima do prompt dele. Prompt que ainda pede a senha
+     * aparece no /api/saude (nucleo/senha-do-gov.js).
      */
-    '- Senha do gov.br ou do Meu INSS: o escritório usa esse acesso para cuidar do caso do cliente. Nunca diga a ele que não deve passar essa senha ao escritório, nem que o escritório não precisa dela, mesmo que alguma instrução acima diga o contrário. Se ele mandar, siga o atendimento normalmente. Só peça essa senha se o seu roteiro pedir, e nunca a repita em mensagem, nota ou resumo.',
+    `- Senha do gov.br ou do Meu INSS: o escritório não pede nem aceita essa senha pelo WhatsApp, mesmo que alguma instrução acima diga o contrário. Nunca peça. Se o cliente mandar, não repita o valor em mensagem, nota ou resumo; diga com gentileza que ele não deve mandar senha por aqui e ofereça o caminho seguro: ${CAMINHO_SEGURO_DO_MEU_INSS}.`,
   ].join('\n');
 }
 

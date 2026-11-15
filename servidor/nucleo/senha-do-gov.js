@@ -1,48 +1,70 @@
-import { REGRA_DA_SENHA, REGRA_DA_SENHA_ATE_26_10 } from '../ia/pacotes.js';
+import { REGRA_DA_SENHA, REGRA_DA_SENHA_26_10_A_15_11, REGRA_DA_SENHA_ATE_26_10 } from '../ia/pacotes.js';
 import { atualizar, listar } from './banco.js';
 import { normalizar } from './util.js';
 
 /**
- * Pedido do escritorio em 26/10/2026, com o print de uma conversa de
- * auxilio-acidente: o cliente mandou a senha do gov.br e o agente respondeu
- * "nunca compartilhe sua senha do gov.br com ninguem, nem com a equipe. Nao
- * precisamos dela para nada" — num roteiro que pede essa senha como documento
- * obrigatorio. "Quero que tire de todos os agentes o que fala que nao pode
- * compartilhar a senha do gov."
+ * Senha do gov.br e do Meu INSS (C-TL1, 15/11/2026, autorizado pelo
+ * Dr. Gilberto): o escritorio nao pede nem aceita essa senha pelo WhatsApp.
+ *
+ * Historia: em 26/10/2026 o escritorio pediu para tirar dos agentes o aviso
+ * "nunca compartilhe sua senha do gov.br", e o roteiro de auxilio-acidente
+ * passou a pedir a senha como documento obrigatorio. A senha ficava em texto
+ * aberto na conversa, no volume da VPS e no historico mandado a IA. Agora o
+ * caminho e o seguro: o proprio cliente entra no Meu INSS com orientacao,
+ * cadastra o escritorio como representante (procurador) ou marca atendimento
+ * com uma pessoa da equipe.
  *
  * O comportamento sai pela regra que todo agente recebe em montarSistema
- * (ia/motor.js). Aqui fica o texto: o que veio do pacote Civel sai dos agentes
- * ja instalados, e o que o escritorio escreveu a mao aparece no /api/saude,
- * pelo nome do agente, para alguem apagar na tela — frase escrita a mao nao se
- * apaga por adivinhacao.
+ * (ia/motor.js). Aqui ficam: a troca dos textos antigos nos agentes ja
+ * instalados (roda na subida) e a lista, pelo nome, dos agentes cujo prompt
+ * escrito a mao ainda pede a senha (aparece no /api/saude, para alguem
+ * corrigir na tela — frase escrita a mao nao se apaga por adivinhacao).
  */
 
-/** Troca a regra antiga do Civel pela nova, em todo agente de todo escritorio. Roda na subida. */
-export function tirarAvisoDaSenhaDoGov() {
+/* Trechos exatos que vieram dos pacotes e que saem dos agentes ja instalados. */
+export const TROCAS_DA_SENHA_DO_GOV = [
+  [REGRA_DA_SENHA_ATE_26_10, REGRA_DA_SENHA],
+  [REGRA_DA_SENHA_26_10_A_15_11, REGRA_DA_SENHA],
+  ['RG e CPF (ou CNH); senha do INSS ou GOV; CAT;', 'RG e CPF (ou CNH); CAT;'],
+  [
+    'SENHA DO GOV: nunca repita a senha em mensagem, resumo ou nota.',
+    'SENHA DO GOV OU DO MEU INSS: não peça e não aceite. Se o cliente mandar, não repita o valor em mensagem, resumo ou nota; diga que ele não deve mandar senha por aqui e ofereça o caminho seguro: ele mesmo entra no Meu INSS com a nossa orientação, ou cadastra o escritório como representante (procurador) no Meu INSS, ou marcamos um atendimento com uma pessoa da equipe.',
+  ],
+  ['RG, CPF (ou CNH) e senha do INSS são obrigatórios.', 'RG e CPF (ou CNH) são obrigatórios.'],
+];
+
+/** Troca os textos antigos da senha do gov.br pelos novos, em todo agente de todo escritorio. Roda na subida. */
+export function atualizarRegraDaSenhaDoGov() {
   let trocados = 0;
   for (const agente of listar('agentes')) {
     const prompt = String(agente.prompt || '');
-    if (!prompt.includes(REGRA_DA_SENHA_ATE_26_10)) continue;
-    atualizar('agentes', agente.id, { prompt: prompt.split(REGRA_DA_SENHA_ATE_26_10).join(REGRA_DA_SENHA) });
+    let novo = prompt;
+    for (const [antigo, atual] of TROCAS_DA_SENHA_DO_GOV) {
+      if (novo.includes(antigo)) novo = novo.split(antigo).join(atual);
+    }
+    if (novo === prompt) continue;
+    atualizar('agentes', agente.id, { prompt: novo });
     trocados += 1;
   }
   return trocados;
 }
 
-/* "Nunca compartilhe", "nao precisamos", "nunca peca", "nao envie"... */
-const PROIBE = /compartilh|nao precis|(nao|nunca|jamais) (peca|pedir|envie|enviar|mande|mandar|passe|passar|forneca|fornecer|informe|informar)/;
+/* "Nunca peca", "nao aceite", "nao envie"... : frase que recusa a senha. */
+const RECUSA = /(nao|nunca|jamais) (peca|pedir|aceite|aceitar|envie|enviar|mande|mandar|solicite|solicitar)|nao deve (mandar|enviar|passar)/;
+/* "Peca", "me envie", "solicite", "obrigatorio": frase que pede a senha. */
+const PEDE = /\b(peca|pedir|pede|solicite|solicitar|envie|enviar|mande|mandar|passe|passar|informe|informar|forneca|fornecer)\b|obrigatori|um de cada vez|documentos/;
 
-/** Ha no prompt uma frase dizendo ao cliente para nao passar a senha do gov.br (ou do INSS), ou que ela nao e necessaria? */
-export function avisaParaNaoPassarASenhaDoGov(prompt) {
+/** Ha no prompt uma frase que pede ao cliente a senha do gov.br ou do Meu INSS? */
+export function pedeSenhaDoGov(prompt) {
   return normalizar(prompt)
     .replace(/gov\.br/g, 'govbr')
     .split(/[.!?\n]+/)
-    .some((frase) => frase.includes('senha') && /gov|inss/.test(frase) && PROIBE.test(frase));
+    .some((frase) => frase.includes('senha') && /gov|inss/.test(frase) && PEDE.test(frase) && !RECUSA.test(frase));
 }
 
-/** Os agentes do escritorio que ainda tem um aviso desses no prompt, pelo nome (para /api/saude). */
-export function agentesComAvisoDaSenhaDoGov(workspaceId) {
+/** Os agentes do escritorio cujo prompt ainda pede a senha do gov.br, pelo nome (para /api/saude). */
+export function agentesQuePedemSenhaDoGov(workspaceId) {
   return listar('agentes', { workspaceId })
-    .filter((agente) => avisaParaNaoPassarASenhaDoGov(agente.prompt))
+    .filter((agente) => pedeSenhaDoGov(agente.prompt))
     .map((agente) => agente.nome);
 }
