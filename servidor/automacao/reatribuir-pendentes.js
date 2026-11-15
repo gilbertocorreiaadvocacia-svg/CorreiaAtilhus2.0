@@ -5,7 +5,7 @@ import { escolherAgente, pessoaCuidandoAgora } from '../ia/escolher-agente.js';
 import { PASTA_PADRAO, comoEduardaPassaOTrabalhista, garantirTriagemNoEscritorioGeral, ligarNumerosDasAreas, ultimosLigaDesligaTodos } from '../nucleo/agentes-por-escritorio.js';
 import { resumoDosTemplates } from '../nucleo/diagnostico.js';
 import { templatesDoPacoteGanhamOArquivo } from '../ia/pacotes.js';
-import { agentesComAvisoDaSenhaDoGov } from '../nucleo/senha-do-gov.js';
+import { agentesQuePedemSenhaDoGov } from '../nucleo/senha-do-gov.js';
 import { aposentadoriaNosAgentes } from '../nucleo/aposentadoria-sem-insistir.js';
 import { desqualificacaoNosAgentes } from '../nucleo/desqualificar-sem-calar.js';
 import { agentesSemAcento } from '../nucleo/acentos-dos-agentes.js';
@@ -124,7 +124,8 @@ function resumirEscritorios() {
       triagemGeralInstalada: Boolean(workspace.triagemGeralInstaladaEm),
       equipeTrabalhistaInstalada: Boolean(workspace.equipeTrabalhistaInstaladaEm),
       eduardaPassaTrabalhistaPara: comoEduardaPassaOTrabalhista(workspace.id),
-      avisoDaSenhaDoGov: agentesComAvisoDaSenhaDoGov(workspace.id),
+      /* C-TL1: agentes cujo prompt escrito a mao ainda pede a senha do gov.br. */
+      pedemSenhaDoGov: agentesQuePedemSenhaDoGov(workspace.id),
       aposentadoriaNoAuxilioAcidente: aposentadoriaNosAgentes(workspace.id),
       /* Agentes que ainda mandam desligar a IA ao desqualificar (10/11/2026).
          Vazio e o esperado depois da migracao: so o nome e a conta. */

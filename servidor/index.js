@@ -18,7 +18,7 @@ import { concluirHistoricoParado, concluirHistoricoSoDoCelular } from './whatsap
 import { contextoDaSessao, limparSessoesOrfas, migrarPapeis } from './nucleo/auth.js';
 import { migrarNomesDeAgentes } from './nucleo/migrar-agentes.js';
 import { aplicarRegrasInstitucionais } from './nucleo/migrar-regras-institucionais.js';
-import { tirarAvisoDaSenhaDoGov } from './nucleo/senha-do-gov.js';
+import { atualizarRegraDaSenhaDoGov } from './nucleo/senha-do-gov.js';
 import { aposentadoriaSemInsistir } from './nucleo/aposentadoria-sem-insistir.js';
 import { desqualificarSemCalar } from './nucleo/desqualificar-sem-calar.js';
 import { corrigirAcentosDosAgentes } from './nucleo/acentos-dos-agentes.js';
@@ -234,9 +234,9 @@ if (regrasInstitucionais.acrescentados || regrasInstitucionais.corrigidos) {
     `Regras institucionais: ${regrasInstitucionais.acrescentados} agente(s) com o bloco novo, ${regrasInstitucionais.corrigidos} agente(s) com texto antigo corrigido.`,
   );
 }
-/* A senha do gov.br sai da regra do Civel nos agentes ja instalados (26/10/2026). */
-const avisosDaSenhaDoGov = naSubida('senha do gov', tirarAvisoDaSenhaDoGov, 0);
-if (avisosDaSenhaDoGov) console.log(`Senha do gov.br: aviso antigo tirado de ${avisosDaSenhaDoGov} agente(s).`);
+/* C-TL1 (15/11/2026): os agentes ja instalados deixam de pedir a senha do gov.br. */
+const agentesDaSenhaDoGov = naSubida('senha do gov', atualizarRegraDaSenhaDoGov, 0);
+if (agentesDaSenhaDoGov) console.log(`Senha do gov.br: regra nova aplicada em ${agentesDaSenhaDoGov} agente(s).`);
 /* A triagem do auxilio-acidente para de insistir na pergunta da aposentadoria (28/10/2026). */
 const semInsistirNaAposentadoria = naSubida('aposentadoria', aposentadoriaSemInsistir, 0);
 /* Desqualificar deixa de calar o atendimento (10/11/2026): a ordem de desligar a
