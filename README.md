@@ -19,6 +19,7 @@ sozinho. É o caminho principal, e funciona igual no Windows, no Mac e no Linux.
 **No terminal:**
 
 ```bash
+npm ci           # uma vez: instala o pdf-lib travado no lock
 npm start        # sobe o sistema
 npm run dev      # sobe recarregando a cada alteração
 npm test         # roda a suíte de conferência
@@ -41,6 +42,7 @@ administrador vem do `.env` da hospedagem.
 ## Como conferir
 
 ```bash
+npm ci
 npm test
 ```
 
@@ -58,9 +60,10 @@ formato. Isso prova que o driver monta o pedido certo e entende a resposta; não
 prova que a Evolution de verdade responde assim — isso só a primeira conexão
 real diz.
 
-**Precisa só do Node.js 18+.** Nada de `npm install`: o projeto tem **zero
-dependências**, roda com o `node:http` que já vem no Node, e o navegador carrega
-módulos ES nativos sem passo de build.
+**Precisa do Node.js 18+ e de um `npm ci`.** A única dependência é o pdf-lib
+(relatório do caso em PDF), travada no `package-lock.json`. O resto roda com o
+`node:http` que já vem no Node, e o navegador carrega módulos ES nativos sem
+passo de build.
 
 ---
 

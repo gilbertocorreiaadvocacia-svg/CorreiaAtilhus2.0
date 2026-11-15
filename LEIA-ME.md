@@ -35,8 +35,8 @@ Troque a senha em **Configurações › Membros** assim que entrar.
 
 > O sistema roda **só nesta máquina** (`localhost`, porta 4477). Não fica aberto na
 > rede do escritório: outros computadores não acessam. Precisa do Node.js instalado
-> (versão LTS, em https://nodejs.org). Fora isso, nada: **zero dependências**, nenhum
-> `npm install`, nenhum executável novo para o Windows barrar.
+> (versão LTS, em https://nodejs.org) e de um `npm ci` uma vez na pasta do projeto:
+> a única dependência é o pdf-lib. Não há executável novo para o Windows barrar.
 
 ---
 
