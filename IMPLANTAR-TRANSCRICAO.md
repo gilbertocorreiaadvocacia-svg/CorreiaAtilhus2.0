@@ -57,8 +57,11 @@ O build demora: ele compila o whisper.cpp. Em 1 vCPU, conte alguns minutos.
 docker service update --force \
   --image easypanel/atilhuschat/sistema:latest atilhuschat_sistema && \
 sleep 20 && \
-curl -s https://atilhuschat-sistema.hqztrk.easypanel.host/api/saude
+curl -s -o /dev/null -w '%{http_code}\n' https://atilhuschat-sistema.hqztrk.easypanel.host/api/vivo
 ```
+
+`200` é o processo no ar. `/api/saude` pede sessão de administrador; o que a
+transcrição está fazendo se confere na tela, no passo abaixo.
 
 ---
 

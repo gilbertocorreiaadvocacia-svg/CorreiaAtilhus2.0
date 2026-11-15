@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { suite } from './apoio.js';
+import { cliente, suite } from './apoio.js';
 
 /**
  * "As vezes o sistema cai" (pedido do escritorio em 29/10/2026). Tres partes:
@@ -261,11 +261,14 @@ export async function testarBatidaDaHospedagem({ base }) {
   const vivo = await fetch(`${base}/api/vivo`);
   const corpo = await vivo.json().catch(() => null);
   s.ok('/api/vivo responde sem sessao', vivo.status === 200 && corpo?.ok === true, `${vivo.status} ${JSON.stringify(corpo)}`);
-  const saude = await (await fetch(`${base}/api/saude`)).json();
+  const admin = cliente(base);
+  await admin.entrar();
+  const resposta = await admin.get('/api/saude');
+  const saude = resposta.dados;
   s.ok(
-    'a saude traz a subida de agora e as falhas da subida (nenhuma)',
-    Array.isArray(saude.vida?.subidas) && saude.vida.subidas.length >= 1 && saude.vida.subidas[0].codigo === saude.codigo && Array.isArray(saude.falhasNaSubida) && saude.falhasNaSubida.length === 0,
-    JSON.stringify({ vida: saude.vida, falhasNaSubida: saude.falhasNaSubida }),
+    'a saude, com sessao de administrador, traz a subida de agora e as falhas da subida (nenhuma)',
+    resposta.status === 200 && Array.isArray(saude?.vida?.subidas) && saude.vida.subidas.length >= 1 && saude.vida.subidas[0].codigo === saude.codigo && Array.isArray(saude.falhasNaSubida) && saude.falhasNaSubida.length === 0,
+    JSON.stringify({ status: resposta.status, vida: saude?.vida, falhasNaSubida: saude?.falhasNaSubida }),
   );
   return s;
 }

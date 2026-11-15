@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { esperar, esperarNoAr, suite } from './apoio.js';
+import { cliente, esperar, esperarNoAr, suite } from './apoio.js';
 
 /**
  * A IA nunca liga nem desliga sozinha (nucleo/banco.js: protegerEstadoDosAgentes).
@@ -185,13 +185,15 @@ process.exit(0);
       let saida = '';
       processo.stdout.on('data', (d) => (saida += d));
       processo.stderr.on('data', (d) => (saida += d));
-      const noAr = await esperarNoAr(`http://127.0.0.1:${porta}/api/saude`);
+      const noAr = await esperarNoAr(`http://127.0.0.1:${porta}/api/vivo`);
       return { processo, porta, noAr, saida: () => saida };
     };
     const saudeDe = async (porta) => {
+      const api = cliente(`http://127.0.0.1:${porta}`);
+      await api.entrar();
       for (let i = 0; i < 40; i += 1) {
-        const saude = await (await fetch(`http://127.0.0.1:${porta}/api/saude`)).json();
-        const escritorio = (saude.varredura?.escritorios || []).find((e) => e.numeros >= 1);
+        const saude = (await api.get('/api/saude')).dados;
+        const escritorio = (saude?.varredura?.escritorios || []).find((e) => e.numeros >= 1);
         if (escritorio) return { saude, escritorio };
         await esperar(250);
       }

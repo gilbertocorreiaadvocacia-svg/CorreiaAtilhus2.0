@@ -52,7 +52,7 @@ export async function testarSobreviver({ raiz, portaLivre }) {
     let saida = '';
     processo.stdout.on('data', (d) => (saida += d));
     processo.stderr.on('data', (d) => (saida += d));
-    const noAr = await esperarNoAr(`http://127.0.0.1:${porta}/api/saude`);
+    const noAr = await esperarNoAr(`http://127.0.0.1:${porta}/api/vivo`);
     return { processo, porta, noAr, saidaAte: () => saida };
   }
 

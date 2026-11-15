@@ -123,8 +123,8 @@ async function principal() {
 
   /* ---------------- 1. O sistema esta no ar ---------------- */
 
-  const saude = await bater(`http://127.0.0.1:${PORTA}/api/saude`);
-  if (saude.status !== 200) {
+  const batida = await bater(`http://127.0.0.1:${PORTA}/api/vivo`);
+  if (batida.status !== 200) {
     falhou(
       `O CorreiaAtilhus2.0 nao responde na porta ${PORTA}`,
       'Abra o sistema (INICIAR.bat) e rode este conferidor de novo.',
@@ -283,14 +283,14 @@ async function principal() {
 
   const alvo = retorno || `http://host.docker.internal:${PORTA}`;
   const codigo = docker(
-    ['run', '--rm', 'curlimages/curl:latest', '-s', '-o', '/dev/null', '-w', '%{http_code}', `${alvo}/api/saude`],
+    ['run', '--rm', 'curlimages/curl:latest', '-s', '-o', '/dev/null', '-w', '%{http_code}', `${alvo}/api/vivo`],
     { prazoMs: 120000 },
   );
 
   if (codigo === null) {
     aviso(
       'nao consegui rodar o contêiner de teste',
-      'Pode ser a primeira baixada da imagem curlimages/curl demorando.\nTente de novo, ou teste a mao com:\n  docker run --rm curlimages/curl -s -i ' + alvo + '/api/saude',
+      'Pode ser a primeira baixada da imagem curlimages/curl demorando.\nTente de novo, ou teste a mao com:\n  docker run --rm curlimages/curl -s -i ' + alvo + '/api/vivo',
     );
   } else if (codigo === '200') {
     ok('o contêiner alcanca esta maquina', `${alvo} respondeu 200`);

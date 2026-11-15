@@ -213,15 +213,21 @@ trancado do lado de fora. Em 13/11/2026 aconteceu. Confira nesta ordem.
 
 Se o relógio do servidor sair de hora por mais de um minuto, **todo código de
 todo mundo passa a falhar ao mesmo tempo** — os celulares estão certos, o
-servidor é que não está. Abra, no navegador, sem precisar de login:
+servidor é que não está.
+
+Para saber só se o processo responde, sem login:
 
 ```
-https://SEU_DOMINIO/api/saude
+https://SEU_DOMINIO/api/vivo
 ```
 
-Procure `segundoFator.horaDesteServidor` (ou `agora`). Compare com a hora de
-verdade. Mais de um minuto de diferença é esse o problema, e o conserto é na
-VPS, não no sistema:
+A resposta é `{ "ok": true }`. A hora que este servidor acha que é
+(`segundoFator.horaDesteServidor` ou `agora`) fica em `/api/saude`, que pede
+sessão de administrador. Sem cookie a rota responde 401; com sessão de quem
+não administra, 403.
+
+Compare essa hora com a hora de verdade. Mais de um minuto de diferença é
+esse o problema, e o conserto é na VPS, não no sistema:
 
 ```bash
 timedatectl set-ntp true && timedatectl status
@@ -252,7 +258,7 @@ cadastram outro no login seguinte.
 
 - **Apague a variável depois que todo mundo entrar.** Ela é porta de
   emergência, não ajuste. Enquanto estiver escrita, toda subida reclama no log,
-  e `/api/saude` mostra `segundoFator.destravaLigada: true`.
+  e `/api/saude`, com sessão de administrador, mostra `segundoFator.destravaLigada: true`.
 - Deixá-la esquecida **não** zera o segundo fator a cada subida: depois que a
   pessoa pareia o celular novo, a mesma variável não mexe mais nela.
 - Para destravar a mesma pessoa outra vez, mude o valor — um sufixo depois de

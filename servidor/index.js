@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import http from 'node:http';
+import os from 'node:os';
 import path from 'node:path';
 import { monitorEventLoopDelay, performance } from 'node:perf_hooks';
 import { HOSPEDADO, HOST, INTERVALO_AGENDADOR, INTERVALO_REATRIBUICAO, PORTA, RAIZ, enderecoPermitido } from './config.js';
@@ -37,7 +38,7 @@ import { iniciarAgendador } from './automacao/followup.js';
 import { iniciarReatribuicaoDePendentes, situacaoDaVarredura } from './automacao/reatribuir-pendentes.js';
 import { iniciarAcompanhamento } from './integracoes/zapsign-acompanhamento.js';
 import { iniciarIntegracaoJuri } from './integracoes/atilhus-juri.js';
-import { COOKIE_SESSAO, registrarSessao } from './rotas/sessao.js';
+import { COOKIE_SESSAO, exigirAdministrador, registrarSessao } from './rotas/sessao.js';
 import { registrarAtendimento } from './rotas/atendimento.js';
 import { registrarAutomacoes } from './rotas/automacoes.js';
 import { registrarConexoes } from './rotas/conexoes.js';
@@ -405,9 +406,20 @@ rotas.get('/api/eventos', async ({ req, res, ctx }) => {
  * ha como saber qual esta na frente. Quem nao descobre isso passa a tarde
  * mexendo no codigo certo e olhando para a copia errada.
  *
- * O caminho fica exposto sem sessao porque o servidor escuta so em 127.0.0.1:
- * quem alcanca esta rota ja esta nesta maquina, e a resposta e para ele mesmo
- * se achar.
+ * Esse caminho nao sai mais sem sessao. O comentario antigo dizia que dava,
+ * porque o servidor escutava so em 127.0.0.1 e quem alcancava a rota ja estava
+ * nesta maquina. Na hospedagem ele escuta em todas as interfaces e o Caddy
+ * publica o sistema: /api/saude na internet entregava pasta, pid, memoria e o
+ * sinal da porta de emergencia do segundo fator para quem nao entrou.
+ *
+ * A rota exige sessao de administrador (dono ou admin, exigirAdministrador).
+ * Sem cookie, 401. Com sessao de quem nao administra, 403. A batida publica,
+ * sem sessao e sem calcular nada, e /api/vivo — o HEALTHCHECK da imagem bate
+ * nela, nao aqui.
+ *
+ * Quem precisa saber DE QUAL pasta esta a copia na porta, sem login, e a
+ * guarda de instancia unica: ela le uma marca local (pid e pasta), escrita ao
+ * subir, e nao esta rota.
  */
 /*
  * A batida que a hospedagem confere a cada 30 s (HEALTHCHECK do Dockerfile).
@@ -420,7 +432,8 @@ rotas.get('/api/vivo', async () => ({ ok: true }), { publica: true });
 
 rotas.get(
   '/api/saude',
-  async () => {
+  async ({ ctx }) => {
+    exigirAdministrador(ctx);
     const memoria = process.memoryUsage();
     return {
       ok: true,
@@ -489,7 +502,6 @@ rotas.get(
       falhasNaSubida,
     };
   },
-  { publica: true },
 );
 
 /* ------------------------------------------------------------------ */
@@ -670,6 +682,60 @@ const servidor = http.createServer(async (req, res) => {
 });
 
 /*
+ * Marca local de qual pasta esta nesta porta.
+ *
+ * A guarda de instancia unica precisa da pasta da copia que ja esta no ar. Ate
+ * o lote C-02 ela lia isso em /api/saude, que era publica. A rota agora exige
+ * sessao de administrador: um segundo processo, sem cookie, receberia 401 e
+ * concluiria que a porta esta com "outro programa" — inclusive quando era esta
+ * mesma pasta subindo de novo no login do Windows.
+ *
+ * A marca fica fora do HTTP. So pid e pasta, no diretorio temporario, legivel
+ * so pelo dono do arquivo. O segundo processo nao grava: a escrita acontece no
+ * listen, e o EADDRINUSE nao chega la. Na saida, so apaga se o pid for o dele,
+ * para nao sumir com a marca da copia que ficou no ar.
+ */
+function arquivoDaInstancia() {
+  return path.join(os.tmpdir(), `correia-atilhus-porta-${PORTA}.json`);
+}
+
+function pidVivo(pid) {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (erro) {
+    /* EPERM: o processo existe, mas e de outro usuario. */
+    return erro.code === 'EPERM';
+  }
+}
+
+function gravarMarcaDaInstancia() {
+  fs.writeFileSync(arquivoDaInstancia(), JSON.stringify({ pid: process.pid, raiz: RAIZ }), { mode: 0o600 });
+}
+
+function lerMarcaDaInstancia() {
+  try {
+    const marca = JSON.parse(fs.readFileSync(arquivoDaInstancia(), 'utf8'));
+    if (!marca?.raiz || !pidVivo(marca.pid)) return null;
+    return marca;
+  } catch {
+    return null;
+  }
+}
+
+function apagarMarcaDaInstancia() {
+  try {
+    const arquivo = arquivoDaInstancia();
+    const marca = JSON.parse(fs.readFileSync(arquivo, 'utf8'));
+    if (marca?.pid !== process.pid) return;
+    fs.unlinkSync(arquivo);
+  } catch {
+    /* Nao havia marca, ou a que esta no disco e de outra copia. */
+  }
+}
+
+/*
  * Guarda de instancia unica.
  *
  * Com o inicio automatico no login do Windows, o servidor ja sobe sozinho. Se
@@ -694,18 +760,21 @@ servidor.on('error', async (erro) => {
    * pessoa olhar justamente para a copia errada: ela editava o codigo aqui,
    * recarregava a pagina e nao via mudanca nenhuma, sem nada na tela que
    * explicasse o porque.
+   *
+   * /api/vivo so diz que o processo e o nosso. A pasta vem da marca local:
+   * /api/saude exigiria sessao, e este processo nao tem cookie.
    */
-  let outra = null;
+  let vivo = null;
   try {
-    const resposta = await fetch(`http://127.0.0.1:${PORTA}/api/saude`, {
+    const resposta = await fetch(`http://127.0.0.1:${PORTA}/api/vivo`, {
       signal: AbortSignal.timeout(2000),
     });
-    if (resposta.ok) outra = await resposta.json();
+    if (resposta.ok) vivo = await resposta.json();
   } catch {
     /* Nao respondeu, ou nao e o nosso sistema. Tratado abaixo. */
   }
 
-  if (!outra?.ok) {
+  if (!vivo?.ok) {
     console.log(`\n${linha}`);
     console.log(`  A porta ${PORTA} esta ocupada por outro programa.`);
     console.log('  Nao e o CorreiaAtilhus2.0: ele nao respondeu na porta.');
@@ -715,7 +784,19 @@ servidor.on('error', async (erro) => {
     process.exit(1);
   }
 
-  const mesmaPasta = path.resolve(outra.raiz || '') === path.resolve(RAIZ);
+  const marca = lerMarcaDaInstancia();
+  if (!marca) {
+    console.log(`\n${linha}`);
+    console.log(`  A porta ${PORTA} esta ocupada pelo CorreiaAtilhus2.0.`);
+    console.log('  Ele responde, mas nao ha marca local desta subida (pid e pasta).');
+    console.log('  Sem a marca nao da para saber se e esta pasta ou outra copia.');
+    console.log('');
+    console.log(`  Feche o processo Node da porta ${PORTA}, ou rode com outra porta:  PORTA=4488`);
+    console.log(`${linha}\n`);
+    process.exit(1);
+  }
+
+  const mesmaPasta = path.resolve(marca.raiz) === path.resolve(RAIZ);
 
   if (mesmaPasta) {
     /* Caso benigno: o inicio automatico ja subiu ESTA pasta, e alguem mandou
@@ -729,7 +810,7 @@ servidor.on('error', async (erro) => {
   console.log(`\n${linha}`);
   console.log('  ATENCAO: outra copia do sistema esta ocupando a porta.');
   console.log(linha);
-  console.log(`  No ar agora:  ${outra.raiz}`);
+  console.log(`  No ar agora:  ${marca.raiz}`);
   console.log(`  Esta pasta:   ${RAIZ}`);
   console.log('');
   console.log(`  O que abre em localhost:${PORTA} e a copia de cima, NAO esta.`);
@@ -750,6 +831,7 @@ servidor.on('error', async (erro) => {
  * nenhuma. O atendimento roda aqui, nesta maquina, e e so daqui que se abre.
  */
 servidor.listen(PORTA, HOST, () => {
+  gravarMarcaDaInstancia();
   const linha = '─'.repeat(58);
   console.log(`\n${linha}`);
   console.log('  CORREIAATILHUS2.0');
@@ -794,6 +876,7 @@ servidor.listen(PORTA, HOST, () => {
 });
 
 function encerrar(motivo) {
+  apagarMarcaDaInstancia();
   console.log('\n  Salvando os dados antes de sair...');
   registrarDesligamento(motivo, CODIGO);
   /* encerrarBanco agora devolve promessa: o disco e gravado na hora, e a
@@ -829,6 +912,11 @@ process.on('uncaughtException', (erro) => {
 /* A ultima gravacao, na saida de verdade: o que mudou nos ate 3 s entre o
    aviso de parar e o fim do processo nao fica para tras. */
 process.on('exit', () => {
+  try {
+    apagarMarcaDaInstancia();
+  } catch {
+    /* na saida nao ha mais o que fazer */
+  }
   try {
     salvarPendentes();
     salvarMensagensPendentes();

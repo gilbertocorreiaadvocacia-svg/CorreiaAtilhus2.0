@@ -90,6 +90,7 @@ import { testarSaudeDoAtendimento } from './saude-do-atendimento.js';
 import { testarFollowupEnvio } from './followup-envio.js';
 import { testarContratoDireto } from './contrato-direto.js';
 import { testarBatidaDaHospedagem, testarSistemaQueVolta } from './sistema-que-volta.js';
+import { testarSaudeExigeSessao } from './saude-exige-sessao.js';
 import { testarPosVenda } from './posvenda.js';
 import { testarMigrarDepartamentoPosVenda } from './migrar-posvenda.js';
 import { testarReatribuirPendentes } from './reatribuir-pendentes.js';
@@ -317,7 +318,7 @@ async function principal() {
   }
 
   try {
-    const noAr = await esperarNoAr(`${base}/api/saude`);
+    const noAr = await esperarNoAr(`${base}/api/vivo`);
     if (!noAr) {
       console.error('O sistema nao subiu. Saida do servidor:\n');
       console.error(saidaDoSistema);
@@ -326,6 +327,7 @@ async function principal() {
     }
 
     suites.push(await testarBatidaDaHospedagem({ base }));
+    suites.push(await testarSaudeExigeSessao({ base }));
     suites.push(await testarSimuladorEOficial({ base }));
     suites.push(await testarQrCode({ base, evolucao, chaveEvolucao: CHAVE_EVOLUCAO }));
     suites.push(await testarOrigens({ base, evolucao, chaveEvolucao: CHAVE_EVOLUCAO }));
