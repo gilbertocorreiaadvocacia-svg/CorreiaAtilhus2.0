@@ -248,7 +248,7 @@ let aceitaPromptLembrado = null;
  * sair com erro em TODO audio — a transcricao inteira pararia para ganhar
  * vocabulario. Entao se le o --help uma vez e so se usa o que esta la.
  */
-export function cliAceitaPrompt(cli = acharWhisperCli()) {
+export async function cliAceitaPrompt(cli = acharWhisperCli()) {
   if (aceitaPromptLembrado !== null) return aceitaPromptLembrado;
   if (!cli) {
     aceitaPromptLembrado = false;
@@ -264,12 +264,31 @@ export function cliAceitaPrompt(cli = acharWhisperCli()) {
   const ehLote = /\.(cmd|bat)$/i.test(cli);
   const programa = ehLote ? 'cmd.exe' : cli;
   const argumentos = ehLote ? ['/c', cli, '--help'] : ['--help'];
+
+  /*
+   * SEM execFileSync AQUI.
+   *
+   * A primeira versao desta sondagem usava execFileSync, e isso CONGELA o laco
+   * de eventos enquanto o processo sobe — medido: 167 ms de servidor parado,
+   * dentro do caminho que transcreve o audio de um cliente. Era reintroduzir,
+   * por um detalhe de vocabulario, exatamente o defeito que "Transcrever audio
+   * nao congela mais o sistema" (0d64ca5) tinha corrigido; a assercao daquele
+   * commit pegou isto antes de ir para o ar.
+   *
+   * Roda uma vez por processo (aceitaPromptLembrado), e assincrono, como todo
+   * o resto deste modulo.
+   */
   let ajuda = '';
   try {
-    ajuda = String(execFileSync(programa, argumentos, OPCOES_SONDAGEM) || '');
-  } catch (erro) {
-    /* Varias versoes escrevem o --help na saida de erro e saem com codigo != 0. */
-    ajuda = String(erro?.stdout || '') + String(erro?.stderr || '');
+    ajuda = await new Promise((pronto) => {
+      execFile(programa, argumentos, { ...OPCOES_SONDAGEM, windowsHide: true }, (erro, saida, avisos) => {
+        /* Varias versoes escrevem o --help na saida de erro e saem com codigo
+           != 0: o que interessa e o TEXTO, venha ele por onde vier. */
+        pronto(String(saida || '') + String(avisos || '') + String(erro?.stdout || '') + String(erro?.stderr || ''));
+      });
+    });
+  } catch {
+    ajuda = '';
   }
   /* `--prompt` seguido de espaco, virgula ou fim de linha: assim um
      `--prompt-file` de outra versao nao passa por ele. */
@@ -457,7 +476,7 @@ async function porLinhaDeComando({ ffmpeg, modelo, entradaOriginal, pasta }) {
      texto, que aqui viria duplicado (ja temos os offsets no JSON). */
   const argumentos = ['-m', modelo, '-f', wav, '-l', 'pt', '-oj', '-nt', '--no-prints'];
   /* O vocabulario do ramo, quando este whisper-cli souber receber. */
-  if (cliAceitaPrompt(cli)) argumentos.push('--prompt', textoInicial());
+  if (await cliAceitaPrompt(cli)) argumentos.push('--prompt', textoInicial());
 
   /*
    * Na hospedagem o whisper-cli e um binario comum e isto nao se aplica. Mas no
