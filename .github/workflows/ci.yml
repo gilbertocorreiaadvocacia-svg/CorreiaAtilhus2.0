@@ -1,8 +1,9 @@
 # Conferencia automatica a cada envio.
 #
-# O sistema nao tem dependencia nenhuma e nao tem passo de build, entao nao ha
-# `npm install` aqui: a CI faz exatamente o que uma pessoa faria na maquina do
-# escritorio, `npm test`, e nada mais.
+# Ha uma dependencia (pdf-lib, para o relatorio do caso em PDF) e nao ha passo
+# de build. A CI instala exatamente o package-lock.json com `npm ci` — o mesmo
+# comando do Dockerfile — e depois roda `npm test`, que e o que uma pessoa faria
+# na maquina do escritorio depois de instalar.
 #
 # A suite sobe o sistema de verdade numa pasta de dados descartavel e conversa
 # com ele por HTTP. Ela cobre o que quebra de verdade neste projeto, que e a
@@ -15,6 +16,11 @@
 # tela de quem abriu o sistema, sem mensagem util.
 
 name: Conferencia
+
+# O token deste workflow so le o repositorio. A conferencia nao publica
+# pacote, nao escreve no GitHub e nao pede outro escopo.
+permissions:
+  contents: read
 
 # `push` so na main, e `pull_request` no resto. Com push em todos os ramos, todo
 # commit de uma PR era conferido DUAS vezes, uma por evento, gastando o dobro de
@@ -52,6 +58,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
 
       - name: Rodar a suite
         run: npm test
