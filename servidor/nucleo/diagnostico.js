@@ -134,6 +134,34 @@ export function diagnosticar(workspaceId) {
    */
   const citaContrato = ligados.some((a) => analisarPrompt(a.prompt || '', workspaceId).mencoes.some((m) => m.tipo === 'sistema' && m.chave === 'gerarcontrato'));
   const zapsign = integracoes?.zapsign;
+
+  /*
+   * A ZAPSIGN ESTA PRONTA E NINGUEM A USA.
+   *
+   * O resto deste bloco so olha para o que falta DEPOIS de um agente pedir o
+   * contrato. Faltava a pergunta anterior: algum agente pede?
+   *
+   * Sem nenhum @gerarcontrato num agente ligado, nenhum contrato e gerado — e
+   * em silencio: nao ha erro, nao ha tentativa, nao ha nada em lugar nenhum.
+   * O escritorio ve "os agentes nao mandam o link" e procura o defeito na
+   * ZapSign, que esta certa.
+   *
+   * So avisa quando a CHAVE existe. Escritorio que nao fecha contrato pelo
+   * sistema nao tem chave nenhuma e nao precisa ouvir isto todo dia —
+   * diagnostico que cobra o que ninguem pediu vira barulho, e barulho se
+   * aprende a ignorar. Chave cadastrada e outra coisa: alguem montou a
+   * integracao esperando que ela fosse usada.
+   */
+  if (!citaContrato && zapsign?.chave && ligados.length) {
+    anotar(
+      'alta',
+      'contrato-ninguem-pede',
+      'A ZapSign esta configurada, mas nenhum agente pede contrato',
+      `A chave da ZapSign esta em Integracoes, e nenhum dos ${ligados.length} agentes ligados usa @gerarcontrato no roteiro. Sem isso nenhum contrato e gerado e nenhum link de assinatura sai, sem erro nenhum aparecer: o agente simplesmente nunca pede. Abra o agente que fecha a proposta e confira se o @gerarcontrato continua no roteiro dele.`,
+      '#/agentes',
+    );
+  }
+
   if (citaContrato && !zapsign?.chave) {
     /*
      * Achado em 23/10/2026: o texto antigo dizia "o agente tenta gerar o
@@ -150,14 +178,57 @@ export function diagnosticar(workspaceId) {
       'Pelo menos um agente ligado usa @gerarcontrato. O pedido ao cliente funciona normalmente (ele e avisado que a equipe vai conferir), mas sem a chave da ZapSign em Integracoes ninguem consegue aprovar e mandar o link de assinatura — o contrato fica parado em conferencia.',
       '#/integracoes',
     );
-  } else if (citaContrato && zapsign?.chave && !zapsign?.modeloPadraoId && !Object.keys(zapsign?.modelosPorCaso || {}).length) {
-    anotar(
-      'alta',
-      'contrato-sem-modelo',
-      'ZapSign cadastrada, mas sem nenhum modelo de contrato escolhido',
-      'A chave esta configurada, mas nao ha modelo padrao nem modelo por tipo de caso em Integracoes. Sem um modelo, @gerarcontrato nao tem o que gerar.',
-      '#/integracoes',
-    );
+  } else if (citaContrato && zapsign?.chave) {
+    /*
+     * A COBERTURA DOS MODELOS, e nao so a existencia de algum.
+     *
+     * Ate 16/11/2026 a pergunta aqui era "ha ALGUM modelo escolhido?", e com
+     * um unico modelo por caso cadastrado a tela dava tudo certo. So que
+     * integracoes/zapsign.js escolhe assim (modeloDaConversa):
+     *
+     *     o modelo DO CASO da conversa, ou o modelo PADRAO, ou nada.
+     *
+     * Sem padrao, cada tipo de caso sem modelo proprio falha — e a conversa
+     * SEM tipo de caso tambem, que neste escritorio e boa parte da fila. O
+     * escritorio ficou semanas assim: os agentes pediam os dados ao cliente,
+     * chegavam no fim e o envio falhava com "sem_modelo", enquanto a Saude do
+     * sistema dizia que estava tudo em ordem. Um diagnostico que da tudo certo
+     * num sistema quebrado e pior que nenhum: ele faz procurar no lugar errado.
+     */
+    const porCaso = zapsign.modelosPorCaso || {};
+    const temPadrao = Boolean(zapsign.modeloPadraoId);
+    /* Caso cadastrado mas com o contrato em branco conta como SEM modelo: a
+       chave existir no objeto nunca foi a pergunta. */
+    const comModelo = new Set(Object.entries(porCaso).filter(([, m]) => m?.contratoId).map(([caso]) => caso));
+
+    if (!temPadrao && !comModelo.size) {
+      anotar(
+        'alta',
+        'contrato-sem-modelo',
+        'ZapSign cadastrada, mas sem nenhum modelo de contrato escolhido',
+        'A chave esta configurada, mas nao ha modelo padrao nem modelo por tipo de caso em Integracoes. Sem um modelo, @gerarcontrato nao tem o que gerar.',
+        '#/integracoes',
+      );
+    } else if (!temPadrao) {
+      /* Os tipos de caso que ESTE escritorio usa, e nao a lista do codigo:
+         cobrar modelo de um caso que ninguem atende seria barulho. */
+      const casosDoEscritorio = listar('etiquetas', { workspaceId }).filter((e) => e.tipo === 'caso');
+      const descobertos = casosDoEscritorio.filter((e) => !comModelo.has(e.caso));
+      const semTipo = contatos.filter((c) => !(c.etiquetas || []).some((id) => casosDoEscritorio.some((e) => e.id === id))).length;
+
+      if (descobertos.length || semTipo) {
+        const partes = [];
+        if (descobertos.length) partes.push(`${descobertos.map((e) => e.nome).join(', ')} ${descobertos.length === 1 ? 'esta' : 'estao'} sem modelo de contrato`);
+        if (semTipo) partes.push(`${semTipo} ${semTipo === 1 ? 'conversa esta' : 'conversas estao'} sem tipo de caso marcado, e sem modelo padrao elas tambem nao tem contrato`);
+        anotar(
+          'alta',
+          'contrato-modelo-incompleto',
+          'Ha modelo de contrato para uns tipos de caso, e para outros nao',
+          `${partes.join('; ')}. Sem um MODELO PADRAO, o pedido do agente vai ate o fim, coleta os dados com o cliente e so entao falha com "sem_modelo" — e nada chega para assinar. Escolha o modelo que falta, ou um modelo padrao que valha para o resto.`,
+          '#/integracoes',
+        );
+      }
+    }
   }
 
   /*
