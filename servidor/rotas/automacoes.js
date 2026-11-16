@@ -10,7 +10,7 @@ import { analisarPrompt, catalogoCompleto, ferramentasDoAgente } from '../ia/men
 import { forcarResposta } from '../ia/motor.js';
 import { acharOuCriarContato, receberMensagem } from '../whatsapp/recebimento.js';
 import { modeloDe, provedorDisponivel, conversar } from '../ia/provedores.js';
-import { comCodigo, exigirConfiguracao } from './sessao.js';
+import { comCodigo, exigirConfiguracao, exigirPermissao } from './sessao.js';
 import { removerTemplate } from '../automacao/remover-template.js';
 import { ESPACO_ENTRE_INICIOS_EM_SEGUNDOS, iniciarFollowupDoStatus, temFollowupEmAndamento } from '../automacao/followup.js';
 
@@ -141,7 +141,7 @@ function crud(rotas, caminho, colecao, { prefixo, aoCriar, aoAtualizar, aoRemove
   rotas.get(`/api/${caminho}`, async ({ ctx }) => listar(colecao, { workspaceId: ctx.workspaceId }));
 
   rotas.post(`/api/${caminho}`, async ({ ctx, corpo }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'agentes');
     /* `unico` vale para o que CLASSIFICA conversa. Template e item de
        conhecimento podem repetir nome sem partir relatorio nenhum. */
     if (unico) corpo = { ...corpo, nome: exigirNomeLivre(ctx, colecao, corpo.nome) };
@@ -155,7 +155,7 @@ function crud(rotas, caminho, colecao, { prefixo, aoCriar, aoAtualizar, aoRemove
   });
 
   rotas.patch(`/api/${caminho}/:id`, async ({ ctx, params, corpo }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'agentes');
     doWorkspace(ctx, colecao, params.id);
     if (unico && corpo.nome !== undefined) {
       corpo = { ...corpo, nome: exigirNomeLivre(ctx, colecao, corpo.nome, params.id) };
@@ -166,7 +166,7 @@ function crud(rotas, caminho, colecao, { prefixo, aoCriar, aoAtualizar, aoRemove
   });
 
   rotas.delete(`/api/${caminho}/:id`, async ({ ctx, params }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'agentes');
     doWorkspace(ctx, colecao, params.id);
     if (aoRemover) aoRemover(params.id, ctx);
     remover(colecao, params.id);
@@ -194,7 +194,7 @@ export function registrarAutomacoes(rotas) {
   rotas.get('/api/status', async ({ ctx }) => listar('status', { workspaceId: ctx.workspaceId }));
 
   rotas.post('/api/status', async ({ ctx, corpo }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'agentes');
     return inserir('status', {
       id: novoId('sts'),
       workspaceId: ctx.workspaceId,
@@ -211,14 +211,14 @@ export function registrarAutomacoes(rotas) {
   /* Reordena as colunas do Kanban (a ordem dos status). Recebe a lista de ids
      na ordem nova; so mexe nos status deste workspace. */
   rotas.post('/api/status/ordenar', async ({ ctx, corpo }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'agentes');
     const ids = Array.isArray(corpo.ordem) ? corpo.ordem : [];
     reordenar('status', ctx.workspaceId, ids);
     return { ok: true, status: listar('status', { workspaceId: ctx.workspaceId }) };
   });
 
   rotas.patch('/api/status/:id', async ({ ctx, params, corpo }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'agentes');
     doWorkspace(ctx, 'status', params.id);
 
     if (corpo.nome !== undefined) corpo.nome = exigirNomeLivre(ctx, 'status', corpo.nome, params.id);
@@ -256,7 +256,7 @@ export function registrarAutomacoes(rotas) {
    * Com `previa: true` so conta, sem agendar nada.
    */
   rotas.post('/api/status/:id/iniciar-followup', async ({ ctx, params, corpo }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'agentes');
     const status = doWorkspace(ctx, 'status', params.id);
     if (!(status.followups || []).length) throw comCodigo('Este status nao tem sequencia de follow-up.', 400);
 
@@ -293,7 +293,7 @@ export function registrarAutomacoes(rotas) {
   });
 
   rotas.delete('/api/status/:id', async ({ ctx, params }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'agentes');
     doWorkspace(ctx, 'status', params.id);
     const emUso = listar('contatos', { workspaceId: ctx.workspaceId }).some((c) => c.statusId === params.id);
     if (emUso) throw comCodigo('Ha conversas neste status. Unifique-a com outra coluna, ou mova as conversas antes de excluir.', 409);
@@ -324,7 +324,7 @@ export function registrarAutomacoes(rotas) {
    * cita vem na resposta, para nao ser surpresa.
    */
   rotas.post('/api/status/:id/unificar', async ({ ctx, params, corpo }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'agentes');
     const origem = doWorkspace(ctx, 'status', params.id);
     const destino = doWorkspace(ctx, 'status', String(corpo.destinoId || ''));
     if (origem.id === destino.id) {
@@ -399,14 +399,14 @@ export function registrarAutomacoes(rotas) {
   });
 
   rotas.post('/api/templates/:id/aprovacao-meta', async ({ ctx, params, corpo }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'agentes');
     const template = doWorkspace(ctx, 'templates', params.id);
     const { solicitarAprovacao } = await import('../whatsapp/templates-meta.js');
     return solicitarAprovacao({ workspaceId: ctx.workspaceId, template, conexaoIds: corpo.conexaoIds || [], categoria: corpo.categoria });
   });
 
   rotas.post('/api/templates/:id/revalidar', async ({ ctx, params }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'agentes');
     const template = doWorkspace(ctx, 'templates', params.id);
     const { revalidarNaMeta } = await import('../whatsapp/templates-meta.js');
     return revalidarNaMeta({ workspaceId: ctx.workspaceId, template });
@@ -584,7 +584,7 @@ export function registrarAutomacoes(rotas) {
      nao existe, nunca sobrescreve agente do pacote que ja existe e, com
      `substituir`, tira o que nao e do pacote, com copia. */
   rotas.post('/api/agentes-pacotes/:area', async ({ ctx, params, corpo }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'agentes');
     if (!PACOTES[params.area]) throw comCodigo('Nao ha pacote de agentes para esta area.', 404);
     const daqui = areaDoEscritorio(ctx.workspaceId);
     if (daqui && daqui !== params.area) {
@@ -615,7 +615,7 @@ export function registrarAutomacoes(rotas) {
      (separarPorEscritorio, em nucleo/agentes-por-escritorio.js). A mesma coisa
      roda com o servidor parado por ferramentas/agentes-por-escritorio.js. */
   rotas.post('/api/agentes-por-escritorio', async ({ ctx, corpo }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'agentes');
     if (areaDoEscritorio(ctx.workspaceId)) {
       throw comCodigo('Separe a partir do escritorio geral, o que nao tem area.', 409);
     }
@@ -623,13 +623,13 @@ export function registrarAutomacoes(rotas) {
   });
 
   rotas.post('/api/agentes', async ({ ctx, corpo }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'agentes');
     conferirTamanhoDoPrompt(corpo?.prompt);
     return comOrdemDoUsuario(() => inserir('agentes', novoAgente(ctx, corpo)));
   });
 
   rotas.patch('/api/agentes/:id', async ({ ctx, params, corpo }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'agentes');
     const antes = doWorkspace(ctx, 'agentes', params.id);
     const campos = apenasCamposDoAgente(corpo);
     conferirMencoes(ctx, antes, { ...antes, ...campos });
@@ -657,7 +657,7 @@ export function registrarAutomacoes(rotas) {
    * sincrono, sobre o banco em memoria: ou renomeia tudo, ou nao renomeia nada.
    */
   rotas.patch('/api/agentes-pasta', async ({ ctx, corpo }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'agentes');
     const de = String(corpo.de || '').trim();
     const para = String(corpo.para || '').trim();
     if (!de || !para) throw comCodigo('Informe o nome atual e o novo nome da pasta.', 400);
@@ -687,7 +687,7 @@ export function registrarAutomacoes(rotas) {
    * pessoa troca de workspace e repete.
    */
   rotas.post('/api/agentes-desligar-todos', async ({ ctx }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'agentes');
     const ligados = listar('agentes', { workspaceId: ctx.workspaceId }).filter((a) => a.ativo);
     comOrdemDoUsuario(() => {
       for (const agente of ligados) atualizar('agentes', agente.id, { ativo: false, desligadoPelaEquipeEm: agora() });
@@ -709,7 +709,7 @@ export function registrarAutomacoes(rotas) {
    * de confirmar.
    */
   rotas.post('/api/agentes-ativar-todos', async ({ ctx }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'agentes');
     const desligados = listar('agentes', { workspaceId: ctx.workspaceId }).filter((a) => !a.ativo);
     comOrdemDoUsuario(() => {
       for (const agente of desligados) atualizar('agentes', agente.id, { ativo: true, desligadoPelaEquipeEm: null });
@@ -725,7 +725,7 @@ export function registrarAutomacoes(rotas) {
   });
 
   rotas.delete('/api/agentes/:id', async ({ ctx, params }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'agentes');
     doWorkspace(ctx, 'agentes', params.id);
     const emUso = listar('contatos', { workspaceId: ctx.workspaceId }).some(
       (c) => c.responsavel?.tipo === 'agente' && c.responsavel.id === params.id,
@@ -746,7 +746,7 @@ export function registrarAutomacoes(rotas) {
   }));
 
   rotas.post('/api/vozes', async ({ ctx, corpo }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'agentes');
     if (!corpo.nome) throw comCodigo('De um nome a voz.', 400);
     return inserir('vozes', {
       id: novoId('voz'),
@@ -759,13 +759,13 @@ export function registrarAutomacoes(rotas) {
   });
 
   rotas.patch('/api/vozes/:id', async ({ ctx, params, corpo }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'agentes');
     doWorkspace(ctx, 'vozes', params.id);
     return atualizar('vozes', params.id, corpo);
   });
 
   rotas.delete('/api/vozes/:id', async ({ ctx, params }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'agentes');
     doWorkspace(ctx, 'vozes', params.id);
     remover('vozes', params.id);
     return { ok: true };
@@ -835,7 +835,7 @@ export function registrarAutomacoes(rotas) {
   );
 
   rotas.post('/api/testes-de-roteamento', async ({ ctx, corpo }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'agentes');
     const frase = String(corpo?.frase || '').trim();
     if (!frase) throw comCodigo('Escreva a frase de teste.', 400);
     const agente = doWorkspace(ctx, 'agentes', corpo?.agenteEsperadoId);
@@ -845,7 +845,7 @@ export function registrarAutomacoes(rotas) {
   });
 
   rotas.patch('/api/testes-de-roteamento/:id', async ({ ctx, params, corpo }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'agentes');
     doWorkspace(ctx, 'testesDeRoteamento', params.id);
     const campos = {};
     if (corpo?.frase !== undefined) {
@@ -860,14 +860,14 @@ export function registrarAutomacoes(rotas) {
   });
 
   rotas.delete('/api/testes-de-roteamento/:id', async ({ ctx, params }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'agentes');
     doWorkspace(ctx, 'testesDeRoteamento', params.id);
     remover('testesDeRoteamento', params.id);
     return { ok: true };
   });
 
   rotas.post('/api/testes-de-roteamento/rodar', async ({ ctx }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'agentes');
     const casos = listar('testesDeRoteamento', { workspaceId: ctx.workspaceId });
     if (!casos.length) throw comCodigo('Nao ha nenhum caso de teste cadastrado.', 400);
 
@@ -933,7 +933,7 @@ export function registrarAutomacoes(rotas) {
 
   /** Gera o prompt de um agente novo a partir de uma descricao em linguagem comum. */
   rotas.post('/api/agentes/gerar', async ({ ctx, corpo }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'agentes');
     const modeloId = corpo.modelo || 'claude-opus-5';
     if (!provedorDisponivel(modeloId, ctx.workspaceId) || modeloDe(modeloId).provedor === 'regras') {
       throw comCodigo(

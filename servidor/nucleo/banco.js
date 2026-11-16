@@ -18,6 +18,10 @@ const COLECOES = [
   'workspaces',
   'usuarios',
   'membros',
+  /* Cargos criados pelo escritorio, com as permissoes de cada um (ver
+     nucleo/cargos.js). Os quatro papeis embutidos nao moram aqui: sao do
+     codigo. */
+  'cargos',
   'conexoes',
   'status',
   'departamentos',

@@ -49,6 +49,7 @@ import { testarContratos } from './contratos.js';
 import { testarRelatorios } from './relatorios.js';
 import { testarCopiarWorkspace } from './copiar-workspace.js';
 import { testarPapeis } from './papeis.js';
+import { testarCargoNaPratica, testarCargosEmbutidos } from './cargos.js';
 import { testarConexoesWorkspace } from './conexoes-workspace.js';
 import { subirJuriFalso } from './juri-falso.js';
 import { testarJuri } from './juri.js';
@@ -448,6 +449,9 @@ async function principal() {
        importa com o que as suites de cima deixaram, e rodando no fim nao polui a
        contagem de ninguem. */
     suites.push(await testarPapeis({ base }));
+    /* Cargos criados pelo escritorio, com permissao por cargo (16/11/2026). */
+    suites.push(testarCargosEmbutidos());
+    suites.push(await testarCargoNaPratica({ base }));
     suites.push(await testarConexoesWorkspace({ base }));
     suites.push(await testarCopiarWorkspace({ base }));
     suites.push(await testarRelatorios({ base, zapsign }));

@@ -10,7 +10,7 @@ import {
   resumoDoRelatorio,
   salvarConfigDoAgenteDeRelatorios,
 } from '../ia/agente-de-relatorios.js';
-import { comCodigo, exigirAdministrador } from './sessao.js';
+import { comCodigo, exigirAdministrador, exigirPermissao } from './sessao.js';
 
 /**
  * Relatorios: quantos contratos cada pessoa e cada agente de IA fecharam.
@@ -84,6 +84,9 @@ export function registrarRelatorios(rotas) {
   });
 
   rotas.get('/api/relatorios/contratos.csv', async ({ ctx, query }) => {
+    /* Planilha com dado de cliente sai do sistema e deixa de ser rastreavel:
+       por isso "exportar" e permissao propria, separada de "ver relatorio". */
+    exigirPermissao(ctx, 'exportar');
     const r = montarRelatorio(ctx, query);
     const linhas = [
       'Relatorio de contratos fechados (assinados)',

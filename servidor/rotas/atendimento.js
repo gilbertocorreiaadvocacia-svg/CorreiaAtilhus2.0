@@ -38,7 +38,7 @@ import { interromperAvaliacao } from '../automacao/avaliacao.js';
 import { inserirNota, notificar } from '../ia/mencoes.js';
 import { removerTarefasDoContato } from './tarefas.js';
 import { definirMomento, umTipoDeCaso } from '../nucleo/casos.js';
-import { comCodigo } from './sessao.js';
+import { comCodigo, exigirPermissao } from './sessao.js';
 
 /* O tipo de cada arquivo guardado, pela extensao, para o navegador saber
    mostrar. O que nao esta aqui sai como download. */
@@ -950,9 +950,7 @@ export function registrarAtendimento(rotas) {
     /* Excluir e irreversivel (LGPD, ver excluirConversa): so administrador,
        e falha antes de tocar em qualquer conversa, nunca apagando so parte
        do lote por falta de permissao no meio do caminho. */
-    if (corpo.acao === 'excluir' && !ehAdministrador(ctx)) {
-      throw comCodigo('Somente administrador pode excluir conversas.', 403);
-    }
+    if (corpo.acao === 'excluir') exigirPermissao(ctx, 'excluir');
 
     const ids = corpo.ids || [];
     const alvos = ids.map((id) => achar('contatos', id)).filter((c) => c && podeVerConversa(ctx, c));
@@ -1127,7 +1125,7 @@ export function registrarAtendimento(rotas) {
    * so.
    */
   rotas.post('/api/contatos/excluir-tudo', async ({ ctx, corpo }) => {
-    if (!ehAdministrador(ctx)) throw comCodigo('Somente administrador pode excluir todos os contatos.', 403);
+    exigirPermissao(ctx, 'excluir');
     const contatos = listar('contatos', { workspaceId: ctx.workspaceId });
     if (!corpo?.confirmar) {
       return { confirmar: true, total: contatos.length };
@@ -1148,7 +1146,9 @@ export function registrarAtendimento(rotas) {
    * apagar a conversa e deixar rastro espalhado pelo resto do sistema.
    */
   rotas.delete('/api/contatos/:id', async ({ ctx, params }) => {
-    if (!ehAdministrador(ctx)) throw comCodigo('Somente administrador pode excluir uma conversa.', 403);
+    /* Apagar nao tem volta (LGPD, ver excluirConversa): quem pode e quem tem
+       a permissao de excluir no cargo, nao quem por acaso e administrador. */
+    exigirPermissao(ctx, 'excluir');
     const contato = conversaOu404(ctx, params.id);
     excluirConversa(ctx, contato);
     emitir(ctx.workspaceId, 'contatos', {});

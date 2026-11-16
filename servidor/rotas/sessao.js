@@ -1,5 +1,6 @@
 
 import { achar, atualizar, inserir, listar, registrarLog, remover } from '../nucleo/banco.js';
+import { CHAVES_DE_PERMISSAO, PERMISSOES, cargoDe, cargosDoWorkspace, ehCargoEmbutido, permissoesDe, permissoesValidas, pode } from '../nucleo/cargos.js';
 import {
   PAPEIS,
   autenticar,
@@ -364,6 +365,12 @@ export function registrarSessao(rotas) {
     membro: ctx.membro,
     papel: ctx.papel,
     papeis: PAPEIS,
+    /* Os cargos que existem (embutidos + criados aqui) e o que ESTA pessoa
+       pode. A tela esconde o que ela nao alcanca a partir daqui, em vez de
+       perguntar o nivel dela em cada botao. */
+    cargos: cargosDoWorkspace(ctx.workspaceId),
+    permissoes: permissoesDe(ctx),
+    catalogoDePermissoes: PERMISSOES,
     workspace: ctx.workspace,
     workspaces: ctx.workspaces,
     modelos: MODELOS,
@@ -750,6 +757,90 @@ export function registrarSessao(rotas) {
    * precisa desenhar. E-mail, WhatsApp, departamentos e conexoes de toda a
    * equipe sao dado de cadastro, e ficam para a tela de Membros.
    */
+  /* ---------------- Cargos e permissoes ---------------- */
+
+  /*
+   * Quem mexe em cargo mexe em quem pode o que — entao isso e de quem
+   * gerencia a equipe, e nao de quem apenas configura o escritorio.
+   */
+  rotas.get('/api/cargos', async ({ ctx }) => cargosDoWorkspace(ctx.workspaceId));
+
+  rotas.post('/api/cargos', async ({ ctx, corpo }) => {
+    exigirAdministrador(ctx);
+    const nome = String(corpo?.nome || '').trim();
+    if (!nome) throw comCodigo('Dê um nome ao cargo.', 400);
+    if (ehCargoEmbutido(normalizar(nome))) throw comCodigo('Já existe um cargo com esse nome.', 409);
+    if (cargosDoWorkspace(ctx.workspaceId).some((c) => normalizar(c.nome) === normalizar(nome))) {
+      throw comCodigo('Já existe um cargo com esse nome.', 409);
+    }
+    const cargo = inserir('cargos', {
+      id: novoId('crg'),
+      workspaceId: ctx.workspaceId,
+      nome,
+      descricao: String(corpo?.descricao || '').trim(),
+      permissoes: permissoesValidas(corpo?.permissoes),
+    });
+    registrarLog(ctx.workspaceId, null, 'seguranca', `Cargo "${nome}" criado com: ${cargo.permissoes.join(', ') || 'nenhuma permissão'}`, {
+      tipo: 'membro',
+      id: ctx.membro?.id || null,
+      nome: ctx.usuario?.nome || 'Equipe',
+    });
+    return cargoDe(ctx.workspaceId, cargo.id);
+  });
+
+  rotas.patch('/api/cargos/:id', async ({ ctx, params, corpo }) => {
+    exigirAdministrador(ctx);
+    /*
+     * Cargo embutido nao se edita. Os quatro sao o chao do sistema: mexer nas
+     * permissoes de "Dono" pela tela e o caminho mais curto para o escritorio
+     * se trancar para fora do proprio sistema, e nao ha de onde desfazer.
+     */
+    if (ehCargoEmbutido(params.id)) throw comCodigo('Os cargos que vêm com o sistema não podem ser editados. Crie um cargo novo.', 400);
+    const guardado = achar('cargos', params.id);
+    if (!guardado || guardado.workspaceId !== ctx.workspaceId) throw comCodigo('Cargo não encontrado.', 404);
+
+    const mudancas = {};
+    if (corpo?.nome !== undefined) {
+      const nome = String(corpo.nome).trim();
+      if (!nome) throw comCodigo('Dê um nome ao cargo.', 400);
+      mudancas.nome = nome;
+    }
+    if (corpo?.descricao !== undefined) mudancas.descricao = String(corpo.descricao).trim();
+    if (corpo?.permissoes !== undefined) mudancas.permissoes = permissoesValidas(corpo.permissoes);
+    atualizar('cargos', params.id, mudancas);
+
+    const atual = cargoDe(ctx.workspaceId, params.id);
+    registrarLog(ctx.workspaceId, null, 'seguranca', `Cargo "${atual.nome}" alterado: ${atual.permissoes.join(', ') || 'nenhuma permissão'}`, {
+      tipo: 'membro',
+      id: ctx.membro?.id || null,
+      nome: ctx.usuario?.nome || 'Equipe',
+    });
+    return atual;
+  });
+
+  rotas.delete('/api/cargos/:id', async ({ ctx, params }) => {
+    exigirAdministrador(ctx);
+    if (ehCargoEmbutido(params.id)) throw comCodigo('Os cargos que vêm com o sistema não podem ser excluídos.', 400);
+    const guardado = achar('cargos', params.id);
+    if (!guardado || guardado.workspaceId !== ctx.workspaceId) throw comCodigo('Cargo não encontrado.', 404);
+    /*
+     * Cargo em uso nao some: apagar deixaria a pessoa com um papel que nao
+     * existe, e `cargoDe` devolveria nulo — ou seja, sem permissao nenhuma,
+     * de um dia para o outro, sem ninguem entender por que.
+     */
+    const usando = listar('membros', { workspaceId: ctx.workspaceId }).filter((m) => m.papel === params.id);
+    if (usando.length) {
+      throw comCodigo(`${usando.length} pessoa(s) ainda estão com este cargo. Troque o cargo delas antes de excluir.`, 409);
+    }
+    remover('cargos', params.id);
+    registrarLog(ctx.workspaceId, null, 'seguranca', `Cargo "${guardado.nome}" excluído`, {
+      tipo: 'membro',
+      id: ctx.membro?.id || null,
+      nome: ctx.usuario?.nome || 'Equipe',
+    });
+    return { ok: true };
+  });
+
   rotas.get('/api/membros', async ({ ctx }) => {
     const completo = podeConfigurar(ctx);
     return listar('membros', { workspaceId: ctx.workspaceId }).map((membro) => {
@@ -766,7 +857,7 @@ export function registrarSessao(rotas) {
   });
 
   rotas.post('/api/membros', async ({ ctx, corpo }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'membros');
     const email = String(corpo.email || '').trim();
     if (!email) throw comCodigo('Informe o e-mail do membro.', 400);
 
@@ -774,7 +865,9 @@ export function registrarSessao(rotas) {
     if (corpo.papel === 'owner' && !ehOwner(ctx)) {
       throw comCodigo('Somente o dono cria outro dono.', 403);
     }
-    if (corpo.papel && !PAPEIS[corpo.papel]) throw comCodigo('Permissao desconhecida.', 400);
+    /* Aceita tambem o id de um cargo criado aqui: cargoDe resolve os dois, e
+       cargo de OUTRO escritorio nao resolve — e assim nao entra. */
+    if (corpo.papel && !cargoDe(ctx.workspaceId, corpo.papel)) throw comCodigo('Cargo desconhecido.', 400);
 
     let usuario = listar('usuarios').find((u) => normalizar(u.email) === normalizar(email));
     if (!usuario) {
@@ -888,7 +981,9 @@ export function registrarSessao(rotas) {
     }
 
     const mudancasDoMembro = {};
-    if (corpo.papel !== undefined && PAPEIS[corpo.papel]) mudancasDoMembro.papel = corpo.papel;
+    /* Vale o embutido e o cargo criado aqui; cargoDe resolve os dois, e cargo
+       de outro escritorio nao resolve — e assim nao entra. */
+    if (corpo.papel !== undefined && cargoDe(ctx.workspaceId, corpo.papel)) mudancasDoMembro.papel = corpo.papel;
     if (Array.isArray(corpo.departamentos)) mudancasDoMembro.departamentos = corpo.departamentos;
     if (Array.isArray(corpo.conexoes)) mudancasDoMembro.conexoes = corpo.conexoes;
     if (corpo.modoFoco !== undefined) mudancasDoMembro.modoFoco = Boolean(corpo.modoFoco);
@@ -901,7 +996,7 @@ export function registrarSessao(rotas) {
   });
 
   rotas.delete('/api/membros/:id', async ({ ctx, params }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'membros');
     const membro = achar('membros', params.id);
     if (!membro || membro.workspaceId !== ctx.workspaceId) throw comCodigo('Membro nao encontrado.', 404);
     if (membro.papel === 'owner' && !ehOwner(ctx)) {
@@ -934,4 +1029,21 @@ export function exigirAdministrador(ctx) {
 
 export function exigirConfiguracao(ctx) {
   if (!podeConfigurar(ctx)) throw comCodigo('Seu perfil nao tem acesso as configuracoes.', 403);
+}
+
+/*
+ * A guarda pelo NOME da acao (ver PERMISSOES em nucleo/cargos.js).
+ *
+ * As guardas antigas perguntavam o nivel de quem esta do outro lado
+ * ("e administrador?"), e por isso cada rota nova tinha de escolher entre
+ * "administrador" e "qualquer um", sem nada no meio. Esta pergunta o que a
+ * rota PRECISA — e quem responde e o cargo.
+ *
+ * A recusa diz o nome da permissao que falta, e nao so "sem acesso": quem
+ * administra precisa saber qual caixinha marcar no cargo, sem adivinhar.
+ */
+export function exigirPermissao(ctx, permissao) {
+  if (pode(ctx, permissao)) return;
+  const nome = PERMISSOES.find((p) => p.chave === permissao)?.nome || permissao;
+  throw comCodigo(`O seu cargo não permite isto: ${nome}.`, 403);
 }

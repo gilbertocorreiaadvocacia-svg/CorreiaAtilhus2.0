@@ -103,6 +103,13 @@ const GRUPOS = [
         montar: secaoMembros,
       },
       {
+        id: 'cargos',
+        rotulo: 'Cargos e permissões',
+        descricao:
+          'O que cada cargo pode fazer no sistema. Os quatro que vêm prontos não mudam; crie os seus para dar a alguém só uma parte — ver relatório sem exportar, operar conversa sem alcançar as chaves do escritório.',
+        montar: secaoCargos,
+      },
+      {
         id: 'teto',
         rotulo: 'Limite de casos',
         descricao:
@@ -1352,6 +1359,18 @@ function editarClasse(chave, colecao, item, extras, recarregarTela) {
 async function secaoMembros(recarregarTela) {
   const membros = await recarregar('membros');
   const papeis = estado.sessao.papeis;
+  /*
+   * Os cargos vem da ROTA, e nao de estado.sessao.
+   *
+   * A sessao e carregada no login e nao se atualiza sozinha: criar um cargo e
+   * vir para ca mostrava so os quatro embutidos, e a pessoa concluia que o
+   * cargo novo nao tinha sido salvo. Ler aqui custa uma chamada e nunca fica
+   * velho.
+   */
+  const cargos = await api.get('/api/cargos');
+  /* O nome do cargo, venha ele dos quatro embutidos ou dos criados aqui. Sem
+     isto, quem recebesse um cargo proprio aparecia na lista com o id cru. */
+  const nomeDoCargo = (id) => cargos.find((c) => c.id === id)?.nome || papeis[id]?.nome || id;
 
   const lista = el('div', { class: 'lista-simples' });
   for (const membro of membros) {
@@ -1372,7 +1391,7 @@ async function secaoMembros(recarregarTela) {
           el('div', { class: 'desc', texto: [membro.usuario?.email, departamentos].filter(Boolean).join(' · ') }),
         ]),
         membro.modoFoco ? selo('modo foco', 'alerta') : null,
-        selo(papeis[membro.papel]?.nome || membro.papel, membro.papel === 'owner' ? 'ouro' : ''),
+        selo(nomeDoCargo(membro.papel), membro.papel === 'owner' ? 'ouro' : ''),
         /*
          * Reiniciar a verificacao em duas etapas AQUI, na linha, e nao so
          * dentro de Editar.
@@ -1390,7 +1409,7 @@ async function secaoMembros(recarregarTela) {
               aoClicar: () => pedirMotivoEReiniciar2fa(membro, recarregarTela),
             })
           : null,
-        podeConfigurar() ? botao('Editar', { pequeno: true, aoClicar: () => editarMembro(membro, recarregarTela) }) : null,
+        podeConfigurar() ? botao('Editar', { pequeno: true, aoClicar: () => editarMembro(membro, recarregarTela, cargos) }) : null,
         !podeConfigurar() || membro.usuarioId === estado.sessao.usuario.id
           ? null
           : botao('Remover', {
@@ -1420,7 +1439,7 @@ async function secaoMembros(recarregarTela) {
   return el('div', {}, [
     podeConfigurar()
       ? el('div', { class: 'linha-botoes mb-4' }, [
-          botao('Adicionar membro', { tipo: 'principal', icone: 'mais', aoClicar: () => editarMembro(null, recarregarTela) }),
+          botao('Adicionar membro', { tipo: 'principal', icone: 'mais', aoClicar: () => editarMembro(null, recarregarTela, cargos) }),
         ])
       : null,
     cartao(null, null, lista),
@@ -1437,14 +1456,18 @@ async function secaoMembros(recarregarTela) {
   ]);
 }
 
-function editarMembro(membro, recarregarTela) {
+/* `cargos` vem de quem chama (secaoMembros), que ja o buscou da rota: esta
+   funcao vive fora dela e nao enxerga o que ela declarou. */
+function editarMembro(membro, recarregarTela, cargos = []) {
   const novo = !membro;
   const nome = entradaTexto(membro?.usuario?.nome || '');
   const email = entradaTexto(membro?.usuario?.email || '', { type: 'email' });
   const senha = entradaSegredo('', { placeholder: novo ? 'senha inicial' : 'deixe em branco para manter' });
   const whatsapp = entradaTexto(membro?.usuario?.whatsapp || '');
   const papel = selecao(
-    Object.entries(estado.sessao.papeis).map(([id, p]) => ({ valor: id, rotulo: p.nome })),
+    /* Todos os cargos, embutidos e criados aqui: o seletor so oferecia os
+       quatro do codigo, e um cargo novo nao tinha como ser dado a ninguem. */
+    (cargos.length ? cargos : Object.entries(estado.sessao.papeis).map(([id, p]) => ({ id, ...p }))).map((c) => ({ valor: c.id, rotulo: c.nome })),
     membro?.papel || 'atendente',
   );
 
@@ -1584,6 +1607,131 @@ function pedirMotivoEReiniciar2fa(membro, recarregarTela) {
  * escrito, porque um limite que ninguem configurou nao pode parecer um limite
  * que alguem esqueceu de configurar.
  */
+/* ------------------------------------------------------------------ */
+/* Cargos e permissoes                                                 */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Cargos do escritorio, cada um com a sua lista de permissoes.
+ *
+ * Pedido do escritorio em 16/11/2026. Ate aqui havia quatro papeis fixos, e as
+ * guardas do sistema perguntavam sempre a mesma coisa grossa: "e
+ * administrador?". Ou a pessoa mexia em tudo — chaves de API, roteiro dos
+ * agentes, exclusao de conversa — ou nao mexia em nada.
+ *
+ * OS QUATRO EMBUTIDOS NAO SE EDITAM, e isso e proposital: mexer nas permissoes
+ * de "Dono" por uma tela e o caminho mais curto para o escritorio se trancar
+ * para fora do proprio sistema, e nao haveria de onde desfazer. Eles aparecem
+ * aqui para leitura, para dar para comparar na hora de montar um cargo novo.
+ */
+async function secaoCargos(recarregarTela) {
+  const cargos = await api.get('/api/cargos');
+  const catalogo = estado.sessao?.catalogoDePermissoes || [];
+  const membros = estado.membros || [];
+  const quantosUsam = (id) => membros.filter((m) => m.papel === id).length;
+
+  /* Uma linha por permissao, com a explicacao do que ela libera. Marcar
+     permissao sem saber o que ela abre e como assinar papel sem ler. */
+  function caixasDePermissao(marcadas) {
+    const caixas = {};
+    const linhas = catalogo.map((permissao) => {
+      const caixa = marcador(marcadas.includes(permissao.chave));
+      caixas[permissao.chave] = caixa;
+      return el('label', { class: 'lista-item' }, [
+        caixa,
+        el('div', { class: 'corpo' }, [
+          el('div', { class: 'titulo', texto: permissao.nome }),
+          el('div', { class: 'desc', texto: permissao.descricao }),
+        ]),
+      ]);
+    });
+    return { caixas, no: el('div', { class: 'lista-simples' }, linhas) };
+  }
+
+  function editarCargo(cargo) {
+    const nome = entradaTexto(cargo?.nome || '', { placeholder: 'Financeiro, Estagiário, Supervisor…' });
+    const descricao = entradaTexto(cargo?.descricao || '', { placeholder: 'Para que serve este cargo (opcional)' });
+    const { caixas, no } = caixasDePermissao(cargo?.permissoes || []);
+    modal({
+      titulo: cargo ? `Cargo ${cargo.nome}` : 'Novo cargo',
+      corpo: el('div', {}, [
+        campo('Nome', nome),
+        campo('Descrição', descricao),
+        el('div', { class: 'campo' }, [el('span', { texto: 'O que este cargo pode fazer' }), no]),
+        /* Dito na tela, porque e a duvida que aparece na hora de montar o
+           cargo: permissao e o que a pessoa FAZ; o que ela VE sai dos
+           departamentos e conexoes dela, em Membros. */
+        el('p', { class: 'rodape-nota mt-2' }, [
+          document.createTextNode('Quais conversas a pessoa enxerga não vem daqui: isso continua sendo os departamentos e as conexões dela, em Membros.'),
+        ]),
+      ]),
+      confirmar: 'Salvar',
+      aoConfirmar: async () => {
+        const permissoes = Object.entries(caixas).filter(([, caixa]) => caixa.checked).map(([chave]) => chave);
+        const dados = { nome: nome.value.trim(), descricao: descricao.value.trim(), permissoes };
+        if (!dados.nome) throw new Error('Dê um nome ao cargo.');
+        if (cargo) await api.patch(`/api/cargos/${cargo.id}`, dados);
+        else await api.post('/api/cargos', dados);
+        aviso(cargo ? 'Cargo salvo.' : 'Cargo criado.', 'sucesso');
+        /* A sessao carrega as permissoes de quem esta logado no login. Mexer
+           num cargo pode mudar o que ESTA pessoa alcanca (se for o cargo
+           dela), e a tela continuaria mostrando botao que o servidor ja
+           recusa. Recarregar e mais barato que explicar o 403 depois. */
+        await carregarSessao();
+        await recarregarTela();
+      },
+    });
+  }
+
+  const nomeDaPermissao = (chave) => catalogo.find((p) => p.chave === chave)?.nome || chave;
+
+  const linha = (cargo) => {
+    const usando = quantosUsam(cargo.id);
+    return el('div', { class: 'lista-item' }, [
+      el('div', { class: 'corpo' }, [
+        el('div', { class: 'titulo' }, [
+          document.createTextNode(cargo.nome),
+          cargo.embutido ? selo('vem com o sistema', '') : null,
+        ]),
+        el('div', { class: 'desc', texto: cargo.descricao || '' }),
+        el('div', { class: 't-xs c-fraco mt-1', texto: cargo.permissoes.length ? cargo.permissoes.map(nomeDaPermissao).join(' · ') : 'Nenhuma permissão: só opera as conversas que enxerga.' }),
+      ]),
+      el('span', { class: 'c-fraco t-sm', texto: usando ? plural(usando, 'pessoa', 'pessoas') : '—' }),
+      cargo.embutido ? null : botao('Editar', { pequeno: true, aoClicar: () => editarCargo(cargo) }),
+      cargo.embutido
+        ? null
+        : botao('Excluir', {
+            pequeno: true,
+            tipo: 'perigo',
+            aoClicar: () =>
+              confirmar('Excluir este cargo?', `${cargo.nome} deixa de existir. Quem estiver com ele precisa receber outro antes.`, async () => {
+                await api.delete(`/api/cargos/${cargo.id}`);
+                aviso('Cargo excluído.', 'sucesso');
+                await carregarSessao();
+                await recarregarTela();
+              }, 'Excluir'),
+          }),
+    ]);
+  };
+
+  const proprios = cargos.filter((c) => !c.embutido);
+  return el('div', {}, [
+    ehAdmin() ? el('div', { class: 'linha-botoes mb-4' }, [botao('Novo cargo', { tipo: 'principal', icone: 'mais', aoClicar: () => editarCargo(null) })]) : null,
+    cartao(
+      'Cargos do escritório',
+      proprios.length ? 'Criados por vocês. Edite para mudar o que cada um alcança.' : 'Nenhum cargo próprio ainda. Crie um para dar a alguém só uma parte do sistema.',
+      el('div', { class: 'lista-simples' }, proprios.length ? proprios.map(linha) : [vazio('Nenhum cargo criado', 'Clique em Novo cargo para começar.')]),
+    ),
+    el('div', { class: 'mt-4' }, [
+      cartao(
+        'Os que vêm com o sistema',
+        'Não podem ser editados nem excluídos: são o chão do sistema. Servem de referência para montar os seus.',
+        el('div', { class: 'lista-simples' }, cargos.filter((c) => c.embutido).map(linha)),
+      ),
+    ]),
+  ]);
+}
+
 async function secaoTetoDeCasos(recarregarTela) {
   const { config, pessoas } = await api.get('/api/teto-de-casos');
 

@@ -3,7 +3,7 @@ import { MODELOS } from '../config.js';
 import { achar, atualizar, inserir, listar, remover } from '../nucleo/banco.js';
 import { podeVerConversa } from '../nucleo/auth.js';
 import { agora, novoId } from '../nucleo/util.js';
-import { comCodigo, exigirConfiguracao } from './sessao.js';
+import { comCodigo, exigirConfiguracao, exigirPermissao } from './sessao.js';
 
 function integracoesDo(workspaceId) {
   let registro = achar('integracoes', { workspaceId });
@@ -131,7 +131,7 @@ export function registrarIntegracoes(rotas) {
   rotas.get('/api/integracoes', async ({ ctx }) => mascarar(integracoesDo(ctx.workspaceId)));
 
   rotas.patch('/api/integracoes', async ({ ctx, corpo }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'integracoes');
     const atual = integracoesDo(ctx.workspaceId);
     /* atualizar() grava por cima do MESMO objeto (Object.assign em achar()),
        entao comparar atual.liderhub.chave DEPOIS do atualizar() la embaixo
@@ -253,19 +253,19 @@ export function registrarIntegracoes(rotas) {
   });
 
   rotas.post('/api/integracoes/meta-conversoes/testar', async ({ ctx }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'integracoes');
     const { testarConexao } = await import('../integracoes/meta-conversoes.js');
     return testarConexao(ctx.workspaceId);
   });
 
   rotas.post('/api/integracoes/tiktok-eventos/testar', async ({ ctx }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'integracoes');
     const { testarEventosTikTok } = await import('../integracoes/tiktok-eventos.js');
     return testarEventosTikTok(ctx.workspaceId);
   });
 
   rotas.post('/api/integracoes/zapsign/sincronizar', async ({ ctx }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'integracoes');
     const { sincronizarModelos } = await import('../integracoes/zapsign.js');
     return sincronizarModelos(ctx.workspaceId);
   });
@@ -275,7 +275,7 @@ export function registrarIntegracoes(rotas) {
    * ja sincronizados. Nao grava: a tela preenche as escolhas, a pessoa confere e salva.
    */
   rotas.post('/api/integracoes/zapsign/sugerir-modelos', async ({ ctx }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'integracoes');
     const { sugerirModelos } = await import('../integracoes/zapsign.js');
     const modelos = achar('integracoes', { workspaceId: ctx.workspaceId })?.zapsign?.modelos || [];
     if (!modelos.length) throw comCodigo('Sincronize os modelos da ZapSign antes.', 400);
@@ -288,7 +288,7 @@ export function registrarIntegracoes(rotas) {
    * mudaria, sem gravar nada; a equipe confere e so entao importa de verdade.
    */
   rotas.post('/api/integracoes/liderhub/importar', async ({ ctx, corpo }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'integracoes');
     const { importarClassificacao } = await import('../integracoes/liderhub.js');
     return importarClassificacao(ctx.workspaceId, { simular: corpo.simular !== false });
   });
@@ -299,7 +299,7 @@ export function registrarIntegracoes(rotas) {
    * sem gravar nada ainda.
    */
   rotas.post('/api/integracoes/liderhub/detectar', async ({ ctx }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'integracoes');
     const { detectarHistoricoLiderhub } = await import('../integracoes/liderhub.js');
     return detectarHistoricoLiderhub(ctx.workspaceId);
   });
@@ -312,7 +312,7 @@ export function registrarIntegracoes(rotas) {
    * dentro de liderhub.historico.
    */
   rotas.post('/api/integracoes/liderhub/importar-historico', async ({ ctx }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'integracoes');
     const { enfileirarHistoricoLiderhub } = await import('../integracoes/liderhub.js');
     return enfileirarHistoricoLiderhub(ctx.workspaceId);
   });
@@ -326,7 +326,7 @@ export function registrarIntegracoes(rotas) {
    * para o gasto aparecer em Configuracoes > Consumo como qualquer outro.
    */
   rotas.post('/api/integracoes/ia/testar', async ({ ctx, corpo }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'integracoes');
     const { conversar, provedorDisponivel } = await import('../ia/provedores.js');
     const { lancar } = await import('../nucleo/creditos.js');
 
@@ -376,7 +376,7 @@ export function registrarIntegracoes(rotas) {
   });
 
   rotas.post('/api/integracoes/atilhus-juri/testar', async ({ ctx }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'integracoes');
     const { testarJuri } = await import('../integracoes/atilhus-juri.js');
     return testarJuri(ctx.workspaceId);
   });
@@ -388,7 +388,7 @@ export function registrarIntegracoes(rotas) {
    * automatico ja cobre toda conversa daqui para frente.
    */
   rotas.post('/api/integracoes/atilhus-juri/mandar-fechados', async ({ ctx }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'integracoes');
     const { varrerFechadosSemEnvio } = await import('../integracoes/atilhus-juri.js');
     return varrerFechadosSemEnvio(ctx.workspaceId);
   });
@@ -396,7 +396,7 @@ export function registrarIntegracoes(rotas) {
   /* ---------------- Chamadas personalizadas ---------------- */
 
   rotas.post('/api/custom-tools', async ({ ctx, corpo }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'integracoes');
     const atual = integracoesDo(ctx.workspaceId);
     const ferramenta = {
       id: novoId('cst'),
@@ -414,7 +414,7 @@ export function registrarIntegracoes(rotas) {
   });
 
   rotas.patch('/api/custom-tools/:id', async ({ ctx, params, corpo }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'integracoes');
     const atual = integracoesDo(ctx.workspaceId);
     const lista = (atual.customTools || []).map((f) =>
       f.id === params.id
@@ -427,7 +427,7 @@ export function registrarIntegracoes(rotas) {
   });
 
   rotas.delete('/api/custom-tools/:id', async ({ ctx, params }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'integracoes');
     const atual = integracoesDo(ctx.workspaceId);
     atualizar('integracoes', atual.id, {
       customTools: (atual.customTools || []).filter((f) => f.id !== params.id),
@@ -555,6 +555,10 @@ export function registrarIntegracoes(rotas) {
 
 
   rotas.post('/api/contratos/:id/aprovar', async ({ ctx, params, corpo }) => {
+    /* Aprovar e o ato de fechar: e daqui que sai o link de assinatura para o
+       cliente. Continua liberado para atendente (ver CARGOS_EMBUTIDOS), e
+       agora da para tirar isso num cargo proprio. */
+    exigirPermissao(ctx, 'contratos');
     contratoOu404(ctx, params.id);
     const { aprovarContrato } = await import('../integracoes/zapsign.js');
     return exigirOk(await aprovarContrato(params.id, { valores: corpo?.valores, autor: autorDe(ctx) }));
@@ -581,7 +585,7 @@ export function registrarIntegracoes(rotas) {
 
   /* Marcar como assinado a mao pula a ZapSign: so quem configura o sistema. */
   rotas.post('/api/contratos/:id/assinado', async ({ ctx, params }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'integracoes');
     contratoOu404(ctx, params.id);
     const { confirmarAssinatura } = await import('../integracoes/zapsign.js');
     return confirmarAssinatura(params.id);
@@ -650,7 +654,7 @@ export function registrarIntegracoes(rotas) {
   /* ---------------- Chaves da API publica ---------------- */
 
   rotas.get('/api/chaves-api', async ({ ctx }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'integracoes');
     return listar('chavesApi', { workspaceId: ctx.workspaceId }).map((c) => ({
       id: c.id,
       nome: c.nome,
@@ -661,7 +665,7 @@ export function registrarIntegracoes(rotas) {
   });
 
   rotas.post('/api/chaves-api', async ({ ctx, corpo }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'integracoes');
     const bruta = `chk_${crypto.randomBytes(24).toString('hex')}`;
     const registro = inserir('chavesApi', {
       id: novoId('chv'),
@@ -676,7 +680,7 @@ export function registrarIntegracoes(rotas) {
   });
 
   rotas.delete('/api/chaves-api/:id', async ({ ctx, params }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'integracoes');
     const chave = achar('chavesApi', params.id);
     if (!chave || chave.workspaceId !== ctx.workspaceId) throw comCodigo('Chave nao encontrada.', 404);
     remover('chavesApi', params.id);

@@ -12,7 +12,7 @@ import { guardarNaAgenda } from '../whatsapp/agenda.js';
 import { completarComEvolutionLocal, garantirEvolutionLocal } from '../whatsapp/evolution-local.js';
 import { agendarSincronizacao, cancelarSincronizacao, rodar } from '../whatsapp/sincronizar-historico.js';
 import { nomeEhProvisorio } from '../whatsapp/nomes.js';
-import { comCodigo, exigirAdministrador, exigirConfiguracao } from './sessao.js';
+import { comCodigo, exigirAdministrador, exigirConfiguracao, exigirPermissao } from './sessao.js';
 import { excluirConversa } from './atendimento.js';
 
 /**
@@ -170,7 +170,7 @@ export function registrarConexoes(rotas) {
   rotas.get('/api/conexoes-tipos', async () => listarDrivers());
 
   rotas.post('/api/conexoes', async ({ ctx, corpo }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'conexoes');
     const existentes = listar('conexoes', { workspaceId: ctx.workspaceId });
 
     /* Um numero so pode estar em um workspace. Conexao criada sem numero (ainda
@@ -225,7 +225,7 @@ export function registrarConexoes(rotas) {
   });
 
   rotas.patch('/api/conexoes/:id', async ({ ctx, params, corpo }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'conexoes');
     const conexao = achar('conexoes', params.id);
     if (!conexao || conexao.workspaceId !== ctx.workspaceId) throw comCodigo('Conexao nao encontrada.', 404);
 
@@ -298,7 +298,7 @@ export function registrarConexoes(rotas) {
    * inteiro esta em servidor/whatsapp/importar-historico.js.
    */
   rotas.post('/api/conexoes/:id/importar-historico', async ({ ctx, params, corpo }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'conexoes');
     const conexao = achar('conexoes', params.id);
     if (!conexao || conexao.workspaceId !== ctx.workspaceId) throw comCodigo('Conexao nao encontrada.', 404);
     if (conexao.tipo !== 'qrcode') {
@@ -328,7 +328,7 @@ export function registrarConexoes(rotas) {
    * numero continua unico: se o destino ja tiver este numero, a troca e recusada.
    */
   rotas.post('/api/conexoes/:id/mover', async ({ ctx, params, corpo }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'conexoes');
     const conexao = achar('conexoes', params.id);
     if (!conexao || conexao.workspaceId !== ctx.workspaceId) throw comCodigo('Conexao nao encontrada.', 404);
 
@@ -364,7 +364,7 @@ export function registrarConexoes(rotas) {
    * (a tela pede de novo, com o aviso e a contagem, antes de mandar).
    */
   rotas.delete('/api/conexoes/:id', async ({ ctx, params, corpo }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'conexoes');
     const conexao = achar('conexoes', params.id);
     if (!conexao || conexao.workspaceId !== ctx.workspaceId) throw comCodigo('Conexao nao encontrada.', 404);
 
@@ -407,7 +407,7 @@ export function registrarConexoes(rotas) {
    * comando). Em troca, nao guarda copia — e definitivo.
    */
   rotas.post('/api/conexoes/:id/apagar-conversas', async ({ ctx, params, corpo }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'conexoes');
     exigirAdministrador(ctx);
     const conexao = achar('conexoes', params.id);
     if (!conexao || conexao.workspaceId !== ctx.workspaceId) throw comCodigo('Conexao nao encontrada.', 404);
@@ -452,7 +452,7 @@ export function registrarConexoes(rotas) {
    * comportamento que ela espera.
    */
   rotas.post('/api/conexoes/ordenar', async ({ ctx, corpo }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'conexoes');
     const ids = Array.isArray(corpo.ids) ? corpo.ids : [];
     if (!ids.length) throw comCodigo('Envie a lista de ids na ordem desejada.', 400);
 
@@ -561,7 +561,7 @@ export function registrarConexoes(rotas) {
    * para abrir, ela ja nasce ligada quando as credenciais estao certas.
    */
   rotas.post('/api/conexoes/:id/conectar', async ({ ctx, params }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'conexoes');
     const encontrada = achar('conexoes', params.id);
     if (!encontrada || encontrada.workspaceId !== ctx.workspaceId) throw comCodigo('Conexao nao encontrada.', 404);
     /* Conexao criada antes de o sistema saber ler a Evolution local, ou
@@ -606,7 +606,7 @@ export function registrarConexoes(rotas) {
 
   /** Encerra a sessao no celular, sem apagar a configuracao. */
   rotas.post('/api/conexoes/:id/desconectar', async ({ ctx, params }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'conexoes');
     const conexao = achar('conexoes', params.id);
     if (!conexao || conexao.workspaceId !== ctx.workspaceId) throw comCodigo('Conexao nao encontrada.', 404);
 
@@ -743,7 +743,7 @@ export function registrarConexoes(rotas) {
    * da propria conta para dentro da conexao do escritorio.
    */
   rotas.post('/api/conexoes/:id/tiktok/entrar', async ({ ctx, params }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'conexoes');
     const conexao = achar('conexoes', params.id);
     if (!conexao || conexao.workspaceId !== ctx.workspaceId) throw comCodigo('Conexao nao encontrada.', 404);
     if (conexao.tipo !== 'tiktok') throw comCodigo('Esta conexao nao e do TikTok.', 400);
@@ -800,7 +800,7 @@ export function registrarConexoes(rotas) {
 
   /** Cadastra no TikTok o endereco que recebe as DMs (um por app). */
   rotas.post('/api/conexoes/:id/tiktok/webhook', async ({ ctx, params }) => {
-    exigirConfiguracao(ctx);
+    exigirPermissao(ctx, 'conexoes');
     const conexao = achar('conexoes', params.id);
     if (!conexao || conexao.workspaceId !== ctx.workspaceId) throw comCodigo('Conexao nao encontrada.', 404);
     if (!ENDERECO_PUBLICO) throw comCodigo('O webhook do TikTok precisa do sistema hospedado, com endereco publico.', 409);

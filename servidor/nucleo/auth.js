@@ -3,6 +3,7 @@ import path from 'node:path';
 import { PASTA_DADOS } from '../config.js';
 import { achar, atualizar, inserir, listar, tabela } from './banco.js';
 import { agora, conferirSenha, gravarAtomico, hashSenha, lerJson, normalizar, novoId } from './util.js';
+import { CARGOS_EMBUTIDOS, pode } from './cargos.js';
 
 const DURACAO_SESSAO = 1000 * 60 * 60 * 24 * 30; // 30 dias
 const ARQUIVO_SESSOES = path.join(PASTA_DADOS, 'sessoes.json');
@@ -33,28 +34,12 @@ function gravarSessoes() {
   }
 }
 
-export const PAPEIS = {
-  owner: {
-    nome: 'Dono',
-    descricao: 'Dono do workspace: acesso total e nao pode ser removido. Cria, edita e arquiva o workspace, gerencia membros e conexoes.',
-    nivel: 4,
-  },
-  admin: {
-    nome: 'Administrador',
-    descricao: 'Acesso total: configuracoes, agentes, membros, conexoes e conversas de todos os departamentos.',
-    nivel: 3,
-  },
-  atendente: {
-    nome: 'Atendente',
-    descricao: 'Opera as conversas dos departamentos e conexoes designados. Sem acesso as configuracoes gerais.',
-    nivel: 2,
-  },
-  somente_leitura: {
-    nome: 'Somente leitura',
-    descricao: 'So visualiza conversas e relatorios dos departamentos autorizados. Nao envia mensagem nem altera nada.',
-    nivel: 1,
-  },
-};
+/*
+ * Os quatro papeis embutidos, agora escritos uma vez so em nucleo/cargos.js —
+ * junto das permissoes de cada um. Duas listas do mesmo assunto em arquivos
+ * diferentes acabam discordando no dia em que uma das duas e alterada.
+ */
+export const PAPEIS = CARGOS_EMBUTIDOS;
 
 /* Os nomes antigos, para a migracao mapear o que ja existe. */
 const PAPEL_ANTIGO = { administrador: 'owner', gerente: 'admin', suporte: 'atendente' };
@@ -240,8 +225,27 @@ export function ehSomenteLeitura(ctx) {
   return ctx?.papel === 'somente_leitura';
 }
 
+/*
+ * Daqui para baixo quem responde e o CARGO, e nao o nivel.
+ *
+ * Estas funcoes continuam existindo com o mesmo nome porque sao chamadas em
+ * dezenas de lugares; o que mudou e de onde sai a resposta. Com os quatro
+ * papeis embutidos o resultado e identico ao de antes (ver nucleo/cargos.js:
+ * admin e dono tem todas as permissoes, atendente e somente-leitura nenhuma),
+ * e com um cargo criado pelo escritorio passa a valer a lista dele.
+ *
+ * ehAdministrador NAO entra nessa troca de proposito: alem de guarda, ele
+ * decide VISIBILIDADE (quem enxerga todas as conversas, em
+ * filtrarConversasVisiveis). Misturar os dois faria um cargo de permissao
+ * virar, sem ninguem pedir, uma licenca para ler a fila inteira do escritorio.
+ */
 export function podeConfigurar(ctx) {
-  return ehAdministrador(ctx);
+  return pode(ctx, 'configurar');
+}
+
+/** Pode fazer esta acao, pelo nome dela? Ver PERMISSOES em nucleo/cargos.js. */
+export function podeFazer(ctx, permissao) {
+  return pode(ctx, permissao);
 }
 
 /**

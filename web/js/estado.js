@@ -173,8 +173,24 @@ export function ehOwner() {
   return estado.sessao?.papel === 'owner';
 }
 
+/*
+ * O que ESTA pessoa pode, pelo nome da acao.
+ *
+ * A sessao passa a trazer a lista pronta do servidor (`permissoes`), montada
+ * a partir do cargo. A tela pergunta pelo nome do que o botao faz, em vez de
+ * perguntar o nivel de quem esta olhando — que era o que obrigava cada botao
+ * novo a escolher entre "administrador" e "todo mundo", sem nada no meio.
+ *
+ * A tela esconder nao e a trava: quem trava e o servidor, em
+ * exigirPermissao. Isto aqui existe para ninguem clicar num botao que vai
+ * responder 403.
+ */
+export function podeFazer(permissao) {
+  return (estado.sessao?.permissoes || []).includes(permissao);
+}
+
 export function podeConfigurar() {
-  return ehAdmin();
+  return podeFazer('configurar');
 }
 
 /* Tempo real --------------------------------------------------------- */
