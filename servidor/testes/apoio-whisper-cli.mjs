@@ -14,9 +14,26 @@ import fs from 'node:fs';
 
 const args = process.argv.slice(2);
 
+/*
+ * O --help decide se esta "versao" aceita texto inicial.
+ *
+ * O sistema le o --help antes de mandar --prompt, justamente para nao quebrar
+ * em uma versao que nao o conheca (ia/transcricao-local.js, cliAceitaPrompt).
+ * CORREIA_FALSO_CLI_SEM_PROMPT=1 finge a versao velha, para o teste exercer os
+ * dois lados sem precisar de dois binarios.
+ */
 if (args.includes('--help')) {
+  const semPrompt = process.env.CORREIA_FALSO_CLI_SEM_PROMPT === '1';
   console.log('falso whisper-cli');
+  console.log('  -m FNAME,  --model FNAME    modelo');
+  console.log('  -l LANG,   --language LANG  idioma');
+  if (!semPrompt) console.log('  --prompt PROMPT             initial prompt');
   process.exit(0);
+}
+
+/* O que chegou, para o teste conferir depois. */
+if (process.env.CORREIA_FALSO_CLI_ARGS) {
+  fs.writeFileSync(process.env.CORREIA_FALSO_CLI_ARGS, JSON.stringify(args));
 }
 
 const valor = (bandeira) => {

@@ -189,6 +189,50 @@ async function testarCaminhoDoCli(s, motor) {
      * nao lancar — isso roda no meio do recebimento de uma mensagem de
      * cliente, e excecao ali derruba a mensagem inteira.
      */
+    /*
+     * --- O VOCABULARIO DO RAMO vai junto, quando o cli souber receber ------
+     *
+     * Medido em 16/11/2026 com fala de verdade e o modelo da hospedagem: os
+     * numeros ele acerta, o vocabulario nao. "BPC LOAS" saiu "BP, celos" e
+     * "CNIS" saiu "clings". O texto inicial e o lugar certo de dizer ao modelo
+     * de que assunto a conversa trata, ANTES de ele ouvir.
+     *
+     * O risco de mandar um argumento que o programa nao conhece e alto: ele
+     * sairia com erro em TODO audio, e a transcricao inteira pararia para
+     * ganhar vocabulario. Por isso o sistema LE o --help antes. Os dois lados
+     * estao travados aqui.
+     */
+    const argsSalvos = path.join(pasta, 'args.json');
+    process.env.CORREIA_FALSO_CLI_ARGS = argsSalvos;
+
+    const comPrompt = await import(`../ia/transcricao-local.js?prompt=${Date.now()}`);
+    await comPrompt.transcreverLocal(ogg);
+    const recebidos = JSON.parse(fs.readFileSync(argsSalvos, 'utf8'));
+    const iPrompt = recebidos.indexOf('--prompt');
+    s.ok('o cli que anuncia --prompt recebe o texto inicial', iPrompt >= 0, JSON.stringify(recebidos));
+    const textoMandado = iPrompt >= 0 ? recebidos[iPrompt + 1] : '';
+    s.ok(
+      'e o texto tras as palavras que o modelo erra (INSS, BPC, LOAS, CNIS)',
+      ['INSS', 'BPC', 'LOAS', 'CNIS'].every((t) => textoMandado.includes(t)),
+      textoMandado.slice(0, 160),
+    );
+    s.ok(
+      'em frase, e nao em lista solta: o whisper continua um texto, nao le dicionario',
+      /escritorio de advocacia/i.test(textoMandado),
+      textoMandado.slice(0, 120),
+    );
+
+    /* A versao que NAO anuncia o flag nao pode receber: seria erro em todo audio. */
+    fs.rmSync(argsSalvos, { force: true });
+    process.env.CORREIA_FALSO_CLI_SEM_PROMPT = '1';
+    const semPrompt = await import(`../ia/transcricao-local.js?semprompt=${Date.now()}`);
+    const aindaTranscreve = await semPrompt.transcreverLocal(ogg);
+    const recebidosVelho = JSON.parse(fs.readFileSync(argsSalvos, 'utf8'));
+    s.ok('o cli que NAO anuncia --prompt nao recebe o texto', !recebidosVelho.includes('--prompt'), JSON.stringify(recebidosVelho));
+    s.ok('e continua transcrevendo normalmente', Boolean(aindaTranscreve?.texto), JSON.stringify(aindaTranscreve).slice(0, 160));
+    delete process.env.CORREIA_FALSO_CLI_SEM_PROMPT;
+    delete process.env.CORREIA_FALSO_CLI_ARGS;
+
     process.env.CORREIA_WHISPER_CLI = path.join(pasta, 'nao-existe-nenhum');
     const semCli = await import(`../ia/transcricao-local.js?semcli=${Date.now()}`);
     let lancou = null;
@@ -201,6 +245,8 @@ async function testarCaminhoDoCli(s, motor) {
     s.ok('sem whisper-cli nenhum, nao lanca excecao', lancou === null, String(lancou && lancou.message));
     s.ok('e devolve o motivo em vez de texto', Boolean(resposta && resposta.erro && !resposta.texto), JSON.stringify(resposta));
   } finally {
+    delete process.env.CORREIA_FALSO_CLI_SEM_PROMPT;
+    delete process.env.CORREIA_FALSO_CLI_ARGS;
     for (const [chave, valor] of [['CORREIA_WHISPER_CLI', guardados.cli], ['CORREIA_TRANSCRICAO_VIA', guardados.via]]) {
       if (valor === undefined) delete process.env[chave];
       else process.env[chave] = valor;

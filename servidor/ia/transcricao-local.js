@@ -168,6 +168,120 @@ export function acharWhisperCli() {
   return '';
 }
 
+/*
+ * O VOCABULARIO DO ESCRITORIO, dito ao modelo antes de ele ouvir.
+ *
+ * Medido em 16/11/2026, com audio de fala em portugues e o modelo que roda na
+ * hospedagem (base). O que o cliente falou, e o que saiu:
+ *
+ *     "auxilio-doenca pelo INSS"  ->  "auxilio do insapelo INSS"
+ *     "BPC LOAS"                  ->  "BP, celos"
+ *     "CNIS"                      ->  "clings"
+ *
+ * Os numeros ele acerta (o achado da janela de 30 s resolveu isso). O que ele
+ * erra e o VOCABULARIO: palavra que quase ninguem fala fora deste ramo e que o
+ * modelo nunca viu o bastante para preferir.
+ *
+ * O whisper aceita um texto inicial que entra no contexto antes do audio, e e
+ * para exatamente isto que ele serve: as palavras do prompt passam a ser
+ * candidatas provaveis. Nao e correcao depois nem chute — e dizer ao modelo,
+ * antes, de que assunto a conversa trata.
+ *
+ * DUAS COISAS QUE ISTO NAO E:
+ *
+ *  - nao troca palavra nenhuma depois de transcrita. A regra de GRAFIA_SEGURA
+ *    continua valendo: so se corrige o que nao existe como palavra;
+ *  - nao vale no caminho do FILTRO do ffmpeg, que nao tem onde receber texto
+ *    inicial (conferido em `ffmpeg -h filter=whisper`). Vale no whisper-cli,
+ *    que e justamente o caminho da hospedagem.
+ */
+const VOCABULARIO = [
+  'INSS',
+  'BPC',
+  'LOAS',
+  'CNIS',
+  'CPF',
+  'CTPS',
+  'FGTS',
+  'auxilio-doenca',
+  'auxilio-acidente',
+  'salario-maternidade',
+  'aposentadoria',
+  'beneficio',
+  'pericia',
+  'laudo',
+  'carencia',
+  'DER',
+  'CAT',
+  'rescisao',
+  'verbas rescisorias',
+  'justa causa',
+  'horas extras',
+  'insalubridade',
+  'periculosidade',
+  'advogado',
+  'processo',
+  'audiencia',
+  'procuracao',
+  'honorarios',
+];
+
+/*
+ * O texto inicial, em frase e nao em lista.
+ *
+ * O whisper espera CONTEXTO, nao um dicionario: ele continua o texto que
+ * recebe. Uma frase do mesmo assunto puxa as palavras melhor do que termos
+ * soltos separados por virgula.
+ */
+export const textoInicial = () =>
+  `Conversa de um cliente com um escritorio de advocacia sobre ${VOCABULARIO.slice(0, 3).join(', ')} e ${VOCABULARIO[3]}. ` +
+  `Termos que aparecem: ${VOCABULARIO.join(', ')}.`;
+
+let aceitaPromptLembrado = null;
+
+/**
+ * Este whisper-cli aceita texto inicial?
+ *
+ * PERGUNTADO, e nao suposto. O flag existe no whisper.cpp ha tempo, mas a
+ * hospedagem compila uma versao fixada (ver o Dockerfile) e um dia alguem
+ * sobe essa versao. Mandar um argumento que o programa nao conhece faria ele
+ * sair com erro em TODO audio — a transcricao inteira pararia para ganhar
+ * vocabulario. Entao se le o --help uma vez e so se usa o que esta la.
+ */
+export function cliAceitaPrompt(cli = acharWhisperCli()) {
+  if (aceitaPromptLembrado !== null) return aceitaPromptLembrado;
+  if (!cli) {
+    aceitaPromptLembrado = false;
+    return false;
+  }
+  /*
+   * No Windows o cli pode ser um .cmd, e execFile recusa .cmd direto desde a
+   * correcao de seguranca do Node 24 (EINVAL) — o mesmo cuidado que o envio
+   * dos argumentos ja toma mais abaixo. Sem isto, a sondagem caia no catch com
+   * as duas saidas vazias e respondia "nao aceita", CALADA: o vocabulario
+   * nunca seria mandado e ninguem saberia por que.
+   */
+  const ehLote = /\.(cmd|bat)$/i.test(cli);
+  const programa = ehLote ? 'cmd.exe' : cli;
+  const argumentos = ehLote ? ['/c', cli, '--help'] : ['--help'];
+  let ajuda = '';
+  try {
+    ajuda = String(execFileSync(programa, argumentos, OPCOES_SONDAGEM) || '');
+  } catch (erro) {
+    /* Varias versoes escrevem o --help na saida de erro e saem com codigo != 0. */
+    ajuda = String(erro?.stdout || '') + String(erro?.stderr || '');
+  }
+  /* `--prompt` seguido de espaco, virgula ou fim de linha: assim um
+     `--prompt-file` de outra versao nao passa por ele. */
+  aceitaPromptLembrado = /--prompt(\s|,|$)/m.test(ajuda);
+  return aceitaPromptLembrado;
+}
+
+/* So para o teste poder exercer os dois lados sem um whisper-cli de verdade. */
+export function esquecerSondagemDoPrompt() {
+  aceitaPromptLembrado = null;
+}
+
 export function acharModelo() {
   const escolhido = process.env.CORREIA_MODELO_VOZ;
   if (escolhido) {
@@ -342,6 +456,8 @@ async function porLinhaDeComando({ ffmpeg, modelo, entradaOriginal, pasta }) {
   /* -oj grava <arquivo>.json ao lado do wav. -nt tira o carimbo de tempo do
      texto, que aqui viria duplicado (ja temos os offsets no JSON). */
   const argumentos = ['-m', modelo, '-f', wav, '-l', 'pt', '-oj', '-nt', '--no-prints'];
+  /* O vocabulario do ramo, quando este whisper-cli souber receber. */
+  if (cliAceitaPrompt(cli)) argumentos.push('--prompt', textoInicial());
 
   /*
    * Na hospedagem o whisper-cli e um binario comum e isto nao se aplica. Mas no
