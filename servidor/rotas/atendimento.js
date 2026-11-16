@@ -666,6 +666,8 @@ export function registrarAtendimento(rotas) {
 
     if (corpo.responsavel !== undefined) {
       const responsavel = corpo.responsavel;
+      /* Lido ANTES da troca: depois de atualizar nao ha mais de quem era. */
+      const responsavelAntes = contato.responsavel?.nome || null;
       mudancas.responsavel = responsavel;
       /* Uma pessoa escolheu quem atende: a conversa concluida deixa de ficar sem a IA. */
       mudancas.semIa = null;
@@ -691,7 +693,22 @@ export function registrarAtendimento(rotas) {
           notificar(ctx.workspaceId, responsavel.id, 'atribuicao', 'Conversa atribuida a voce', `${contato.nome} foi transferido para voce.`, contato.id);
         }
       }
-      registrarLog(ctx.workspaceId, contato.id, 'responsavel', `Responsavel: ${mudancas.responsavel?.nome || 'nenhum'}`, autor);
+      /*
+       * DE QUEM PARA QUEM, e nao so para quem.
+       *
+       * Pedido do escritorio em 16/11/2026: "se um vendedor mudar o
+       * responsavel, deixar registrado quem foi". O autor ja ia no log (a aba
+       * Historico mostra "hora · Nome"), mas a linha dizia so o destino —
+       * "Responsavel: Alice". Faltava justamente o que se quer saber quando
+       * alguem pergunta o que houve: de quem o caso saiu.
+       */
+      registrarLog(
+        ctx.workspaceId,
+        contato.id,
+        'responsavel',
+        `Responsável: ${responsavelAntes ? `de ${responsavelAntes} para ` : ''}${mudancas.responsavel?.nome || 'ninguém'}`,
+        autor,
+      );
     }
 
     Object.assign(contato, mudancas);
@@ -988,8 +1005,33 @@ export function registrarAtendimento(rotas) {
           afetados += 1;
           break;
         case 'responsavel': {
+          /*
+           * EM MASSA TAMBEM DEIXA RASTRO.
+           *
+           * Este caminho nao registrava NADA: selecionar trinta conversas e
+           * trocar o responsavel de todas nao deixava uma linha em lugar
+           * nenhum — nem quem fez, nem que aconteceu. A conversa simplesmente
+           * aparecia com outro dono no dia seguinte.
+           *
+           * E e o caminho mais fácil de usar para pegar o caso de um colega,
+           * justamente por ser o que some. Pedido do escritorio em 16/11/2026
+           * ("se um vendedor mudar o responsavel, deixar registrado quem foi"),
+           * que veio da troca de UMA conversa — mas e aqui que ela ficava
+           * invisivel.
+           */
+          const antes = contato.responsavel?.nome || null;
+          const anotar = (depois) =>
+            registrarLog(
+              ctx.workspaceId,
+              contato.id,
+              'responsavel',
+              `Responsável: ${antes ? `de ${antes} para ` : ''}${depois} (alterado em massa)`,
+              { tipo: 'membro', id: ctx.membro?.id || null, nome: ctx.usuario.nome },
+            );
+
           if (!corpo.valor) {
             atualizar('contatos', contato.id, { responsavel: null, estado: 'pendente', aceitoPor: null, ...LIBERAR_PARA_A_IA });
+            anotar('ninguém');
           } else {
             const [tipo, id] = String(corpo.valor).split(':');
             const nome =
@@ -1009,6 +1051,7 @@ export function registrarAtendimento(rotas) {
               ...(tipo === 'membro' && !eu ? { atribuidoEm: agora() } : {}),
             });
             if (tipo === 'membro') cancelarResposta(contato.id);
+            anotar(nome || 'Responsavel');
           }
           afetados += 1;
           break;

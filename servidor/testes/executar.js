@@ -30,6 +30,7 @@ import { testarFichaDoContrato } from './ficha-do-contrato.js';
 import { testarRelatorioDoCaso } from './relatorio-do-caso.js';
 import { testarDescricaoDoCaso } from './descricao-do-caso.js';
 import { testarMencaoNaNota, testarRegistroDeLigacao } from './nota-e-ligacao.js';
+import { testarQuemTrocouOResponsavel } from './quem-trocou-o-responsavel.js';
 import { testarFiltroPorCaso } from './filtro-por-caso.js';
 import { testarVideoDoTemplate } from './video-do-template.js';
 import { testarLeituraPdf } from './leitura-pdf.js';
@@ -454,6 +455,7 @@ async function principal() {
     suites.push(await testarDescricaoDoCaso({ base, anthropic }));
     suites.push(await testarMencaoNaNota({ base }));
     suites.push(await testarRegistroDeLigacao({ base }));
+    suites.push(await testarQuemTrocouOResponsavel({ base }));
     suites.push(await testarFiltroPorCaso({ base }));
     suites.push(await testarRotasDoRanking({ base }));
     /* Sobe processos proprios, em porta propria: nao encosta no servidor acima. */
