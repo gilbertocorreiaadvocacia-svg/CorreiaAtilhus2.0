@@ -393,6 +393,37 @@ export async function paginaAtendimento({
   let rolagemDaFila = { topo: 0, recorte: '' };
 
   /*
+   * As conversas que o quadro foi BUSCAR por coluna, sob demanda.
+   *
+   * Relato do escritorio em 16/11/2026: "nao consigo ter acesso a essas 15".
+   * A coluna dizia "mais 15 conversas neste status" e aquilo era so texto —
+   * com um title mandando a pessoa abrir Contatos e filtrar na mao.
+   *
+   * O motivo de elas nao estarem na tela nao e o teto da coluna (sao 50, e a
+   * coluna tinha 17): e que o quadro busca as 400 conversas com mensagem mais
+   * recente do escritorio inteiro, e as 15 mais antigas daquela coluna nao
+   * cabem nesse lote. Ou seja, elas nao estao NEM no navegador — nao da para
+   * "mostrar mais", tem de ir buscar.
+   *
+   * Guardado por coluna e com o RECORTE em que foi buscado: trocar de filtro
+   * muda o que a coluna deveria conter, e reaproveitar a lista velha mostraria
+   * conversa que o filtro novo exclui.
+   */
+  const buscadasPorColuna = new Map();
+
+  async function buscarMaisDaColuna(coluna) {
+    const resposta = await api.get('/api/contatos', {
+      ...filtro,
+      aba: 'todas',
+      status: coluna.id,
+      comMensagem: 'true',
+      limite: 400,
+    });
+    buscadasPorColuna.set(coluna.id, { recorte: recorteDaFila(), lista: resposta.contatos || [] });
+    await desenhar();
+  }
+
+  /*
    * A identidade da lista que esta na tela.
    *
    * A rolagem so volta quando e A MESMA lista. Trocar de aba (IA -> Ativos),
@@ -5052,7 +5083,15 @@ export async function paginaAtendimento({
          da fila de atendimento, nao do funil. Pedido do escritorio em
          29/10/2026 ("eu arquivo apenas para nao estar nos ativos"), desfazendo
          o de 23/10, quando ela sumia do Kanban. */
-      const daColuna = contatos.filter((c) => (c.statusId || '') === coluna.id);
+      const doLoteGeral = contatos.filter((c) => (c.statusId || '') === coluna.id);
+      /* O que foi buscado so para esta coluna, se ainda vale para o filtro de
+         agora. Sem repetir quem ja veio no lote geral. */
+      const buscadas = buscadasPorColuna.get(coluna.id);
+      const extras =
+        buscadas && buscadas.recorte === recorteDaFila()
+          ? buscadas.lista.filter((c) => (c.statusId || '') === coluna.id && !doLoteGeral.some((j) => j.id === c.id))
+          : [];
+      const daColuna = [...doLoteGeral, ...extras];
       // A soma que o dado permite e a das mensagens esperando resposta. E ela
       // que separa a coluna cheia da coluna parada: cem conversas fechadas nao
       // pedem nada, tres conversas com cliente esperando pedem hoje.
@@ -5067,8 +5106,18 @@ export async function paginaAtendimento({
       const momentosDaColuna = estado.status.find((s) => s.id === coluna.id)?.momentos || [];
       const posicao = new Map(momentosDaColuna.map((m, indice) => [m.id, indice]));
       const noFim = momentosDaColuna.length;
+      /*
+       * O teto sobe para a coluna que a pessoa PEDIU para ver inteira.
+       *
+       * Sem isto o botao "ver mais" viraria um laco: ele busca as conversas,
+       * o slice continua cortando em 50, e o botao reaparece pedindo o mesmo.
+       * Quem clicou disse que quer ver aquela coluna — o teto existe para a
+       * tela nao nascer com mil cartoes, nao para contrariar um pedido
+       * explicito.
+       */
+      const tetoDaColuna = buscadasPorColuna.has(coluna.id) ? Math.max(CARTOES_POR_COLUNA, daColuna.length) : CARTOES_POR_COLUNA;
       const desenhados = daColuna
-        .slice(0, CARTOES_POR_COLUNA)
+        .slice(0, tetoDaColuna)
         .sort((a, b) => (posicao.get(a.momento?.id) ?? noFim) - (posicao.get(b.momento?.id) ?? noFim));
       const agrupar = desenhados.some((c) => posicao.has(c.momento?.id));
       let grupoAtual;
@@ -5156,18 +5205,36 @@ export async function paginaAtendimento({
       // enxerga o lote que coube na resposta, entao usa-lo como contagem fazia
       // a coluna mentir sempre que a base passasse do limite pedido.
       const totalDaColuna = totalPorStatus[coluna.id] ?? daColuna.length;
-      const naoDesenhadas = Math.max(0, totalDaColuna - Math.min(daColuna.length, CARTOES_POR_COLUNA));
+      const naoDesenhadas = Math.max(0, totalDaColuna - Math.min(daColuna.length, tetoDaColuna));
 
       // Coluna com centenas de cartoes trava a rolagem, e ninguem arrasta o de
       // numero duzentos: o excedente vira uma linha de contagem no fim.
       if (naoDesenhadas) {
         lista.append(
-          // .kanban-mais e a linha de contagem do que nao coube na coluna. A
-          // regra deveria morar em web/css/tema.css, junto do bloco Kanban.
-          el('div', {
+          /*
+           * BOTAO, e nao recado. Antes era um texto com um title mandando a
+           * pessoa "abrir Contatos e filtrar por este status" — o sistema
+           * sabia o caminho e fazia o escritorio percorre-lo a mao, toda vez.
+           */
+          el('button', {
+            type: 'button',
             class: 'kanban-mais',
-            title: 'Abra Contatos e filtre por este status para ver a lista inteira.',
-            texto: `mais ${plural(naoDesenhadas, 'conversa neste status', 'conversas neste status')}`,
+            title: 'Buscar e mostrar estas conversas aqui na coluna',
+            texto: `ver mais ${plural(naoDesenhadas, 'conversa neste status', 'conversas neste status')}`,
+            aoClick: async (evento) => {
+              const botao = evento.currentTarget;
+              botao.disabled = true;
+              botao.textContent = 'buscando…';
+              try {
+                await buscarMaisDaColuna(coluna);
+              } catch (erro) {
+                /* O quadro nao e redesenhado quando falha: a mensagem precisa
+                   sobreviver para alguem poder ler o motivo. */
+                botao.disabled = false;
+                botao.textContent = 'não consegui buscar; clique para tentar de novo';
+                aviso(`Não consegui buscar as conversas desta coluna: ${erro.message}`, 'erro');
+              }
+            },
           }),
         );
       }

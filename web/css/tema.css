@@ -6473,11 +6473,38 @@ select.chat-teste-escolha {
 
 /* Contagem do que nao coube na coluna. Nao e um cartao: e uma nota no fim da
    pilha, e por isso fica sem moldura e em texto de apoio. */
+/*
+ * "ver mais N conversas neste status": e BOTAO, e tem de parecer um.
+ *
+ * Era um <div> com texto apagado, e por isso ninguem clicava — o escritorio
+ * dizia "nao consigo ter acesso a essas 15" (16/11/2026). Continua discreto,
+ * porque e rodape de coluna e nao pode competir com os cartoes, mas agora
+ * acende no hover e tem foco visivel, que e o que diz "da para clicar".
+ */
 .kanban-mais {
+  display: block;
+  width: 100%;
   padding: var(--e2) var(--e3);
   text-align: center;
+  border: 0;
+  border-radius: var(--raio-p);
+  background: none;
   color: var(--texto-fraco);
+  font: inherit;
   font-size: var(--t-xs);
+  cursor: pointer;
+  transition: background var(--transicao), color var(--transicao);
+}
+
+.kanban-mais:hover,
+.kanban-mais:focus-visible {
+  background: var(--superficie-2);
+  color: var(--texto);
+}
+
+.kanban-mais:disabled {
+  cursor: default;
+  opacity: 0.7;
 }
 
 /*
