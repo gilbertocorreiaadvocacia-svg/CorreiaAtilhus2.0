@@ -77,6 +77,7 @@ import { testarAcentosDosAgentes } from './acentos-dos-agentes.js';
 import { testarUsoDosTemplates } from './uso-dos-templates.js';
 import { testarBoasVindasAutomaticas } from './boas-vindas-automaticas.js';
 import { testarContextoDaRecepcao, testarRecepcaoNaoRepete } from './recepcao-nao-repete.js';
+import { testarAcidenteSemVinculo } from './acidente-sem-vinculo.js';
 import { testarEnvioConfiavelDeTemplate } from './envio-confiavel-de-template.js';
 import { testarIaSemCredito } from './ia-sem-credito.js';
 import { testarJsonComprimido } from './json-comprimido.js';
@@ -471,6 +472,8 @@ async function principal() {
        agente, depois da recepcao automatica (13/11/2026). */
     suites.push(testarRecepcaoNaoRepete());
     suites.push(await testarContextoDaRecepcao({ raiz: RAIZ }));
+    /* Sem vinculo na epoca do acidente, quem decide e uma pessoa (16/11/2026). */
+    suites.push(testarAcidenteSemVinculo());
     suites.push(await testarEnvioConfiavelDeTemplate({ raiz: RAIZ }));
     suites.push(await testarIaSemCredito({ raiz: RAIZ }));
     suites.push(await testarJsonComprimido({ base }));

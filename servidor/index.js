@@ -23,6 +23,7 @@ import { aposentadoriaSemInsistir } from './nucleo/aposentadoria-sem-insistir.js
 import { desqualificarSemCalar } from './nucleo/desqualificar-sem-calar.js';
 import { corrigirAcentosDosAgentes } from './nucleo/acentos-dos-agentes.js';
 import { pararDeRepetirARecepcao } from './nucleo/recepcao-nao-repete.js';
+import { passarAcidenteSemVinculoParaPessoa } from './nucleo/acidente-sem-vinculo.js';
 import { templatesDoPacoteGanhamOArquivo } from './ia/pacotes.js';
 import { garantirModeloDeVoz, situacaoDoModeloDeVoz } from './ia/modelo-de-voz.js';
 import { motorLocal } from './ia/transcricao-local.js';
@@ -256,6 +257,11 @@ if (semInsistirNaAposentadoria) console.log(`Aposentadoria: regra de seguir sem 
    "ola" seguidos. Ver nucleo/recepcao-nao-repete.js. */
 const semRepetirRecepcao = naSubida('recepcao sem repetir', pararDeRepetirARecepcao, 0);
 if (semRepetirRecepcao) console.log(`Recepcao: ${semRepetirRecepcao} agente(s) deixaram de cumprimentar duas vezes.`);
+/* Sem vinculo na epoca do acidente, quem decide e uma pessoa (16/11/2026):
+   o roteiro ja instalado percorria sozinho periodo de graca e segurado
+   especial. Ver nucleo/acidente-sem-vinculo.js. */
+const acidenteParaPessoa = naSubida('acidente sem vinculo', passarAcidenteSemVinculoParaPessoa, 0);
+if (acidenteParaPessoa) console.log(`Auxilio-acidente: ${acidenteParaPessoa} agente(s) passam para uma pessoa quando o cliente nao estava trabalhando.`);
 /* Beatriz destravada, nomes e pasta do Trabalhista limpos, "Agente 26" repetido fora (07/10/2026). */
 const reorganizacaoDeAgentes = naSubida('nomes de agentes', migrarNomesDeAgentes, {});
 if (reorganizacaoDeAgentes.renomeados || reorganizacaoDeAgentes.removidos) {
