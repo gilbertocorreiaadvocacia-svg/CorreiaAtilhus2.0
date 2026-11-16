@@ -374,6 +374,35 @@ export async function paginaAtendimento({
   /* Referencias da conversa aberta agora. Trocadas a cada redesenho. */
   const vivo = { indicador: null, painel: null, contatoId: null, recarregar: null, creditosEl: null, rolagemAntes: null };
 
+  /*
+   * Onde a FILA estava rolada, para ela nao saltar para o topo a cada evento.
+   *
+   * Relato do escritorio em 16/11/2026: "quando um outro usuario manda
+   * mensagem, o sistema da uma mini reiniciada". Medido: qualquer conversa do
+   * escritorio recebendo mensagem dispara 'contato', a tela inteira e refeita
+   * (desenhar() limpa o container) e a rolagem da fila volta a zero.
+   *
+   * O texto que estava sendo digitado ja sobrevivia, e o painel de mensagens
+   * tambem (vivo.rolagemAntes). A fila nao — e e ela que se percorre para
+   * achar alguem. Quem desceu procurando um nome voltava ao topo sozinho, do
+   * nada, enquanto trabalhava. Daí a sensacao de reinicio.
+   *
+   * Mesma receita do painel: medir ANTES do limpar (depois o elemento sai do
+   * documento e scrollTop le zero) e repor depois de montar.
+   */
+  let rolagemDaFila = { topo: 0, recorte: '' };
+
+  /*
+   * A identidade da lista que esta na tela.
+   *
+   * A rolagem so volta quando e A MESMA lista. Trocar de aba (IA -> Ativos),
+   * buscar um nome ou ligar um filtro monta uma lista DIFERENTE, e repor 500px
+   * nela poria a pessoa no meio de conversas que ela nunca viu — seria trocar
+   * um susto por outro.
+   */
+  const recorteDaFila = () =>
+    JSON.stringify([filtro.aba, filtro.busca, filtro.status, filtro.responsavel, filtro.caso, filtro.etiqueta, filtro.departamento, filtro.origem]);
+
   /**
    * "O agente esta escrevendo" e estado, nao pintura.
    *
@@ -575,6 +604,10 @@ export async function paginaAtendimento({
        depois do limpar) nao tem mais como saber onde a pessoa estava. Ela so
        usa isto quando a conversa aberta continua a mesma. */
     vivo.rolagemAntes = medirRolagem(vivo.painel);
+    /* A fila some com o limpar logo abaixo; guardar onde ela estava, e com
+       qual recorte — para so repor se a lista continuar sendo a mesma. */
+    const filaAntes = container.querySelector('.coluna-corpo');
+    if (filaAntes) rolagemDaFila = { topo: filaAntes.scrollTop, recorte: recorteDaFila() };
     limpar(container);
 
     // A largura das colunas sai toda do tema, pelo nome da classe. Escrita no
@@ -594,6 +627,22 @@ export async function paginaAtendimento({
       } else {
         container.className = 'atendimento';
         container.append(colunaLista(), colunaConversa(), colunaPropriedades());
+      }
+      /*
+       * A fila volta para onde estava, AQUI e agora.
+       *
+       * Logo depois do append, e de forma sincrona. Nao em
+       * requestAnimationFrame: em aba de segundo plano o navegador nao entrega
+       * quadro nenhum, e a reposicao simplesmente nao aconteceria — justamente
+       * para quem deixou o sistema aberto numa aba enquanto faz outra coisa, e
+       * volta esperando achar a fila onde deixou.
+       *
+       * Neste ponto o primeiro lote da lista (60 conversas) ja foi montado
+       * dentro de colunaLista(), de forma sincrona, entao ha altura para rolar.
+       */
+      const filaDepois = container.querySelector('.coluna-corpo');
+      if (filaDepois && rolagemDaFila.topo && rolagemDaFila.recorte === recorteDaFila()) {
+        filaDepois.scrollTop = rolagemDaFila.topo;
       }
     } else {
       container.className = 'atendimento coluna-unica';
