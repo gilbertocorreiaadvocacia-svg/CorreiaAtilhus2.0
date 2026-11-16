@@ -55,11 +55,19 @@ export function subirZapsignFalsa(porta, chave) {
     })),
   });
 
+  let semLink = false;
+
   const servidor = http.createServer(async (req, res) => {
     const url = new URL(req.url, 'http://local');
     const caminho = url.pathname;
 
     if (caminho === '/__chamadas') return json(res, 200, chamadas);
+    /* Liga e desliga o 200 sem link de assinatura (ver create-doc). */
+    if (caminho === '/__semlink' && req.method === 'POST') {
+      const corpo = await lerCorpo(req);
+      semLink = corpo.semLink === true;
+      return json(res, 200, { semLink });
+    }
     if (caminho.startsWith('/__arquivo/')) {
       res.writeHead(200, { 'content-type': 'application/pdf' });
       return res.end('%PDF-1.4\n% documento de teste da ZapSign de mentira\n');
@@ -88,11 +96,23 @@ export function subirZapsignFalsa(porta, chave) {
     if (caminho === '/api/v1/models/create-doc/' && req.method === 'POST') {
       const corpo = await lerCorpo(req);
       contador += 1;
+      /*
+       * O 200 SEM LINK DE ASSINATURA.
+       *
+       * A de verdade pode criar o documento e devolver 200 com `signers`
+       * vazio, ou com o signatario sem `sign_url` — modelo sem campo de
+       * assinante configurado, por exemplo. O sistema tratava esse 200 como
+       * sucesso: marcava o contrato como "link enviado" e mandava ao cliente
+       * uma mensagem com a palavra "null" no lugar do endereco.
+       *
+       * Ligado por /__semlink, para o teste poder exercer o caso sem depender
+       * de um modelo quebrado de verdade.
+       */
       const doc = {
         token: `doc-${contador}`,
         status: 'pending',
         external_id: corpo.external_id || null,
-        signers: [{ token: `sig-${contador}`, status: 'new', sign_url: `https://app.zapsign.com.br/verificar/sig-${contador}` }],
+        signers: semLink ? [{ token: `sig-${contador}`, status: 'new' }] : [{ token: `sig-${contador}`, status: 'new', sign_url: `https://app.zapsign.com.br/verificar/sig-${contador}` }],
         extra_docs: [],
       };
       /* Modelo com procuracao anexada: ela nasce junto, como documento extra. */

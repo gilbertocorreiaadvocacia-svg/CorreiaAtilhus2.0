@@ -365,7 +365,16 @@ export async function pedirContrato({ contato, agente = null, conexao = null, da
   if (aberto) {
     const envio = await enviarLink(aberto, contato, saida, quem, { reenvio: true });
     if (!envio.entregue) {
-      avisarEquipe(contato, 'Reenvio do link falhou', `${contato.nome}: o reenvio do link do contrato falhou pelo WhatsApp${envio.erro ? ` (${envio.erro})` : ''}. Mande o link a mao: ${aberto.link}`);
+      /* Contrato sem link guardado e outro problema, e o aviso tem de dizer
+         qual dos dois e: mandar "Mande o link a mao: null" seria pedir a
+         equipe que copiasse a palavra null para o cliente. */
+      avisarEquipe(
+        contato,
+        envio.semLink ? 'Contrato sem link para assinar' : 'Reenvio do link falhou',
+        envio.semLink
+          ? `${contato.nome}: este contrato esta sem endereco de assinatura guardado. Pegue o link na ZapSign e mande nesta conversa.`
+          : `${contato.nome}: o reenvio do link do contrato falhou pelo WhatsApp${envio.erro ? ` (${envio.erro})` : ''}. Mande o link a mao: ${aberto.link}`,
+      );
       return {
         ok: true,
         contrato_id: aberto.id,
@@ -504,6 +513,23 @@ export async function pedirContrato({ contato, agente = null, conexao = null, da
  * quem chama decidir o que fazer com isso.
  */
 async function enviarLink(contrato, contato, conexao, autor, { reenvio = false } = {}) {
+  /*
+   * SEM LINK NAO SAI MENSAGEM.
+   *
+   * Esta funcao interpolava `contrato.link` direto no texto. Com o link nulo,
+   * o cliente recebia "O contrato esta pronto para assinar:" seguido da
+   * palavra "null" — e, como a mensagem SAIU, tudo em volta dava a operacao
+   * por bem-sucedida: o contrato virava "link_enviado" e o agente era
+   * instruido a nao repetir o link. O cliente ficava sem nada e ninguem era
+   * avisado (16/11/2026, "os agentes ainda nao estao enviando o link").
+   *
+   * A guarda fica aqui, no ultimo ponto antes de falar com o cliente, e nao so
+   * em quem chama: mensagem errada para o cliente e o tipo de erro que nao da
+   * para desfazer.
+   */
+  if (!contrato?.link) {
+    return { entregue: false, erro: 'o contrato esta sem link de assinatura', semLink: true };
+  }
   const cfg = configuracao(contato.workspaceId);
   const primeiro = String(contato.variaveis?.nome_completo || contato.nome || '').split(' ')[0];
   const mensagem = await enviarMensagem({
@@ -614,6 +640,30 @@ export async function aprovarContrato(contratoId, { valores: corrigidos = {}, au
   const token = documento?.token;
   const link = documento?.signers?.[0]?.sign_url || null;
   let aviso = null;
+
+  /*
+   * A ZapSign respondeu 200, mas sem endereco de assinatura.
+   *
+   * Acontece quando o modelo nao tem campo de assinante configurado, ou quando
+   * `signers` volta vazio. O documento existe la, e nao da para desfazer — mas
+   * NAO ha o que mandar ao cliente, e seguir em frente marcaria o contrato
+   * como enviado e calaria o agente.
+   *
+   * Entao o contrato VOLTA para a conferencia da equipe, com o motivo escrito,
+   * em vez de virar um sucesso de mentira. E o mesmo caminho que uma recusa da
+   * ZapSign ja seguia; o que faltava era reconhecer este 200 como falha.
+   */
+  if (!link) {
+    const motivo = 'A ZapSign criou o documento mas nao devolveu o endereco de assinatura. Confira, no modelo, se ha um signatario configurado.';
+    atualizar('contratos', contrato.id, { tokenExterno: token, erro: `${motivo} O documento existe na ZapSign: pegue o link por la e mande nesta conversa.` });
+    /* Sem avisar a equipe aqui: no envio direto quem chama ja avisa, e na
+       conferencia o erro aparece na tela de quem clicou em aprovar. Dois
+       avisos para um acontecimento so viram ruido, e ruido se aprende a
+       ignorar. */
+    registrarLog(contrato.workspaceId, contato.id, 'contrato', `ZapSign devolveu o documento sem link de assinatura (token ${token || 'nenhum'})`, autor);
+    emitir(contrato.workspaceId, 'contrato', { contatoId: contato.id, contratoId: contrato.id });
+    return { ok: false, erro: motivo, semLink: true };
+  }
 
   /* Contrato que ja traz a procuracao anexada gera os dois juntos: mandar a
      procuracao de novo a duplicaria no envelope. */
