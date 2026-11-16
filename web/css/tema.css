@@ -3231,9 +3231,22 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
   transform: rotate(180deg);
 }
 
+/*
+ * A linha de busca e os botoes de recorte da fila.
+ *
+ * QUEBRA LINHA de proposito. A coluna da fila e estreita, e os botoes cabem
+ * ate nao caberem: com "Minhas conversas", "Responsável" e "Filtros" lado a
+ * lado, a busca — que e o unico item que encolhe — espremia ate 18px e sumia
+ * da tela. Sumiu assim por semanas com dois botoes so, a 33px: dava para
+ * clicar, mas nao para ler o que se digitava.
+ *
+ * Com a quebra, os botoes descem para a linha de baixo em vez de comer o
+ * campo. Numa coluna larga continua tudo numa linha, como antes.
+ */
 .busca-fila {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--e2);
   padding: var(--e2) var(--e3);
   border-top: 1px solid var(--borda);
@@ -3241,7 +3254,9 @@ th[aria-sort='descending'] .cabecalho-ordenavel > svg {
 
 .busca-fila-caixa {
   flex: 1;
-  min-width: 0;
+  /* Abaixo disto a busca deixa de ser um campo e vira um icone com uma fresta:
+     ela quebra para a linha inteira antes de chegar nesse ponto. */
+  min-width: 11rem;
   display: flex;
   align-items: center;
   gap: var(--e2);

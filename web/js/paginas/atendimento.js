@@ -650,7 +650,10 @@ export async function paginaAtendimento({
       ['etiqueta', 'Etiqueta', estado.etiquetas.filter((e) => e.tipo !== 'caso').map((e) => ({ valor: e.id, rotulo: e.nome }))],
       /* A conexao saiu daqui: quem escolhe o numero e o seletor da barra, e
          dois controles para a mesma coisa acabariam discordando. */
-      ['responsavel', 'Responsavel', [{ valor: 'nenhum', rotulo: 'Sem responsável' }, ...opcoesResponsavel]],
+      /* Com acento: este rotulo vai para a tela, e ainda vira o titulo da
+         janela quando o filtro e aberto sozinho ("Filtrar por responsável").
+         Os outros campos daqui ja sao acentuados; so este nao era. */
+      ['responsavel', 'Responsável', [{ valor: 'nenhum', rotulo: 'Sem responsável' }, ...opcoesResponsavel]],
       ['origem', 'Origem', estado.origens.map((o) => ({ valor: o.id, rotulo: o.nome }))],
     ];
 
@@ -835,9 +838,16 @@ export async function paginaAtendimento({
     const meuMembroId = estado.sessao?.membro?.id;
     const souEu = Boolean(meuMembroId) && filtro.responsavel === meuMembroId;
     const botaoMinhasConversas = meuMembroId
-      ? botao('Minhas conversas', {
+      ? botao('Minhas', {
           pequeno: true,
           icone: 'pessoa',
+          /*
+           * "Minhas", e nao "Minhas conversas": a coluna da fila tem 319px
+           * fixos, e os tres botoes com rotulo inteiro somavam 373 — a linha
+           * quebrava em tres e comia duas conversas de lista em toda tela. O
+           * titulo continua dizendo a frase completa, e numa fila de conversas
+           * "Minhas" nao e ambiguo.
+           */
           titulo: 'So as conversas em que voce e o responsavel',
           aoClicar: async () => {
             filtro.responsavel = souEu ? '' : meuMembroId;
@@ -847,12 +857,53 @@ export async function paginaAtendimento({
       : null;
     if (botaoMinhasConversas) botaoMinhasConversas.classList.toggle('ativo', souEu);
 
+    /*
+     * Responsavel, com botao proprio na cabeca da fila.
+     *
+     * O filtro ja existia, mas dentro de "Filtros", misturado com outros
+     * cinco campos — e quem procura "as conversas da Alice" nao abre uma
+     * janela de filtros para descobrir que ele esta la. Pedido do escritorio
+     * em 16/11/2026 ("um filtro nas conversas para puxar quem e o
+     * responsavel"), que e o mesmo recorte do "Quem conduz" do Kanban.
+     *
+     * NAO e um filtro novo: e o mesmo campo, com uma porta de entrada visivel.
+     * Dois filtros para a mesma coisa acabariam discordando.
+     *
+     * "Minhas conversas" continua ao lado porque responde outra pergunta — a
+     * minha fila, em um clique, sem escolher nome nenhum. Quando esta ligado,
+     * este botao mostra o proprio nome da pessoa, e nao some: some seria dizer
+     * que o recorte nao existe.
+     *
+     * A lista traz AGENTE e PESSOA, como o campo de Filtros sempre trouxe:
+     * numa fila de atendimento, "so as que a Eduarda esta conduzindo" e uma
+     * pergunta tao real quanto "so as da Alice".
+     */
+    /*
+     * O botao nao escreve o nome escolhido, so acende.
+     *
+     * Escrever "Responsável · Avaliação · Escritório geral" fazia o botao ter
+     * 228px numa coluna de 319 e empurrava a linha para tres — e era repeticao:
+     * o chip logo abaixo ja mostra o nome escolhido, com o x que desliga, e e
+     * para isso que aquela faixa existe. Aqui basta o botao acender.
+     */
+    const nomeDoResponsavel = filtrosLigados().find((l) => l.chave === 'responsavel')?.rotulo || null;
+    const botaoResponsavel = botao('Responsável', {
+      pequeno: true,
+      icone: 'usuarios',
+      titulo: nomeDoResponsavel
+        ? `Mostrando so as conversas de ${nomeDoResponsavel}. Clique para trocar.`
+        : 'Ver so as conversas de uma pessoa ou de um agente',
+      aoClicar: () => abrirFiltros(['responsavel']),
+    });
+    botaoResponsavel.classList.toggle('ativo', Boolean(filtro.responsavel));
+
     const cabeca = el('div', { class: 'coluna-cabecalho sem-respiro' }, [
       abas,
       concluidos,
       el('div', { class: 'busca-fila' }, [
         el('label', { class: 'busca-fila-caixa' }, [icone('lupa', 14), busca]),
         botaoMinhasConversas,
+        botaoResponsavel,
         botaoFiltros,
       ]),
       ligados.length
