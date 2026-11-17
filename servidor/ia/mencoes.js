@@ -7,6 +7,7 @@ import { aplicarStatus, reagendarFollowups } from '../automacao/followup.js';
 import { definirMomento, umTipoDeCaso } from '../nucleo/casos.js';
 import { jaEnviouAsBoasVindas } from '../nucleo/boas-vindas-automaticas.js';
 import { avisarAdministradores } from '../nucleo/avisar-administradores.js';
+import { nomeDoCliente } from './nome-do-cliente.js';
 
 /**
  * As mencoes sao o que separa um chatbot de um agente: cada @ do prompt vira
@@ -483,17 +484,35 @@ export function ferramentasDoAgente(agente, workspaceId) {
       parametros: { type: 'object', properties: {} },
     });
   }
-  if (tipos.has('salvarnome')) {
-    ferramentas.push({
-      nome: 'salvar_nome',
-      descricao: 'Corrige o nome do contato.',
-      parametros: {
-        type: 'object',
-        properties: { nome: { type: 'string' } },
-        required: ['nome'],
+  /*
+   * O nome do cliente nao e assunto de area, e por isso esta ferramenta nao
+   * depende do roteiro cita-la.
+   *
+   * Pedido do escritorio em 17/11/2026: "ao cliente dizer o seu nome, quando
+   * o agente for perguntar, ele automaticamente muda o nome do contato para o
+   * nome fornecido". Era a mesma armadilha da biblioteca, logo acima: cinco
+   * pacotes PEDEM o nome ao cliente e so quatro escreviam "@salvarnome", de
+   * modo que o agente do BPC perguntava o nome e nao tinha como guardar. E
+   * roteiro escrito pela equipe nunca vai lembrar de citar.
+   *
+   * Qualquer agente que conversa com cliente pode ouvir o nome dele. A regra
+   * de QUANDO usar mora em ia/motor.js, junto das outras que valem para todo
+   * agente; o que entra de verdade passa por ia/nome-do-cliente.js.
+   */
+  ferramentas.push({
+    nome: 'salvar_nome',
+    descricao:
+      'Grava o nome do cliente no cadastro da conversa. Chame assim que ele disser como se chama, ' +
+      'e também quando corrigir o nome depois. Mande SÓ o nome da pessoa com quem você está falando, ' +
+      'sem saudação e sem o resto da frase.',
+    parametros: {
+      type: 'object',
+      properties: {
+        nome: { type: 'string', description: 'O nome como o cliente disse. Ex.: Maria da Silva' },
       },
-    });
-  }
+      required: ['nome'],
+    },
+  });
   if (tipos.has('ativaraudio') || tipos.has('desativaraudio')) {
     ferramentas.push({
       nome: 'modo_audio',
@@ -969,12 +988,34 @@ export async function executarFerramenta({ nome, argumentos, contato, agente, co
     }
 
     case 'salvar_nome': {
-      atualizar('contatos', contato.id, { nome: argumentos.nome });
-      contato.nome = argumentos.nome;
+      /*
+       * Nada entra sem passar pelo filtro: o que chega aqui e o que o MODELO
+       * entendeu como nome, e ele manda "bom dia", a frase inteira e o numero
+       * do protocolo. O porque esta em ia/nome-do-cliente.js.
+       */
+      const conferido = nomeDoCliente(argumentos.nome);
+      if (!conferido.ok) {
+        /* Nao cobra custo do escritorio por chamada que nao gravou nada. */
+        return {
+          ok: false,
+          erro: `Não gravei "${String(argumentos.nome ?? '').slice(0, 40)}": ${conferido.motivo}. Siga o atendimento sem o nome e não tente de novo com o mesmo texto.`,
+        };
+      }
+      /* Mesmo nome que ja esta la: nao suja o historico nem avisa a tela. */
+      if (conferido.nome === contato.nome) return { ok: true, nome: conferido.nome };
+
+      const anterior = contato.nome || '(sem nome)';
+      atualizar('contatos', contato.id, { nome: conferido.nome });
+      contato.nome = conferido.nome;
       lancar(workspaceId, contato.id, 'mencao_salvarnome', custoDaMencao('salvarnome'), null, agente.id);
-      registrar(`Nome do contato ajustado para ${argumentos.nome}`);
+      /*
+       * O nome ANTERIOR fica no historico. Trocar o nome de um contato muda a
+       * unica coisa pela qual a equipe acha a conversa; sem o de antes, quem
+       * procurar pelo nome velho nao tem onde ler o que aconteceu.
+       */
+      registrar(`Nome do contato: de ${anterior} para ${conferido.nome}`);
       emitir(workspaceId, 'contato', { contatoId: contato.id });
-      return { ok: true };
+      return { ok: true, nome: conferido.nome };
     }
 
     case 'modo_audio': {
