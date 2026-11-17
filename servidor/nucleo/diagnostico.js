@@ -254,8 +254,17 @@ export function diagnosticar(workspaceId) {
         if (arquivoDoTemplateSumiu(template.midia)) arquivoSumiu.push(`${agente.nome} → @${template.atalho} ("${template.nome}")`);
         continue;
       }
-      if (!/video/.test(normalizar(template.conteudo || ''))) continue;
-      semVideo.push(`${agente.nome} → @${template.atalho} ("${template.nome}")`);
+      /*
+       * A promessa pode estar no TEXTO DO TEMPLATE ou no ROTEIRO, e ate
+       * 17/11/2026 so o primeiro era olhado. Foi assim que o escritorio passou
+       * a saber pelo cliente, e nao por aqui, que a proposta trabalhista saia
+       * sem o video (ver promessaNoRoteiro, logo abaixo).
+       */
+      const prometido = /video/.test(normalizar(template.conteudo || ''))
+        ? 'vídeo'
+        : promessaNoRoteiro(agente.prompt, template);
+      if (!prometido) continue;
+      semVideo.push(`${agente.nome} → @${template.atalho} ("${template.nome}"), que promete ${prometido}`);
     }
   }
   /* O template diz que tem o video, mas o arquivo nao esta mais no servidor.
@@ -274,8 +283,8 @@ export function diagnosticar(workspaceId) {
     anotar(
       'alta',
       'template-promete-video-sem-video',
-      'Um template promete vídeo, mas nenhum vídeo foi anexado',
-      `${[...new Set(semVideo)].join('; ')}. O cliente le "assista ao video" e nao recebe nada. Anexe o arquivo em Configuracoes > Templates.`,
+      'Um agente promete vídeo ou áudio, e o template vai sem arquivo',
+      `${[...new Set(semVideo)].join('; ')}. O cliente le a promessa e nao recebe nada: a mensagem sai, conta como enviada, e so ele percebe. Anexe o arquivo em Configuracoes > Templates.`,
       '#/configuracoes/templates',
     );
   }
@@ -590,6 +599,50 @@ export function avisarModoDegradado(contato, agente) {
       contato.id,
     );
   }
+}
+
+/**
+ * O roteiro promete arquivo antes de mandar este template?
+ *
+ * Achado em 17/11/2026, a partir de relatos de que "os videos nao estavam
+ * sendo enviados". O detector de cima procurava a palavra "video" no TEXTO DO
+ * TEMPLATE. Mas nos roteiros do escritorio a promessa esta no que o AGENTE
+ * fala, e o template e so a continuacao:
+ *
+ *   "Gravei este vídeo para te explicar como funciona nosso trabalho. Assiste
+ *    e me diz se ficou claro? e envie o template @propostatrabalhista."
+ *
+ * O texto de @propostatrabalhista fala de honorarios e nao cita video nenhum.
+ * Resultado: o template estava sem arquivo, 34 clientes ouviram "assiste este
+ * video" e receberam so o texto, o contador marcou 34 envios e ZERO falhas
+ * (porque a mensagem de texto saiu mesmo), e esta pagina ficou calada. O
+ * escritorio descobriu pelo cliente.
+ *
+ * A JANELA e para nao acusar o que o agente nao prometeu: ele manda varios
+ * templates, e so um deles vem depois da frase do video. Olhar o roteiro
+ * inteiro acusaria tambem o @oab e o @avaliacao do mesmo agente, e aviso que
+ * acusa demais e aviso que a equipe aprende a ignorar.
+ */
+const JANELA_DA_PROMESSA = 400;
+const PALAVRA_DE_ARQUIVO = /\b(video|audio)\b/;
+
+function promessaNoRoteiro(prompt, template) {
+  const alvo = normalizar(prompt || '');
+  if (!alvo) return null;
+  for (const apelido of [template.atalho, template.nome]) {
+    if (!apelido) continue;
+    const agulha = `@${normalizar(apelido)}`;
+    let posicao = alvo.indexOf(agulha);
+    while (posicao >= 0) {
+      /* Do paragrafo em que a mencao esta, e nunca mais do que a janela. */
+      const quebra = alvo.lastIndexOf('\n\n', posicao);
+      const inicio = Math.max(quebra >= 0 ? quebra : 0, posicao - JANELA_DA_PROMESSA);
+      const achado = PALAVRA_DE_ARQUIVO.exec(alvo.slice(inicio, posicao));
+      if (achado) return achado[1] === 'audio' ? 'áudio' : 'vídeo';
+      posicao = alvo.indexOf(agulha, posicao + 1);
+    }
+  }
+  return null;
 }
 
 /**

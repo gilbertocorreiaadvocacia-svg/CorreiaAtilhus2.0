@@ -409,6 +409,93 @@ export async function testarDiagnostico({ base, anthropic }) {
   await api.delete(`/api/agentes/${agenteBoasVindasId}`);
   await api.delete(`/api/templates/${templateVideoId}`);
 
+  /* --- A promessa no ROTEIRO, e nao no texto do template -------------- */
+  /*
+   * O caso de verdade, achado em 17/11/2026 a partir de relatos de que "os
+   * videos nao estavam sendo enviados".
+   *
+   * Em producao, @propostatrabalhista e @propostaauxacidente estavam sem
+   * nenhum arquivo anexado, e o roteiro do agente dizia ao cliente "Gravei
+   * este video para te explicar como funciona nosso trabalho. Assiste e me diz
+   * se ficou claro?" antes de mandar o template. O cliente lia a promessa e
+   * recebia so o texto -- 34 vezes, pelo contador.
+   *
+   * E o diagnostico ficou calado, porque ele procurava a palavra "video" no
+   * TEXTO DO TEMPLATE. O texto de @propostatrabalhista fala de honorarios e
+   * nao cita video nenhum: a promessa estava no roteiro. Enquanto o detector
+   * olhar so para um dos dois lugares, o escritorio continua descobrindo isso
+   * pelo cliente reclamando.
+   */
+  const promessa = await api.post('/api/templates', {
+    nome: 'Diagnostico (proposta)',
+    atalho: 'diagnosticoproposta',
+    /* O texto do template NAO cita video, igual ao de producao. */
+    conteudo: 'Funciona assim: voce nao paga nada para entrar. So recebemos se voce receber.',
+  });
+  const promessaId = promessa.dados?.id;
+  /* E um template de texto que ninguem promete, para o aviso nao virar chuva. */
+  const inocente = await api.post('/api/templates', {
+    nome: 'Diagnostico (OAB)',
+    atalho: 'diagnosticooab',
+    conteudo: 'Pode conferir: o escritorio tem advogado inscrito na OAB.',
+  });
+  const inocenteId = inocente.dados?.id;
+  const agentePromessa = await api.post('/api/agentes', {
+    nome: 'Diagnostico (promessa)',
+    prompt: [
+      'Altere o @status para "Qualificado", escreva: Gravei este vídeo para te explicar como funciona nosso trabalho. Assiste e me diz se ficou claro? e envie o template @diagnosticoproposta.',
+      '',
+      'Se o cliente pedir, envie o template @diagnosticooab.',
+    ].join('\n'),
+    ativo: true,
+  });
+  const agentePromessaId = agentePromessa.dados?.id;
+  if (!s.ok('template e agente da promessa criados', Boolean(promessaId && inocenteId && agentePromessaId), JSON.stringify({ promessaId, inocenteId, agentePromessaId }))) return s;
+
+  const prometido = await diagnosticar();
+  const avisoDaPromessa = achar(prometido, 'template-promete-video-sem-video')?.detalhe || '';
+  s.ok(
+    'roteiro que promete video antes de mandar template sem arquivo e acusado',
+    avisoDaPromessa.includes('diagnosticoproposta'),
+    JSON.stringify(achar(prometido, 'template-promete-video-sem-video')),
+  );
+  s.ok('e o aviso diz qual agente promete', avisoDaPromessa.includes('Diagnostico (promessa)'), avisoDaPromessa);
+  /*
+   * Esta e a assercao que protege a tela de virar ruido: o mesmo agente manda
+   * um template de texto que ele nao prometeu em video. Acusar tudo o que um
+   * agente "promissor" envia faria o escritorio aprender a ignorar o aviso.
+   */
+  s.ok(
+    'mas o template de texto que ninguem prometeu NAO e acusado',
+    !avisoDaPromessa.includes('diagnosticooab'),
+    avisoDaPromessa,
+  );
+
+  /* Anexado o arquivo, o aviso some -- e e o que o escritorio tem de fazer. */
+  await api.patch(`/api/templates/${promessaId}`, { midia: { tipo: 'video', url: 'https://exemplo.com/proposta.mp4' } });
+  const resolvido = await diagnosticar();
+  s.ok(
+    'anexado o video, o aviso da promessa some',
+    !(achar(resolvido, 'template-promete-video-sem-video')?.detalhe || '').includes('diagnosticoproposta'),
+    JSON.stringify(achar(resolvido, 'template-promete-video-sem-video')),
+  );
+
+  /* Audio tambem: @propostaauxacidente promete "Ouve este audio". */
+  await api.patch(`/api/templates/${promessaId}`, { midia: null });
+  await api.patch(`/api/agentes/${agentePromessaId}`, {
+    prompt: 'Diga: Ouve este áudio e me diz se ficou claro? e envie o template @diagnosticoproposta.',
+  });
+  const comAudio = await diagnosticar();
+  s.ok(
+    'roteiro que promete AUDIO sem arquivo anexado tambem e acusado',
+    (achar(comAudio, 'template-promete-video-sem-video')?.detalhe || '').includes('diagnosticoproposta'),
+    JSON.stringify(achar(comAudio, 'template-promete-video-sem-video')),
+  );
+
+  await api.delete(`/api/agentes/${agentePromessaId}`);
+  await api.delete(`/api/templates/${promessaId}`);
+  await api.delete(`/api/templates/${inocenteId}`);
+
   /* --- Quem nao configura nao le -------------------------------------- */
 
   const suporte = cliente(base);

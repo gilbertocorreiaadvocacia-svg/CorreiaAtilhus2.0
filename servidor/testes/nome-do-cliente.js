@@ -188,8 +188,19 @@ process.exit(0);
       p.stderr.on('data', (d) => (texto += d));
       p.on('close', (codigo) => resolve({ codigo, texto }));
     });
-    if (!s.ok('o escritorio de teste roda sem erro', r.codigo === 0, r.texto.slice(-700))) return s;
-    const b = JSON.parse(r.texto.trim().split('\n').pop());
+    /*
+     * O que vale e a LINHA DE RESULTADO, e nao o codigo de saida.
+     *
+     * No Windows este processo filho as vezes aborta no fechamento
+     * ("Assertion failed: !(handle->flags & UV_HANDLE_CLOSING)", libuv), DEPOIS
+     * de fazer o trabalho e imprimir o resultado. Reprovar por isso seria
+     * reprovar o atendimento por causa do jeito que o processo de teste
+     * morreu, num sistema que roda em Linux. Entao: nao saindo a linha, o
+     * teste reprova e mostra a saida inteira; saindo, e ela que decide.
+     */
+    const linha = r.texto.trim().split('\n').reverse().find((l) => l.trim().startsWith('{'));
+    if (!s.ok('o escritorio de teste roda e devolve resultado', Boolean(linha), `codigo ${r.codigo}\n${r.texto.slice(-700)}`)) return s;
+    const b = JSON.parse(linha);
 
     /*
      * A ponta 1: o roteiro deste agente nao tem a palavra "salvarnome" em
