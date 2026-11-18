@@ -905,7 +905,11 @@ export async function paginaAtendimento({
     const botaoFiltros = botao(ligados.length ? `Filtros · ${ligados.length}` : 'Filtros', {
       pequeno: true,
       icone: 'filtros',
-      titulo: 'Status, responsável, departamento, etiqueta e origem',
+      /* A lista diz o que ha dentro, e ate 18/11/2026 ela esquecia justamente
+         o tipo de caso — quem passava o mouse procurando "auxilio-acidente"
+         nao via que o recorte existia. O numero de WhatsApp nao entra porque
+         quem escolhe ele e o seletor da barra de cima. */
+      titulo: 'Status, responsável, tipo de caso, departamento, etiqueta e origem',
       aoClicar: () => abrirFiltros(),
     });
     botaoFiltros.classList.toggle('ativo', ligados.length > 0);
@@ -928,7 +932,7 @@ export async function paginaAtendimento({
            * titulo continua dizendo a frase completa, e numa fila de conversas
            * "Minhas" nao e ambiguo.
            */
-          titulo: 'So as conversas em que voce e o responsavel',
+          titulo: 'Só as conversas em que você é o responsável',
           aoClicar: async () => {
             filtro.responsavel = souEu ? '' : meuMembroId;
             await desenhar();
@@ -971,11 +975,45 @@ export async function paginaAtendimento({
       pequeno: true,
       icone: 'usuarios',
       titulo: nomeDoResponsavel
-        ? `Mostrando so as conversas de ${nomeDoResponsavel}. Clique para trocar.`
-        : 'Ver so as conversas de uma pessoa ou de um agente',
+        ? `Mostrando só as conversas de ${nomeDoResponsavel}. Clique para trocar.`
+        : 'Ver só as conversas de uma pessoa ou de um agente',
       aoClicar: () => abrirFiltros(['responsavel']),
     });
     botaoResponsavel.classList.toggle('ativo', Boolean(filtro.responsavel));
+
+    /*
+     * Tipo de caso, com porta propria na cabeca da fila.
+     *
+     * Pedido do escritorio em 18/11/2026: "filtrar por acao, para puxar a
+     * conversa que esta etiquetada auxilio acidente, trabalhista".
+     *
+     * O recorte ja existia e ja era o mais usado — o proprio campo em Filtros
+     * foi posto ANTES de Etiqueta por isso, e o Kanban ganhou um chip so para
+     * ele em 13/11/2026. Quem ficou sem porta foi esta fila, que e onde a
+     * equipe passa o dia: para ver "so o trabalhista" era preciso abrir
+     * Filtros e achar o campo no meio de seis.
+     *
+     * NAO e filtro novo: e o mesmo campo `caso`, a mesma janela, o mesmo
+     * recorte que o Kanban liga. Dois filtros para a mesma coisa acabariam
+     * discordando.
+     *
+     * CABE, e isso foi medido antes de escrever: a coluna tem 280px, os
+     * botoes somam 93 (Minhas) + 127 (Responsavel) + 86 (Filtros), e a linha
+     * ja quebrava em tres. Com este, a quebra passa a ser 2 por 2 — Minhas e
+     * Responsavel em cima, Tipo de caso e Filtros embaixo (140 + 86 + 8 = 234,
+     * dentro dos 279 uteis) — e a altura da barra nao muda. Uma porta a mais
+     * no mesmo espaco.
+     */
+    const nomeDoCaso = filtrosLigados().find((l) => l.chave === 'caso')?.rotulo || null;
+    const botaoCaso = botao('Tipo de caso', {
+      pequeno: true,
+      icone: 'etiqueta',
+      titulo: nomeDoCaso
+        ? `Mostrando só ${nomeDoCaso}. Clique para trocar.`
+        : 'Ver só um tipo de caso: auxílio-acidente, trabalhista, BPC...',
+      aoClicar: () => abrirFiltros(['caso']),
+    });
+    botaoCaso.classList.toggle('ativo', Boolean(filtro.caso));
 
     const cabeca = el('div', { class: 'coluna-cabecalho sem-respiro' }, [
       abas,
@@ -984,6 +1022,7 @@ export async function paginaAtendimento({
         el('label', { class: 'busca-fila-caixa' }, [icone('lupa', 14), busca]),
         botaoMinhasConversas,
         botaoResponsavel,
+        botaoCaso,
         botaoFiltros,
       ]),
       ligados.length
