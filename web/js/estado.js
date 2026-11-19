@@ -1,4 +1,4 @@
-import { api } from './api.js';
+import { api, quandoAVersaoMudar } from './api.js';
 import { avisar } from './avisos.js';
 import { aviso } from './ui.js';
 
@@ -192,6 +192,24 @@ export function podeFazer(permissao) {
 export function podeConfigurar() {
   return podeFazer('configurar');
 }
+
+/*
+ * Subiu versao nova enquanto esta tela estava aberta.
+ *
+ * Relato do escritorio em 19/11/2026: "ainda nao aparece nas conversas esse
+ * filtro", com o filtro no ar havia um dia. A aba estava aberta desde antes da
+ * implantacao e seguia rodando o JavaScript antigo -- o index.html so e pedido
+ * quando alguem recarrega, e o religar logo abaixo atualiza os DADOS, nao o
+ * PROGRAMA.
+ *
+ * Quem recarrega e a PESSOA. Recarregar sozinho jogaria fora a resposta que
+ * ela esta digitando para um cliente; o aviso fica no canto ate ela decidir.
+ */
+quandoAVersaoMudar(() => {
+  aviso('O sistema foi atualizado. Recarregue para ver a versão nova.', '', {
+    acao: { rotulo: 'Recarregar', aoClicar: () => location.reload() },
+  });
+});
 
 /* Tempo real --------------------------------------------------------- */
 

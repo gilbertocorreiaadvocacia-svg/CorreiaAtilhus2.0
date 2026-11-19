@@ -49,7 +49,15 @@ export function cliente(base) {
     } catch {
       dados = texto;
     }
-    return { status: resposta.status, dados, texto };
+    /* Os cabecalhos vao junto: desde 19/11/2026 o servidor diz em `X-Codigo`
+       qual entrega respondeu, e e por ali que a tela aberta descobre que subiu
+       versao nova (ver testes/versao-nova-na-tela.js). Em minusculas, que e
+       como o fetch entrega, para quem le nao depender da caixa. */
+    const cabecalhosDaResposta = {};
+    resposta.headers.forEach((valor, nome) => {
+      cabecalhosDaResposta[String(nome).toLowerCase()] = valor;
+    });
+    return { status: resposta.status, dados, texto, cabecalhos: cabecalhosDaResposta };
   }
 
   /*

@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
-import { HOSPEDADO, LIMITE_CORPO, PASTA_WEB } from '../config.js';
+import { CODIGO, HOSPEDADO, LIMITE_CORPO, PASTA_WEB } from '../config.js';
 
 const TIPOS = {
   '.html': 'text/html; charset=utf-8',
@@ -44,6 +44,22 @@ const TIPOS = {
  */
 const MINIMO_PARA_COMPRIMIR = 1024;
 
+/**
+ * O codigo da entrega vai em TODA resposta de dados.
+ *
+ * E por aqui que a tela aberta fica sabendo que subiu versao nova: ela guarda
+ * o codigo da primeira resposta que viu e compara com o das seguintes (ver
+ * web/js/api.js). Nao custa pedido nenhum a mais — vai de carona no que a tela
+ * ja pede o tempo todo.
+ *
+ * Antes disto, uma aba aberta desde antes da implantacao seguia rodando o
+ * JavaScript antigo para sempre: o index.html nao e pedido de novo enquanto
+ * ninguem recarrega, e o reconectar do tempo real so atualiza os DADOS. O
+ * escritorio deixa o sistema aberto o dia inteiro, entao funcionalidade nova
+ * nao aparecia e parecia que a implantacao nao tinha ido.
+ */
+const CABECALHO_DA_VERSAO = { 'X-Codigo': CODIGO };
+
 export function responderJson(res, dados, codigo = 200) {
   const corpo = JSON.stringify(dados ?? null);
   if (res.aceitaGzip && corpo.length >= MINIMO_PARA_COMPRIMIR) {
@@ -54,6 +70,7 @@ export function responderJson(res, dados, codigo = 200) {
       'Content-Encoding': 'gzip',
       Vary: 'Accept-Encoding',
       'Content-Length': comprimido.length,
+      ...CABECALHO_DA_VERSAO,
     });
     res.end(comprimido);
     return;
@@ -62,6 +79,7 @@ export function responderJson(res, dados, codigo = 200) {
     'Content-Type': 'application/json; charset=utf-8',
     'Cache-Control': 'no-store',
     'Content-Length': Buffer.byteLength(corpo),
+    ...CABECALHO_DA_VERSAO,
   });
   res.end(corpo);
 }

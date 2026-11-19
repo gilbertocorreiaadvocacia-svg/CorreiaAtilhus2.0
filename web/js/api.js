@@ -15,6 +15,48 @@ const SEM_SISTEMA = 'O sistema está reiniciando ou sem conexão. Tente de novo 
 const servidorFora = (resposta) =>
   !resposta || ([502, 503, 504].includes(resposta.status) && !String(resposta.headers.get('content-type') || '').includes('application/json'));
 
+/**
+ * A tela aberta descobre que subiu versao nova.
+ *
+ * Relato do escritorio em 19/11/2026: "ainda nao aparece nas conversas esse
+ * filtro" — com o filtro no ar havia um dia, servido certo, sem cache errado.
+ * O que segurava era a propria aba: o escritorio deixa o sistema aberto o dia
+ * inteiro, o index.html so e pedido quando alguem recarrega, e o reconectar do
+ * tempo real (estado.js) atualiza os DADOS mas nao o PROGRAMA. A tela seguia
+ * rodando o JavaScript da manha, e do lado de ca parecia que a implantacao nao
+ * tinha ido. Aconteceu duas vezes em dois dias.
+ *
+ * O servidor passou a mandar o codigo da entrega em toda resposta de dados
+ * (nucleo/http.js). Aqui a gente guarda o primeiro que viu e compara com os
+ * seguintes: mudou, a entrega e outra. Nao custa um pedido a mais.
+ *
+ * QUEM RECARREGA E A PESSOA, e nao o sistema. Recarregar sozinho jogaria fora
+ * a resposta que a atendente esta digitando para um cliente. Daqui so sai o
+ * aviso — uma vez, nao a cada pedido — e quem decide e ela.
+ */
+let codigoConhecido = null;
+let aoMudarAVersao = null;
+
+export function quandoAVersaoMudar(fn) {
+  aoMudarAVersao = fn;
+}
+
+function conferirAVersao(resposta) {
+  const codigo = resposta?.headers?.get?.('X-Codigo');
+  if (!codigo) return;
+  if (!codigoConhecido) {
+    codigoConhecido = codigo;
+    return;
+  }
+  if (codigo === codigoConhecido) return;
+  codigoConhecido = codigo;
+  const avisar = aoMudarAVersao;
+  /* Uma vez por carregamento: a partir daqui todo pedido traria o mesmo
+     recado, e um canto de tela repetindo "atualize" vira ruido. */
+  aoMudarAVersao = null;
+  if (avisar) avisar(codigo);
+}
+
 async function pedir(metodo, caminho, corpo) {
   const tentativas = metodo === 'GET' ? ESPERAS_PARA_TENTAR_DE_NOVO.length + 1 : 1;
   let resposta = null;
@@ -36,6 +78,8 @@ async function pedir(metodo, caminho, corpo) {
     erro.codigo = resposta?.status || 0;
     throw erro;
   }
+
+  conferirAVersao(resposta);
 
   if (resposta.status === 204) return null;
 

@@ -353,9 +353,18 @@ export function vazio(titulo, texto, acao, nomeIcone) {
  * Confirmacao continua passando sozinha: "Salvo" lido ou nao lido da no mesmo,
  * e um canto cheio de avisos verdes para fechar e so trabalho.
  */
-export function aviso(texto, tipo = '') {
+/*
+ * `acao` e um botao dentro do aviso: { rotulo, aoClicar }.
+ *
+ * Aviso com botao NAO evapora, pelo mesmo motivo do erro: ele existe para ser
+ * usado, e um botao que some em tres segundos e pior do que botao nenhum —
+ * quem estava olhando para a conversa ve um canto piscar e nao alcanca.
+ * Entrou em 19/11/2026 para o "o sistema foi atualizado, recarregue".
+ */
+export function aviso(texto, tipo = '', { acao = null } = {}) {
   const caixa = document.getElementById('avisos');
   const ehErro = tipo === 'erro';
+  const fica = ehErro || Boolean(acao);
   const no = el('div', { class: `aviso ${tipo}`.trim(), role: ehErro ? 'alert' : null });
   no.append(el('span', { class: 'aviso-texto', texto }));
 
@@ -364,7 +373,21 @@ export function aviso(texto, tipo = '') {
     setTimeout(() => no.remove(), 260);
   };
 
-  if (ehErro) {
+  if (acao) {
+    no.append(
+      el('button', {
+        class: 'aviso-acao',
+        type: 'button',
+        texto: acao.rotulo,
+        aoClick: () => {
+          sair();
+          acao.aoClicar();
+        },
+      }),
+    );
+  }
+
+  if (fica) {
     no.append(
       el('button', {
         class: 'aviso-fechar',

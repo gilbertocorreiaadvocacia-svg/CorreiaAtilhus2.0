@@ -7402,6 +7402,34 @@ a.metrica:focus-visible {
   overflow-wrap: anywhere;
 }
 
+/*
+ * O botao dentro do aviso ("Recarregar"). Ele e a acao, entao se le como
+ * acao: contorno de ouro, e nao mais um texto apagado no canto.
+ */
+.aviso-acao {
+  flex: none;
+  background: none;
+  border: 1px solid var(--ouro);
+  border-radius: var(--raio-p);
+  padding: 2px 10px;
+  color: var(--ouro);
+  font-size: var(--t-p);
+  font-weight: 600;
+  line-height: 1.6;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.aviso-acao:hover {
+  background: var(--ouro);
+  color: var(--fundo);
+}
+
+.aviso-acao:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: 2px;
+}
+
 .aviso-fechar {
   flex: none;
   background: none;

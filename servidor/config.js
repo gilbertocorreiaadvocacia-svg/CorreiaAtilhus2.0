@@ -320,3 +320,23 @@ export const TIPOS_STATUS = [
   { id: 'desistencia', nome: 'Desistencia', cor: 'var(--serie-8)', referencia: null },
   { id: 'nenhum', nome: 'Sem classificacao', cor: 'var(--texto-fraco)', referencia: null },
 ];
+
+/**
+ * O codigo desta entrega.
+ *
+ * Muda a cada entrega que mexe no atendimento, e aparece em /api/saude para
+ * dar para conferir de fora o que esta no ar.
+ *
+ * ELE MORA AQUI, e nao mais dentro do index.js, desde 19/11/2026: alem da
+ * saude, agora toda resposta do servidor carrega este valor no cabecalho
+ * `X-Codigo`, e e assim que a TELA ABERTA descobre que subiu versao nova (ver
+ * nucleo/http.js e web/js/api.js).
+ *
+ * Por que isso passou a ser necessario: o escritorio deixa o sistema aberto o
+ * dia inteiro. Numa implantacao o servidor reinicia, a tela reconecta e
+ * atualiza os DADOS — mas continua rodando o JavaScript que baixou de manha.
+ * O index.html nao e pedido de novo enquanto a aba nao recarrega, entao
+ * funcionalidade nova simplesmente nao aparecia, e quem estava do lado de ca
+ * jurava que a implantacao nao tinha ido. Aconteceu duas vezes em dois dias.
+ */
+export const CODIGO = '2026-11-19.2';
