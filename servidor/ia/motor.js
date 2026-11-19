@@ -282,17 +282,47 @@ export function montarSistema({ agente, contato, workspace }) {
     'DOCUMENTOS JÁ RECEBIDOS NESTA CONVERSA (nunca peça de novo um que já está aqui; só as últimas imagens aparecem com o conteúdo legível mais abaixo — as mais antigas você vê só pelo nome e pela data, mas elas EXISTEM e foram recebidas; o PDF aparece na conversa com o que está escrito nele):',
     documentos.length ? documentos.join('\n') : '- nenhum documento recebido ainda',
     /*
-     * Quem recebe a conversa se apresenta quando o cliente foi avisado da
+     * Quem recebe a conversa RESPONDE quando o cliente foi avisado da
      * passagem. Pedido do escritorio em 24/10/2026: "quando a gente disser
      * que vai encaminhar para outro agente, o outro manda mensagem em
-     * seguida, se apresentando e pedindo para contar os detalhes". So na
-     * primeira fala depois da passagem; dali em diante, nunca mais.
+     * seguida". So na primeira fala depois da passagem; dali em diante,
+     * nunca mais.
      *
      * Passagem calada continua calada: as equipes foram desenhadas para
      * parecer um atendimento so (a Triagem Trabalhista passando para o
      * Direito Suprimido, a Juliana para a Mariana), e quem recebe se
      * apresentar ali soaria como troca de atendente no meio do caso — e os
      * agentes do Trabalhista nem tem nome de gente, so o da etapa.
+     *
+     * RESPONDER NAO E SE APRESENTAR, e ate 19/11/2026 esta instrucao
+     * confundia as duas coisas. Ela mandava "apresente-se em uma frase (...)
+     * se o seu nome for o de uma etapa, como da equipe do escritorio que vai
+     * cuidar do caso dele" — e o modelo obedecia ao pe da letra. O cliente
+     * recebia, com um minuto de diferenca:
+     *
+     *   Eduarda:  "Olá! Sou a Eduarda, da equipe do escritório Correia
+     *              Advogados Associados. Isso quem cuida é a nossa equipe
+     *              trabalhista, já vou te encaminhar."
+     *   Trabalhista: "Oi! Aqui é da equipe do escritório que vai cuidar do
+     *              seu caso. Me conta com detalhes o que aconteceu?"
+     *
+     * Duas saudacoes e duas vezes "aqui e do escritorio". Relato do
+     * escritorio em 19/11/2026, com o print: "ele esta mandando 2 vezes
+     * seguidas esses boas vindas".
+     *
+     * E o MESMO defeito que a recepcao ja tinha tido um passo antes, e cuja
+     * regra ja esta escrita no roteiro da triagem: "duas boas-vindas seguidas
+     * fazem o escritorio parecer um robo travado" (nucleo/recepcao-nao-repete.js).
+     * Faltava valer tambem entre um agente e o seguinte.
+     *
+     * Agora: quem recebe nao cumprimenta e nao repete de onde e. Nome de
+     * gente ainda pode se nomear em meia frase, porque ai ha informacao nova
+     * ("aqui e a Mariana"); nome de etapa nao diz nada sobre si, porque nao
+     * ha o que dizer que o cliente ja nao tenha acabado de ler.
+     *
+     * Isto mora AQUI, e nao nos roteiros, de proposito: vale para os agentes
+     * que ja estao no ar sem depender de migracao casar com o texto de cada
+     * um (ver ia/nome-do-cliente.js, mesma decisao).
      */
     ...(passagem
       ? [
@@ -300,7 +330,7 @@ export function montarSistema({ agente, contato, workspace }) {
           `PASSAGEM DO AGENTE ANTERIOR (${passagem.deNome}):`,
           passagem.resumo,
           clienteEsperaQuemAssume
-            ? 'VOCÊ ACABOU DE RECEBER ESTA CONVERSA, e o cliente foi avisado de que ela ia ser passada: ele está esperando quem assume. Na sua primeira mensagem, agora: apresente-se em uma frase (pelo seu nome, se for nome de gente; se o seu nome for o de uma etapa, como da equipe do escritório que vai cuidar do caso dele) e peça ao cliente para contar os detalhes do caso. Se ele já contou no histórico, não peça de novo: diga que já está a par do que ele contou e siga com a próxima pergunta do seu roteiro.'
+            ? 'VOCÊ ACABOU DE RECEBER ESTA CONVERSA, e o cliente já foi avisado disso na mensagem logo acima: ele sabe que isto é do escritório e está esperando a continuação. NÃO cumprimente de novo (nada de "oi", "olá", "bom dia") e NÃO diga outra vez que aqui é do escritório ou da equipe — ele acabou de ler exatamente isso, e duas aberturas seguidas fazem o escritório parecer um robô travado. Se o seu nome for de gente, pode dizer só o seu nome, em meia frase (ex.: Aqui é a Mariana.); se o seu nome for o de uma etapa, não diga nada sobre você. Emende direto na primeira pergunta do seu roteiro. Se ele já contou o caso no histórico, não peça de novo: diga que já está a par do que ele contou e siga com a próxima pergunta.'
             : acabouDeReceber
               ? 'Continue de onde ele parou: não se apresente como se a conversa começasse agora e não repita pergunta já respondida.'
               : 'Continue de onde parou: não se apresente de novo e não repita pergunta já respondida.',

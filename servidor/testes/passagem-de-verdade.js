@@ -102,15 +102,56 @@ export async function testarPassagemDeVerdade({ base, anthropic, raiz }) {
     bateu.chamadas[1]?.ultimaMensagem,
   );
   s.ok('a conversa fica com a especialista', (await conversa(contatoId))?.responsavel?.id === especialista.id, JSON.stringify((await conversa(contatoId))?.responsavel));
+  /*
+   * Quem recebe RESPONDE, e nao se apresenta de novo.
+   *
+   * Ate 19/11/2026 esta assercao exigia o contrario: que a instrucao mandasse
+   * "apresente-se". O resultado, na conversa de verdade, eram duas aberturas
+   * seguidas com um minuto de diferenca — a Eduarda dizendo "Olá! Sou a
+   * Eduarda, da equipe do escritório... já vou te encaminhar" e a Triagem
+   * Trabalhista emendando "Oi! Aqui é da equipe do escritório que vai cuidar
+   * do seu caso". Relato do escritorio, com o print: "ele esta mandando 2
+   * vezes seguidas esses boas vindas".
+   *
+   * O teste passava e o cliente recebia duas boas-vindas, porque o que ele
+   * travava era a LETRA da instrucao, e nao o que ela causa. Agora trava a
+   * regra que importa.
+   */
+  const instrucaoDeQuemRecebe = bateu.chamadas[2]?.sistemaCompleto || '';
   s.ok(
-    'quem recebe e mandado se apresentar e pedir os detalhes',
-    /VOCÊ ACABOU DE RECEBER ESTA CONVERSA[^\n]*apresente-se[^\n]*detalhes/.test(bateu.chamadas[2]?.sistemaCompleto || ''),
+    'quem recebe e avisado de que a conversa acabou de chegar',
+    /VOCÊ ACABOU DE RECEBER ESTA CONVERSA/.test(instrucaoDeQuemRecebe),
+    instrucaoDeQuemRecebe.slice(0, 120),
+  );
+  s.ok(
+    'e e proibido de cumprimentar de novo',
+    /NÃO cumprimente de novo/.test(instrucaoDeQuemRecebe) && /"oi", "olá", "bom dia"/.test(instrucaoDeQuemRecebe),
+    'a instrucao nao proibe a saudacao repetida',
+  );
+  s.ok(
+    'e de repetir de onde ele e, que e a segunda metade do "ola" duplicado',
+    /NÃO diga outra vez que aqui é do escritório/.test(instrucaoDeQuemRecebe),
+    'a instrucao nao proibe repetir o escritorio',
+  );
+  s.ok(
+    'nome de etapa nao diz nada sobre si; nome de gente pode dizer so o nome',
+    /se o seu nome for o de uma etapa, não diga nada sobre você/.test(instrucaoDeQuemRecebe) &&
+      /Se o seu nome for de gente/.test(instrucaoDeQuemRecebe),
+    'a instrucao nao distingue nome de gente de nome de etapa',
+  );
+  s.ok(
+    'e mesmo assim ele emenda na pergunta, para o cliente nao ficar no vacuo',
+    /Emende direto na primeira pergunta do seu roteiro/.test(instrucaoDeQuemRecebe),
+    'a instrucao nao manda seguir para a pergunta',
   );
   const falas = await falasDe(contatoId);
   const texto = falas.map((m) => `${m.autor?.nome}: ${m.conteudo}`).join(' | ');
   s.ok('a promessa solta nao sai para o cliente', !falas.some((m) => m.conteudo === PROMESSA), texto);
   s.ok('sai o aviso de transicao da recepcao', falas.some((m) => m.autor?.id === recepcao.id && m.conteudo === TRANSICAO), texto);
-  s.ok('e logo depois a especialista se apresenta', falas.some((m) => m.autor?.id === especialista.id && m.conteudo === APRESENTACAO), texto);
+  /* O texto aqui e o roteirizado no modelo de mentira: o que esta linha prova
+     e que quem recebe FALA logo em seguida, e nao o que ele escolhe dizer. O
+     que ele pode ou nao dizer esta travado nas assercoes da instrucao, acima. */
+  s.ok('e logo depois quem recebe responde ao cliente', falas.some((m) => m.autor?.id === especialista.id && m.conteudo === APRESENTACAO), texto);
 
   /* ---------------- Na fala seguinte, nao se apresenta de novo ---------------- */
 
@@ -185,7 +226,7 @@ export async function testarPassagemDeVerdade({ base, anthropic, raiz }) {
     JSON.stringify(daDemitida.chamadas[0]?.destinos),
   );
   s.ok('e a passagem para ela nao e recusada', (await conversa(demitida))?.responsavel?.id === semArea.id, JSON.stringify((await conversa(demitida))?.responsavel));
-  s.ok('avisado o cliente, a equipe que recebe se apresenta', /VOCÊ ACABOU DE RECEBER ESTA CONVERSA/.test(daDemitida.chamadas[1]?.sistemaCompleto || ''));
+  s.ok('avisado o cliente, a equipe que recebe responde em seguida', /VOCÊ ACABOU DE RECEBER ESTA CONVERSA/.test(daDemitida.chamadas[1]?.sistemaCompleto || ''));
 
   /* ---------------- Ficou parada numa promessa: o boot retoma ---------------- */
 

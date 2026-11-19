@@ -339,4 +339,4 @@ export const TIPOS_STATUS = [
  * funcionalidade nova simplesmente nao aparecia, e quem estava do lado de ca
  * jurava que a implantacao nao tinha ido. Aconteceu duas vezes em dois dias.
  */
-export const CODIGO = '2026-11-19.2';
+export const CODIGO = '2026-11-19.3';
