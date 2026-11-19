@@ -280,6 +280,34 @@ const avisarEquipe = (contato, titulo, texto) => {
   }
 };
 
+/**
+ * O contrato nao saiu porque ainda falta dado do cliente.
+ *
+ * Existe para a pergunta que a saude nao sabia responder, e que o escritorio
+ * fez tres vezes: "os agentes nao estao enviando o link do contrato". Ha dois
+ * jeitos de nenhum link sair, e de fora eles sao identicos:
+ *
+ *  - nao ha MODELO para aquele tipo de caso (marcado em contratoSemModeloAvisadoEm);
+ *  - ha modelo, mas falta DADO. Com envio direto ligado — e esta ligado —
+ *    qualquer campo em branco do modelo (RG, orgao expedidor, endereco,
+ *    e-mail...) segura o contrato antes de ele existir. O agente fica
+ *    coletando, o cliente vai respondendo, e contrato nenhum e criado.
+ *
+ * Os dois terminam em zero contrato no banco. Sem separar, a equipe procura
+ * no lugar errado — foi o que aconteceu por dias.
+ *
+ * Grava UMA vez por conjunto de campos: o agente chama a ferramenta a cada
+ * resposta, e isso nao vale uma escrita por tentativa. Mudou o que falta, a
+ * marca se atualiza; o contrato saindo, ela e apagada (ver mais abaixo).
+ */
+function marcarContratoParado(contato, campos) {
+  const lista = [...campos].sort().join(',');
+  if (contato.contratoParado?.campos === lista) return;
+  const marca = { campos: lista, em: agora() };
+  atualizar('contatos', contato.id, { contratoParado: marca });
+  contato.contratoParado = marca;
+}
+
 const avisadoSemModeloNoDia = new Map();
 
 /** O que fazer quando nenhum modelo de contrato foi escolhido para esta conversa. */
@@ -411,6 +439,7 @@ export async function pedirContrato({ contato, agente = null, conexao = null, da
 
   const { valores, faltando, emBranco, paraColetar } = montarValores(cfg, modelo, contato);
   if (direto && paraColetar.length) {
+    marcarContratoParado(contato, paraColetar);
     return {
       ok: false,
       faltando: paraColetar,
@@ -418,7 +447,16 @@ export async function pedirContrato({ contato, agente = null, conexao = null, da
     };
   }
   if (faltando.length) {
+    marcarContratoParado(contato, faltando);
     return { ok: false, faltando, erro: `Antes do contrato, colete com o cliente: ${faltando.join(', ')}.` };
+  }
+
+  /* Chegou aqui: os dados estao completos e o contrato vai existir. A marca de
+     "parado esperando dado" deixa de valer, senao a conta de fora guardaria
+     para sempre conversas que ja se resolveram. */
+  if (contato.contratoParado) {
+    atualizar('contatos', contato.id, { contratoParado: null });
+    contato.contratoParado = null;
   }
 
   const contrato = inserir('contratos', {

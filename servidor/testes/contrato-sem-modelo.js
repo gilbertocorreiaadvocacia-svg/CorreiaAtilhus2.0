@@ -100,6 +100,19 @@ configurar({
   modeloPadraoId: null,
   modelosPorCaso: { bpc: { contratoId: 'mdl-bpc' }, trabalhista: { contratoId: null, procuracaoId: 'mdl' } },
 });
+/*
+ * O OUTRO jeito de nenhum link sair: ha modelo, mas falta dado do cliente.
+ * Com envio direto, um campo em branco do modelo segura o contrato antes de
+ * ele existir -- e de fora isso e identico a "sem modelo": zero contrato.
+ */
+configurar({ modeloPadraoId: 'mdl', envioDireto: true });
+contato('c6', { variaveis: { nome_completo: 'Cliente Sem RG', cpf: '12345678909' } });
+const paradoAntes = await pedirContrato({ contato: achar('contatos', 'c6'), agente, dados: {} });
+const marcaDoParado = achar('contatos', 'c6').contratoParado;
+/* Chamar de novo com o mesmo que falta nao escreve outra vez. */
+await pedirContrato({ contato: achar('contatos', 'c6'), agente, dados: {} });
+const marcaDepoisDaSegunda = achar('contatos', 'c6').contratoParado;
+
 const saude = prontoParaContratoEVoz('w1', listar('contatos', { workspaceId: 'w1' }));
 /* Sem a lista, a contagem tem de dizer "nao medido", e nunca zero. */
 const saudeSemLista = prontoParaContratoEVoz('w1').pedidoRecusadoSemModelo;
@@ -110,6 +123,10 @@ const saudeContrato = {
   modeloDeContrato: saude.zapsign.modeloDeContrato,
   recusadas: saude.pedidoRecusadoSemModelo,
   semLista: saudeSemLista,
+  parados: saude.contratoParadoEsperandoDado,
+  paradoAntes,
+  marcaDoParado,
+  mesmaMarcaNaSegunda: marcaDepoisDaSegunda?.em === marcaDoParado?.em,
 };
 
 console.log(JSON.stringify({
@@ -228,6 +245,42 @@ process.exit(0);
       'sem a lista de conversas, a contagem diz "nao medido" em vez de zero',
       b.saudeContrato.semLista === null,
       JSON.stringify(b.saudeContrato.semLista),
+    );
+
+    /* ---------------- O contrato parado esperando dado do cliente --------- */
+    s.ok(
+      'com envio direto e campo em branco, o contrato nao e criado e o agente recebe o que coletar',
+      b.saudeContrato.paradoAntes?.ok === false && (b.saudeContrato.paradoAntes?.faltando || []).length > 0,
+      JSON.stringify(b.saudeContrato.paradoAntes),
+    );
+    s.ok(
+      'e a conversa fica marcada como parada esperando dado',
+      Boolean(b.saudeContrato.marcaDoParado?.campos) && Boolean(b.saudeContrato.marcaDoParado?.em),
+      JSON.stringify(b.saudeContrato.marcaDoParado),
+    );
+    /*
+     * O agente chama a ferramenta a cada resposta. Uma escrita por tentativa
+     * encheria o banco de alteracoes identicas numa conversa so.
+     */
+    s.ok(
+      'chamar de novo com o mesmo que falta nao grava outra vez',
+      b.saudeContrato.mesmaMarcaNaSegunda === true,
+      JSON.stringify(b.saudeContrato.mesmaMarcaNaSegunda),
+    );
+    /*
+     * E a saude separa as DUAS causas do mesmo sintoma. Sem isto, "zero
+     * contratos" nao diz se falta modelo ou falta dado -- e a equipe procura
+     * no lugar errado, que foi o que aconteceu por dias.
+     */
+    s.ok(
+      'a saude conta as conversas paradas por falta de dado, separado das sem modelo',
+      b.saudeContrato.parados?.conversas >= 1 && b.saudeContrato.recusadas?.conversas >= 2,
+      JSON.stringify({ parados: b.saudeContrato.parados, recusadas: b.saudeContrato.recusadas }),
+    );
+    s.ok(
+      'e diz QUAIS campos seguram, que e o que diz onde mexer',
+      (b.saudeContrato.parados?.camposQueMaisFaltam || []).length > 0,
+      JSON.stringify(b.saudeContrato.parados?.camposQueMaisFaltam),
     );
   } finally {
     fs.rmSync(pasta, { recursive: true, force: true });

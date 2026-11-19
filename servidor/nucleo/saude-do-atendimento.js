@@ -259,6 +259,7 @@ export function prontoParaContratoEVoz(workspaceId, contatos = null) {
         .map((c) => c.contratoSemModeloAvisadoEm)
         .sort()
     : null;
+  const parados = Array.isArray(contatos) ? contatos.map((c) => c.contratoParado).filter(Boolean) : null;
 
   return {
     zapsign: {
@@ -277,6 +278,31 @@ export function prontoParaContratoEVoz(workspaceId, contatos = null) {
     vozDaOpenai: vozDisponivel(workspaceId),
     agentesQueGeramContrato: listar('agentes', { workspaceId }).filter((a) => a.ativo && /@gerarcontrato/i.test(a.prompt || '')).length,
     pedidoRecusadoSemModelo: recusadas ? { conversas: recusadas.length, ultimoEm: recusadas.at(-1) || null } : null,
+    /*
+     * O outro jeito de nenhum link sair: ha modelo, mas o contrato fica
+     * esperando dado do cliente. Com envio direto ligado, um campo em branco
+     * do modelo (RG, orgao expedidor, endereco...) segura o contrato antes de
+     * ele existir, e de fora isso e identico a "sem modelo": zero contrato.
+     *
+     * `camposQueMaisFaltam` e o que diz onde mexer — se a maioria para no
+     * mesmo campo, ou o roteiro nao pede aquele dado, ou ele nao devia estar
+     * no modelo. Sao NOMES de campo, nunca o que o cliente respondeu.
+     */
+    contratoParadoEsperandoDado: parados
+      ? {
+          conversas: parados.length,
+          ultimoEm: parados.map((p) => p.em).sort().at(-1) || null,
+          camposQueMaisFaltam: Object.entries(
+            parados.reduce((conta, p) => {
+              for (const campo of String(p.campos || '').split(',').filter(Boolean)) conta[campo] = (conta[campo] || 0) + 1;
+              return conta;
+            }, {}),
+          )
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 6)
+            .map(([campo, vezes]) => `${campo} (${vezes})`),
+        }
+      : null,
     contratos,
   };
 }
