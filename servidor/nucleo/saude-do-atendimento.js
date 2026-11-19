@@ -195,25 +195,88 @@ export function saudeDoAtendimento(workspaceId, agora = Date.now()) {
  * dependem de configuracao em Integracoes que daqui de fora nao se via. So
  * sim/nao e contagens: chave nenhuma sai daqui.
  */
-export function prontoParaContratoEVoz(workspaceId) {
+export function prontoParaContratoEVoz(workspaceId, contatos = null) {
   const integracoes = listar('integracoes', { workspaceId })[0] || {};
   const zs = integracoes.zapsign || {};
   const contratoId = zs.modeloPadraoId || null;
   const modeloDoContrato = (zs.modelos || []).find((m) => m.id === contratoId);
   const contratos = {};
   for (const c of listar('contratos', { workspaceId })) contratos[c.situacao || 'sem situacao'] = (contratos[c.situacao || 'sem situacao'] || 0) + 1;
+
+  /*
+   * QUAIS tipos de caso conseguem gerar contrato, e nao quantas chaves existem
+   * no objeto.
+   *
+   * Ate 19/11/2026 esta linha era `Object.keys(zs.modelosPorCaso).length`, e
+   * ela MENTIA. Em sugerirModelos (integracoes/zapsign.js) a entrada do caso
+   * nasce quando o contrato OU a procuracao casa com o nome do modelo — entao
+   * um tipo de caso em que so a procuracao casou fica gravado com
+   * `contratoId: null` e era contado como coberto.
+   *
+   * O escritorio relatou em 19/11/2026, pela terceira vez, que "os agentes nao
+   * estao enviando o link do contrato". Daqui de fora a saude dizia
+   * "modelosPorCaso: 5", que se le como cinco casos resolvidos, enquanto
+   * modeloDeContrato era false e existia UM contrato no banco inteiro. Numero
+   * que tranquiliza sobre um sistema parado e pior do que numero nenhum: ele
+   * faz procurar no lugar errado.
+   *
+   * Agora saem os NOMES, dos dois lados. O diagnostico em Configuracoes ja
+   * contava certo desde 14/11 (nucleo/diagnostico.js), mas ele exige entrar no
+   * sistema; a saude e aberta, e e por ela que da para conferir de fora o que
+   * esta acontecendo sem pedir a senha de ninguem.
+   */
+  const casosDoEscritorio = listar('etiquetas', { workspaceId }).filter((e) => e.tipo === 'caso');
+  const temContrato = (caso) => Boolean(zs.modelosPorCaso?.[caso]?.contratoId);
+  const casosComContrato = casosDoEscritorio.filter((e) => temContrato(e.caso)).map((e) => e.nome);
+  const casosSemContrato = casosDoEscritorio.filter((e) => !temContrato(e.caso)).map((e) => e.nome);
+
+  /*
+   * O agente PEDIU contrato e foi recusado por falta de modelo?
+   *
+   * E a pergunta que separa as duas causas possiveis do mesmo sintoma: ou os
+   * agentes pedem e o sistema recusa (configuracao), ou eles nunca chegam na
+   * etapa do contrato (roteiro). Sem isto, as duas se parecem exatamente
+   * igual de fora: nenhum link chegando ao cliente.
+   *
+   * O dado ja era gravado — semModeloDeContrato (integracoes/zapsign.js) marca
+   * `contratoSemModeloAvisadoEm` na conversa para nao avisar a equipe duas
+   * vezes. So ninguem somava.
+   *
+   * A LISTA VEM DE FORA de proposito. A primeira versao desta contagem fazia
+   * o seu proprio `listar('contatos')`, e isso reprovou dois testes de tempo
+   * na hora: e uma varredura sincrona da colecao inteira, por escritorio, a
+   * cada passada do relogio — trabalho que segura o laco de eventos enquanto
+   * roda. Quem chama ja tem a lista na mao (automacao/reatribuir-pendentes.js
+   * monta `contatos` logo acima), entao a conta sai de graca.
+   *
+   * E quem nao passa a lista recebe `null`, nunca zero: zero se le como
+   * "nenhuma conversa foi recusada", e seria a mesma mentira que esta funcao
+   * acabou de parar de contar. Null se le como "nao medido".
+   */
+  const recusadas = Array.isArray(contatos)
+    ? contatos
+        .filter((c) => c.contratoSemModeloAvisadoEm)
+        .map((c) => c.contratoSemModeloAvisadoEm)
+        .sort()
+    : null;
+
   return {
     zapsign: {
       chave: Boolean(zs.chave),
       modelosSincronizados: (zs.modelos || []).length,
       modeloDeContrato: Boolean(contratoId),
       procuracao: Boolean(zs.procuracaoPadraoId) || (modeloDoContrato?.extras || []).length > 0,
-      modelosPorCaso: Object.keys(zs.modelosPorCaso || {}).length,
+      /* So os casos que tem MODELO DE CONTRATO de verdade. */
+      modelosPorCaso: casosComContrato.length,
+      casosComContrato,
+      /* Estes nao geram contrato nenhum enquanto nao houver modelo padrao. */
+      casosSemContrato,
       envioDireto: zs.envioDireto !== false,
       videoDeComoAssinar: Boolean(zs.videoTutorial?.url),
     },
     vozDaOpenai: vozDisponivel(workspaceId),
     agentesQueGeramContrato: listar('agentes', { workspaceId }).filter((a) => a.ativo && /@gerarcontrato/i.test(a.prompt || '')).length,
+    pedidoRecusadoSemModelo: recusadas ? { conversas: recusadas.length, ultimoEm: recusadas.at(-1) || null } : null,
     contratos,
   };
 }

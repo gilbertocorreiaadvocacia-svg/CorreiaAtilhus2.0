@@ -33,6 +33,7 @@ export async function testarContratoSemModelo({ base, raiz }) {
     script,
     `import { iniciarBanco, achar, atualizar, inserir, listar, mensagensDe, encerrarBanco } from ${url('servidor/nucleo/banco.js')};
 import { pedirContrato, sugerirModelos } from ${url('servidor/integracoes/zapsign.js')};
+import { prontoParaContratoEVoz } from ${url('servidor/nucleo/saude-do-atendimento.js')};
 iniciarBanco();
 inserir('workspaces', { id: 'w1', nome: 'Correia Advogados' });
 inserir('usuarios', { id: 'u1', nome: 'Administrador' });
@@ -87,8 +88,32 @@ const sugSoCasos = sugerirModelos(soCasos);
 const soAcidente = sugerirModelos(nomes('Contrato Auxilio-Acidente', 'Contrato Geral'));
 const acentos = sugerirModelos(nomes('CONTRATO - AUXÍLIO DOENÇA', 'Contrato Geral'));
 
+/*
+ * O caso que a saude contava como coberto sem estar: o tipo de caso tem
+ * PROCURACAO escolhida e contrato nenhum. sugerirModelos grava a entrada assim
+ * mesmo (o contrato OU a procuracao bastam para criar a chave), e ate
+ * 19/11/2026 a saude contava chaves.
+ */
+inserir('etiquetas', { id: 'etq-trab', workspaceId: 'w1', nome: 'Trabalhista', tipo: 'caso', caso: 'trabalhista' });
+configurar({
+  chave: 'zs-de-mentira',
+  modeloPadraoId: null,
+  modelosPorCaso: { bpc: { contratoId: 'mdl-bpc' }, trabalhista: { contratoId: null, procuracaoId: 'mdl' } },
+});
+const saude = prontoParaContratoEVoz('w1', listar('contatos', { workspaceId: 'w1' }));
+/* Sem a lista, a contagem tem de dizer "nao medido", e nunca zero. */
+const saudeSemLista = prontoParaContratoEVoz('w1').pedidoRecusadoSemModelo;
+const saudeContrato = {
+  modelosPorCaso: saude.zapsign.modelosPorCaso,
+  comContrato: saude.zapsign.casosComContrato,
+  semContrato: saude.zapsign.casosSemContrato,
+  modeloDeContrato: saude.zapsign.modeloDeContrato,
+  recusadas: saude.pedidoRecusadoSemModelo,
+  semLista: saudeSemLista,
+};
+
 console.log(JSON.stringify({
-  r1, r1denovo, r2, avisosDepoisDaPrimeira, avisosDepoisDaSegunda, avisosDoOutro, semModelo, comPadrao, porCaso, casoSemModelo, semChave,
+  r1, r1denovo, r2, saudeContrato, avisosDepoisDaPrimeira, avisosDepoisDaSegunda, avisosDoOutro, semModelo, comPadrao, porCaso, casoSemModelo, semChave,
   sugCompleto: {
     padrao: nomeDe(completo, sugCompleto.modeloPadraoId),
     procuracaoPadrao: nomeDe(completo, sugCompleto.procuracaoPadraoId),
@@ -152,6 +177,58 @@ process.exit(0);
     s.ok('modelo que cita dois casos no nome nao vai para nenhum, e fica de fora do padrao tambem', !b.sugDoisCasos.casos.includes('bpc') && !b.sugDoisCasos.casos.includes('trabalhista') && b.sugDoisCasos.padrao === 'Contrato Geral' && b.sugDoisCasos.semEscolha.includes('Contrato BPC e Trabalhista'), JSON.stringify(b.sugDoisCasos));
     s.ok('so modelos de caso, sem nenhum geral: nao ha padrao e a sugestao avisa', b.sugSoCasos.padrao === null && b.sugSoCasos.semEscolha.includes('Modelo de contrato (padrao)') && b.sugSoCasos.casos.length === 2, JSON.stringify(b.sugSoCasos));
     s.ok('"Auxilio-Acidente" com hifen e maiusculas/acentos tambem sao entendidos', b.soAcidente.acidente === 'Contrato Auxilio-Acidente' && b.acentos.casos.includes('auxilio'), JSON.stringify([b.soAcidente, b.acentos]));
+
+    /* ---------------- A saude nao pode tranquilizar sobre um sistema parado --- */
+    /*
+     * Relato do escritorio em 19/11/2026, a terceira vez com o mesmo sintoma:
+     * "os agentes nao estao enviando o link do contrato". Daqui de fora a
+     * saude dizia "modelosPorCaso: 5", que se le como cinco tipos de caso
+     * resolvidos, e ao mesmo tempo modeloDeContrato: false e UM contrato no
+     * banco inteiro.
+     *
+     * A conta era Object.keys(modelosPorCaso).length, e a chave do caso nasce
+     * quando o contrato OU A PROCURACAO casa com o nome do modelo. Caso com
+     * procuracao e sem contrato entrava na conta -- e nao gera contrato
+     * nenhum.
+     *
+     * Numero que tranquiliza sobre um sistema parado e pior do que numero
+     * nenhum: faz procurar no lugar errado, e foi o que aconteceu por dias.
+     */
+    s.ok(
+      'caso com procuracao e SEM contrato nao e contado como coberto',
+      b.saudeContrato.modelosPorCaso === 1,
+      JSON.stringify(b.saudeContrato),
+    );
+    s.ok(
+      'a saude diz o NOME de quem gera contrato',
+      JSON.stringify(b.saudeContrato.comContrato) === JSON.stringify(['BPC/LOAS']),
+      JSON.stringify(b.saudeContrato.comContrato),
+    );
+    s.ok(
+      'e o nome de quem NAO gera, que e o que diz onde mexer',
+      JSON.stringify(b.saudeContrato.semContrato) === JSON.stringify(['Trabalhista']),
+      JSON.stringify(b.saudeContrato.semContrato),
+    );
+    /*
+     * A contagem que separa as duas causas do mesmo sintoma: agente pede e e
+     * recusado (configuracao) ou agente nunca chega la (roteiro). De fora as
+     * duas sao identicas -- nenhum link chegando ao cliente.
+     */
+    s.ok(
+      'a saude conta as conversas em que o contrato foi pedido e recusado por falta de modelo',
+      b.saudeContrato.recusadas?.conversas >= 2 && Boolean(b.saudeContrato.recusadas?.ultimoEm),
+      JSON.stringify(b.saudeContrato.recusadas),
+    );
+    /*
+     * E a armadilha do lado oposto: quem chamar sem a lista recebe "nao
+     * medido", e nao zero. Zero se leria como "nenhuma conversa foi recusada"
+     * -- a mesma mentira tranquilizadora que esta suite acabou de travar.
+     */
+    s.ok(
+      'sem a lista de conversas, a contagem diz "nao medido" em vez de zero',
+      b.saudeContrato.semLista === null,
+      JSON.stringify(b.saudeContrato.semLista),
+    );
   } finally {
     fs.rmSync(pasta, { recursive: true, force: true });
   }

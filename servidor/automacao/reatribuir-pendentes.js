@@ -166,7 +166,7 @@ function resumirEscritorios() {
       /* Quem esta esperando resposta, conversa presa e as falhas anotadas (28/10/2026). */
       atendimento: saudeDoAtendimento(workspace.id),
       /* O que falta para o agente mandar audio e o contrato pela ZapSign (29/10/2026). */
-      contratoEVoz: prontoParaContratoEVoz(workspace.id),
+      contratoEVoz: prontoParaContratoEVoz(workspace.id, contatos),
     };
   });
 }
